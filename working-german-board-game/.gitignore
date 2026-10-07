@@ -1,0 +1,30 @@
+# Build output
+.gradle/
+.kotlin/
+build/
+captures/
+*.apk
+*.aab
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Machine-local and secret files: never commit
+local.properties
+google-services.json
+*.jks
+*.keystore
+keystore.properties
+.env
+*.env
+service-account*.json
+
+# Python training
+__pycache__/
+.venv/
+*.onnx.tmp
+
+# Browser automation snapshots (can contain secrets)
+.playwright-mcp/
