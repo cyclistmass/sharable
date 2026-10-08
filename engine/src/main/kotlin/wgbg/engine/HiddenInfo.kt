@@ -39,6 +39,50 @@ class PlayerView(val viewer: Int, s: GameState) {
     val devHand = IntArray(DevCard.COUNT) { s.devHand[viewer * DevCard.COUNT + it] }
     val devNew = IntArray(DevCard.COUNT) { s.devNew[viewer * DevCard.COUNT + it] }
     val victoryPoints = s.victoryPoints(viewer)
+
+    /** Cities & Knights information visible to the viewer, null in base games. */
+    val ck: CkView? = s.ck?.let { CkView(viewer, s, it) }
+}
+
+/** What a player may see of the C&K state: all board pieces and counts, but only their own cards. */
+class CkView(viewer: Int, s: GameState, ck: CkState) {
+    private val n = s.numPlayers
+    val hexNumber = ck.hexNumber.copyOf()
+    val commodityBank = ck.commodityBank.copyOf()
+    val trackLevel = ck.trackLevel.copyOf()
+    val metroOwner = ck.metroOwner.copyOf()
+    val metroVertex = ck.metroVertex.copyOf()
+    val wall = ck.wall.copyOf()
+    val knightOwner = ck.knightOwner.copyOf()
+    val knightLevel = ck.knightLevel.copyOf()
+    val knightFlags = ck.knightFlags.copyOf()
+    val progressVp = ck.progressVp.copyOf()
+    val defenderVp = ck.defenderVp.copyOf()
+    val deckSize = ck.deckSize.copyOf()
+    val barbarianPos = ck.barbarianPos
+    val barbarianAttacks = ck.barbarianAttacks
+    val lastRed = ck.lastRed
+    val lastEvent = ck.lastEvent
+    val merchantHex = ck.merchantHex
+    val merchantOwner = ck.merchantOwner
+    val commodityCount = IntArray(n) { ck.commodityCount(it) }
+    val progressCount = IntArray(n) { ck.progressCount(it) }
+
+    /** The viewer's own commodity cards (paper, cloth, coin). */
+    val commodities = IntArray(Commodity.COUNT) { ck.commodity(viewer, it) }
+    /** The viewer's own progress cards, per [Progress] id. */
+    val progressHand = IntArray(Progress.COUNT) { ck.progressHand[viewer * Progress.COUNT + it] }
+
+    /**
+     * While the viewer resolves a Spy, the target's progress cards; while resolving a
+     * Master Merchant, the target's resources then commodities. Null otherwise.
+     */
+    val peek: IntArray? = when {
+        viewer != s.actingPlayer || ck.pendingTarget < 0 -> null
+        s.phase == Phase.SPY -> IntArray(Progress.COUNT) { ck.progressHand[ck.pendingTarget * Progress.COUNT + it] }
+        s.phase == Phase.MASTER_MERCHANT -> IntArray(CK_CARD_TYPES) { s.card(ck.pendingTarget, it) }
+        else -> null
+    }
 }
 
 object HiddenInfo {
@@ -82,7 +126,38 @@ object HiddenInfo {
             }
         }
         pool.copyInto(d.devDeck)
+        if (d.ck != null) shuffleProgress(d, viewer, rng)
         return d
+    }
+
+    /**
+     * C&K: per colour, opponents' progress cards and the undrawn deck are pooled,
+     * shuffled and dealt back with the same counts (opponents keep their per-colour
+     * hand sizes; the deck keeps its size, in a fresh random order).
+     */
+    private fun shuffleProgress(d: GameState, viewer: Int, rng: Rng) {
+        val ck = d.ck!!
+        val n = d.numPlayers
+        val per = Progress.PER_DECK
+        for (t in 0 until Track.COUNT) {
+            val pool = IntArray(Progress.COUNT)
+            val held = IntArray(n)
+            for (i in 0 until ck.deckSize[t]) pool[ck.deck[t * per + (ck.deckHead[t] + i) % per]]++
+            for (q in 0 until n) {
+                if (q == viewer) continue
+                for (c in 0 until Progress.COUNT) {
+                    if (Progress.track(c) != t) continue
+                    val k = ck.progressHand[q * Progress.COUNT + c]
+                    held[q] += k
+                    pool[c] += k
+                    ck.progressHand[q * Progress.COUNT + c] = 0
+                }
+            }
+            for (q in 0 until n) repeat(held[q]) { ck.progressHand[q * Progress.COUNT + draw(pool, rng)]++ }
+            val size = ck.deckSize[t]
+            ck.deckHead[t] = 0
+            for (i in 0 until size) ck.deck[t * per + i] = draw(pool, rng)
+        }
     }
 
     private fun draw(pool: IntArray, rng: Rng): Int {
