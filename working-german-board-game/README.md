@@ -4,6 +4,11 @@ Open-source Android hex-trading board game, compatible with the rules of the
 classic German settlement-building game, for up to 4 players plus AI.
 Not affiliated with or endorsed by Catan GmbH.
 
+![Four bots playing at 1x speed: framed deep-sea board, dice and turn summary](docs/gameplay-1x.gif)
+
+*Four built-in bots playing at 1x on the Android emulator: round framed sea with waves, clouds and gulls,
+wooden pieces, true-random dice with the turn summary in the corner.*
+
 License: GPL-3.0 (see `LICENSE`).
 
 ## Modules

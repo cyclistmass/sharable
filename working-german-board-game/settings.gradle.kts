@@ -16,4 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "WorkingGermanBoardGame"
 
-include(":engine", ":ai", ":app")
+include(":engine", ":ai", ":app", ":cli")
