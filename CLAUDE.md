@@ -44,6 +44,18 @@ Also:
 - Dice and randomness: statistical fairness tests.
 - Report test counts and results honestly; never call something done with failing or skipped tests.
 
+## Plans, issues and CI
+
+- Plans live as GitHub issues on `cyclistmass/sharable` (labels: v1, post-v1, art, ui, engine,
+  ai, multiplayer, testing, bug, age-of-chivalry). New plans become issues; reference the issue
+  number in commits ("#3") and close issues when done and verified.
+- CI: `.github/workflows/wgbg-ci.yml` in the sharable repo runs all engine/AI/app tests and
+  builds the APK on every push touching the game. Check the run after pushing; a red CI is a
+  stop-and-fix.
+- API access: the fine-grained token in Git Credential Manager (sharable repo only: contents,
+  issues, pull requests, workflows read/write; actions read). Read it via `git credential fill`
+  into an env var for one command; never print or save it.
+
 ## Rules for Claude
 
 - Keep secrets out of git; the user logs in to services themselves.
