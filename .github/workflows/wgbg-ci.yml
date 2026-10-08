@@ -23,10 +23,13 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
-
+      # The runner image ships the Android SDK; add the platform we compile against.
       - name: Android SDK packages
-        run: sdkmanager "platforms;android-37.0" "build-tools;36.1.0" "platform-tools"
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null
+          "$SDKM" "platforms;android-37.0" "build-tools;36.1.0" "platform-tools" > /dev/null
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
 
       - uses: gradle/actions/setup-gradle@v4
 
