@@ -26,6 +26,24 @@ Raiders, Capital, Ramparts). The full table is on the cards canvas, "Names" artb
 
 Use the `emulator` skill (`tools/emulator.ps1 -Launch`). It keeps the emulator landscape and on screen.
 
+## Testing (required: plan it with every feature)
+
+Every feature or change comes with a test plan that fully exercises it, written down before
+the work is called done. Cover all four kinds:
+
+1. **Rules/unit tests:** each rule, card and edge case (empty bank, no pieces left, 2 players, ties).
+2. **Random-play fuzz:** thousands of games of random legal moves, with invariants checked after
+   every move (cards conserved, piece limits, points add up, games finish, no crashes).
+3. **Break-it tests:** throw illegal, garbage and wrong-time actions at the engine (and later the
+   network layer). Every one must be rejected and leave the state unchanged.
+4. **On-device:** install on the emulator (`emulator` skill), drive it, screenshot it; for UI
+   work also run Android's `monkey` random-input tester and report any crash.
+
+Also:
+- Cross-check rules against Catanatron when touching core rules.
+- Dice and randomness: statistical fairness tests.
+- Report test counts and results honestly; never call something done with failing or skipped tests.
+
 ## Rules for Claude
 
 - Keep secrets out of git; the user logs in to services themselves.
