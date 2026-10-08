@@ -85,6 +85,8 @@ import wgbg.engine.ActionBuffer
 import wgbg.engine.ActionKind
 import wgbg.engine.ActionType
 import wgbg.engine.Board
+import wgbg.engine.DiceDeck
+import wgbg.engine.DiceMode
 import wgbg.engine.GameConfig
 import wgbg.engine.GameState
 import wgbg.engine.Piece
@@ -161,6 +163,8 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
     val bots = remember(seed) { List<Bot>(4) { GreedyBot(seed * 31 + it) } }
     val log = remember(seed) { mutableStateListOf<String>() }
     val tracker = remember(seed) { TurnTracker(PLAYER_NAMES) }
+    var diceMode by remember { mutableStateOf(DiceMode.RANDOM) }
+    val dice = remember(diceMode) { DiceDeck.of(diceMode) }
     var tick by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf(true) }
     var speed by remember { mutableIntStateOf(MAX_SPEED) }
@@ -172,7 +176,9 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
         fun step(): ActionKind {
             Rules.legalActions(state, buf)
             val who = state.actingPlayer
-            val action = bots[who].choose(state, buf)
+            var action = bots[who].choose(state, buf)
+            // Real dice: thrown by the OS's secure generator (or dealt from the deck) and recorded in the log.
+            if (action.type == ActionType.ROLL) action = dice.next(withEvent = state.ck != null).toAction()
             tracker.apply(state, who, action) { Rules.apply(state, action) }
             when (action.type) {
                 ActionType.END_TURN, ActionType.REJECT_TRADE -> {}
@@ -265,6 +271,9 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilledTonalButton(onClick = { inventory = !inventory }) { Text(if (inventory) "Back to game" else "Inventory") }
                     FilledTonalButton(onClick = { camera = Camera.FIT }) { Text("Fit") }
+                    FilledTonalButton(onClick = { diceMode = if (diceMode == DiceMode.RANDOM) DiceMode.DECK else DiceMode.RANDOM }) {
+                        Text(if (diceMode == DiceMode.RANDOM) "Dice: random" else "Dice: deck " + ((dice as? DiceDeck)?.remaining ?: ""))
+                    }
                 }
                 PlayerPanel(players)
                 Text("Wins: " + PLAYER_NAMES.indices.joinToString("  ") { "${PLAYER_NAMES[it]} ${wins[it]}" } + "  · draws ${wins[4]}",

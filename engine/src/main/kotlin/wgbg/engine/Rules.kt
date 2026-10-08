@@ -240,6 +240,11 @@ object Rules {
             if (a.type == CkActionType.OFFER_TRADE_CK) return CitiesAndKnights.isValidOffer(s, a)
         }
         if (a.type == ActionType.OFFER_TRADE) return isValidOffer(s, a)
+        if (a.type == ActionType.ROLL && a.payload != 0L) {
+            val ev = ((a.payload ushr 16) and 0xff).toInt() - 1
+            if (a.a !in 1..6 || a.b !in 1..6 || ev !in -1..5) return false
+            return Action.ROLL in legalActions(s, ActionBuffer())
+        }
         return a in legalActions(s, ActionBuffer())
     }
 
@@ -284,7 +289,7 @@ object Rules {
                 s.devNew[p * DevCard.COUNT + card]++
             }
 
-            ActionType.ROLL -> roll(s, p)
+            ActionType.ROLL -> roll(s, p, a)
             ActionType.DISCARD -> discard(s, p, a.discardResource)
             ActionType.MOVE_ROBBER -> {
                 s.robberHex = a.robberHex
@@ -461,9 +466,10 @@ object Rules {
         }
     }
 
-    private fun roll(s: GameState, p: Int) {
-        val d1 = s.rng.nextInt(6) + 1
-        val d2 = s.rng.nextInt(6) + 1
+    private fun roll(s: GameState, p: Int, a: Action) {
+        // Dice thrown outside the engine arrive in the payload; otherwise the seeded RNG rolls.
+        val d1 = if (a.payload != 0L) a.a else s.rng.nextInt(6) + 1
+        val d2 = if (a.payload != 0L) a.b else s.rng.nextInt(6) + 1
         val sum = d1 + d2
         s.lastRoll = sum
         s.hasRolled = true

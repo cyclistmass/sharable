@@ -40,7 +40,9 @@ class TurnTracker(private val names: List<String>) {
         val before = s.hands.copyOf()
         var d1 = 0
         var d2 = 0
-        if (action.type == ActionType.ROLL) {
+        if (action.type == ActionType.ROLL && action.payload != 0L) {
+            d1 = action.a; d2 = action.b // dice thrown outside the engine travel in the action
+        } else if (action.type == ActionType.ROLL) {
             // The roll is the first thing that uses the RNG, so a copy shows the dice it will draw.
             val peek = s.rng.copy()
             d1 = peek.nextInt(6) + 1
