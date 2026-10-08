@@ -44,6 +44,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -175,6 +176,22 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
     var speed by remember { mutableIntStateOf(MAX_SPEED) }
     val wins = remember { mutableStateListOf(0, 0, 0, 0, 0) } // per seat, last slot = draws
     var inventory by remember { mutableStateOf(false) }
+    // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
+    // game starts several times a second, which would otherwise wipe splashes and clouds.
+    val sea = remember { Sea(state.board) }
+    // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
+    // read the current game's sea and board through these.
+    val seaNow by rememberUpdatedState(sea)
+    val boardNow by rememberUpdatedState(state.board)
+    var seaTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(sea) { // the sea keeps moving even when the game is paused
+        var last = 0L
+        while (true) withFrameNanos { now ->
+            if (last != 0L) sea.update(((now - last) / 1e9f).coerceAtMost(0.05f))
+            last = now
+            seaTick++
+        }
+    }
 
     LaunchedEffect(seed, playing, speed) {
         val buf = ActionBuffer()
@@ -252,7 +269,12 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
             Modifier.fillMaxSize()
                 .clipToBounds() // never draw the board under the side panel
                 .pointerInput(Unit) {
+                    fun lattice(p: Offset) = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(p)
+                    var dragged: Sea.Cloud? = null
                     boardGestures(
+                        grab = { p -> seaNow.cloudAt(lattice(p))?.also { dragged = it } != null },
+                        onGrabMove = { p -> dragged?.let { seaNow.move(it, lattice(p)) } },
+                        onGrabEnd = { moved -> dragged?.let { if (!moved) seaNow.poof(it) }; dragged = null },
                         onTransform = { centroid, pan, zoom ->
                             lastTouch = System.nanoTime()
                             camera = camera.transform(centroid, pan, zoom, Size(size.width.toFloat(), size.height.toFloat()))
@@ -261,7 +283,10 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                     )
                 }
                 .pointerInput(Unit) {
-                    detectTapGestures(onDoubleTap = { at ->
+                    detectTapGestures(onTap = { at ->
+                        val p = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(at)
+                        if (!inventory && seaNow.isWater(p)) seaNow.splash(p)
+                    }, onDoubleTap = { at ->
                         lastTouch = System.nanoTime()
                         val sz = Size(size.width.toFloat(), size.height.toFloat())
                         camera = if (camera.zoom > 1.05f || camera.tilt > 0.01f) Camera.FIT
@@ -270,7 +295,8 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                 },
         ) {
             tick // redraw on every move
-            if (inventory) drawInventory(measurer, wood) else drawGame(state, measurer, wood, camera)
+            seaTick // and on every sea frame
+            if (inventory) drawInventory(measurer, wood) else drawGame(state, measurer, wood, camera, sea)
         }
         if (!inventory) {
             val report = tick.let { if (speed == MAX_SPEED) tracker.last else tracker.current ?: tracker.last }
@@ -323,8 +349,26 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
 private suspend fun PointerInputScope.boardGestures(
     onTransform: (centroid: Offset, pan: Offset, zoom: Float) -> Unit,
     onTilt: (dy: Float) -> Unit,
+    grab: (Offset) -> Boolean = { false },
+    onGrabMove: (Offset) -> Unit = {},
+    onGrabEnd: (moved: Boolean) -> Unit = {},
 ) = awaitEachGesture {
-    awaitFirstDown(requireUnconsumed = false)
+    val first = awaitFirstDown(requireUnconsumed = false)
+    // A single finger landing on a cloud drags that cloud (a tap without moving poofs it).
+    if (grab(first.position)) {
+        var moved = false
+        var travel = 0f
+        do {
+            val event = awaitPointerEvent()
+            val c = event.changes.firstOrNull { it.id == first.id } ?: break
+            travel += (c.position - c.previousPosition).getDistance()
+            if (travel > viewConfiguration.touchSlop) moved = true
+            if (moved) onGrabMove(c.position)
+            c.consume()
+        } while (c.pressed)
+        onGrabEnd(moved)
+        return@awaitEachGesture
+    }
     var mode = 0 // 0 undecided, 1 transform, 2 tilt
     var travelY = 0f
     var travelX = 0f
@@ -425,9 +469,16 @@ private class Layout(val board: Board, val center: Offset, val scale: Float, val
     /** Perspective size factor for a lattice row at lattice y [ly] (board spans roughly -4..4). */
     fun kAt(ly: Float) = 1f + persp * (ly * squash) / 4.2f
 
-    private fun project(lx: Float, ly: Float): Offset {
+    fun project(lx: Float, ly: Float): Offset {
         val f = kAt(ly)
         return Offset(center.x + lx * scale * f, center.y + ly * squash * scale * f)
+    }
+
+    /** Screen point back to lattice (inverse of [project]; perspective solved by two refinements). */
+    fun unproject(p: Offset): Offset {
+        var ly = (p.y - center.y) / (squash * scale)
+        repeat(2) { ly = (p.y - center.y) / (squash * scale * kAt(ly)) }
+        return Offset((p.x - center.x) / (scale * kAt(ly)), ly)
     }
 
     fun at(v: Int) = project(xs[v], ys[v])
@@ -477,6 +528,9 @@ private class Layout(val board: Board, val center: Offset, val scale: Float, val
                 minY = minOf(minY, water.y - 0.42f, token.y - 0.3f)
                 maxY = maxOf(maxY, water.y + 0.42f, token.y + 0.37f)
             }
+            // The framed round sea (issue #1) surrounds everything.
+            val r = Sea.SEA_R + Sea.RIM + 0.1f
+            minX = minOf(minX, -r); maxX = maxOf(maxX, r); minY = minOf(minY, -r); maxY = maxOf(maxY, r + 0.18f)
             return androidx.compose.ui.geometry.Rect(minX, minY, maxX, maxY)
         }
     }
@@ -522,7 +576,7 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
     }
 }
 
-private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera) {
+private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null) {
     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
@@ -532,6 +586,8 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     // Tipped toward the viewer, upright things show more of their height.
     val lift = 1f + 1.2f * kotlin.math.sin(l.tilt)
     val stand = 1f + 0.15f * kotlin.math.sin(l.tilt)
+    val toScreen = { x: Float, y: Float -> l.project(x, y) }
+    sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX))
 
     // Painter's order: top rows first so a lower tile's face covers the side wall above it.
     for (h in (0 until board.hexCount).sortedBy { l.rowKey(it) }) {
@@ -579,6 +635,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             if (s.vertexBuilding[v] == Piece.CITY) city(l.at(v), owner, ps) else settlement(l.at(v), owner, ps)
         }
     }
+    sea?.drawSky(this, toScreen, scale * l.kAt(0f))
 }
 
 /** One raised terrain tile (hex side = [scale] px) with its number token. */
@@ -682,8 +739,9 @@ private val WATER = Color(0xFF4FA3D9)
 private fun DrawScope.drawPortWater(pg: PortGeom, scale: Float, squash: Float = 1f) {
     val c = pg.mid + Offset(pg.out.x, pg.out.y * squash) * (0.5f * scale)
     // The water lies flat on the table, so tilting squashes it.
-    drawOval(WATER.copy(alpha = 0.9f), c - Offset(0.6f * scale, 0.42f * scale * squash), Size(1.2f * scale, 0.84f * scale * squash))
-    drawOval(WATER.tint(0.3f).copy(alpha = 0.6f), c - Offset(0.5f * scale, 0.38f * scale * squash), Size(0.8f * scale, 0.45f * scale * squash))
+    // Harbor shallows: a soft lighter patch on the sea rather than a separate pond.
+    drawOval(Brush.radialGradient(listOf(Color(0x664F9FC8), Color(0x003F8FB8)), center = c, radius = 0.6f * scale),
+        c - Offset(0.6f * scale, 0.42f * scale * squash), Size(1.2f * scale, 0.84f * scale * squash))
     // Wave arcs.
     val waves = Path()
     for ((dx, dy) in listOf(-0.4f to 0.12f, 0.36f to -0.14f, 0.34f to 0.2f, -0.3f to -0.22f, 0.0f to 0.3f)) {
