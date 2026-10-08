@@ -15,6 +15,7 @@ interface DiceSource {
     fun next(withEvent: Boolean = false): DiceRoll
 }
 
+/** RANDOM: true-random dice. DECK: pre-rolled stack of 1-4 decks of 36 (see [DiceDeck]). */
 enum class DiceMode { RANDOM, DECK }
 
 /**
@@ -29,32 +30,35 @@ class TrueRandomDice(private val rng: SecureRandom = SecureRandom()) : DiceSourc
 }
 
 /**
- * Pre-rolled dice deck: 36 cards, one for every combination of the two dice, shuffled with
- * the same secure generator. Over a deck every sum comes up exactly as often as the odds say
- * (one 2, two 3s, ... six 7s ... one 12), so no long droughts. The deck is reshuffled when
- * only [reshuffleAt] cards remain, which keeps the last few cards from being predictable.
- * The event die (Age of Chivalry) is not part of the deck; it stays truly random.
+ * Pre-rolled dice deck: [decks] copies of the 36 cards (one per combination of the two dice),
+ * shuffled together with the same secure generator. Over a full stack every sum comes up
+ * exactly as often as the odds say (per deck: one 2, two 3s, ... six 7s ... one 12), so no long
+ * droughts. A deeper stack (72, 108, 144 cards) still evens out but allows streaks within it.
+ * The stack is reshuffled when only [reshuffleAt] cards remain, so the last few cards can't be
+ * counted. The event die (Age of Chivalry) is not part of the deck; it stays truly random.
  */
 class DiceDeck(
+    val decks: Int = 1,
     private val reshuffleAt: Int = 5,
     private val rng: SecureRandom = SecureRandom(),
 ) : DiceSource {
-    private val cards = IntArray(36) { it } // card c = dice (c / 6 + 1, c % 6 + 1)
-    private var next = 36
+    private val size = 36 * decks
+    private val cards = IntArray(size) { it % 36 } // card c = dice (c / 6 + 1, c % 6 + 1)
+    private var next = size
 
     /** Cards left before the next reshuffle (for the UI). */
-    val remaining get() = 36 - next - reshuffleAt
+    val remaining get() = (size - next - reshuffleAt).coerceAtLeast(0)
 
-    init { require(reshuffleAt in 0..30) }
+    init { require(decks in 1..8 && reshuffleAt in 0 until size) }
 
     override fun next(withEvent: Boolean): DiceRoll {
-        if (36 - next <= reshuffleAt) shuffle()
+        if (size - next <= reshuffleAt) shuffle()
         val c = cards[next++]
         return DiceRoll(c / 6 + 1, c % 6 + 1, if (withEvent) rng.nextInt(6) else -1)
     }
 
     private fun shuffle() {
-        for (i in 35 downTo 1) { // Fisher-Yates
+        for (i in size - 1 downTo 1) { // Fisher-Yates
             val j = rng.nextInt(i + 1)
             val t = cards[i]; cards[i] = cards[j]; cards[j] = t
         }
@@ -62,9 +66,9 @@ class DiceDeck(
     }
 
     companion object {
-        fun of(mode: DiceMode): DiceSource = when (mode) {
+        fun of(mode: DiceMode, decks: Int = 1): DiceSource = when (mode) {
             DiceMode.RANDOM -> TrueRandomDice()
-            DiceMode.DECK -> DiceDeck()
+            DiceMode.DECK -> DiceDeck(decks)
         }
     }
 }

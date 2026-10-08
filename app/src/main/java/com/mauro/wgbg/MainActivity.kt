@@ -163,8 +163,9 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
     val bots = remember(seed) { List<Bot>(4) { GreedyBot(seed * 31 + it) } }
     val log = remember(seed) { mutableStateListOf<String>() }
     val tracker = remember(seed) { TurnTracker(PLAYER_NAMES) }
-    var diceMode by remember { mutableStateOf(DiceMode.RANDOM) }
-    val dice = remember(diceMode) { DiceDeck.of(diceMode) }
+    // Dice setting cycles: random, then deck stacks of 1-4 x 36 cards (asked per game once the new-game screen exists).
+    var diceSetting by remember { mutableIntStateOf(0) } // 0 = random, n = n decks
+    val dice = remember(diceSetting) { if (diceSetting == 0) DiceDeck.of(DiceMode.RANDOM) else DiceDeck.of(DiceMode.DECK, diceSetting) }
     var tick by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf(true) }
     var speed by remember { mutableIntStateOf(MAX_SPEED) }
@@ -271,8 +272,8 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilledTonalButton(onClick = { inventory = !inventory }) { Text(if (inventory) "Back to game" else "Inventory") }
                     FilledTonalButton(onClick = { camera = Camera.FIT }) { Text("Fit") }
-                    FilledTonalButton(onClick = { diceMode = if (diceMode == DiceMode.RANDOM) DiceMode.DECK else DiceMode.RANDOM }) {
-                        Text(if (diceMode == DiceMode.RANDOM) "Dice: random" else "Dice: deck " + ((dice as? DiceDeck)?.remaining ?: ""))
+                    FilledTonalButton(onClick = { diceSetting = (diceSetting + 1) % 5 }) {
+                        Text(if (diceSetting == 0) "Dice: random" else "Dice: ${36 * diceSetting} deck · ${(dice as? DiceDeck)?.remaining ?: ""}")
                     }
                 }
                 PlayerPanel(players)

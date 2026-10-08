@@ -50,7 +50,7 @@ class DiceTest {
 
     @Test
     fun `the deck deals every combination once before reshuffling near the end`() {
-        val deck = DiceDeck(reshuffleAt = 5)
+        val deck = DiceDeck(decks = 1, reshuffleAt = 5)
         repeat(200) {
             val seen = HashSet<Pair<Int, Int>>()
             repeat(31) {
@@ -62,10 +62,19 @@ class DiceTest {
 
     @Test
     fun `a full deck has exactly the textbook sum counts`() {
-        val deck = DiceDeck(reshuffleAt = 0)
+        val deck = DiceDeck(decks = 1, reshuffleAt = 0)
         val sums = IntArray(11)
         repeat(36) { sums[deck.next().sum - 2]++ }
         assertEquals(listOf(1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1), sums.toList())
+    }
+
+    @Test
+    fun `a double stack holds each combination exactly twice`() {
+        val deck = DiceDeck(decks = 2, reshuffleAt = 0)
+        val counts = HashMap<Pair<Int, Int>, Int>()
+        repeat(72) { deck.next().let { counts.merge(it.d1 to it.d2, 1, Int::plus) } }
+        assertEquals(36, counts.size)
+        assertTrue(counts.values.all { it == 2 })
     }
 
     @Test
