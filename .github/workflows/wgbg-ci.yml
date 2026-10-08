@@ -1,0 +1,50 @@
+name: working-german-board-game CI
+
+on:
+  push:
+    paths: ["working-german-board-game/**", ".github/workflows/wgbg-ci.yml"]
+  pull_request:
+    paths: ["working-german-board-game/**", ".github/workflows/wgbg-ci.yml"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: working-german-board-game
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Android SDK packages
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.1.0" "platform-tools"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Engine, AI and app tests (rules, fuzz, break-it, dice fairness, trading, camera)
+        run: bash ./gradlew --no-daemon :engine:test :ai:test :app:testDebugUnitTest
+
+      - name: Build debug APK
+        run: bash ./gradlew --no-daemon :app:assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: working-german-board-game-debug-apk
+          path: working-german-board-game/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: working-german-board-game/**/build/reports/tests/
