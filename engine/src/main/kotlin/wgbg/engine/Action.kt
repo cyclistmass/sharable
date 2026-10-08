@@ -123,7 +123,15 @@ value class Action(val code: Long) {
     fun ckOfferGive(card: Int) = ((code ushr (3 * card)) and 0x7).toInt()
     fun ckOfferWant(card: Int) = ((code ushr (24 + 3 * card)) and 0x7).toInt()
 
-    override fun toString(): String {
+    /**
+     * Safe for any 64-bit code, including garbage from a broken or hostile client: unknown types
+     * and out-of-range payloads describe themselves instead of throwing (error messages build on this).
+     */
+    override fun toString(): String =
+        if (!isKnownType(typeId)) "Action(unknown type $typeId, payload 0x${payload.toString(16)})"
+        else runCatching { describe() }.getOrElse { "$type(raw 0x${payload.toString(16)})" }
+
+    private fun describe(): String {
         val r = Resource.NAMES
         val cn = CARD_NAMES
         return when (type) {
