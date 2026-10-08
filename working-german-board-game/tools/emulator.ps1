@@ -57,7 +57,7 @@ $r = New-Object EmuWin+RECT
 
 # 3. Fit the window inside the primary screen's work area, top-left, keeping the 2400x1080 aspect.
 $wa = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-$w = [int]($wa.Width * 0.75)                   # leave room for the emulator's side toolbar
+$w = [int]($wa.Width * 0.88)                   # big on a 4K screen; leaves room for the side toolbar
 $titleBar = [int]($wa.Height * 0.035)
 $h = [int]($w * 1080 / 2400) + $titleBar
 if ($h -gt $wa.Height - 40) { $h = $wa.Height - 40; $w = [int](($h - $titleBar) * 2400 / 1080) }

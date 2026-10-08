@@ -593,7 +593,7 @@ object CitiesAndKnights {
             }
 
             ActionType.BUILD_ROAD -> Rules.buildRoad(s, p, a.payload.toInt())
-            ActionType.ROLL -> roll(s, p, 0, 0)
+            ActionType.ROLL -> roll(s, p, a.a, a.b, ((a.payload ushr 16) and 0xff).toInt() - 1)
             ActionType.DISCARD -> {
                 val c = a.discardResource
                 val count = if (c < 0) s.discardOwed[p] else 1
@@ -841,11 +841,11 @@ object CitiesAndKnights {
     // ---------------------------------------------------------------- dice
 
     /** Rolls the production and event dice; [red]/[yellow] > 0 are fixed by an Alchemist. */
-    private fun roll(s: GameState, p: Int, red: Int, yellow: Int) {
+    private fun roll(s: GameState, p: Int, red: Int, yellow: Int, eventFace: Int = -1) {
         val ck = s.ck!!
         val r = if (red > 0) red else s.rng.nextInt(6) + 1
         val y = if (yellow > 0) yellow else s.rng.nextInt(6) + 1
-        val event = s.rng.nextInt(6)
+        val event = if (eventFace >= 0) eventFace else s.rng.nextInt(6)
         ck.lastRed = r
         ck.lastEvent = event
         s.lastRoll = r + y

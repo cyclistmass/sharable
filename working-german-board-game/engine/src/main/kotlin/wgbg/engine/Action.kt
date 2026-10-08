@@ -123,7 +123,15 @@ value class Action(val code: Long) {
     fun ckOfferGive(card: Int) = ((code ushr (3 * card)) and 0x7).toInt()
     fun ckOfferWant(card: Int) = ((code ushr (24 + 3 * card)) and 0x7).toInt()
 
-    override fun toString(): String {
+    /**
+     * Safe for any 64-bit code, including garbage from a broken or hostile client: unknown types
+     * and out-of-range payloads describe themselves instead of throwing (error messages build on this).
+     */
+    override fun toString(): String =
+        if (!isKnownType(typeId)) "Action(unknown type $typeId, payload 0x${payload.toString(16)})"
+        else runCatching { describe() }.getOrElse { "$type(raw 0x${payload.toString(16)})" }
+
+    private fun describe(): String {
         val r = Resource.NAMES
         val cn = CARD_NAMES
         return when (type) {
@@ -164,6 +172,16 @@ value class Action(val code: Long) {
             typeId - CkActionType.ID_BASE in CkActionType.entries.indices
 
         val ROLL = of(ActionType.ROLL)
+
+        /**
+         * A roll whose dice were thrown outside the engine (true-random or deck dice), so the
+         * result is recorded in the action log. [event] is the Age of Chivalry event die face 0..5,
+         * or -1 to let the engine roll it. Plain [ROLL] lets the engine's seeded RNG roll.
+         */
+        fun roll(d1: Int, d2: Int, event: Int = -1): Action {
+            require(d1 in 1..6 && d2 in 1..6 && event in -1..5) { "bad dice $d1 $d2 $event" }
+            return of(ActionType.ROLL, (d1 or (d2 shl 8) or ((event + 1) shl 16)).toLong())
+        }
         val BUY_DEVELOPMENT_CARD = of(ActionType.BUY_DEVELOPMENT_CARD)
         val PLAY_KNIGHT_CARD = of(ActionType.PLAY_KNIGHT_CARD)
         val PLAY_ROAD_BUILDING = of(ActionType.PLAY_ROAD_BUILDING)
