@@ -65,13 +65,13 @@ class CkFuzzTest {
         assertTrue(wins > 400, "random games should often finish")
         val unused = setOf<ActionKind>(
             ActionType.BUY_DEVELOPMENT_CARD, ActionType.PLAY_KNIGHT_CARD, ActionType.PLAY_YEAR_OF_PLENTY,
-            ActionType.PLAY_MONOPOLY, ActionType.PLAY_ROAD_BUILDING, ActionType.OFFER_TRADE,
+            ActionType.PLAY_MONOPOLY, ActionType.PLAY_ROAD_BUILDING, ActionType.OFFER_TRADE, ActionType.COUNTER_TRADE,
         )
         for (k in allKinds) {
             if (k in unused) assertEquals(0, counts[k] ?: 0, "$k played in C&K")
             else assertTrue((counts[k] ?: 0) > 0, "$k never played")
         }
-        for (p in Phase.entries) assertTrue((phases[p] ?: 0) > 0, "phase $p never reached")
+        for (p in Phase.entries) if (p != Phase.DECIDE_COUNTER) assertTrue((phases[p] ?: 0) > 0, "phase $p never reached") // counters are base-game only
         for (c in 0 until Progress.COUNT) {
             if (!Progress.isVictoryPoint(c)) assertTrue(cards[c] > 0, "${Progress.NAMES[c]} never played")
         }

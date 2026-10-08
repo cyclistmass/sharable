@@ -317,7 +317,7 @@ object CitiesAndKnights {
                 for (q in 0 until n) if (s.tradeAccepted and (1 shl q) != 0) out.add(Action.confirmTrade(q))
             }
 
-            Phase.GAME_OVER -> {}
+            Phase.GAME_OVER, Phase.DECIDE_COUNTER -> {} // counters are base-game only
             Phase.PROGRESS_DISCARD ->
                 for (c in 0 until Progress.COUNT) if (ck.progressHand[p * Progress.COUNT + c] > 0) out.add(Action.discardProgress(c))
 
