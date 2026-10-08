@@ -44,6 +44,9 @@ object Rules {
     /** Distance rule: vertex empty and all neighbours empty. */
     fun isVertexFree(s: GameState, v: Int): Boolean {
         if (s.vertexOwner[v] >= 0) return false
+        // C&K: no settlement on a knight (knights do not count for the distance rule).
+        val ck = s.ck
+        if (ck != null && ck.knightOwner[v] >= 0) return false
         val b = s.board
         for (i in 0 until 3) {
             val n = b.vertexNbr[v * 3 + i]
@@ -56,7 +59,11 @@ object Rules {
     private fun canExtendFrom(s: GameState, p: Int, v: Int): Boolean {
         val owner = s.vertexOwner[v]
         if (owner == p) return true
-        return owner < 0 && hasRoadAt(s, p, v)
+        if (owner >= 0) return false
+        // C&K: an opponent's knight blocks roads like a building.
+        val ck = s.ck
+        if (ck != null && ck.knightOwner[v] >= 0 && ck.knightOwner[v] != p) return false
+        return hasRoadAt(s, p, v)
     }
 
     fun canBuildRoadAt(s: GameState, p: Int, e: Int): Boolean =
@@ -91,6 +98,7 @@ object Rules {
     /** Fills [out] with every legal action for [GameState.actingPlayer] (OFFER_TRADE only if configured). */
     fun legalActions(s: GameState, out: ActionBuffer): ActionBuffer {
         out.clear()
+        if (s.ck != null) return CitiesAndKnights.legalActions(s, out)
         val p = s.actingPlayer
         val b = s.board
         when (s.phase) {
@@ -125,6 +133,7 @@ object Rules {
             }
 
             Phase.GAME_OVER -> {}
+            else -> {} // C&K-only prompts never occur in base games
         }
         return out
     }
@@ -226,13 +235,17 @@ object Rules {
     }
 
     fun isLegal(s: GameState, a: Action): Boolean {
+        if (s.ck != null) {
+            if (a.type == ActionType.OFFER_TRADE) return false
+            if (a.type == CkActionType.OFFER_TRADE_CK) return CitiesAndKnights.isValidOffer(s, a)
+        }
         if (a.type == ActionType.OFFER_TRADE) return isValidOffer(s, a)
         return a in legalActions(s, ActionBuffer())
     }
 
     /** [apply] with a legality check; use for untrusted input (UI, network). */
     fun applyChecked(s: GameState, a: Action) {
-        require(a.typeId in ActionType.entries.indices && isLegal(s, a)) { "illegal action $a in ${s.phase}" }
+        require(Action.isKnownType(a.typeId) && isLegal(s, a)) { "illegal action $a in ${s.phase}" }
         apply(s, a)
     }
 
@@ -240,6 +253,15 @@ object Rules {
 
     /** Applies a legal action for [GameState.actingPlayer]. Behaviour is undefined for illegal actions. */
     fun apply(s: GameState, a: Action) {
+        if (s.ck != null) CitiesAndKnights.apply(s, a) else applyBase(s, a)
+        if (s.phase != Phase.GAME_OVER && s.victoryPoints(s.currentPlayer) >= s.config.vpToWin) {
+            // Victory is only claimed during your own turn (checked after every action, including turn start).
+            s.winner = s.currentPlayer
+            s.phase = Phase.GAME_OVER
+        }
+    }
+
+    private fun applyBase(s: GameState, a: Action) {
         val p = s.actingPlayer
         when (a.type) {
             ActionType.BUILD_SETTLEMENT -> buildSettlement(s, p, a.payload.toInt())
@@ -348,15 +370,11 @@ object Rules {
 
             ActionType.CANCEL_TRADE -> endTrade(s)
             ActionType.END_TURN -> endTurn(s, p)
-        }
-        if (s.phase != Phase.GAME_OVER && s.victoryPoints(s.currentPlayer) >= s.config.vpToWin) {
-            // Victory is only claimed during your own turn (checked after every action, including turn start).
-            s.winner = s.currentPlayer
-            s.phase = Phase.GAME_OVER
+            else -> error("${a.type} is not a base-game action")
         }
     }
 
-    private fun pay(s: GameState, p: Int, cost: IntArray) {
+    internal fun pay(s: GameState, p: Int, cost: IntArray) {
         val base = p * CARD_TYPES
         for (r in 0 until CARD_TYPES) {
             s.hands[base + r] -= cost[r]
@@ -364,7 +382,7 @@ object Rules {
         }
     }
 
-    private fun take(s: GameState, p: Int, r: Int, n: Int) {
+    internal fun take(s: GameState, p: Int, r: Int, n: Int) {
         s.bank[r] -= n
         s.hands[p * CARD_TYPES + r] += n
     }
@@ -382,7 +400,7 @@ object Rules {
         return r
     }
 
-    private fun buildSettlement(s: GameState, p: Int, v: Int) {
+    internal fun buildSettlement(s: GameState, p: Int, v: Int) {
         val b = s.board
         val setup = s.phase == Phase.BUILD_INITIAL_SETTLEMENT
         if (!setup) pay(s, p, Cost.SETTLEMENT)
@@ -418,7 +436,7 @@ object Rules {
         if (changed) updateLongestRoad(s)
     }
 
-    private fun buildRoad(s: GameState, p: Int, e: Int) {
+    internal fun buildRoad(s: GameState, p: Int, e: Int) {
         when {
             s.phase == Phase.BUILD_INITIAL_ROAD -> {}
             s.freeRoads > 0 -> s.freeRoads--
@@ -467,7 +485,7 @@ object Rules {
     }
 
     /** First player from [start] in seat order who still owes discards, or -1. */
-    private fun nextDebtor(s: GameState, start: Int): Int {
+    internal fun nextDebtor(s: GameState, start: Int): Int {
         for (i in 0 until s.numPlayers) {
             val q = (start + i) % s.numPlayers
             if (s.discardOwed[q] > 0) return q
@@ -532,7 +550,7 @@ object Rules {
         }
     }
 
-    private fun endTrade(s: GameState) {
+    internal fun endTrade(s: GameState) {
         s.tradeOffer.fill(0)
         s.tradeAccepted = 0
         s.phase = Phase.PLAY_TURN
@@ -576,6 +594,9 @@ object Rules {
     private fun dfs(s: GameState, p: Int, v: Int, used: BooleanArray, start: Boolean): Int {
         val o = s.vertexOwner[v]
         if (!start && o >= 0 && o != p) return 0
+        // C&K: opponents' knights break roads too.
+        val ck = s.ck
+        if (!start && ck != null && ck.knightOwner[v] >= 0 && ck.knightOwner[v] != p) return 0
         val b = s.board
         var best = 0
         for (i in 0 until 3) {

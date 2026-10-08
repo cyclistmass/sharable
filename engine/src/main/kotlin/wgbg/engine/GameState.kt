@@ -13,6 +13,32 @@ enum class Phase {
     DECIDE_TRADE,
     DECIDE_ACCEPTEES,
     GAME_OVER,
+
+    // Cities & Knights prompts (appended so base ordinals stay stable).
+    /** Acting player holds more than 4 progress cards and discards one (DISCARD_PROGRESS). */
+    PROGRESS_DISCARD,
+    /** Barbarians won: acting player picks a city to lose (CHOOSE_VERTEX). */
+    BARBARIAN_LOSS,
+    /** Barbarians beaten with tied best defenders: acting player picks a deck (CHOOSE_PROGRESS_DECK). */
+    DEFENDER_DRAW,
+    /** Acting player got nothing from production and takes a resource via Aqueduct (CHOOSE_CARD). */
+    AQUEDUCT,
+    /** Acting player moves their displaced knight (RELOCATE_KNIGHT). */
+    RELOCATE_KNIGHT,
+    /** Commercial Harbor: offer a resource to an opponent (COMMERCIAL_HARBOR_OFFER) or stop (CK_DONE). */
+    COMMERCIAL_HARBOR,
+    /** Commercial Harbor: the acting opponent returns a commodity of their choice (CHOOSE_CARD). */
+    COMMERCIAL_HARBOR_RESPOND,
+    /** Master Merchant: take a card from the target's hand (CHOOSE_CARD). */
+    MASTER_MERCHANT,
+    /** Wedding: acting opponent hands over a card of their choice (CHOOSE_CARD). */
+    WEDDING,
+    /** Deserter: acting opponent removes one of their knights (CHOOSE_VERTEX). */
+    DESERTER_REMOVE,
+    /** Deserter: place a knight of equal strength (CHOOSE_VERTEX) or decline (CK_DONE). */
+    DESERTER_PLACE,
+    /** Spy: take a progress card from the target's hand (TAKE_PROGRESS). */
+    SPY,
 }
 
 /**
@@ -50,6 +76,8 @@ class GameState internal constructor(
     val discardOwed: IntArray,
     /** Current domestic trade: offered cards then requested cards (2 * CARD_TYPES). */
     val tradeOffer: IntArray,
+    /** Cities & Knights state, null in base games. */
+    val ck: CkState? = null,
 ) {
     val numPlayers get() = config.numPlayers
 
@@ -102,7 +130,15 @@ class GameState internal constructor(
     /** Points everyone can see (no hidden VP cards). */
     fun publicVictoryPoints(p: Int): Int =
         piecesOnBoard(p, Piece.SETTLEMENT) + 2 * piecesOnBoard(p, Piece.CITY) +
-            (if (longestRoadOwner == p) 2 else 0) + (if (largestArmyOwner == p) 2 else 0)
+            (if (longestRoadOwner == p) 2 else 0) + (if (largestArmyOwner == p) 2 else 0) +
+            (ck?.extraVictoryPoints(p) ?: 0)
+
+    /** Resource cards plus (C&K) commodity cards. */
+    fun cardCount(p: Int): Int = handSize(p) + (ck?.commodityCount(p) ?: 0)
+
+    /** Cards of type [c] in [p]'s hand; C&K card index space (commodities 5..7). */
+    fun card(p: Int, c: Int): Int =
+        if (c < Resource.COUNT) hands[p * CARD_TYPES + c] else ck!!.commodities[p * Commodity.COUNT + c - Resource.COUNT]
 
     /** Actual points, including hidden VP cards. */
     fun victoryPoints(p: Int) = publicVictoryPoints(p) + devHand[p * DevCard.COUNT + DevCard.VICTORY_POINT]
@@ -113,7 +149,7 @@ class GameState internal constructor(
             vertexOwner.copyOf(), vertexBuilding.copyOf(), edgeOwner.copyOf(), bank.copyOf(),
             hands.copyOf(), devDeck.copyOf(), devHand.copyOf(), devNew.copyOf(), devPlayed.copyOf(),
             piecesLeft.copyOf(), portMask.copyOf(), roadLength.copyOf(), discardOwed.copyOf(),
-            tradeOffer.copyOf(),
+            tradeOffer.copyOf(), ck?.copy(),
         )
         s.phase = phase
         s.currentPlayer = currentPlayer
@@ -153,6 +189,8 @@ class GameState internal constructor(
         mix(if (devPlayedThisTurn) 1 else 0); mix(freeRoads); mix(lastRoll)
         mix(longestRoadOwner); mix(largestArmyOwner); mix(tradeAccepted); mix(winner)
         mix((rng.seed ushr 32).toInt()); mix(rng.seed.toInt())
+        // Base games hash exactly as before; C&K state is appended only when present.
+        ck?.hashInto(::mix)
         return h
     }
 
@@ -176,6 +214,7 @@ class GameState internal constructor(
                 roadLength = IntArray(n),
                 discardOwed = IntArray(n),
                 tradeOffer = IntArray(2 * CARD_TYPES),
+                ck = if (config.citiesAndKnights) CkState.initial(n, board, rng) else null,
             )
             s.robberHex = board.desertHex
             return s
