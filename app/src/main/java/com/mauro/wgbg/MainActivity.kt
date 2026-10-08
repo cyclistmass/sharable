@@ -82,6 +82,7 @@ import kotlinx.coroutines.delay
 import wgbg.ai.GreedyBot
 import wgbg.ai.Bot
 import wgbg.engine.ActionBuffer
+import wgbg.engine.ActionKind
 import wgbg.engine.ActionType
 import wgbg.engine.Board
 import wgbg.engine.GameConfig
@@ -168,7 +169,7 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
 
     LaunchedEffect(seed, playing, speed) {
         val buf = ActionBuffer()
-        fun step(): ActionType {
+        fun step(): ActionKind {
             Rules.legalActions(state, buf)
             val who = state.actingPlayer
             val action = bots[who].choose(state, buf)
@@ -319,7 +320,7 @@ private suspend fun PointerInputScope.boardGestures(
     } while (event.changes.any { it.pressed })
 }
 
-internal fun describe(t: ActionType) = when (t) {
+internal fun describe(t: ActionKind) = when (t) {
     ActionType.BUILD_SETTLEMENT -> "built a homestead"
     ActionType.BUILD_CITY -> "built a town"
     ActionType.BUILD_ROAD -> "built a road"
@@ -331,7 +332,7 @@ internal fun describe(t: ActionType) = when (t) {
     ActionType.MARITIME_TRADE -> "traded with the bank"
     ActionType.MOVE_ROBBER -> "moved the bandit"
     ActionType.DISCARD -> "discarded"
-    else -> t.name.lowercase().replace('_', ' ')
+    else -> t.toString().lowercase().replace('_', ' ')
 }
 
 /** Immutable per-player snapshot so the score panel recomposes when anything changes. */
