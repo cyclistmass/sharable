@@ -48,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -143,6 +144,9 @@ private val TOKEN_WOOD_INDEX = PLAYER_COLORS.size
 /** Speed setting meaning "no delays at all": moves run back to back, games auto-restart. */
 private const val MAX_SPEED = 16
 
+/** How long a zoomed/tilted board waits untouched before gliding back to the full view. */
+private const val RECOVER_AFTER_MS = 6000L
+
 private fun Color.shade(f: Float) = lerp(this, Color.Black, f)
 private fun Color.tint(f: Float) = lerp(this, Color.White, f)
 
@@ -220,6 +224,23 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
     // The board fills the screen; controls live in an overlay panel toggled from the corner.
     val players = tick.let { (0 until state.numPlayers).map { PlayerInfo.of(state, it) } }
     var camera by remember { mutableStateOf(initialCamera) }
+    var lastTouch by remember { mutableLongStateOf(0L) }
+    // Self-healing view: if the board is left zoomed, panned or tilted with nobody touching it
+    // (e.g. a stray gesture "lost" it), glide back to the full board after a few seconds.
+    // Keyed on touches only: the glide itself changes the camera and must not restart the timer.
+    LaunchedEffect(lastTouch) {
+        if (camera == Camera.FIT) return@LaunchedEffect
+        delay(RECOVER_AFTER_MS)
+        val from = camera
+        val steps = 30
+        for (i in 1..steps) {
+            val t = i / steps.toFloat()
+            val e = 1 - (1 - t) * (1 - t) // ease out
+            camera = Camera(from.zoom + (1f - from.zoom) * e, from.pan * (1 - e), from.tilt * (1 - e))
+            withFrameNanos { }
+        }
+        camera = Camera.FIT
+    }
     var panelOpen by remember { mutableStateOf(false) }
     Box(modifier) {
       Row(Modifier.fillMaxSize()) {
@@ -229,16 +250,19 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
         val wood = remember { WoodPieces(resources, PLAYER_COLORS + TOKEN_WOOD) }
         Canvas(
             Modifier.fillMaxSize()
+                .clipToBounds() // never draw the board under the side panel
                 .pointerInput(Unit) {
                     boardGestures(
                         onTransform = { centroid, pan, zoom ->
+                            lastTouch = System.nanoTime()
                             camera = camera.transform(centroid, pan, zoom, Size(size.width.toFloat(), size.height.toFloat()))
                         },
-                        onTilt = { dy -> camera = camera.tilted(dy, size.height.toFloat()) },
+                        onTilt = { dy -> lastTouch = System.nanoTime(); camera = camera.tilted(dy, size.height.toFloat()) },
                     )
                 }
                 .pointerInput(Unit) {
                     detectTapGestures(onDoubleTap = { at ->
+                        lastTouch = System.nanoTime()
                         val sz = Size(size.width.toFloat(), size.height.toFloat())
                         camera = if (camera.zoom > 1.05f || camera.tilt > 0.01f) Camera.FIT
                         else camera.transform(at, Offset.Zero, Camera.DOUBLE_TAP_ZOOM / camera.zoom, sz)
@@ -467,6 +491,10 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
 
     /** Zooms by [factor] keeping [focus] still, then pans by [drag]; zoom clamped to [MIN_ZOOM]..[MAX_ZOOM]. */
     fun transform(focus: Offset, drag: Offset, factor: Float, size: Size): Camera {
+        // Gesture math can hand us NaN or infinity (e.g. a pinch whose fingers start on the same
+        // spot); NaN slips through coerceIn and would poison the camera, so drop such input.
+        if (!factor.isFinite() || factor <= 0f || !focus.x.isFinite() || !focus.y.isFinite() ||
+            !drag.x.isFinite() || !drag.y.isFinite() || size.minDimension <= 0f) return this
         val z = (zoom * factor).coerceIn(MIN_ZOOM, MAX_ZOOM)
         val k = z / zoom
         val f = focus - Offset(size.width / 2f, size.height / 2f)
@@ -481,7 +509,8 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
     }
 
     /** Tilts by a vertical two-finger drag of [dy] px: dragging up tips the board away. */
-    fun tilted(dy: Float, height: Float) = copy(tilt = (tilt - dy / height * 1.6f).coerceIn(0f, MAX_TILT))
+    fun tilted(dy: Float, height: Float) =
+        if (!dy.isFinite() || height <= 0f) this else copy(tilt = (tilt - dy / height * 1.6f).coerceIn(0f, MAX_TILT))
 
     companion object {
         const val MIN_ZOOM = 1f
@@ -494,9 +523,11 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
 }
 
 private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera) {
+    if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
     val scale = l.scale
+    if (!scale.isFinite() || scale <= 0f) return
     val topo = board.topology
     // Tipped toward the viewer, upright things show more of their height.
     val lift = 1f + 1.2f * kotlin.math.sin(l.tilt)
@@ -605,6 +636,7 @@ private fun DrawScope.drawRobber(c: Offset, scale: Float) {
 
 /** Every game object side by side, for eyeballing the art. */
 private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces) {
+    if (size.minDimension < 2f) return
     val scale = min(size.width / 13.5f, size.height / 9.6f)
     fun label(text: String, at: Offset) {
         val t = measurer.measure(text, TextStyle(fontSize = (0.2f * scale / density).sp, color = Color(0xFFE8E2D6)))
