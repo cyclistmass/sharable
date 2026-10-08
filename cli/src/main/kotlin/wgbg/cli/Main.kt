@@ -1,0 +1,312 @@
+package wgbg.cli
+
+import wgbg.ai.GreedyBot
+import wgbg.engine.Action
+import wgbg.engine.ActionBuffer
+import wgbg.engine.ActionType
+import wgbg.engine.CARD_TYPES
+import wgbg.engine.DevCard
+import wgbg.engine.GameConfig
+import wgbg.engine.GameState
+import wgbg.engine.Phase
+import wgbg.engine.Piece
+import wgbg.engine.Port
+import wgbg.engine.Resource
+import wgbg.engine.Rules
+import wgbg.engine.TrueRandomDice
+import java.io.File
+import java.security.SecureRandom
+import kotlin.system.exitProcess
+
+/*
+ * Play-by-file command-line game (issue #8). Several players (people, Claude sessions, or
+ * built-in bots) share one game folder; each runs `state` to see their own view and `act`
+ * to move. The file holds only config, seed and the action log, so anyone can replay and
+ * verify the whole game; the engine rejects any illegal move; dice are truly random
+ * (OS secure generator) and recorded in the log.
+ *
+ *   wgbg new   <dir> --seats Claude,Alice,bot [--vp 10]
+ *   wgbg state <dir> --seat N        your view + numbered legal moves when it's your turn
+ *   wgbg act   <dir> --seat N <move#>
+ *   wgbg wait  <dir> --seat N [--timeout 600]   blocks until it's your turn (or game over)
+ *   wgbg log   <dir>                 replays and verifies the whole game
+ */
+
+private val RES = listOf("Timber", "Clay", "Fleece", "Grain", "Stone")
+private val FORTUNE = listOf("Sentinel", "Windfall", "Corner the Market", "Trailblazers", "Landmark")
+
+private class Record(val dir: File, val seats: List<String>, val seed: Long, val vp: Int, val actions: MutableList<Action>) {
+    val config get() = GameConfig(numPlayers = seats.size, vpToWin = vp, generateTradeOffers = true, maxTurns = 400)
+
+    fun replay(): GameState {
+        val s = Rules.newGame(config, seed)
+        for (a in actions) Rules.applyChecked(s, a) // the whole history is re-verified every time
+        return s
+    }
+
+    fun save() {
+        val tmp = File(dir, "game.txt.tmp")
+        tmp.writeText(buildString {
+            appendLine("# working-german-board-game play-by-file record; do not edit by hand")
+            appendLine("seats=${seats.joinToString(",")}")
+            appendLine("seed=$seed")
+            appendLine("vp=$vp")
+            for (a in actions) appendLine(a.code)
+        })
+        val f = File(dir, "game.txt")
+        if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
+    }
+
+    companion object {
+        fun load(dir: File): Record {
+            val lines = File(dir, "game.txt").readLines().filter { it.isNotBlank() && !it.startsWith("#") }
+            val kv = lines.filter { '=' in it }.associate { it.substringBefore('=') to it.substringAfter('=') }
+            val acts = lines.filter { '=' !in it }.map { Action(it.trim().toLong()) }.toMutableList()
+            return Record(dir, kv.getValue("seats").split(","), kv.getValue("seed").toLong(), kv.getValue("vp").toInt(), acts)
+        }
+    }
+}
+
+/** Serializes writers across processes with an exclusive lock file. */
+private fun <T> locked(dir: File, block: () -> T): T {
+    val lock = File(dir, "game.lock")
+    val t0 = System.currentTimeMillis()
+    while (!lock.createNewFile()) {
+        if (System.currentTimeMillis() - t0 > 15_000) lock.delete() // stale lock from a crashed process
+        Thread.sleep(50)
+    }
+    try { return block() } finally { lock.delete() }
+}
+
+private val dice = TrueRandomDice()
+
+/** Lets built-in bots take every turn that is theirs, so people/agents only wait on each other. */
+private fun runBots(r: Record, s: GameState) {
+    val buf = ActionBuffer()
+    var guard = 0
+    while (!s.isOver && r.seats[s.actingPlayer].equals("bot", ignoreCase = true) && guard++ < 5000) {
+        Rules.legalActions(s, buf)
+        var a = GreedyBot(r.seed * 31 + s.actingPlayer + r.actions.size).choose(s, buf)
+        if (a.type == ActionType.ROLL) a = dice.next().toAction()
+        Rules.applyChecked(s, a)
+        r.actions += a
+    }
+}
+
+// ------------------------------------------------------------------ text rendering
+
+private fun hexText(s: GameState, h: Int): String {
+    val r = s.board.hexResource[h]
+    val name = if (r == Resource.NONE) "Desert" else "${RES[r]} ${s.board.hexNumber[h]}"
+    return "H$h $name" + if (h == s.robberHex) " (bandit)" else ""
+}
+
+private fun vertexText(s: GameState, v: Int): String {
+    val hexes = s.board.topology.vertexHexes[v].joinToString(", ") { h ->
+        val r = s.board.hexResource[h]
+        if (r == Resource.NONE) "Desert" else "${RES[r]} ${s.board.hexNumber[h]}" + if (h == s.robberHex) "*" else ""
+    }
+    val port = s.board.ports.firstOrNull { it.v1 == v || it.v2 == v }?.let { if (it.type == Port.GENERIC) " +3:1 harbor" else " +2:1 ${RES[it.type]} harbor" } ?: ""
+    return "v$v [$hexes]$port"
+}
+
+private fun bankRate(s: GameState, p: Int, r: Int): Int {
+    val mask = s.portMask[p]
+    return when {
+        mask and (1 shl r) != 0 -> 2
+        mask and Port.GENERIC_BIT != 0 -> 3
+        else -> 4
+    }
+}
+
+private fun cards(counts: (Int) -> Int) = (0 until CARD_TYPES).filter { counts(it) > 0 }.joinToString(", ") { "${counts(it)} ${RES[it]}" }.ifEmpty { "nothing" }
+
+private fun describe(s: GameState, a: Action, names: List<String>): String {
+    val p = s.actingPlayer
+    return when (a.type) {
+        ActionType.ROLL -> "Roll the dice"
+        ActionType.END_TURN -> "End your turn"
+        ActionType.BUILD_SETTLEMENT -> "Build a homestead at ${vertexText(s, a.payload.toInt())}"
+        ActionType.BUILD_CITY -> "Upgrade to a town at ${vertexText(s, a.payload.toInt())}"
+        ActionType.BUILD_ROAD -> s.board.topology.edgeVertices[a.payload.toInt()].let { "Build a road e${a.payload} between v${it[0]} and v${it[1]}" }
+        ActionType.BUY_DEVELOPMENT_CARD -> "Buy a Fortune card (1 Fleece, 1 Grain, 1 Stone)"
+        ActionType.PLAY_KNIGHT_CARD -> "Play Sentinel (move the bandit)"
+        ActionType.PLAY_ROAD_BUILDING -> "Play Trailblazers (2 free roads)"
+        ActionType.PLAY_YEAR_OF_PLENTY -> "Play Windfall: take ${RES[a.yopFirst]}" + if (a.yopSecond >= 0) " and ${RES[a.yopSecond]}" else ""
+        ActionType.PLAY_MONOPOLY -> "Play Corner the Market on ${RES[a.payload.toInt()]}"
+        ActionType.MARITIME_TRADE -> "Trade with the bank: give ${bankRate(s, p, a.maritimeGive)} ${RES[a.maritimeGive]} for 1 ${RES[a.maritimeGet]}"
+        ActionType.MOVE_ROBBER -> "Move the bandit to ${hexText(s, a.robberHex)}" + if (a.robberVictim >= 0) " and take a card from ${names[a.robberVictim]}" else ""
+        ActionType.DISCARD -> "Discard 1 ${RES[a.discardResource]}"
+        ActionType.OFFER_TRADE -> "Offer the players: you give ${cards { a.offerGive(it) }}, you get ${cards { a.offerWant(it) }}"
+        ActionType.ACCEPT_TRADE -> "Accept ${names[s.currentPlayer]}'s offer"
+        ActionType.REJECT_TRADE -> "Decline ${names[s.currentPlayer]}'s offer"
+        ActionType.CONFIRM_TRADE -> "Do the trade with ${names[a.payload.toInt()]}"
+        ActionType.CANCEL_TRADE -> "Cancel your offer"
+        else -> a.toString()
+    }
+}
+
+private fun lastRollText(r: Record): String {
+    val roll = r.actions.lastOrNull { it.type == ActionType.ROLL } ?: return "no roll yet"
+    return if (roll.payload != 0L) "${roll.a} + ${roll.b} = ${roll.a + roll.b}" else "rolled"
+}
+
+private fun render(r: Record, s: GameState, seat: Int?): String = buildString {
+    val names = r.seats
+    appendLine("=== ${r.dir.name}, turn ${s.turn}, phase ${s.phase} ===")
+    if (s.isOver) appendLine(if (s.winner >= 0) ">>> ${names[s.winner]} WINS <<<" else ">>> game ended without a winner (turn limit) <<<")
+    else appendLine("Current player: ${names[s.currentPlayer]}, waiting on: ${names[s.actingPlayer]}")
+    appendLine("Last roll: ${lastRollText(r)}")
+    if (s.phase == Phase.DECIDE_TRADE || s.phase == Phase.DECIDE_ACCEPTEES) {
+        appendLine("Open offer from ${names[s.currentPlayer]}: gives ${cards { s.tradeOffer[it] }}, wants ${cards { s.tradeOffer[CARD_TYPES + it] }}")
+    }
+    appendLine()
+    appendLine("Scores (first to ${r.vp}):")
+    for (p in names.indices) {
+        val vp = if (p == seat) s.victoryPoints(p) else s.publicVictoryPoints(p)
+        val awards = listOfNotNull("Grand Highway".takeIf { s.longestRoadOwner == p }, "Strongest Watch".takeIf { s.largestArmyOwner == p })
+        appendLine("  ${names[p].padEnd(10)} $vp VP, ${s.handSize(p)} cards, ${s.devCount(p)} Fortune, ${s.knightsPlayed(p)} Sentinels played, road ${s.roadLength[p]}" +
+            (if (awards.isEmpty()) "" else ", " + awards.joinToString(", ")))
+    }
+    if (seat != null) {
+        appendLine()
+        appendLine("Your hand (${names[seat]}): ${cards { s.hand(seat, it) }}")
+        val fortune = (0 until DevCard.COUNT).filter { s.devHand[seat * DevCard.COUNT + it] > 0 }
+            .joinToString(", ") { "${s.devHand[seat * DevCard.COUNT + it]} ${FORTUNE[it]}" }
+        if (fortune.isNotEmpty()) appendLine("Your Fortune cards: $fortune")
+        val rates = (0 until CARD_TYPES).joinToString(", ") { "${RES[it]} ${bankRate(s, seat, it)}:1" }
+        appendLine("Your bank rates: $rates")
+    }
+    appendLine()
+    appendLine("Recent moves:")
+    for (line in recentMoves(r, 10)) appendLine("  $line")
+    appendLine()
+    appendLine("Board:")
+    appendLine("  " + (0 until s.board.hexCount).joinToString(" | ") { hexText(s, it) })
+    for (p in names.indices) {
+        val built = (0 until s.board.vertexCount).filter { s.vertexOwner[it] == p }
+            .joinToString("; ") { (if (s.vertexBuilding[it] == Piece.CITY) "TOWN " else "home ") + vertexText(s, it) }
+        val roads = (0 until s.board.topology.edgeCount).filter { s.edgeOwner[it] == p }.joinToString(" ") { "e$it" }
+        appendLine("  ${names[p]}: ${built.ifEmpty { "nothing yet" }}")
+        if (roads.isNotEmpty()) appendLine("    roads: $roads")
+    }
+    if (seat != null && !s.isOver && s.actingPlayer == seat) {
+        val legal = Rules.legalActions(s)
+        appendLine()
+        appendLine("YOUR MOVE - choose one with: act --seat $seat <number>")
+        legal.forEachIndexed { i, a -> appendLine("  [$i] ${describe(s, a, names)}") }
+    } else if (seat != null && !s.isOver) {
+        appendLine()
+        appendLine("Not your move. Run: wait --seat $seat")
+    }
+}
+
+/** Turns a menu line ("Build a road ...") into a log line ("built a road ..."). */
+private fun pastTense(t: String) = t
+    .replace("Build a ", "built a ").replace("Upgrade to a town", "upgraded to a town").replace("Buy a ", "bought a ")
+    .replace("Play ", "played ").replace("Trade with the bank: give ", "traded with the bank: gave ")
+    .replace("Move the bandit", "moved the bandit").replace(" and take a card", " and took a card")
+    .replace("Discard ", "discarded ").replace("Offer the players: you give ", "offered: gives ").replace(", you get ", ", wants ")
+    .replace("Do the trade with ", "traded with ").replace("Cancel your offer", "cancelled the offer")
+    .replace("End your turn", "ended the turn").replace("Accept ", "accepted ").replace("Decline ", "declined ")
+
+/** The last [n] moves in words, replayed from the log (everything here is public information). */
+private fun recentMoves(r: Record, n: Int): List<String> {
+    val s = Rules.newGame(r.config, r.seed)
+    val out = ArrayList<String>()
+    for (a in r.actions) {
+        val who = r.seats[s.actingPlayer]
+        val before = IntArray(r.seats.size * CARD_TYPES) { s.hands[it] }
+        var text = when (a.type) {
+            ActionType.ROLL -> "rolled " + (if (a.payload != 0L) "${a.a} + ${a.b} = ${a.a + a.b}" else "")
+            ActionType.REJECT_TRADE -> "declined the offer"
+            ActionType.ACCEPT_TRADE -> "accepted the offer"
+            ActionType.BUY_DEVELOPMENT_CARD -> "bought a Fortune card"
+            else -> describe(s, a, r.seats).let(::pastTense)
+        }
+        Rules.applyChecked(s, a)
+        if (a.type == ActionType.ROLL && s.lastRoll != 7) {
+            val got = r.seats.indices.mapNotNull { p ->
+                cards { s.hands[p * CARD_TYPES + it] - before[p * CARD_TYPES + it] }.takeIf { it != "nothing" }?.let { "${r.seats[p]} +$it" }
+            }
+            text += if (got.isEmpty()) " (nobody produced)" else " (" + got.joinToString("; ") + ")"
+        }
+        out += "$who $text"
+    }
+    return out.takeLast(n)
+}
+
+// ------------------------------------------------------------------ commands
+
+private fun arg(args: List<String>, name: String): String? = args.indexOf(name).takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
+
+private fun fail(msg: String): Nothing { System.err.println(msg); exitProcess(2) }
+
+fun main(argv: Array<String>) {
+    val args = argv.toList()
+    val cmd = args.getOrNull(0) ?: fail("usage: wgbg new|state|act|wait|log <dir> ...")
+    val dir = File(args.getOrNull(1) ?: fail("missing game folder"))
+    val seat = arg(args, "--seat")?.toInt()
+    when (cmd) {
+        "new" -> {
+            val seats = (arg(args, "--seats") ?: fail("--seats A,B,C")).split(",").map { it.trim() }
+            if (seats.size !in 2..4) fail("2-4 seats for v1")
+            dir.mkdirs()
+            if (File(dir, "game.txt").exists()) fail("a game already exists in $dir")
+            val r = Record(dir, seats, SecureRandom().nextLong(), arg(args, "--vp")?.toInt() ?: 10, mutableListOf())
+            locked(dir) { val s = r.replay(); runBots(r, s); r.save() }
+            println("New game in $dir for ${seats.joinToString()} (seats 0..${seats.size - 1}). Seat 0 places first.")
+        }
+        "state" -> {
+            val r = Record.load(dir)
+            print(render(r, r.replay(), seat))
+        }
+        "act" -> {
+            seat ?: fail("--seat N")
+            val idx = args.last().toIntOrNull() ?: fail("move number missing")
+            locked(dir) {
+                val r = Record.load(dir)
+                val s = r.replay()
+                if (s.isOver) fail("the game is over")
+                if (s.actingPlayer != seat) fail("not your move: waiting on ${r.seats[s.actingPlayer]}")
+                val legal = Rules.legalActions(s)
+                var a = legal.getOrNull(idx) ?: fail("no move [$idx]; run state again")
+                val text = describe(s, a, r.seats)
+                if (a.type == ActionType.ROLL) a = dice.next().toAction() // true-random dice, recorded
+                Rules.applyChecked(s, a)
+                r.actions += a
+                runBots(r, s)
+                r.save()
+                println("${r.seats[seat]}: $text" + if (a.type == ActionType.ROLL) " -> ${a.a} + ${a.b} = ${a.a + a.b}" else "")
+                println()
+                print(render(r, s, seat))
+            }
+        }
+        "wait" -> {
+            seat ?: fail("--seat N")
+            val timeout = (arg(args, "--timeout")?.toLong() ?: 600L) * 1000
+            val t0 = System.currentTimeMillis()
+            while (true) {
+                val r = runCatching { Record.load(dir) }.getOrNull()
+                if (r != null) {
+                    val s = r.replay()
+                    if (s.isOver || s.actingPlayer == seat) { print(render(r, s, seat)); return }
+                }
+                if (System.currentTimeMillis() - t0 > timeout) { println("Still not your move after ${timeout / 1000}s."); return }
+                Thread.sleep(1000)
+            }
+        }
+        "log" -> {
+            val r = Record.load(dir)
+            val s = Rules.newGame(r.config, r.seed)
+            r.actions.forEachIndexed { i, a ->
+                val who = r.seats[s.actingPlayer]
+                val text = describe(s, a, r.seats) + if (a.type == ActionType.ROLL && a.payload != 0L) " -> ${a.a + a.b}" else ""
+                Rules.applyChecked(s, a)
+                println("${i.toString().padStart(4)}  $who: $text")
+            }
+            println("Verified ${r.actions.size} moves. " + if (s.isOver) "Winner: ${if (s.winner >= 0) r.seats[s.winner] else "none"}" else "Game in progress.")
+        }
+        else -> fail("unknown command $cmd")
+    }
+}
