@@ -62,3 +62,7 @@ Also:
 - Go easy on subagents: do work directly or extend a running agent.
 - Build: `export JAVA_HOME="$(ls -d "/c/Program Files/Eclipse Adoptium"/jdk-17*)"; ./gradlew :engine:test :app:assembleDebug`.
 - Publish: commit here, then `git subtree pull --prefix=working-german-board-game ../catan-android main` in `C:\Users\mauro\sharable` and push.
+- **Every push that changes how the game looks re-records the gameplay GIF**: install the build,
+  run `tools/emulator.ps1`, then `tools/record_gameplay.sh`, check a frame, and commit the new
+  `docs/gameplay-1x.gif` with the push. It shows on the project README and on the sharable
+  front page (`working-german-board-game/docs/gameplay-1x.gif`). Mention the refreshed GIF in the push summary.
