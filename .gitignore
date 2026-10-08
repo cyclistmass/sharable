@@ -28,3 +28,7 @@ __pycache__/
 
 # Browser automation snapshots (can contain secrets)
 .playwright-mcp/
+
+# Claude Code agent worktrees and local settings
+.claude/worktrees/
+.claude/settings.local.json

@@ -1,56 +1,120 @@
 package com.mauro.wgbg
 
+import android.content.res.Resources
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import wgbg.ai.GreedyBot
+import wgbg.ai.Bot
+import wgbg.engine.ActionBuffer
+import wgbg.engine.ActionType
 import wgbg.engine.Board
-import wgbg.engine.BoardGen
+import wgbg.engine.GameConfig
+import wgbg.engine.GameState
+import wgbg.engine.Piece
 import wgbg.engine.Port
 import wgbg.engine.Resource
-import wgbg.engine.Rng
+import wgbg.engine.Rules
 import kotlin.math.min
 import kotlin.math.sqrt
 
 class MainActivity : ComponentActivity() {
+    /** Debug builds only: start with a given view, e.g. `am start ... --ef zoom 2 --ef tilt 0.8` (for screenshots). */
+    private fun debugCamera(): Camera {
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE == 0) return Camera.FIT
+        return Camera(intent.getFloatExtra("zoom", 1f).coerceIn(Camera.MIN_ZOOM, Camera.MAX_ZOOM), Offset.Zero,
+            intent.getFloatExtra("tilt", 0f).coerceIn(0f, Camera.MAX_TILT))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Full screen: draw under the camera cutout and hide the system bars (swipe to peek).
+        window.attributes = window.attributes.apply {
+            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
         setContent {
-            MaterialTheme {
-                Scaffold { padding ->
-                    var seed by remember { mutableLongStateOf(1L) }
-                    val board = remember(seed) { BoardGen.random(Rng(seed), avoidAdjacentRed = true) }
-                    BoardView(
-                        board,
-                        "Board #$seed · tap for a new one",
-                        Modifier.fillMaxSize().padding(padding).clickable { seed++ },
-                    )
-                }
+            MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color.Black)) {
+                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), debugCamera())
             }
         }
     }
@@ -61,56 +125,629 @@ private val TERRAIN_COLORS = mapOf(
     Resource.BRICK to Color(0xFFBF5B30),
     Resource.SHEEP to Color(0xFF9CCC65),
     Resource.WHEAT to Color(0xFFF2C94C),
-    Resource.ORE to Color(0xFF8E8E9A),
+    Resource.ORE to Color(0xFF6F84A3),
     Resource.NONE to Color(0xFFE8D9A8),
 )
 
-/** Phase 1 preview: draws a generated board (terrain, number tokens, ports) from the engine. */
-@Composable
-fun BoardView(board: Board, caption: String, modifier: Modifier = Modifier) = Box(modifier) {
-    val measurer = rememberTextMeasurer()
-    Canvas(Modifier.fillMaxSize()) {
-        val topo = board.topology
-        // Lattice x units are sqrt(3)/2 of a hex side, y units are 1/2 a side.
-        val xs = topo.vertexPos.map { it.x * sqrt(3f) / 2f }
-        val ys = topo.vertexPos.map { it.y / 2f }
-        val scale = 0.8f * min(size.width / (xs.max() - xs.min()), size.height / (ys.max() - ys.min()))
-        fun at(v: Int) = Offset(center.x + xs[v] * scale, center.y + ys[v] * scale)
+internal val PLAYER_COLORS = listOf(Color(0xFFD32F2F), Color(0xFF1E63C6), Color(0xFFF57C00), Color(0xFFF5F5F5))
+internal val PLAYER_NAMES = listOf("Red", "Blue", "Orange", "White")
+private val INK = Color(0xFF2B2118)
 
-        for (h in 0 until board.hexCount) {
-            val vs = topo.hexVertices[h]
-            val path = Path().apply {
-                moveTo(at(vs[0]).x, at(vs[0]).y)
-                for (i in 1 until 6) lineTo(at(vs[i]).x, at(vs[i]).y)
-                close()
+/** Natural light wood for number and port tokens; stained like the pieces but barely tinted. */
+private val TOKEN_WOOD = Color(0xFFE9CFA0)
+private val TOKEN_WOOD_INDEX = PLAYER_COLORS.size
+
+/** Speed setting meaning "no delays at all": moves run back to back, games auto-restart. */
+private const val MAX_SPEED = 16
+
+private fun Color.shade(f: Float) = lerp(this, Color.Black, f)
+private fun Color.tint(f: Float) = lerp(this, Color.White, f)
+
+private fun polygon(points: List<Offset>) = Path().apply {
+    moveTo(points[0].x, points[0].y)
+    for (i in 1 until points.size) lineTo(points[i].x, points[i].y)
+    close()
+}
+
+/** Pips under a number token: how many dice combinations roll it (2/12 → 1, 6/8 → 5). */
+private fun pips(n: Int) = 6 - kotlin.math.abs(7 - n)
+
+/** Four bots play a full game while you watch. */
+@Composable
+fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camera.FIT) {
+    var seed by remember { mutableLongStateOf(1L) }
+    val state = remember(seed) { Rules.newGame(GameConfig(numPlayers = 4), seed) }
+    val bots = remember(seed) { List<Bot>(4) { GreedyBot(seed * 31 + it) } }
+    val log = remember(seed) { mutableStateListOf<String>() }
+    val tracker = remember(seed) { TurnTracker(PLAYER_NAMES) }
+    var tick by remember { mutableIntStateOf(0) }
+    var playing by remember { mutableStateOf(true) }
+    var speed by remember { mutableIntStateOf(MAX_SPEED) }
+    val wins = remember { mutableStateListOf(0, 0, 0, 0, 0) } // per seat, last slot = draws
+    var inventory by remember { mutableStateOf(false) }
+
+    LaunchedEffect(seed, playing, speed) {
+        val buf = ActionBuffer()
+        fun step(): ActionType {
+            Rules.legalActions(state, buf)
+            val who = state.actingPlayer
+            val action = bots[who].choose(state, buf)
+            tracker.apply(state, who, action) { Rules.apply(state, action) }
+            when (action.type) {
+                ActionType.END_TURN, ActionType.REJECT_TRADE -> {}
+                ActionType.ROLL -> log.add(0, "${PLAYER_NAMES[who]} rolled ${state.lastRoll}")
+                ActionType.OFFER_TRADE, ActionType.ACCEPT_TRADE -> {}
+                else -> log.add(0, "${PLAYER_NAMES[who]}: ${describe(action.type)}")
             }
-            drawPath(path, TERRAIN_COLORS.getValue(board.hexResource[h]))
-            drawPath(path, Color(0xFF5B4A2F), style = Stroke(width = 3f))
-            val n = board.hexNumber[h]
-            if (n == 0) continue
-            val c = Offset(vs.map { at(it).x }.average().toFloat(), vs.map { at(it).y }.average().toFloat())
-            drawCircle(Color(0xFFFFF8E1), 0.32f * scale, c)
-            val text = measurer.measure(
-                n.toString(),
-                TextStyle(
-                    fontSize = (0.3f * scale / density).sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (n == 6 || n == 8) Color(0xFFC62828) else Color.Black,
-                ),
-            )
-            drawText(text, topLeft = c - Offset(text.size.width / 2f, text.size.height / 2f))
+            if (log.size > 4) log.removeRange(4, log.size)
+            return action.type
         }
-        for (p in board.ports) {
-            val a = at(p.v1)
-            val b = at(p.v2)
-            val mid = Offset((a.x + b.x) / 2, (a.y + b.y) / 2)
-            val out = mid + (mid - center) * 0.12f
-            drawLine(Color(0xFF5B4A2F), a, out, strokeWidth = 4f)
-            drawLine(Color(0xFF5B4A2F), b, out, strokeWidth = 4f)
-            val color = if (p.type == Port.GENERIC) Color.White else TERRAIN_COLORS.getValue(p.type)
-            drawCircle(color, 0.2f * scale, out)
-            drawCircle(Color(0xFF5B4A2F), 0.2f * scale, out, style = Stroke(width = 3f))
+        if (speed == MAX_SPEED) {
+            // Full speed: as many moves as fit in ~12 ms, then let the frame draw.
+            while (playing && !state.isOver) {
+                withFrameNanos { }
+                val start = System.nanoTime()
+                while (!state.isOver && System.nanoTime() - start < 12_000_000) step()
+                tick++
+            }
+        } else {
+            while (playing && !state.isOver) {
+                val type = step()
+                tick++
+                val pause = when (type) {
+                    ActionType.END_TURN, ActionType.REJECT_TRADE -> 0L
+                    ActionType.ROLL -> 500L
+                    else -> 350L
+                }
+                if (pause > 0) delay(pause / speed)
+            }
+        }
+        if (state.isOver) {
+            wins[if (state.winner >= 0) state.winner else 4]++
+            if (state.winner >= 0) log.add(0, "${PLAYER_NAMES[state.winner]} wins!")
+            if (speed == MAX_SPEED && playing) seed++ // straight into the next game
         }
     }
-    Text(caption, Modifier.padding(16.dp))
+
+    // The board fills the screen; controls live in an overlay panel toggled from the corner.
+    val players = tick.let { (0 until state.numPlayers).map { PlayerInfo.of(state, it) } }
+    var camera by remember { mutableStateOf(initialCamera) }
+    var panelOpen by remember { mutableStateOf(false) }
+    Box(modifier) {
+      Row(Modifier.fillMaxSize()) {
+      Box(Modifier.weight(1f).fillMaxHeight()) {
+        val measurer = rememberTextMeasurer()
+        val resources = LocalContext.current.resources
+        val wood = remember { WoodPieces(resources, PLAYER_COLORS + TOKEN_WOOD) }
+        Canvas(
+            Modifier.fillMaxSize()
+                .pointerInput(Unit) {
+                    boardGestures(
+                        onTransform = { centroid, pan, zoom ->
+                            camera = camera.transform(centroid, pan, zoom, Size(size.width.toFloat(), size.height.toFloat()))
+                        },
+                        onTilt = { dy -> camera = camera.tilted(dy, size.height.toFloat()) },
+                    )
+                }
+                .pointerInput(Unit) {
+                    detectTapGestures(onDoubleTap = { at ->
+                        val sz = Size(size.width.toFloat(), size.height.toFloat())
+                        camera = if (camera.zoom > 1.05f || camera.tilt > 0.01f) Camera.FIT
+                        else camera.transform(at, Offset.Zero, Camera.DOUBLE_TAP_ZOOM / camera.zoom, sz)
+                    })
+                },
+        ) {
+            tick // redraw on every move
+            if (inventory) drawInventory(measurer, wood) else drawGame(state, measurer, wood, camera)
+        }
+        if (!inventory) {
+            val report = tick.let { if (speed == MAX_SPEED) tracker.last else tracker.current ?: tracker.last }
+            val previous = tick.let { if (speed == MAX_SPEED) null else tracker.last.takeIf { it !== report } }
+            TurnHud(report, previous, Modifier.align(Alignment.BottomStart).padding(8.dp))
+        }
+      }
+        if (panelOpen) CompositionLocalProvider(LocalContentColor provides Color(0xFFEDE6D8)) {
+            Column(
+                Modifier.fillMaxHeight()
+                    .padding(top = 60.dp, end = 8.dp, bottom = 8.dp)
+                    .width(340.dp)
+                    .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(14.dp))
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("Game #$seed · turn ${players.first().turn}", style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilledTonalButton(onClick = { playing = !playing }) { Text(if (playing) "Pause" else "Play") }
+                    FilledTonalButton(onClick = { speed = if (speed == MAX_SPEED) 1 else speed * 2 }) { Text(if (speed == MAX_SPEED) "Max" else "${speed}×") }
+                    FilledTonalButton(onClick = { seed++; playing = true }) { Text("New") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilledTonalButton(onClick = { inventory = !inventory }) { Text(if (inventory) "Back to game" else "Inventory") }
+                    FilledTonalButton(onClick = { camera = Camera.FIT }) { Text("Fit") }
+                }
+                PlayerPanel(players)
+                Text("Wins: " + PLAYER_NAMES.indices.joinToString("  ") { "${PLAYER_NAMES[it]} ${wins[it]}" } + "  · draws ${wins[4]}",
+                    style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                for (line in log) Text(line, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+            }
+        }
+      }
+        FilledTonalButton(
+            onClick = { panelOpen = !panelOpen },
+            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0x99303036), contentColor = Color.White),
+        ) { Text(if (panelOpen) "Hide" else "Menu") }
+    }
 }
+
+/**
+ * Board gestures: one finger pans, pinch zooms, and two fingers dragged up or down together
+ * (spread barely changing) tilt the table. The kind is decided once per gesture, after
+ * the fingers have moved past touch slop, so a pinch never turns into a tilt halfway.
+ */
+private suspend fun PointerInputScope.boardGestures(
+    onTransform: (centroid: Offset, pan: Offset, zoom: Float) -> Unit,
+    onTilt: (dy: Float) -> Unit,
+) = awaitEachGesture {
+    awaitFirstDown(requireUnconsumed = false)
+    var mode = 0 // 0 undecided, 1 transform, 2 tilt
+    var travelY = 0f
+    var travelX = 0f
+    var spread = 1f
+    do {
+        val event = awaitPointerEvent()
+        val down = event.changes.count { it.pressed }
+        if (event.changes.any { it.isConsumed }) break
+        val zoom = event.calculateZoom()
+        val pan = event.calculatePan()
+        if (mode == 0) {
+            travelX += pan.x
+            travelY += pan.y
+            spread *= zoom
+            val moved = kotlin.math.hypot(travelX, travelY)
+            if (moved > viewConfiguration.touchSlop || kotlin.math.abs(spread - 1f) > 0.05f) {
+                mode = if (down >= 2 && kotlin.math.abs(travelY) > 2f * kotlin.math.abs(travelX) &&
+                    kotlin.math.abs(spread - 1f) < 0.04f
+                ) 2 else 1
+            }
+        }
+        when (mode) {
+            1 -> onTransform(event.calculateCentroid(), pan, zoom)
+            2 -> if (down >= 2) onTilt(pan.y)
+        }
+        if (mode != 0) event.changes.forEach { if (it.positionChanged()) it.consume() }
+    } while (event.changes.any { it.pressed })
+}
+
+internal fun describe(t: ActionType) = when (t) {
+    ActionType.BUILD_SETTLEMENT -> "built a homestead"
+    ActionType.BUILD_CITY -> "built a town"
+    ActionType.BUILD_ROAD -> "built a road"
+    ActionType.BUY_DEVELOPMENT_CARD -> "bought a Fortune card"
+    ActionType.PLAY_KNIGHT_CARD -> "played a Sentinel"
+    ActionType.PLAY_YEAR_OF_PLENTY -> "Windfall"
+    ActionType.PLAY_MONOPOLY -> "Corner the Market"
+    ActionType.PLAY_ROAD_BUILDING -> "played Trailblazers"
+    ActionType.MARITIME_TRADE -> "traded with the bank"
+    ActionType.MOVE_ROBBER -> "moved the bandit"
+    ActionType.DISCARD -> "discarded"
+    else -> t.name.lowercase().replace('_', ' ')
+}
+
+/** Immutable per-player snapshot so the score panel recomposes when anything changes. */
+private data class PlayerInfo(
+    val seat: Int, val turn: Int, val active: Boolean, val vp: Int, val cards: Int, val dev: Int,
+    val road: Boolean, val army: Boolean, val winner: Boolean, val hand: List<Int>,
+) {
+    companion object {
+        fun of(s: GameState, p: Int) = PlayerInfo(
+            seat = p, turn = s.turn, active = !s.isOver && p == s.currentPlayer,
+            vp = s.victoryPoints(p), cards = s.handSize(p), dev = s.devCount(p),
+            road = s.longestRoadOwner == p, army = s.largestArmyOwner == p, winner = s.winner == p,
+            hand = List(RESOURCE_NAMES.size) { s.hand(p, it) },
+        )
+    }
+}
+
+@Composable
+private fun PlayerPanel(players: List<PlayerInfo>) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        for (pl in players) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .background(
+                        if (pl.active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                        RoundedCornerShape(8.dp),
+                    )
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(12.dp).background(PLAYER_COLORS[pl.seat], CircleShape))
+                Spacer(Modifier.width(6.dp))
+                Text(PLAYER_NAMES[pl.seat], Modifier.width(58.dp), fontWeight = if (pl.active) FontWeight.Bold else FontWeight.Normal)
+                Text("${pl.vp} VP", Modifier.width(54.dp), maxLines = 1, fontWeight = FontWeight.Bold)
+                MiniHand(pl.hand, pl.dev, Modifier.weight(1f))
+                val badges = listOfNotNull("Hwy".takeIf { pl.road }, "Watch".takeIf { pl.army }, "WIN".takeIf { pl.winner })
+                Text(badges.joinToString(" "), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/**
+ * Board geometry in canvas pixels. Flat, lattice point (x, y) lands at [center] + (x, y) * [scale].
+ * Tilted by [tilt] radians, the table recedes: y is compressed by cos(tilt) and a mild perspective
+ * makes far rows (top of the screen) smaller and near rows larger. Positions are projected;
+ * things that stand up (pieces, tokens, the robber) stay upright and are sized by [k].
+ */
+private class Layout(val board: Board, val center: Offset, val scale: Float, val tilt: Float = 0f) {
+    private val xs = board.topology.vertexPos.map { it.x * sqrt(3f) / 2f }
+    private val ys = board.topology.vertexPos.map { it.y / 2f }
+    /** Vertical compression of things lying flat on the table. */
+    val squash = kotlin.math.cos(tilt)
+    private val persp = PERSPECTIVE * kotlin.math.sin(tilt)
+
+    /** Perspective size factor for a lattice row at lattice y [ly] (board spans roughly -4..4). */
+    fun kAt(ly: Float) = 1f + persp * (ly * squash) / 4.2f
+
+    private fun project(lx: Float, ly: Float): Offset {
+        val f = kAt(ly)
+        return Offset(center.x + lx * scale * f, center.y + ly * squash * scale * f)
+    }
+
+    fun at(v: Int) = project(xs[v], ys[v])
+    fun k(v: Int) = kAt(ys[v])
+    private fun hexLattice(h: Int): Offset {
+        val vs = board.topology.hexVertices[h]
+        return Offset(vs.map { xs[it] }.average().toFloat(), vs.map { ys[it] }.average().toFloat())
+    }
+    fun hexCenter(h: Int) = hexLattice(h).let { project(it.x, it.y) }
+    fun hexK(h: Int) = kAt(hexLattice(h).y)
+    fun rowKey(h: Int) = board.topology.hexVertices[h].sumOf { ys[it].toDouble() }
+
+    companion object {
+        /** How much bigger the nearest row is than the farthest at full tilt. */
+        const val PERSPECTIVE = 0.22f
+
+        /** Gap kept between the board (ports included) and the screen edge at fit zoom. */
+        const val BORDER_PX = 3f
+
+        /**
+         * Fits everything that is drawn (tiles with their thickness and shadow, port water,
+         * piers and tokens) inside the canvas minus [BORDER_PX], then applies the [camera].
+         */
+        fun fit(board: Board, width: Float, height: Float, camera: Camera = Camera.FIT): Layout {
+            val b = extent(board)
+            val scale = min((width - 2 * BORDER_PX) / b.width, (height - 2 * BORDER_PX) / b.height)
+            val mid = Offset(width / 2f, height / 2f)
+            val fitOrigin = mid - b.center * scale
+            return Layout(board, camera.map(fitOrigin, mid), scale * camera.zoom, camera.tilt)
+        }
+
+        /** Bounding box of the drawn board in lattice units (hex side = 1). */
+        private fun extent(board: Board): androidx.compose.ui.geometry.Rect {
+            val xs = board.topology.vertexPos.map { it.x * sqrt(3f) / 2f }
+            val ys = board.topology.vertexPos.map { it.y / 2f }
+            var minX = xs.min()
+            var maxX = xs.max()
+            var minY = ys.min()
+            var maxY = ys.max() + 0.14f * 1.6f // tile thickness and drop shadow
+            for (p in board.ports) {
+                val mid = Offset((xs[p.v1] + xs[p.v2]) / 2, (ys[p.v1] + ys[p.v2]) / 2)
+                val n = mid / mid.getDistance()
+                val water = mid + n * 0.5f // water oval: +-0.6 x +-0.42
+                val token = mid + n * 0.58f // token radius 0.3 plus its drop shadow
+                minX = minOf(minX, water.x - 0.6f, token.x - 0.3f)
+                maxX = maxOf(maxX, water.x + 0.6f, token.x + 0.37f)
+                minY = minOf(minY, water.y - 0.42f, token.y - 0.3f)
+                maxY = maxOf(maxY, water.y + 0.42f, token.y + 0.37f)
+            }
+            return androidx.compose.ui.geometry.Rect(minX, minY, maxX, maxY)
+        }
+    }
+}
+
+/**
+ * Zoom and pan applied on top of the fitted board: a fit-view point x is shown at
+ * canvasCenter + (x - canvasCenter) * zoom + pan.
+ */
+data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt: Float = 0f) {
+    fun map(x: Offset, canvasCenter: Offset) = canvasCenter + (x - canvasCenter) * zoom + pan
+
+    /** Zooms by [factor] keeping [focus] still, then pans by [drag]; zoom clamped to [MIN_ZOOM]..[MAX_ZOOM]. */
+    fun transform(focus: Offset, drag: Offset, factor: Float, size: Size): Camera {
+        val z = (zoom * factor).coerceIn(MIN_ZOOM, MAX_ZOOM)
+        val k = z / zoom
+        val f = focus - Offset(size.width / 2f, size.height / 2f)
+        return Camera(z, (pan - f) * k + f + drag, tilt).clamped(size)
+    }
+
+    /** At zoom z the fitted board spans z screens, so it may slide by at most (z - 1) / 2 of a screen. */
+    fun clamped(size: Size): Camera {
+        val mx = (zoom - 1f) * size.width / 2f
+        val my = (zoom - 1f) * size.height / 2f
+        return copy(pan = Offset(pan.x.coerceIn(-mx, mx), pan.y.coerceIn(-my, my)))
+    }
+
+    /** Tilts by a vertical two-finger drag of [dy] px: dragging up tips the board away. */
+    fun tilted(dy: Float, height: Float) = copy(tilt = (tilt - dy / height * 1.6f).coerceIn(0f, MAX_TILT))
+
+    companion object {
+        const val MIN_ZOOM = 1f
+        const val MAX_ZOOM = 4f
+        const val DOUBLE_TAP_ZOOM = 2.5f
+        /** Steepest table tilt, in radians (about 55 degrees). */
+        const val MAX_TILT = 0.96f
+        val FIT = Camera()
+    }
+}
+
+private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera) {
+    val board = s.board
+    val l = Layout.fit(board, size.width, size.height, camera)
+    val scale = l.scale
+    val topo = board.topology
+    // Tipped toward the viewer, upright things show more of their height.
+    val lift = 1f + 1.2f * kotlin.math.sin(l.tilt)
+    val stand = 1f + 0.15f * kotlin.math.sin(l.tilt)
+
+    // Painter's order: top rows first so a lower tile's face covers the side wall above it.
+    for (h in (0 until board.hexCount).sortedBy { l.rowKey(it) }) {
+        val c = l.hexCenter(h)
+        // Zoomed in, skip tiles that are entirely off screen.
+        val m = 1.2f * scale
+        if (c.x < -m || c.y < -m || c.x > size.width + m || c.y > size.height + m) continue
+        drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift)
+    }
+
+    // Ports: water patch and wooden piers first, then the raised trade-rate tokens.
+    val ports = board.ports.map { p ->
+        val a = l.at(p.v1)
+        val b = l.at(p.v2)
+        val mid = Offset((a.x + b.x) / 2, (a.y + b.y) / 2)
+        val n = (mid - l.center).let { it / it.getDistance() }
+        val ps = scale * (l.k(p.v1) + l.k(p.v2)) / 2f
+        PortGeom(p.type, a, b, mid, n, mid + Offset(n.x, n.y * l.squash) * (0.58f * ps), ps)
+    }
+    for (pg in ports) drawPortWater(pg, pg.scale, l.squash)
+    for (pg in ports) drawPortPiersAndToken(pg, pg.scale, measurer, wood)
+
+    // Roads.
+    for (e in 0 until topo.edgeCount) {
+        val owner = s.edgeOwner[e]
+        if (owner < 0) continue
+        val (v1, v2) = topo.edgeVertices[e].let { it[0] to it[1] }
+        val a = l.at(v1)
+        val b = l.at(v2)
+        with(wood) { road(a, b, owner, scale * (l.k(v1) + l.k(v2)) / 2f * stand) }
+    }
+
+    // Robber.
+    if (s.robberHex >= 0) {
+        val rs = scale * l.hexK(s.robberHex) * stand
+        drawRobber(l.hexCenter(s.robberHex) + Offset(0.15f * rs, 0.15f * rs * l.squash), rs)
+    }
+
+    // Settlements and cities.
+    for (v in 0 until topo.vertexCount) {
+        val owner = s.vertexOwner[v]
+        if (owner < 0) continue
+        with(wood) {
+            val ps = scale * l.k(v) * stand
+            if (s.vertexBuilding[v] == Piece.CITY) city(l.at(v), owner, ps) else settlement(l.at(v), owner, ps)
+        }
+    }
+}
+
+/** One raised terrain tile (hex side = [scale] px) with its number token. */
+private fun DrawScope.drawTile(
+    resource: Int, number: Int, variant: Int, c: Offset, scale: Float, measurer: TextMeasurer, wood: WoodPieces,
+    squash: Float = 1f, lift: Float = 1f,
+) {
+    // Inset corners so each tile reads as a separate piece. Corner order: clockwise from top.
+    // The top face lies on the table, so tilting squashes it; the side walls are upright.
+    val top = List(6) { i ->
+        val a = Math.toRadians(-90.0 + 60 * i)
+        c + Offset((kotlin.math.cos(a) * scale * 0.93f).toFloat(), (kotlin.math.sin(a) * scale * 0.93f * squash).toFloat())
+    }
+    val down = Offset(0f, 0.14f * scale * lift) // visible tile thickness
+    val base = TERRAIN_COLORS.getValue(resource)
+
+    drawPath(polygon(top.map { it + down * 1.6f }), Color.Black.copy(alpha = 0.18f)) // soft drop shadow
+    // Side walls of the three lower edges, darker the further they face from the light.
+    for ((i, f) in listOf(1 to 0.45f, 2 to 0.55f, 3 to 0.4f)) {
+        val a = top[i]
+        val b = top[i + 1]
+        drawPath(polygon(listOf(a, b, b + down, a + down)), base.shade(f))
+    }
+    // Top face lit from the upper left.
+    drawPath(
+        polygon(top),
+        Brush.linearGradient(
+            listOf(base.tint(0.25f), base, base.shade(0.18f)),
+            start = c + Offset(-scale, -scale),
+            end = c + Offset(scale, scale),
+        ),
+    )
+    if (squash < 0.999f) {
+        withTransform({ scale(1f, squash, c) }) { TerrainArt.draw(this, resource, variant, c, scale) }
+    } else {
+        TerrainArt.draw(this, resource, variant, c, scale)
+    }
+    // Bevel: bright upper-left edges, dark lower-right edges.
+    val bevel = 0.05f * scale
+    for ((i, color) in listOf(
+        4 to base.tint(0.55f), 5 to base.tint(0.55f), 0 to base.tint(0.3f),
+        1 to base.shade(0.3f), 2 to base.shade(0.4f), 3 to base.shade(0.2f),
+    )) {
+        drawLine(color, top[i], top[(i + 1) % 6], strokeWidth = bevel, cap = StrokeCap.Round)
+    }
+    if (number != 0) drawNumberToken(number, c + Offset(-0.36f * scale, -0.3f * scale * squash), scale, measurer, wood)
+}
+
+private fun DrawScope.drawRobber(c: Offset, scale: Float) {
+    val r = 0.13f * scale
+    drawOval(Color.Black.copy(alpha = 0.3f), c + Offset(-1.3f * r, 1.6f * r), androidx.compose.ui.geometry.Size(2.6f * r, 0.9f * r))
+    drawPath(polygon(listOf(c + Offset(-r, 2f * r), c + Offset(r, 2f * r), c + Offset(0.5f * r, 0f), c + Offset(-0.5f * r, 0f))), Color(0xFF3A3A3A))
+    drawCircle(Brush.radialGradient(listOf(Color(0xFF777777), Color(0xFF2A2A2A)), center = c + Offset(-0.3f * r, -0.4f * r), radius = r), 0.75f * r, c)
+}
+
+/** Every game object side by side, for eyeballing the art. */
+private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces) {
+    val scale = min(size.width / 13.5f, size.height / 9.6f)
+    fun label(text: String, at: Offset) {
+        val t = measurer.measure(text, TextStyle(fontSize = (0.2f * scale / density).sp, color = Color(0xFFE8E2D6)))
+        drawText(t, topLeft = at - Offset(t.size.width / 2f, 0f))
+    }
+    val left = size.width / 2f - 5 * 2.05f * scale / 2f
+    // Row 1: the six terrains with sample numbers.
+    val terrains = listOf(Resource.WOOD to 5, Resource.BRICK to 6, Resource.SHEEP to 8, Resource.WHEAT to 9, Resource.ORE to 10, Resource.NONE to 0)
+    val names = listOf("Forest", "Hills", "Pasture", "Fields", "Mountains", "Desert")
+    terrains.forEachIndexed { i, (res, n) ->
+        val c = Offset(left + i * 2.05f * scale, 1.25f * scale)
+        drawTile(res, n, i, c, scale, measurer, wood)
+        label(names[i], c + Offset(0f, 1.2f * scale))
+    }
+    // Row 2: port tokens and the robber.
+    val ports = listOf(Port.GENERIC, Resource.WOOD, Resource.BRICK, Resource.SHEEP, Resource.WHEAT, Resource.ORE)
+    ports.forEachIndexed { i, type ->
+        val c = Offset(left + i * 2.05f * scale, 4.0f * scale)
+        drawPortToken(type, c, scale * 1.4f, measurer, wood)
+        label(if (type == Port.GENERIC) "3:1 port" else "2:1 port", c + Offset(0f, 0.6f * scale))
+    }
+    // Row 3: each player's road, settlement and city, plus the robber.
+    for (p in PLAYER_COLORS.indices) {
+        val x = left - 0.4f * scale + p * 2.9f * scale
+        val y = 6.6f * scale
+        with(wood) {
+            road(Offset(x - 0.9f * scale, y + 0.2f * scale), Offset(x - 0.1f * scale, y - 0.4f * scale), p, scale * 1.3f)
+            settlement(Offset(x + 0.5f * scale, y), p, scale * 1.3f)
+            city(Offset(x + 1.35f * scale, y), p, scale * 1.3f)
+        }
+        label(PLAYER_NAMES[p], Offset(x + 0.3f * scale, y + 0.65f * scale))
+    }
+    val robberAt = Offset(left + 5 * 2.05f * scale + 0.9f * scale, 6.4f * scale)
+    drawRobber(robberAt, scale * 1.5f)
+    // Row 4: what doesn't exist yet.
+    label("Cards (resource, development, progress, commodities): not designed yet", Offset(size.width / 2f, 8.4f * scale))
+}
+
+private class PortGeom(val type: Int, val a: Offset, val b: Offset, val mid: Offset, val out: Offset, val token: Offset, val scale: Float)
+
+private val WATER = Color(0xFF4FA3D9)
+
+private fun DrawScope.drawPortWater(pg: PortGeom, scale: Float, squash: Float = 1f) {
+    val c = pg.mid + Offset(pg.out.x, pg.out.y * squash) * (0.5f * scale)
+    // The water lies flat on the table, so tilting squashes it.
+    drawOval(WATER.copy(alpha = 0.9f), c - Offset(0.6f * scale, 0.42f * scale * squash), Size(1.2f * scale, 0.84f * scale * squash))
+    drawOval(WATER.tint(0.3f).copy(alpha = 0.6f), c - Offset(0.5f * scale, 0.38f * scale * squash), Size(0.8f * scale, 0.45f * scale * squash))
+    // Wave arcs.
+    val waves = Path()
+    for ((dx, dy) in listOf(-0.4f to 0.12f, 0.36f to -0.14f, 0.34f to 0.2f, -0.3f to -0.22f, 0.0f to 0.3f)) {
+        val w = c + Offset(dx * scale, dy * scale)
+        waves.moveTo(w.x - 0.07f * scale, w.y)
+        waves.quadraticTo(w.x - 0.035f * scale, w.y - 0.04f * scale, w.x, w.y)
+        waves.quadraticTo(w.x + 0.035f * scale, w.y - 0.04f * scale, w.x + 0.07f * scale, w.y)
+    }
+    drawPath(waves, Color.White.copy(alpha = 0.8f), style = Stroke(0.018f * scale, cap = StrokeCap.Round))
+    // A little sailboat off to the side.
+    val perp = Offset(-pg.out.y, pg.out.x)
+    val boat = pg.mid + pg.out * (0.62f * scale) + perp * (0.42f * scale)
+    val u = 0.09f * scale
+    drawPath(polygon(listOf(boat + Offset(-1.2f * u, 0f), boat + Offset(1.2f * u, 0f), boat + Offset(0.8f * u, 0.5f * u), boat + Offset(-0.8f * u, 0.5f * u))), Color(0xFF6B3E1F))
+    drawLine(Color(0xFF3B2412), boat, boat + Offset(0f, -1.9f * u), strokeWidth = 0.15f * u)
+    drawPath(polygon(listOf(boat + Offset(0.08f * u, -1.8f * u), boat + Offset(0.08f * u, -0.15f * u), boat + Offset(1.1f * u, -0.15f * u))), Color.White)
+    drawPath(polygon(listOf(boat + Offset(-0.08f * u, -1.5f * u), boat + Offset(-0.08f * u, -0.15f * u), boat + Offset(-0.8f * u, -0.15f * u))), Color(0xFFE8E2D0))
+}
+
+private fun DrawScope.drawPortPiersAndToken(pg: PortGeom, scale: Float, measurer: TextMeasurer, wood: WoodPieces) {
+    // Wooden plank walkways from each coast intersection to the token.
+    for (v in listOf(pg.a, pg.b)) {
+        // 15% longer than the original 0.12..0.75 span, extended at the coast end so the token stays put.
+        val from = v + (pg.token - v) * 0.0255f
+        val to = pg.token + (v - pg.token) * 0.25f
+        val dir = (to - from).let { it / it.getDistance() }
+        val across = Offset(-dir.y, dir.x)
+        val half = 0.0715f * scale
+        val deck = listOf(from + across * half, to + across * half, to - across * half, from - across * half)
+        val side = polygon(deck.map { it + Offset(0f, 0.035f * scale) })
+        drawPath(side, wood.brush(TOKEN_WOOD_INDEX))
+        drawPath(side, Color.Black.copy(alpha = 0.4f))
+        drawPath(polygon(deck), wood.brush(TOKEN_WOOD_INDEX))
+        val planks = Path()
+        val len = (to - from).getDistance()
+        var t = 0.05f * scale
+        while (t < len) {
+            val m = from + dir * t
+            planks.moveTo((m + across * half).x, (m + across * half).y)
+            planks.lineTo((m - across * half).x, (m - across * half).y)
+            t += 0.05f * scale
+        }
+        drawPath(planks, Color(0xFF6E4520).copy(alpha = 0.75f), style = Stroke(0.01f * scale))
+    }
+    drawPortToken(pg.type, pg.token, scale, measurer, wood)
+}
+
+/** Raised trade-rate token: wood with an anchor for 3:1, terrain art for 2:1. */
+private fun DrawScope.drawPortToken(type: Int, t: Offset, scale: Float, measurer: TextMeasurer, wood: WoodPieces) {
+    // Raised token in the number-token style. Resource ports are filled with their terrain's tile art.
+    val r = 0.3f * scale
+    val generic = type == Port.GENERIC
+    val face = if (generic) TOKEN_WOOD else TERRAIN_COLORS.getValue(type)
+    drawCircle(Color.Black.copy(alpha = 0.3f), r, t + Offset(0.05f * scale, 0.07f * scale))
+    drawCircle(face.shade(0.3f), r, t + Offset(0f, 0.04f * scale)) // rim
+    if (generic) {
+        drawCircle(wood.brush(TOKEN_WOOD_INDEX), r, t)
+        drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.35f), Color.Transparent), center = t + Offset(-0.4f * r, -0.4f * r), radius = 1.2f * r), r, t)
+    } else {
+        TerrainArt.drawPortFill(this, type, t, r)
+        // Same upper-left light as the tiles.
+        drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.3f), Color.Transparent), center = t + Offset(-0.4f * r, -0.4f * r), radius = 1.2f * r), r, t)
+    }
+    drawCircle(face.shade(0.4f), r, t, style = Stroke(0.025f * scale))
+    val text = measurer.measure(
+        if (generic) "3:1" else "2:1",
+        TextStyle(fontSize = (0.17f * scale / density).sp, fontWeight = FontWeight.Bold, color = INK),
+    )
+    val labelTop = t + Offset(-text.size.width / 2f, -0.92f * r)
+    if (!generic) {
+        // Cream label so the rate reads over busy art.
+        val pad = 0.03f * scale
+        drawRoundRect(
+            Color(0xFFFFFBEF).copy(alpha = 0.92f),
+            topLeft = labelTop - Offset(pad, 0f),
+            size = Size(text.size.width + 2 * pad, text.size.height.toFloat()),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(text.size.height / 2f),
+        )
+    }
+    drawText(text, topLeft = labelTop)
+    if (generic) TerrainArt.drawIcon(this, Resource.NONE, t + Offset(0f, 0.38f * r), 0.54f * r)
+}
+
+private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer: TextMeasurer, wood: WoodPieces) {
+    val r = 0.3f * scale
+    drawCircle(Color.Black.copy(alpha = 0.3f), r, t + Offset(0.05f * scale, 0.07f * scale))
+    drawCircle(TOKEN_WOOD.shade(0.35f), r, t + Offset(0f, 0.04f * scale)) // token edge
+    drawCircle(wood.brush(TOKEN_WOOD_INDEX), r, t)
+    drawCircle(
+        Brush.radialGradient(
+            listOf(Color.White.copy(alpha = 0.4f), Color.Transparent),
+            center = t + Offset(-0.35f * r, -0.35f * r),
+            radius = 1.3f * r,
+        ),
+        r, t,
+    )
+    drawCircle(TOKEN_WOOD.shade(0.45f), r, t, style = Stroke(0.02f * scale))
+    val ink = if (n == 6 || n == 8) Color(0xFFC62828) else INK
+    val text = measurer.measure(
+        n.toString(),
+        TextStyle(fontSize = (0.264f * scale / density).sp, fontWeight = FontWeight.Bold, color = ink),
+    )
+    drawText(text, topLeft = t - Offset(text.size.width / 2f, text.size.height * 0.6f))
+    val dots = pips(n)
+    val gap = 0.12f * r
+    for (d in 0 until dots) {
+        drawCircle(ink, 0.05f * r, Offset(t.x + (d - (dots - 1) / 2f) * gap, t.y + 0.55f * r))
+    }
+}
+
