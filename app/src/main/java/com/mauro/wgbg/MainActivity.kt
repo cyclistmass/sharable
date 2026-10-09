@@ -671,6 +671,24 @@ fun WatchGameScreen(
     }
     val targets = Targets.of(legal)
     val chosen = pending.filter { it in legal } // a stale pick (the turn moved on) is dropped
+    // Turn and trade alerts (#44): a tick when it becomes your move, a chime when an offer asks for cards you
+    // hold, and an offer you can't pay is declined for you after a short countdown so turns keep flowing.
+    val hostView = androidx.compose.ui.platform.LocalView.current
+    val sounds = remember { GameSounds(appContext) }
+    androidx.compose.runtime.DisposableEffect(sounds) { onDispose { sounds.close() } }
+    val myMoveKey = tick.let { if (me >= 0 && !state.isOver && state.actingPlayer == me) listOf(state.turn, state.phase) else null }
+    LaunchedEffect(myMoveKey) { if (myMoveKey != null) hostView.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY) }
+    val offerKey = tick.let { if (me >= 0 && tradeMode(state, me) == TradeMode.RESPOND) listOf(state.turn, state.currentPlayer, state.tradeOffer.contentHashCode()) else null }
+    var autoNo by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(offerKey) {
+        autoNo = null
+        if (offerKey == null) return@LaunchedEffect
+        hostView.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        if (canPayOffer(state, me)) { sounds.tradeChime(sound.soundVolume); return@LaunchedEffect }
+        for (left in AUTO_NO_SECONDS downTo 1) { autoNo = left; delay(1000) }
+        autoNo = null
+        humanMoves.trySend(Action.REJECT_TRADE)   // checked against the rules like a tap; ignored if the offer moved on
+    }
     // The trade chest: open when you opened it, or when a trade waits on you (or you wait on answers to yours).
     val chestOpen = me >= 0 && !inventory && tick.let {
         (tradeOpen && tradeButtonVisible(state)) || tradeNeedsMe(state, me) || (tradeMode(state, me) == TradeMode.WAITING && state.currentPlayer == me)
@@ -823,7 +841,7 @@ fun WatchGameScreen(
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
             val needsMe = tradeNeedsMe(state, me)
             // The trade chest docks where the move buttons sit and takes their place while it is open.
-            if (chestOpen) TradePanel(state, me, legal, names, send, onClose = { tradeOpen = false }, responses = responses, version = tick,
+            if (chestOpen) TradePanel(state, me, legal, names, send, onClose = { tradeOpen = false }, responses = responses, version = tick, autoNoSeconds = autoNo,
                 modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
             else if (legal.isNotEmpty()) HumanControls(state, me, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp))
             if (chosen.isNotEmpty()) Column(

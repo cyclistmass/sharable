@@ -96,6 +96,15 @@ fun offerFor(s: GameState, give: IntArray, get: IntArray): Action? = runCatching
     if (s.ck != null) Action.offerTradeCk(give, get) else Action.offerTrade(give, get)
 }.getOrNull()
 
+/** True when [me] holds every card a trade offered to them asks them to give (#44). */
+fun canPayOffer(s: GameState, me: Int): Boolean {
+    val give = termsFor(s, me).second
+    return give.indices.all { give[it] <= holding(s, me, it) }
+}
+
+/** How long an offer you can't pay waits before it is declined for you, seconds (Mauro: 5). */
+const val AUTO_NO_SECONDS = 5
+
 fun termsFor(s: GameState, me: Int): Pair<IntArray, IntArray> {
     val ck = s.ck
     if (ck != null) {
@@ -177,6 +186,8 @@ fun TradePanel(
     responses: Map<Int, String> = emptyMap(),
     /** Changes after every move; [s] is mutated in place, so this makes the panel redraw. */
     version: Int = 0,
+    /** Seconds until an offer you can't pay is declined for you (#44), or null. */
+    autoNoSeconds: Int? = null,
 ) {
     version
     val mode = tradeMode(s, me)
@@ -254,7 +265,7 @@ fun TradePanel(
             // Several takers: the "Trade with …" buttons choose, so no greyed-out Trade beside them.
             if (!(mode == TradeMode.PICK_PARTNER && yes == null))
                 BigButton(labels.first, YES, "trade-yes", yes?.let { a -> { onMove(a); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
-            BigButton(labels.second, NO, "trade-no", no)
+            BigButton(if (autoNoSeconds != null && mode == TradeMode.RESPOND) "${labels.second} ($autoNoSeconds)" else labels.second, NO, "trade-no", no)
             // Counter only means something when answering someone else's offer.
             if (mode == TradeMode.RESPOND) BigButton("Counter", COUNTER, "trade-counter", counter)
         }
