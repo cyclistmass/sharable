@@ -64,3 +64,5 @@ All other graphics are drawn procedurally in code.
 - Frameless tiles and top-down cliff strips (`tile_*`, `cliff_top_*`): generated with OpenAI Codex for Mauro (via Pip).
 - Brass button plates and road brick texture (`btn_*`, `road_bricks.png`): generated with OpenAI Codex for Mauro.
 - Hand-made dice, Normal and Pirate sets (`dice_n*`, `dice_p*`): generated with OpenAI Codex for Mauro (via mauro-7a).
+
+- V2 number-clearing revision (`docs/design/tiles-3d-models/`): own procedural Blender geometry, terrain clearings, plate-proof artwork and exclusion masks created for Mauro with Codex. Sources: `tools/blender/token_space.py`, `render_density.py`, `alpine_chain.py`, `animate_v2.py`, `compose_token_check.py`. No downloaded models or new third-party assets.

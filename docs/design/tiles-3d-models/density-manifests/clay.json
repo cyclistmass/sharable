@@ -1,24 +1,37 @@
 {
   "blender": "4.5.1 LTS",
   "threads": 2,
-  "metadata": {},
-  "scene_objects": 151,
+  "metadata": {
+    "token_space": {
+      "token_center": [
+        -0.36,
+        0.3
+      ],
+      "token_radius": 0.3,
+      "clearing_radius": 0.345,
+      "upright_plate": true,
+      "foreground_max_tilt_degrees": 55,
+      "pruned_objects": 4,
+      "flattened_surfaces": 1
+    }
+  },
+  "scene_objects": 149,
   "renders": [
     {
       "file": "clay_V2_flat.png",
-      "seconds": 5.09,
+      "seconds": 5.34,
       "tilt": 0,
       "resolution": 512
     },
     {
       "file": "clay_V2_mid.png",
-      "seconds": 5.05,
+      "seconds": 5.08,
       "tilt": 0.48,
       "resolution": 512
     },
     {
       "file": "clay_V2_max.png",
-      "seconds": 4.5,
+      "seconds": 4.39,
       "tilt": 0.96,
       "resolution": 512
     }

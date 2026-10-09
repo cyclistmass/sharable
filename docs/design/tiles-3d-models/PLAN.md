@@ -1,32 +1,32 @@
 # Modelled V2 tiles: density pass and integration plan
 
-Status: density palette only. Timber PNGs and its loop retained byte-for-byte; MainActivity and TileLife unchanged. Mauro selected R3 Alpine chain for Stone: seven summits with a dominant 1.08-unit peak and three added secondary peaks. No downloaded art or app integration. Open palette-v2.html, palette-v2-density.png and ../bandit/bandit-options.png.
+Status: number-clearing palette revision across all six terrains; MainActivity and TileLife unchanged. Current proof and measurements: token-clearing/REPORT.md, token-check.png and ART_SPEC.md. Earlier density/R3 reports are historical.
 
 ## Geometry and projection
 
 - Fleece: lush rolling grass, flowers, bushes, three-course irregular dry-stone wall and wooden gate; six baked sheep and two tiny brown/white goats on rock outcrops. The exclusive moving layer adds one grazing/wandering sheep and one grazing goat: seven sheep / three goats in motion. Goats have slimmer bodies, upright tails, horns and beards.
-- Grain: 15 curved rows, 1018 modelled ears with kernels/awns, continuous rounded canopy masses, three stooks, a wooden cart with wheels/spokes and poppies along the field edge.
+- Grain: curved rows cut around the plate reservation, dense modelled ears with kernels/awns, continuous rounded canopy masses, three stooks, a wooden cart with wheels/spokes and poppies along the field edge.
 - Clay: one deep excavation with three cut terraces, wet dark floor/puddle, kiln/chimney, brick stacks, two slatted drying racks and plank shed. The hex top cap is opened so it cannot cover the below-ground pit; floor z=-.115 remains above the base bottom -.22.
 - Desert: diagonal relief dunes with modelled ripples, rock clusters, loose stones, scrub, dead bleached tree and tiny skull. Deliberately retains more open sand than the other terrains.
-- Stone: selected R3 Alpine chain with four original summits plus three new peaks (.65/.74/.79), shared shoulders/saddles, warm dark bedrock/clefts, snow caps, scree and five pines. Three 512px views plus a 1024px single source; the main neighbour proof renders nine edge-sharing model instances at 1536 x 1024. A separate 2304 x 1536 sprite mock retains game spacing. See stone-alpine/REPORT.md.
+- Stone: selected R3 Alpine chain with seven varied summits arranged around the number shelf (.65/.74/.79), shared shoulders/saddles, warm dark bedrock/clefts, snow caps, scree and foothill pines. Three 512px views plus a 1024px single source; the main neighbour proof renders nine edge-sharing model instances at 1536 x 1024. A separate 2304 x 1536 sprite mock retains game spacing. See token-clearing/REPORT.md for the current revision.
 
 Names, hex base/thickness and upper-left sun/soft sky follow the approved V2 set. Camera.MAX_TILT=.96 radians; Layout squash=cos(tilt). Orthographic elevations are 90, 62.498, 34.996 degrees for tilt 0, .48, .96. World +Y maps screen-up. Pointy hex radius .93, depth .22, bevel .018; viewport 2.65 world units. Every static sprite is padded 512 x 512 RGBA, origin (256,256); widest hex face is about 311px. Preserve padding/anchor and do not squash the already rendered geometry again.
 
-`render_density.py` merges grass, flowers, wheat and rubble by material to avoid thousands of scene objects. Run with two threads and close Blender after each terrain / animal-phase process. `run_density.ps1` waits for each process exit before starting the next. Current static/animal manifests, combining the density round and current R3 single views, total 143.87s, excluding scene construction/startup and discarded iterations; per-view timings below are measured.
+`render_density.py` merges grass, flowers, wheat and rubble by material to avoid thousands of scene objects. Run with two threads and close Blender after each terrain / animal-phase process. `run_density.ps1` waits for each process exit before starting the next. Current retained static renders and the native Stone patch total 158.87s, excluding construction/startup and discarded iterations; current per-view timings are in token-clearing/budget.json.
 
 ## Assets, APK and memory
 
-Current delivery: six terrains x three views = 18 static sources; the density round updated 15, and this R3 follow-up replaces the three Stone views. Combined PNGs: **3,619,453 bytes**; trial lossless WebP: **1,481,524 bytes**. Eight production steps remain unrendered: t=.96*i/7, i=0..7. Their compressed estimates use the current three-view mean, not an APK build.
+Current delivery: six terrains × three views = 18 static sources, all refreshed for number clearance. PNGs: **3,388,525 bytes**; trial lossless WebP: **1,277,706 bytes**. Eight-step estimate remains 72 shipping files + metadata, **3,816,712 bytes**, excluding review animations and sheets.
 
 | Proposed eight-step shipping assets | Count | Estimated compressed bytes |
 | --- | ---: | ---: |
-| Six terrain bases | 48 | 3,950,731 |
+| Six terrain bases | 48 | 3,407,216 |
 | 16-phase sheep-and-goat atlases | 8 | 371,136 |
-| Grain wind masks | 8 | 23,776 |
-| Desert heat masks | 8 | 22,792 |
-| Total | **72 files + metadata** | **4,368,435 (about 4.37 MB)** |
+| Grain wind masks | 8 | 14,448 |
+| Desert heat masks | 8 | 23,912 |
+| Total | **72 files + metadata** | **3,816,712 bytes** |
 
-At six steps: 36 bases + 6 atlases + 12 masks = 54 files, about 3.28 MB. Preview animated WebPs, raw 512px animal sources, historical sheep-only sprites, comparison sheets, 1024px Stone mock and bandit options are excluded. Ship only the selected bandit, separately measured. PNG/WebP ZIP savings are small; these are asset estimates, not measured APK deltas.
+At six steps: 36 bases + 6 atlases + 12 masks = 54 files, about 2.86 MB. Preview animated WebPs, raw 512px animal sources, historical sheep-only sprites, comparison sheets, 1024px Stone mock and bandit options are excluded. Ship only the selected bandit, separately measured. PNG/WebP ZIP savings are small; these are asset estimates, not measured APK deltas.
 
 Decoded RGBA at 512px: all eight angles cost 48 MiB; the recommended adjacent-angle pair shared across six terrains costs 12 MiB. Two 1024 x 256 animal atlases add 2 MiB; two derived Grain patches and two Desert patches add 4 MiB. Four 256px ALPHA8 masks add .25 MiB (1 MiB if RGBA). Total active CPU bitmap estimate **18.25-19 MiB**, plus decode intermediates, board layers and possible GPU copies. Avoid per-hex duplicates and eagerly loading all angles. Mipmaps add about one third; a 1024px tier quadruples memory.
 
@@ -81,7 +81,7 @@ Choose (b) if rotation, large close-ups, convincing inter-tile shadows, moving s
 
 ## Validation plan and current results
 
-Stone R3 is now current; its views, native nine-instance patch, sprite mock, phone proof and full/phone loop frames were inspected. Inspected all updated flat/mid/max views, the two neighbour patches, five phase sheets and all 64 cells of each updated overlay sheet; checked all bandit options at 25%. Iterations tapered Grain's canopy edges and cleared space for its cart, softened Stone's cleft contrast and fixed bandit proof clipping. `checks-v2.json` records 18 RGBA static views, six loops / 384 decoded frames, exact 0/8s equality, valid HTML links/JavaScript and unchanged application sources. `density-manifests/summary.json` records current bytes, timings, preserved Timber/app hashes and the file inventory. Old `render-manifest-v2.json` and the original REPORT.md describe the preceding round; use REPORT-density.md for this round.
+Inspected all eighteen views, six four-phase sheets and all 64 cells of each overlay sheet, the native Stone patch, and token checks at 25% phone scale. The mixed nine-tile proof draws terrain + plate layers rear-to-front and passes with zero covered plate pixels. All 384 overlay frames have zero alpha in the reserved screen circles; six decoded loops are seamless, 64 frames / 8 seconds each. All 146 application-file hashes match the baseline. ART_SPEC.md is the shared geometry rule; token-clearing/REPORT.md and budget.json record the current sources, timings and bytes. Earlier density and R3 reports are historical.
 
 Before app integration is accepted:
 
@@ -101,4 +101,10 @@ Before app integration is accepted:
 
 Current added validation: 18 static RGBA images with nonempty transparent margins; 16 cropped sheep-and-goat layers with safe borders; 1024 × 256 atlas layout; six decoded animated WebPs with 64 frames/8s/infinite loop; exact reference phase 0/8 equality, nonzero frame changes and ordinary-size final-to-first changes. SHA-256 base hashes detect stale render/composition races. Visually inspect all three static inspection sheets, both board patches, every terrain's four-phase sheet and all 64 cropped overlay-frame cells. Browser preview automation is separate from these verified asset checks. Engine rules/unit, random fuzz and emulator/monkey checks remain inapplicable/not run because application/rules code is unchanged and Mauro explicitly forbids emulator work.
 
-Reproduction commands and file inventory are in REPORT.md.
+Reproduce with tools/blender/run_token_clearings.ps1; current preview file inventory is token-clearing/FILES.txt.
+
+## Shared number clearing (current revision)
+
+Follow ART_SPEC.md and the common `token_space.py` constants. Store centre (-0.36, +0.30), ground radius 0.345 and upright plate radius 0.30 in renderer metadata. At runtime project the centre with Layout's tilt/scale, but keep the plate circle upright. Cache one ALPHA8 guard per angle (or generate it analytically); no new shipping files are needed. Apply it after all TileLife blur, sprite interpolation and Grain/Desert displacement. A pair of 512px ALPHA8 guards adds 0.5 MiB to the active bitmap estimate; use 256px cached masks with a conservative margin for 0.125 MiB instead. Do not allocate per hex or per frame.
+
+Order each terrain sprite and its number plate together back-to-front; keep pieces/UI in their existing passes. Verify neighbour overdraw using token-check-patch-max.png before wiring. The low foreground geometry is part of the art, not only a compositing mask. All 18 sources and six review loops were regenerated; the eight production tilt steps still need sequential rendering. Current budget/render evidence is token-clearing/REPORT.md; use `run_token_clearings.ps1` to reproduce this revision.

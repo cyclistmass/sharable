@@ -7,6 +7,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageChops, ImageFont, ImageStat, ImageOps
 import math, json, hashlib, argparse
 from io import BytesIO
+from token_space import screen_mask,allowed
 
 ROOT=Path(__file__).resolve().parents[2];OUT=ROOT/'docs/design/tiles-3d-models'
 TAU=math.tau;TILT=.48;PIX=512/2.65
@@ -26,13 +27,15 @@ def wind_patch(source,save_mask=False):
     mask=Image.new('L',(512,512));d=ImageDraw.Draw(mask)
     for row in range(15):
         points=[]
-        for j in range(45):
-            x=-.73+j*.033;y=-.55+row*.078+.065*math.sin(2.4*x+.03*row)
-            if abs(y)+abs(x)/math.sqrt(3)>.84 or (x>.25 and y<.08):continue
+        for j in range(43):
+            x=-.67+j*.0315;y=-.55+row*.078+.065*math.sin(2.4*x+.03*row)
             z=.055+.047*math.sin(2.3*x+.4)*math.cos(1.7*y)
+            if abs(y)+abs(x)/math.sqrt(3)>.83 or (x>.25 and y<.08) or (x<.02 and y<.30) or not allowed(x,y,z+.34,.06):
+                if len(points)>1:d.line(points,fill=255,width=14)
+                points=[];continue
             points.append(project(x,y,z+.245))
         if len(points)>1:d.line(points,fill=255,width=14)
-    mask=mask.filter(ImageFilter.GaussianBlur(1.2))
+    mask=ImageChops.multiply(mask.filter(ImageFilter.GaussianBlur(1.2)),screen_mask())
     if save_mask:
         folder=OUT/'animation-layers/grain';folder.mkdir(parents=True,exist_ok=True)
         mask.resize((256,256),Image.Resampling.LANCZOS).save(folder/'wind_mask_mid.png')
@@ -62,13 +65,14 @@ class Overlays:
             layer=Image.new('RGBA',(512,512))
             layer.alpha_composite(Image.open(OUT/'animation-layers/fleece'/f'animals_mid_{i:02d}.png').convert('RGBA'),(232,208))
             self.sheep.append(layer)
+        self.token_guard=screen_mask()
         self.wind=wind_patch(self.base['grain'],True)
         path=OUT/'animation-layers/grain';path.mkdir(parents=True,exist_ok=True)
         self.wind.resize((256,256),Image.Resampling.LANCZOS).save(path/'wind_patch_mid.png')
         self.wind.resize((256,256),Image.Resampling.LANCZOS).save(path/'wind_patch_mid.webp',lossless=True,method=4)
         mask=Image.new('L',(512,512));d=ImageDraw.Draw(mask)
         d.ellipse((148,216,310,325),fill=190)
-        mask=mask.filter(ImageFilter.GaussianBlur(12))
+        mask=ImageChops.multiply(mask.filter(ImageFilter.GaussianBlur(12)),self.token_guard)
         self.heat=self.base['desert'].copy();self.heat.putalpha(ImageChops.multiply(self.heat.getchannel('A'),mask))
         path=OUT/'animation-layers/desert';path.mkdir(parents=True,exist_ok=True)
         mask.resize((256,256),Image.Resampling.LANCZOS).save(path/'heat_mask_mid.png')
@@ -84,19 +88,19 @@ class Overlays:
             d.line([(cx-6,cy-wing),(cx-2,cy-1),(cx,cy+1),(cx+3,cy-1),(cx+7,cy-wing*.75)],fill=(218,212,185,210),width=2)
             for j in range(3):
                 a=(p/TAU+j/3)%1;fade=math.sin(math.pi*a)**2
-                xx=-.3+j*.24+.035*math.sin(TAU*a);yy=.18-a*.25
+                xx=.14+j*.18+.035*math.sin(TAU*a);yy=.18-a*.25
                 c=project(xx,yy,.55-a*.16)
                 ellipse(d,c,1.5,2.3,(176,162,63,round(135*fade)))
         elif terrain=='stone':
             # Selected R3: height-aware wisps at three connected saddles.
-            for j,(x,y,z) in enumerate([(-.23,.18,.88),(.24,.19,.72),(.02,-.24,.57)]):
+            for j,(x,y,z) in enumerate([(.00,.66,.95),(.25,.24,.60),(.39,-.30,.53)]):
                 q=p+j*2.1;cx,cy=project(x+.09*math.sin(q),y+.018*math.cos(q),z)
                 alpha=round(46+13*math.cos(q))
                 pts=[(cx-29+i*6,cy+2.3*math.sin(i*.7+q)) for i in range(11)]
                 d.line(pts,fill=(232,237,230,alpha),width=3+j)
             layer=layer.filter(ImageFilter.GaussianBlur(2.0))
             # One soaring bird stays above the chain; no temporal sprite or full-tile redraw at runtime.
-            d=ImageDraw.Draw(layer);cx,cy=project(.08+.26*math.sin(p),.15+.075*math.cos(p),1.12+.035*math.cos(p))
+            d=ImageDraw.Draw(layer);cx,cy=project(.28+.20*math.sin(p),.35+.075*math.cos(p),1.12+.035*math.cos(p))
             wing=2.5+1.6*math.cos(p*4)
             d.line([(cx-5,cy-wing),(cx-2,cy-.5),(cx,cy+1),(cx+2,cy-.5),(cx+5,cy-wing*.8)],fill=(220,212,182,220),width=1)
         elif terrain=='fleece':
@@ -122,6 +126,7 @@ class Overlays:
             layer=layer.filter(ImageFilter.GaussianBlur(1.7))
         elif terrain=='desert':
             layer=wind_mesh(self.heat,p,.8)
+        layer.putalpha(ImageChops.multiply(layer.getchannel('A'),self.token_guard))
         return layer
 
     def frame(self,r,p):

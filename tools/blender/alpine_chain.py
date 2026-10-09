@@ -6,9 +6,9 @@ base, trees, light/camera helpers. Historical R1/R2/R3 studies remain untouched.
 import math,random,hashlib,json
 
 R=.93;WIDTH=math.sqrt(3)*R;ROW=1.5*R
-# First four are the selected R3 study. Three new summits have distinct heights.
-PEAKS=[(-.51,.15,.78),(-.16,.20,1.08),(.19,.14,.92),(.51,.06,.70),
-       (-.47,-.22,.65),(.02,-.31,.74),(.35,.39,.79)]
+# Seven varied R3 summits, repositioned around the plate shelf and neighbour guard.
+PEAKS=[(.00,.70,1.08),(.20,.52,.78),(.49,.22,.92),(.56,-.12,.70),
+       (.12,-.40,.65),(.33,-.44,.74),(.57,.47,.79)]
 LINKS=[(0,1),(1,2),(2,3),(0,4),(4,5),(5,2),(2,6),(6,3)]
 OFFSETS=[(WIDTH*(c+r/2),ROW*r) for r in range(-2,3) for c in range(-2,3)]
 

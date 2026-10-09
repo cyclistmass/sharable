@@ -1,24 +1,37 @@
 {
   "blender": "4.5.1 LTS",
   "threads": 2,
-  "metadata": {},
-  "scene_objects": 28,
+  "metadata": {
+    "token_space": {
+      "token_center": [
+        -0.36,
+        0.3
+      ],
+      "token_radius": 0.3,
+      "clearing_radius": 0.345,
+      "upright_plate": true,
+      "foreground_max_tilt_degrees": 55,
+      "pruned_objects": 5,
+      "flattened_surfaces": 1
+    }
+  },
+  "scene_objects": 26,
   "renders": [
     {
       "file": "desert_V2_flat.png",
-      "seconds": 5.69,
+      "seconds": 5.56,
       "tilt": 0,
       "resolution": 512
     },
     {
       "file": "desert_V2_mid.png",
-      "seconds": 5.48,
+      "seconds": 5.23,
       "tilt": 0.48,
       "resolution": 512
     },
     {
       "file": "desert_V2_max.png",
-      "seconds": 4.75,
+      "seconds": 4.56,
       "tilt": 0.96,
       "resolution": 512
     }

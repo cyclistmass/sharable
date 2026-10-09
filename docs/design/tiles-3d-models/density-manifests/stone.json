@@ -7,75 +7,87 @@
     "added_summits": 3,
     "summits": [
       [
-        -0.51,
-        0.15,
-        0.78
-      ],
-      [
-        -0.16,
-        0.2,
+        0.0,
+        0.7,
         1.08
       ],
       [
-        0.19,
-        0.14,
+        0.2,
+        0.52,
+        0.78
+      ],
+      [
+        0.49,
+        0.22,
         0.92
       ],
       [
-        0.51,
-        0.06,
+        0.56,
+        -0.12,
         0.7
       ],
       [
-        -0.47,
-        -0.22,
+        0.12,
+        -0.4,
         0.65
       ],
       [
-        0.02,
-        -0.31,
+        0.33,
+        -0.44,
         0.74
       ],
       [
-        0.35,
-        0.39,
+        0.57,
+        0.47,
         0.79
       ]
     ],
-    "scree_stones": 76,
+    "scree_stones": 62,
     "pines": 5,
     "mesh_vertices": 3361,
-    "ridge_vertices_sha256": "098d03005576efb0bffc357693e77eaaa007247b883a1f44ede9f415f9cafbf7",
+    "ridge_vertices_sha256": "8471e16f5a1b6c22dd441cd4eead338aea133102aaa4f29bd2fc04f592eeddcf",
     "continuity": {
-      "shared_edge_samples": 66,
-      "max_height_error": 2.498001805406602e-16,
+      "shared_edge_samples": 99,
+      "max_height_error": 1.6653345369377348e-16,
       "physical_lattice_width": 1.6108072510390559,
       "physical_lattice_row": 1.395
+    },
+    "token_space": {
+      "token_center": [
+        -0.36,
+        0.3
+      ],
+      "token_radius": 0.3,
+      "clearing_radius": 0.345,
+      "upright_plate": true,
+      "foreground_max_tilt_degrees": 55,
+      "pruned_objects": 43,
+      "flattened_surfaces": 1
     }
   },
-  "scene_objects": 101,
+  "scene_objects": 45,
   "renders": [
     {
       "file": "stone_V2_flat.png",
-      "seconds": 5.39,
+      "seconds": 5.69,
       "tilt": 0,
       "resolution": 512
     },
     {
       "file": "stone_V2_mid.png",
-      "seconds": 5.2,
+      "seconds": 5.56,
       "tilt": 0.48,
       "resolution": 512
     },
     {
       "file": "stone_V2_max.png",
-      "seconds": 4.81,
+      "seconds": 4.84,
       "tilt": 0.96,
       "resolution": 512
     },
     {
       "file": "stone_V2_max_mock1024.png",
-      "seconds": 19.02,
+      "seconds": 19.36,
       "tilt": 0.96,
       "resolution": 1024
     }

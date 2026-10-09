@@ -11,6 +11,7 @@ from mathutils import Vector
 import render_v2_set as v2
 from render_models import setup, OUT, R, mesh, pebble, cone, pigment
 
+from token_space import prepare_scene
 TAU=math.tau
 mat=v2.mat;cube=v2.cube;pole=v2.pole
 
@@ -103,22 +104,22 @@ def fleece():
     for b in tufts:b.finish(False)
     wallm=mat('weathered dry wall',(.29,.28,.20),.23);wall=Batch('proper irregular dry stone wall',wallm)
     for i in range(23):
-        x=-.67+i*.058;y=.45+.10*math.cos(x*2.5)
-        if -.07<x<.15:continue
+        x=-.19+i*.035;y=.72-.13*x*x
+        if .02<x<.25:continue
         for j in range(3):
             xx=x+(j%2)*.019;yy=y+rng.uniform(-.012,.012)
             wall.ellipsoid((xx,yy,pasture(xx,yy)+.027+j*.041),(.043+rng.random()*.007,.034,.029),rng.uniform(-.3,.3))
     wall.finish(False)
     wood=mat('meadow gate oak',(.24,.12,.045),.17)
-    for x in [-.09,.16]:pole('gate post',(x,.54,pasture(x,.54)),(x,.54,pasture(x,.54)+.19),.018,wood)
-    for z in [.065,.135]:pole('gate rail',(-.09,.53,pasture(0,.54)+z),(.16,.53,pasture(0,.54)+z),.012,wood)
-    pole('gate diagonal brace',(-.09,.527,pasture(0,.54)+.065),(.16,.527,pasture(0,.54)+.135),.008,wood)
+    for x in [.02,.25]:pole('gate post',(x,.72,pasture(x,.72)),(x,.72,pasture(x,.72)+.19),.018,wood)
+    for z in [.065,.135]:pole('gate rail',(.02,.71,pasture(0,.72)+z),(.25,.71,pasture(0,.72)+z),.012,wood)
+    pole('gate diagonal brace',(.02,.707,pasture(0,.72)+.065),(.25,.707,pasture(0,.72)+.135),.008,wood)
     # Six stationary sheep in two small family groups; seventh is the animation layer.
     v2.pasture=pasture
-    for x,y,h in [(-.42,.09,.3),(-.20,.15,-.4),(-.38,-.13,-.1),(.38,.13,-.7),(.54,-.09,.2),(-.33,-.43,.6)]:v2.sheep(x,y,h,1.1)
+    for x,y,h in [(.13,.40,.3),(.32,.43,-.4),(.29,-.13,-.1),(.38,.13,-.7),(.54,-.09,.2),(.10,-.58,.6)]:v2.sheep(x,y,h,1.1)
     rock=mat('goat outcrop',(.34,.33,.25),.20)
-    for x,y,sz in [(-.57,.32,.11),(-.46,.36,.09),(.55,.33,.10)]:pebble((x,y,pasture(x,y)+sz*.3),(sz,sz*.8,sz*.7),rock)
-    goat(-.54,.32,.2,1.0,pasture(-.54,.32)+.068);goat(.53,.33,-1.0,1.8,pasture(.53,.33)+.06)
+    for x,y,sz in [(.02,.67,.11),(.12,.65,.09),(.55,.33,.10)]:pebble((x,y,pasture(x,y)+sz*.3),(sz,sz*.8,sz*.7),rock)
+    goat(.02,.67,.2,1.0,pasture(.02,.67)+.068);goat(.53,.33,-1.0,1.8,pasture(.53,.33)+.06)
     bush=Batch('dense meadow bushes',greens[0])
     for x,y in [(-.66,-.27),(.61,.36),(-.57,.61),(.35,-.59),(-.06,.71)]:
         if not inside(x,y,.85):continue
@@ -145,22 +146,25 @@ def grain():
     rng=random.Random(8330)
     golds=[mat('dense wheat '+str(i),c,.17) for i,c in enumerate([(.59,.32,.035),(.75,.48,.065),(.86,.64,.16)])]
     batches=[Batch('golden ears and leaves '+str(i),m) for i,m in enumerate(golds)]
+    from token_space import allowed
     ears=0
     for row in range(15):
         # Closed sculpted canopy row: a soft textured mass, not floating stick heads.
-        vs=[];fs=[]
+        vs=[];fs=[];previous=None
         for k in range(43):
             x=-.67+k*.0315;y=row_y(x,row)
             if not inside(x,y,.83):continue
-            if x>.25 and y<.08:continue
+            if (x>.25 and y<.08) or (x<.02 and y<.30) or not allowed(x,y,field_ground(x,y)+.34,.06):
+                previous=None;continue
             start=len(vs)
-            for side,zz in [(-1,.07),(-.52,.21),(0,.24),(.52,.21),(1,.07)]:
+            for side,zz in [(-1,.005),(-.52,.21),(0,.24),(.52,.21),(1,.005)]:
                 yy=y+side*.036
                 edge=.83-abs(yy)-abs(x)/math.sqrt(3)
                 taper=min(1,max(.35,edge/.075))
                 vs.append((x,yy,field_ground(x,yy)+zz*taper+.015*math.sin(x*31+row)))
-            if start>=5:
-                for j in range(4):fs.append((start-5+j,start+j,start+j+1,start-5+j+1))
+            if previous is not None:
+                for j in range(4):fs.append((previous+j,start+j,start+j+1,previous+j+1))
+            previous=start
             for m in range(2):
                 xx=x+rng.uniform(-.013,.013);yy=y+rng.uniform(-.028,.028);z=field_ground(xx,yy)
                 h=rng.uniform(.245,.30);b=batches[(k+row+m)%3]
@@ -233,13 +237,13 @@ def clay():
         for a in range(5):
             for b in range(2):cube('stack of drying bricks',(.05+a*.065,-.64+b*.041,clay_height(.05+a*.065,-.64+b*.041)+.017+layer*.030),(.059,.035,.025),brick,.002)
     # Two slatted drying rack shelves carrying spaced unfired bricks.
-    for yy in [.30,.50]:
-        for xx in [.20,.62]:pole('drying rack uprights',(xx,yy,clay_height(xx,yy)),(xx,yy,.35),.009,wood)
+    for yy in [.65,.76]:
+        for xx in [-.10,.18]:pole('drying rack uprights',(xx,yy,clay_height(xx,yy)),(xx,yy,.35),.009,wood)
         for level in [.21,.32]:
-            for k in range(6):cube('rack wood slat',(.22+k*.075,yy,level),(.066,.12,.012),wood,.002)
-            for k in range(5):cube('unfired drying brick',(.25+k*.078,yy,level+.020),(.064,.045,.027),earth,.003)
+            for k in range(6):cube('rack wood slat',(-.10+k*.050,yy,level),(.066,.12,.012),wood,.002)
+            for k in range(5):cube('unfired drying brick',(-.085+k*.050,yy,level+.020),(.064,.045,.027),earth,.003)
     # Small board shed on the rear bank, with pitched roof and visible planks.
-    sx=-.43;sy=.46;sz=clay_height(sx,sy)
+    sx=.30;sy=.49;sz=clay_height(sx,sy)
     for yy in [sy-.12,sy+.12]:
         for i in range(6):cube('shed upright boards',(sx-.14+i*.055,yy,sz+.11),(.049,.016,.21),wood,.002)
     for i in range(4):cube('shed side boards',(sx-.17,sy-.09+i*.06,sz+.11),(.018,.052,.21),wood,.002)
@@ -266,7 +270,7 @@ def desert():
     terrain_base('desert',(.54,.32,.11));sand=mat('dune ochre sand',(.64,.40,.15),.15)
     v2.field('solid dunes with actual fine ripples',dune_height,sand,True,62,192)
     rockm=mat('warm desert outcrops',(.30,.20,.12),.22);rng=random.Random(6704)
-    for cx,cy,size in [(-.52,.23,.18),(.46,.39,.15),(.51,-.40,.13)]:
+    for cx,cy,size in [(.30,.61,.14),(.46,.39,.15),(.51,-.40,.13)]:
         for j in range(4):
             x=cx+rng.uniform(-.07,.07);y=cy+rng.uniform(-.06,.06);s=size*rng.uniform(.5,1.0)
             o=pebble((x,y,dune_height(x,y)+s*.40),(s,s*.7,s*.85),rockm);o.rotation_euler.z=rng.random()*TAU
@@ -287,9 +291,29 @@ def desert():
             scrub.blade(x,y,zz,.065,a,.006)
     scrub.finish(False)
     bone=mat('bleached skull bone',(.82,.76,.57),.10);black=mat('skull sockets',(.12,.085,.035),0)
-    x=-.36;y=-.53;z=dune_height(x,y)
+    x=.22;y=-.66;z=dune_height(x,y)
     pebble((x,y,z+.027),(.065,.038,.032),bone,True);pebble((x+.055,y,z+.019),(.042,.020,.016),bone,True)
     for side in [-1,1]:pebble((x+.018,y+side*.029,z+.030),(.015,.004,.012),black,True)
+
+def timber():
+    from render_models import base,tree,material,pigment
+    from token_space import front_cap
+    rng=random.Random(832);base('timber',2)
+    bark=mat('V2 forest bark',(.24,.105,.035),.22)
+    greens=[mat('V2 forest pine '+str(i),c,.20) for i,c in enumerate([(.055,.17,.045),(.10,.26,.055),(.23,.36,.075),(.34,.43,.12)])]
+    for x,y,h in [(.03,.70,.50),(.24,.60,.59),(.48,.40,.66),(.62,.08,.57),(.41,.02,.60),(.45,-.28,.53),(.20,-.53,.40),(.57,-.48,.34),(.20,.05,.45)]:
+        h=min(h,max(.18,min(front_cap(x-.352*h,y),front_cap(x,y),front_cap(x+.352*h,y))*.93))
+        tree(x,y,h,2,rng,(bark,greens))
+    end=mat('pale cut log ends',(.61,.39,.15),.1)
+    for j in range(3):
+        x=.23+j*.07
+        pole('forest stacked log',(x,-.34,.10+j*.022),(x,-.56,.10+j*.022),.035,bark,10)
+        pebble((x,-.57,.10+j*.022),(.032,.009,.032),end,True)
+    rock=mat('forest scattered moss stones',(.27,.30,.16),.2)
+    for i in range(32):
+        x=rng.uniform(-.65,.65);y=rng.uniform(-.68,.68)
+        if inside(x,y,.85):pebble((x,y,.015),(.025,.02,.025),rock,True)
+
 
 def stone():
     from alpine_chain import build
@@ -301,14 +325,14 @@ def animals(phase):
     goat(.42+.010*math.sin(phase),.08+.006*math.cos(phase),-.5,phase+.9)
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--terrain',choices=['stone','fleece','grain','clay','desert']);parser.add_argument('--animals-frame',type=int,choices=range(16));parser.add_argument('--stone-patch',action='store_true')
+    parser=argparse.ArgumentParser();parser.add_argument('--terrain',choices=['timber','stone','fleece','grain','clay','desert']);parser.add_argument('--animals-frame',type=int,choices=range(16));parser.add_argument('--stone-patch',action='store_true')
     args=parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
     assert sum([bool(args.terrain),args.animals_frame is not None,args.stone_patch])==1,'Exactly one batch per process'
     s,cam=setup();s.cycles.samples=32;s.render.threads_mode='FIXED';s.render.threads=2
     timings=[];metadata={}
     if args.stone_patch:
         from alpine_chain import WIDTH,ROW
-        metadata=stone();objects=[o for o in s.objects if o.type=='MESH']
+        metadata=stone();metadata['token_space']=prepare_scene('stone');objects=[o for o in s.objects if o.type=='MESH']
         for row in range(-1,2):
             for col in range(-1,2):
                 if col==row==0:continue
@@ -319,6 +343,7 @@ def main():
         jobs=[(folder/'stone_R3_chain_patch_max.png',.96,1536)]
     elif args.terrain:
         metadata=globals()[args.terrain]() or {}
+        metadata['token_space']=prepare_scene(args.terrain)
         jobs=[(OUT/f'{args.terrain}_V2_{name}.png',tilt,512) for name,tilt in v2.angles]
         if args.terrain=='stone':jobs.append((OUT/'stone_V2_max_mock1024.png',.96,1024))
     else:

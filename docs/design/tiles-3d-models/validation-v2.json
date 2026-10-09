@@ -2,41 +2,41 @@
   "tiles": [
     {
       "file": "timber_V2_flat.png",
-      "bytes": 211347,
-      "webp_lossless_bytes": 88650,
+      "bytes": 192451,
+      "webp_lossless_bytes": 72462,
       "alpha_bounds": [
         99,
         76,
-        413,
+        414,
         435
       ]
     },
     {
       "file": "timber_V2_mid.png",
-      "bytes": 199353,
-      "webp_lossless_bytes": 79686,
+      "bytes": 182719,
+      "webp_lossless_bytes": 67718,
       "alpha_bounds": [
         99,
-        85,
-        413,
+        92,
+        415,
         434
       ]
     },
     {
       "file": "timber_V2_max.png",
-      "bytes": 179017,
-      "webp_lossless_bytes": 69280,
+      "bytes": 161734,
+      "webp_lossless_bytes": 57300,
       "alpha_bounds": [
         99,
-        86,
-        413,
+        106,
+        415,
         393
       ]
     },
     {
       "file": "stone_V2_flat.png",
-      "bytes": 198146,
-      "webp_lossless_bytes": 79834,
+      "bytes": 197023,
+      "webp_lossless_bytes": 76448,
       "alpha_bounds": [
         99,
         76,
@@ -46,30 +46,30 @@
     },
     {
       "file": "stone_V2_mid.png",
-      "bytes": 197207,
-      "webp_lossless_bytes": 78440,
+      "bytes": 202922,
+      "webp_lossless_bytes": 77654,
       "alpha_bounds": [
         99,
-        89,
+        41,
         413,
         434
       ]
     },
     {
       "file": "stone_V2_max.png",
-      "bytes": 182713,
-      "webp_lossless_bytes": 68660,
+      "bytes": 182985,
+      "webp_lossless_bytes": 64314,
       "alpha_bounds": [
         99,
-        64,
+        16,
         413,
         393
       ]
     },
     {
       "file": "fleece_V2_flat.png",
-      "bytes": 228241,
-      "webp_lossless_bytes": 104046,
+      "bytes": 209880,
+      "webp_lossless_bytes": 86920,
       "alpha_bounds": [
         99,
         76,
@@ -79,8 +79,8 @@
     },
     {
       "file": "fleece_V2_mid.png",
-      "bytes": 223935,
-      "webp_lossless_bytes": 102950,
+      "bytes": 207932,
+      "webp_lossless_bytes": 87526,
       "alpha_bounds": [
         99,
         93,
@@ -90,19 +90,19 @@
     },
     {
       "file": "fleece_V2_max.png",
-      "bytes": 188068,
-      "webp_lossless_bytes": 82932,
+      "bytes": 178509,
+      "webp_lossless_bytes": 71150,
       "alpha_bounds": [
         99,
-        147,
+        137,
         413,
         393
       ]
     },
     {
       "file": "grain_V2_flat.png",
-      "bytes": 254531,
-      "webp_lossless_bytes": 122416,
+      "bytes": 211867,
+      "webp_lossless_bytes": 85024,
       "alpha_bounds": [
         99,
         76,
@@ -112,8 +112,8 @@
     },
     {
       "file": "grain_V2_mid.png",
-      "bytes": 248189,
-      "webp_lossless_bytes": 114216,
+      "bytes": 209676,
+      "webp_lossless_bytes": 83710,
       "alpha_bounds": [
         99,
         91,
@@ -123,19 +123,19 @@
     },
     {
       "file": "grain_V2_max.png",
-      "bytes": 210519,
-      "webp_lossless_bytes": 92686,
+      "bytes": 181208,
+      "webp_lossless_bytes": 70126,
       "alpha_bounds": [
         99,
-        123,
+        121,
         413,
         393
       ]
     },
     {
       "file": "clay_V2_flat.png",
-      "bytes": 188931,
-      "webp_lossless_bytes": 70406,
+      "bytes": 187323,
+      "webp_lossless_bytes": 68400,
       "alpha_bounds": [
         99,
         76,
@@ -145,8 +145,8 @@
     },
     {
       "file": "clay_V2_mid.png",
-      "bytes": 195617,
-      "webp_lossless_bytes": 75460,
+      "bytes": 191666,
+      "webp_lossless_bytes": 70586,
       "alpha_bounds": [
         99,
         85,
@@ -156,19 +156,19 @@
     },
     {
       "file": "clay_V2_max.png",
-      "bytes": 171112,
-      "webp_lossless_bytes": 63446,
+      "bytes": 167757,
+      "webp_lossless_bytes": 59488,
       "alpha_bounds": [
         99,
-        130,
+        112,
         413,
         393
       ]
     },
     {
       "file": "desert_V2_flat.png",
-      "bytes": 188638,
-      "webp_lossless_bytes": 65458,
+      "bytes": 181800,
+      "webp_lossless_bytes": 62464,
       "alpha_bounds": [
         99,
         76,
@@ -178,8 +178,8 @@
     },
     {
       "file": "desert_V2_mid.png",
-      "bytes": 190092,
-      "webp_lossless_bytes": 67754,
+      "bytes": 182920,
+      "webp_lossless_bytes": 63846,
       "alpha_bounds": [
         99,
         90,
@@ -189,11 +189,11 @@
     },
     {
       "file": "desert_V2_max.png",
-      "bytes": 163797,
-      "webp_lossless_bytes": 55204,
+      "bytes": 158153,
+      "webp_lossless_bytes": 52570,
       "alpha_bounds": [
         99,
-        123,
+        128,
         413,
         393
       ]
@@ -362,23 +362,23 @@
     },
     {
       "file": "animation-layers\\grain\\wind_mask_mid.png",
-      "bytes": 2972
+      "bytes": 1806
     },
     {
       "file": "animation-layers\\grain\\wind_patch_mid.png",
-      "bytes": 35014
+      "bytes": 14465
     },
     {
       "file": "animation-layers\\grain\\wind_patch_mid.webp",
-      "bytes": 25610
+      "bytes": 11282
     },
     {
       "file": "animation-layers\\desert\\heat_mask_mid.png",
-      "bytes": 2849
+      "bytes": 2989
     },
     {
       "file": "animation-layers\\desert\\heat_patch_mid.webp",
-      "bytes": 13708
+      "bytes": 10236
     },
     {
       "file": "animation-layers\\fleece\\animals_mid_atlas.webp",
@@ -389,7 +389,7 @@
       ]
     }
   ],
-  "tile_png_bytes": 3619453,
-  "tile_lossless_webp_bytes": 1481524,
+  "tile_png_bytes": 3388525,
+  "tile_lossless_webp_bytes": 1277706,
   "sheep_png_bytes": 117658
 }

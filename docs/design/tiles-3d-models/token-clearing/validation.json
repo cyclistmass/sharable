@@ -1,0 +1,43 @@
+{
+  "app_files_unchanged": 146,
+  "token_center_model": [
+    -0.36,
+    0.3
+  ],
+  "token_radius": 0.3,
+  "clearing_radius": 0.345,
+  "upright_circle": true,
+  "animation_checks": [
+    {
+      "terrain": "timber",
+      "checked_animation_frames": 64,
+      "plate_overlap_pixels": 0
+    },
+    {
+      "terrain": "stone",
+      "checked_animation_frames": 64,
+      "plate_overlap_pixels": 0
+    },
+    {
+      "terrain": "fleece",
+      "checked_animation_frames": 64,
+      "plate_overlap_pixels": 0
+    },
+    {
+      "terrain": "grain",
+      "checked_animation_frames": 64,
+      "plate_overlap_pixels": 0
+    },
+    {
+      "terrain": "clay",
+      "checked_animation_frames": 64,
+      "plate_overlap_pixels": 0
+    },
+    {
+      "terrain": "desert",
+      "checked_animation_frames": 64,
+      "plate_overlap_pixels": 0
+    }
+  ],
+  "mixed_patch_neighbour_occlusions": []
+}
