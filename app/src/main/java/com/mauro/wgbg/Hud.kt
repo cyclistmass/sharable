@@ -34,8 +34,8 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
     if (report == null) return
     Column(
         modifier.widthIn(max = 360.dp)
-            .background(Color.Black.copy(alpha = 0.62f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .brassEdgedWood()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

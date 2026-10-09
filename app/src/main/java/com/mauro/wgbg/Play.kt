@@ -127,7 +127,7 @@ fun HumanControls(
     // End turn) at the very bottom: everything within reach of a right thumb.
     Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(
-            Modifier.widthIn(max = 340.dp).background(PANEL, RoundedCornerShape(14.dp)).padding(10.dp),
+            Modifier.widthIn(max = 340.dp).brassEdgedWood().padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(prompt(s, legal, names), color = INK_LIGHT, fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -170,9 +170,9 @@ fun HumanControls(
 
 @Composable
 private fun MoveButton(label: String, primary: Boolean = false, onClick: () -> Unit) {
-    if (primary) Button(onClick = onClick, modifier = Modifier.fillMaxWidth().height(52.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0B23A), contentColor = Color(0xFF2B2118))) { Text(label, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
-    else FilledTonalButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text(label, maxLines = 1) }
+    // Primary (Roll / End turn): a big brass plate; the rest: wood with a brass rim.
+    if (primary) BrassButton(label, "move-$label", Modifier.fillMaxWidth().height(54.dp), size = 18.sp, onClick = onClick)
+    else WoodButton(label, "move-$label", Modifier.fillMaxWidth(), onClick = onClick)
 }
 
 @Composable
