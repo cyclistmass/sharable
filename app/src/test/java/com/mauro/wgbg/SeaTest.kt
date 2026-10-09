@@ -151,7 +151,7 @@ class SeaTest {
     @Test
     fun `the Clouds slider sets how many clouds are on the sea, fading extras out`() {
         val sea = Sea(board)
-        for ((amount, want) in listOf(0f to 0, 1f to 8, 0.25f to 2)) {
+        for ((amount, want) in listOf(0f to 0, 1f to 16, 0.25f to 1)) {
             sea.clouds01 = amount
             repeat(60 * 8) { sea.update(dt) }               // 8 s to settle
             assertEquals(want, sea.clouds.count { it.poof < 0 }, "at $amount")
@@ -295,8 +295,8 @@ class SeaTest {
         val ends = listOf(30, 60, 120).map { fps ->
             val sea = Sea(board)
             val c = sea.clouds.first()
+            c.x = 0f; c.y = -(sea.landR + 0.6f)
             val d = hypot(c.x, c.y)
-            val x0 = c.x; val y0 = c.y
             // Remove the passive drift from the comparison by measuring speed, not position.
             sea.fling(c, -c.y / d * 1.5f, c.x / d * 1.5f)
             repeat(fps) { sea.update(1f / fps) }
