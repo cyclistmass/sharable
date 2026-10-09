@@ -304,3 +304,6 @@ fun TradeToggle(open: Boolean, attention: Boolean, onClick: () -> Unit, modifier
         contentAlignment = Alignment.Center,
     ) { Text("Trade", color = if (open) WOOD_DARK else INK, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
 }
+
+/** The Trade button appears once setup is over (no trading while placing the first homesteads). */
+fun tradeButtonVisible(s: GameState) = s.phase != Phase.BUILD_INITIAL_SETTLEMENT && s.phase != Phase.BUILD_INITIAL_ROAD

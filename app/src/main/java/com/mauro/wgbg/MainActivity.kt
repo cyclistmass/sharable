@@ -372,7 +372,7 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
             val needsMe = tradeNeedsMe(state, 0)
             // The trade chest docks where the move buttons sit and takes their place while it is open.
-            val chest = tradeOpen || needsMe || (tradeMode(state, 0) == TradeMode.WAITING && state.currentPlayer == 0)
+            val chest = (tradeOpen && tradeButtonVisible(state)) || needsMe || (tradeMode(state, 0) == TradeMode.WAITING && state.currentPlayer == 0)
             if (chest) TradePanel(state, 0, legal, names, send, onClose = { tradeOpen = false }, responses = responses,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp))
             else if (legal.isNotEmpty()) HumanControls(state, 0, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp))
@@ -444,7 +444,7 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
             colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0x99303036), contentColor = Color.White),
         ) { Text(if (panelOpen) "Hide" else "Menu") }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.
-        if (human && !inventory) TradeToggle(
+        if (human && !inventory && tick.let { tradeButtonVisible(state) }) TradeToggle(
             open = tradeOpen || tradeNeedsMe(state, 0),
             attention = tick.let { tradeNeedsMe(state, 0) },
             onClick = { tradeOpen = !tradeOpen },
