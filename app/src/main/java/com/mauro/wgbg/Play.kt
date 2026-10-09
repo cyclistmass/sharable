@@ -155,7 +155,7 @@ fun HumanControls(
                 legal.firstOrNull { it.type == t }?.let { a -> MoveButton(label, primary) { onMove(a) } }
             }
             if (ActionType.DISCARD in types) for (a in legal.filter { it.type == ActionType.DISCARD })
-                MoveButton("Discard ${RES[a.discardResource]}") { onMove(a) }
+                MoveButton(if (a.discardResource < 0) "Discard at random" else "Discard ${ALL_CARD_NAMES[a.discardResource]}") { onMove(a) }
             single(ActionType.BUY_DEVELOPMENT_CARD, "Buy Fortune card")
             single(ActionType.PLAY_KNIGHT_CARD, "Play Sentinel")
             single(ActionType.PLAY_ROAD_BUILDING, "Play Trailblazers")

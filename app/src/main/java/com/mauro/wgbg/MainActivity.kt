@@ -151,6 +151,15 @@ class MainActivity : ComponentActivity() {
 private val TILE_FACES = listOf(R.drawable.tile_timber, R.drawable.tile_clay, R.drawable.tile_fleece, R.drawable.tile_grain, R.drawable.tile_stone)
 private val TILE_DESERT = R.drawable.tile_desert
 
+private val KNIGHTS_PIRATE = listOf(
+    R.drawable.knight_pirate_l1_inactive, R.drawable.knight_pirate_l1_active, R.drawable.knight_pirate_l2_inactive,
+    R.drawable.knight_pirate_l2_active, R.drawable.knight_pirate_l3_inactive, R.drawable.knight_pirate_l3_active,
+)
+private val KNIGHTS_NORMAL = listOf(
+    R.drawable.knight_normal_l1_inactive, R.drawable.knight_normal_l1_active, R.drawable.knight_normal_l2_inactive,
+    R.drawable.knight_normal_l2_active, R.drawable.knight_normal_l3_inactive, R.drawable.knight_normal_l3_active,
+)
+
 private val TERRAIN_COLORS = mapOf(
     Resource.WOOD to Color(0xFF2E7D32),
     Resource.BRICK to Color(0xFFBF5B30),
@@ -263,6 +272,9 @@ fun WatchGameScreen(
     // game starts several times a second, which would otherwise wipe splashes and clouds.
     val oceanRes = LocalContext.current.resources
     val cliff = ImageBitmap.imageResource(R.drawable.cliff_straight)
+    // Knight art per theme: index (level - 1) * 2 + (active ? 1 : 0).
+    val knightsPirate = KNIGHTS_PIRATE.map { ImageBitmap.imageResource(it) }
+    val knightsNormal = KNIGHTS_NORMAL.map { ImageBitmap.imageResource(it) }
     val tileFaces = TILE_FACES.withIndex().associate { (r, id) -> r to ImageBitmap.imageResource(id) } + (Resource.NONE to ImageBitmap.imageResource(TILE_DESERT))
     val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile); it.boatColors = PLAYER_COLORS } }
     // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
@@ -450,7 +462,7 @@ fun WatchGameScreen(
             tick // redraw on every move
             seaTick // and on every sea frame
             if (inventory) drawInventory(measurer, wood) else {
-                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff)
+                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, if (env.pirateTheme) knightsPirate else knightsNormal)
                 if (!targets.isEmpty) drawTargets(state.board, targets, camera, (kotlin.math.sin(seaTick / 9f) + 1f) / 2f)
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
@@ -845,7 +857,7 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
     }
 }
 
-private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: ImageBitmap? = null) {
+private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: ImageBitmap? = null, knights: List<ImageBitmap>? = null) {
     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
@@ -891,6 +903,20 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     }
 
     // Robber.
+    // Age of Chivalry knights: the theme's token at each corner, on a ring in the owner's colour.
+    val ck = s.ck
+    if (ck != null && knights != null) for (v in 0 until board.topology.vertexCount) {
+        val owner = ck.knightOwner[v]
+        if (owner < 0) continue
+        val level = ck.knightLevel[v].coerceIn(1, 3)
+        val img = knights[(level - 1) * 2 + if (ck.isActive(v)) 1 else 0]
+        val at = l.at(v)
+        val size = 0.62f * scale * l.k(v)
+        drawOval(PLAYER_COLORS[owner], at + Offset(-size * 0.42f, -size * 0.12f), Size(size * 0.84f, size * 0.3f * l.squash))
+        drawOval(Color.Black.copy(alpha = 0.5f), at + Offset(-size * 0.42f, -size * 0.12f), Size(size * 0.84f, size * 0.3f * l.squash), style = Stroke(size * 0.03f))
+        drawImage(img, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size * 0.92f).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
+            filterQuality = FilterQuality.Medium)
+    }
     if (s.robberHex >= 0) {
         val rs = scale * l.hexK(s.robberHex) * stand
         drawRobber(l.hexCenter(s.robberHex) + Offset(0.15f * rs, 0.15f * rs * l.squash), rs)
