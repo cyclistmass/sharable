@@ -7,6 +7,11 @@
   Converted to grayscale and stained per player at runtime.
 
 All other graphics are drawn procedurally in code.
+- Tile relief faces (`relief_*.webp`) and comparison palette (`docs/design/tiles-3d/`):
+  authored by Codex for Mauro from Mauro's existing owned tile paintings. The original
+  procedural color-height brush relief bake is reproducible with `tools/art/tiles-3d.cjs`.
+  Tile side geometry, bevels and terrain life accents are original procedural drawing
+  in `TileRelief.kt` / `TileLife.kt`; no third-party art was added.
 - Old brass on the lobby and game-start screens (`app/src/main/res/drawable-nodpi/old_brass.jpg`, the
   1K color map scaled to 512 px): "Metal042B" from ambientCG
   (https://ambientcg.com/view?id=Metal042B), CC0 1.0 Universal (public domain).

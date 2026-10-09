@@ -1,0 +1,131 @@
+﻿diff --git a/app/src/main/java/com/mauro/wgbg/MainActivity.kt b/app/src/main/java/com/mauro/wgbg/MainActivity.kt
+index 11d2e27..82fbac1 100644
+--- a/app/src/main/java/com/mauro/wgbg/MainActivity.kt
++++ b/app/src/main/java/com/mauro/wgbg/MainActivity.kt
+@@ -291,7 +291,7 @@ fun WatchGameScreen(
+     // Knight art per theme: index (level - 1) * 2 + (active ? 1 : 0).
+     val knightsPirate = KNIGHTS_PIRATE.map { ImageBitmap.imageResource(it) }
+     val knightsNormal = KNIGHTS_NORMAL.map { ImageBitmap.imageResource(it) }
+-    val plainFaces = TILE_FACES.withIndex().associate { (r, id) -> r to ImageBitmap.imageResource(id) } + (Resource.NONE to ImageBitmap.imageResource(TILE_DESERT))
++    val plainFaces = listOf(R.drawable.relief_timber, R.drawable.relief_clay, R.drawable.relief_fleece, R.drawable.relief_grain, R.drawable.relief_stone).withIndex().associate { (r, id) -> r to ImageBitmap.imageResource(id) } + (Resource.NONE to ImageBitmap.imageResource(R.drawable.relief_desert))
+     val framedFaces = TILE_FACES_FRAMED.withIndex().associate { (r, id) -> r to ImageBitmap.imageResource(id) } + (Resource.NONE to ImageBitmap.imageResource(TILE_DESERT_FRAMED))
+     val tileFaces = if (env.tileEdge == EnvSettings.TileEdge.CLASSIC) framedFaces else plainFaces
+     val tileLine = env.tileEdge == EnvSettings.TileEdge.THIN
+@@ -425,6 +425,7 @@ fun WatchGameScreen(
+         // Offscreen: the GPU keeps each layer's finished pixels, so an unchanged layer costs one image copy.
+         val boardLayer = rememberGraphicsLayer().apply { compositingStrategy = CompositingStrategy.Offscreen }
+         val boardLayerKey = remember { arrayOfNulls<BoardLayerKey>(1) }
++        val tileLife = remember(state.board.hexCount) { TileLifeBoard(state.board.hexCount) }
+         val waterLayer = rememberGraphicsLayer().apply { compositingStrategy = CompositingStrategy.Offscreen }
+         val waterLayerKey = remember { arrayOfNulls<WaterLayerKey>(1) }
+         Canvas(
+@@ -496,7 +497,7 @@ fun WatchGameScreen(
+         ) {
+             tick // redraw on every move
+             if (!inventory) seaTick // and on every sea frame (the Inventory screen holds still)
+-            if (inventory) drawInventory(measurer, wood) else {
++            if (inventory) drawInventory(measurer, wood, tileFaces) else {
+                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
+                 val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
+                 val layerSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt())
+@@ -513,10 +514,12 @@ fun WatchGameScreen(
+                 if (boardLayerKey[0] != key) {
+                     // The explicit-density overload gives the layer its own draw scope; recording through
+                     // this Canvas's scope makes the two scopes ask each other for density forever.
+-                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL) }
++                    tileLife.clear()
++                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL, tileLife) }
+                     boardLayerKey[0] = key
+                 }
+                 drawLayer(boardLayer)
++                tileLife.draw(this, sea.time)
+                 drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER)
+                 if (!targets.isEmpty) drawTargets(state.board, targets, camera, (kotlin.math.sin(seaTick / 9f) + 1f) / 2f)
+                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
+@@ -817,8 +820,7 @@ private class Layout(val board: Board, val center: Offset, val scale: Float, val
+     fun kAt(ly: Float) = 1f + persp * (ly * squash) / 4.2f
+ 
+     fun project(lx: Float, ly: Float): Offset {
+-        val f = kAt(ly)
+-        return Offset(center.x + lx * scale * f, center.y + ly * squash * scale * f)
++        return Offset(TileGeometry.projectX(lx, ly, center.x, scale, tilt), TileGeometry.projectY(ly, center.y, scale, tilt))
+     }
+ 
+     /** Screen point back to lattice (inverse of [project]; perspective solved by two refinements). */
+@@ -942,7 +944,7 @@ private data class BoardLayerKey(
+     val knights: List<ImageBitmap>?, val faces: Map<Int, ImageBitmap>?, val cliff: List<ImageBitmap>?,
+ )
+ 
+-private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null, part: BoardPart = BoardPart.ALL) {
++private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null, part: BoardPart = BoardPart.ALL, tileLife: TileLifeBoard? = null) {
+     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
+     val board = s.board
+     val l = Layout.fit(board, size.width, size.height, camera)
+@@ -984,6 +986,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
+         val m = 1.2f * scale
+         if (c.x < -m || c.y < -m || c.x > size.width + m || c.y > size.height + m) continue
+         drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]), tileLine)
++        tileLife?.set(h, board.hexResource[h], c, scale * l.hexK(h), TileGeometry.squash(l.squash))
+     }
+ 
+     // Ports: water patch and wooden piers first, then the raised trade-rate tokens.
+@@ -1045,29 +1048,27 @@ private fun DrawScope.drawTile(
+     resource: Int, number: Int, variant: Int, c: Offset, scale: Float, measurer: TextMeasurer, wood: WoodPieces,
+     squash: Float = 1f, lift: Float = 1f, face: ImageBitmap? = null, line: Boolean = false,
+ ) {
++    val faceSquash = TileGeometry.squash(squash)
+     // Inset corners so each tile reads as a separate piece. Corner order: clockwise from top.
+     // The top face lies on the table, so tilting squashes it; the side walls are upright.
+     val top = List(6) { i ->
+         val a = Math.toRadians(-90.0 + 60 * i)
+-        c + Offset((kotlin.math.cos(a) * scale * 0.93f).toFloat(), (kotlin.math.sin(a) * scale * 0.93f * squash).toFloat())
++        c + Offset((kotlin.math.cos(a) * scale * 0.93f).toFloat(), (kotlin.math.sin(a) * scale * 0.93f * faceSquash).toFloat())
+     }
+-    val down = Offset(0f, TILE_THICKNESS * scale * lift) // visible tile thickness (frame option B: about twice the original)
++    val down = Offset(0f, TileGeometry.depth(scale, faceSquash))
+     val base = TERRAIN_COLORS.getValue(resource)
+ 
+     drawPath(polygon(top.map { it + down * 1.6f }), Color.Black.copy(alpha = 0.18f)) // soft drop shadow
+     // Side walls of the three lower edges, darker the further they face from the light.
+-    for ((i, f) in listOf(1 to 0.45f, 2 to 0.55f, 3 to 0.4f)) {
+-        val a = top[i]
+-        val b = top[i + 1]
+-        drawPath(polygon(listOf(a, b, b + down, a + down)), base.shade(f))
+-    }
++    TileRelief.sides(this, c, scale, faceSquash, base)
+     if (face != null) {
+         // The painted face fills the hex top (pointy-top, sqrt(3) R wide, 2 R tall; tilting squashes it).
+         val r = scale * 0.93f
+         val w = sqrt(3f) * r
+-        val hgt = 2 * r * squash
+-        drawImage(face, dstOffset = IntOffset((c.x - w / 2).toInt(), (c.y - hgt / 2).toInt()), dstSize = IntSize(w.toInt(), hgt.toInt()),
++        val hgt = 2 * r * faceSquash
++        drawImage(TileRelief.face(face, squash), dstOffset = IntOffset((c.x - w / 2).toInt(), (c.y - hgt / 2).toInt()), dstSize = IntSize(w.toInt(), hgt.toInt()),
+             filterQuality = FilterQuality.Medium)
++        TileRelief.bevel(this, c, scale, faceSquash)
+         // Tile edges: Thin line = a fine dark outline in a deeper shade of the terrain.
+         if (line) drawPath(polygon(top), base.shade(0.55f).copy(alpha = 0.75f), style = Stroke(0.025f * scale))
+         if (number != 0) drawNumberToken(number, c + Offset(-0.36f * scale, -0.3f * scale * squash), scale, measurer, wood)
+@@ -1106,7 +1107,7 @@ private fun DrawScope.drawRobber(c: Offset, scale: Float) {
+ }
+ 
+ /** Every game object side by side, for eyeballing the art. */
+-private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces) {
++private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, faces: Map<Int, ImageBitmap>? = null) {
+     if (size.minDimension < 2f) return
+     val scale = min(size.width / 13.5f, size.height / 9.6f)
+     fun label(text: String, at: Offset) {
+@@ -1116,10 +1117,11 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces) {
+     val left = size.width / 2f - 5 * 2.05f * scale / 2f
+     // Row 1: the six terrains with sample numbers.
+     val terrains = listOf(Resource.WOOD to 5, Resource.BRICK to 6, Resource.SHEEP to 8, Resource.WHEAT to 9, Resource.ORE to 10, Resource.NONE to 0)
+-    val names = listOf("Forest", "Hills", "Pasture", "Fields", "Mountains", "Desert")
++    val names = listOf("Timber", "Clay", "Fleece", "Grain", "Stone", "Desert")
+     terrains.forEachIndexed { i, (res, n) ->
+         val c = Offset(left + i * 2.05f * scale, 1.25f * scale)
+-        drawTile(res, n, i, c, scale, measurer, wood)
++        drawTile(res, n, i, c, scale, measurer, wood, face = faces?.get(res))
++        TileLife.draw(this, res, i, c, scale, 1f, 0f)
+         label(names[i], c + Offset(0f, 1.2f * scale))
+     }
+     // Row 2: port tokens and the robber.
