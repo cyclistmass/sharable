@@ -137,8 +137,26 @@ class MainActivity : ComponentActivity() {
             intent.getFloatExtra("tilt", 0f).coerceIn(0f, Camera.MAX_TILT))
     }
 
+    /** Debug builds: moves sent by test drivers (`am broadcast -a com.mauro.wgbg.MOVE --es move TYPE:PAYLOAD`). */
+    private val debugMoves = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: android.content.Context, i: android.content.Intent) {
+            val text = i.getStringExtra("move") ?: return
+            val action = AgentHooks.parse(text)
+            if (action == null) android.util.Log.w(AgentHooks.TAG, "bad move '$text' (want TYPE:PAYLOAD, e.g. ROLL:0)")
+            else AgentHooks.sink?.invoke(action) ?: android.util.Log.w(AgentHooks.TAG, "no game is waiting for a move")
+        }
+    }
+
+    override fun onDestroy() {
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) runCatching { unregisterReceiver(debugMoves) }
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0)
+            androidx.core.content.ContextCompat.registerReceiver(this, debugMoves, android.content.IntentFilter(AgentHooks.ACTION),
+                androidx.core.content.ContextCompat.RECEIVER_EXPORTED)
         enableEdgeToEdge()
         // Full screen: draw under the camera cutout and hide the system bars (swipe to peek).
         window.attributes = window.attributes.apply {
@@ -640,6 +658,15 @@ fun WatchGameScreen(
     // What the human may do right now (empty while bots move or in Watch mode).
     val legal = tick.let { if (me >= 0 && !inventory && !state.isOver && state.actingPlayer == me) Rules.legalActions(state) else emptyList() }
     val legalNow by rememberUpdatedState(legal)
+    // Debug agent hooks (#46): announce each moment the local player must act, and take moves by broadcast.
+    val debuggable = LocalContext.current.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+    if (debuggable) {
+        LaunchedEffect(tick, legal.size) { if (legal.isNotEmpty()) AgentHooks.announce(online?.id ?: "local", state, legal, prompt(state, legal, names)) }
+        androidx.compose.runtime.DisposableEffect(Unit) {
+            AgentHooks.sink = { a -> humanMoves.trySend(a) }
+            onDispose { AgentHooks.sink = null }
+        }
+    }
     val targets = Targets.of(legal)
     val chosen = pending.filter { it in legal } // a stale pick (the turn moved on) is dropped
     // The trade chest: open when you opened it, or when a trade waits on you (or you wait on answers to yours).
@@ -1677,5 +1704,29 @@ private fun DrawScope.drawTrough(board: Board, l: Layout, scale: Float, wood: Wo
         }
         drawPath(polygon(hex), wood.brush(TOKEN_WOOD_INDEX))
         drawPath(polygon(hex), troughWood.copy(alpha = 0.82f))
+    }
+}
+
+/**
+ * Debug-only hooks for test drivers (agents, CI self-play, #46). A driver reads `WGBG-TURN` lines from logcat
+ * (one each time the local player must act: the prompt and the legal moves) and answers with
+ * `adb shell am broadcast -a com.mauro.wgbg.MOVE -p com.mauro.wgbg --es move TYPE:PAYLOAD`. A move goes
+ * through the same checks as a tap; ROLL:0 throws real dice.
+ */
+object AgentHooks {
+    const val TAG = "WGBG-TURN"
+    const val ACTION = "com.mauro.wgbg.MOVE"
+    @Volatile var sink: ((Action) -> Unit)? = null
+
+    /** "TYPE:PAYLOAD" (or the online codec's "1:TYPE:PAYLOAD") as a move, or null. */
+    fun parse(text: String): Action? = wgbg.net.MoveCodec.decode(if (text.count { it == ':' } == 1) "1:$text" else text)
+
+    /** One line a driver can act on: where, the phase, what the screen asks, and every legal move. */
+    fun line(where: String, s: GameState, legal: List<Action>, prompt: String): String =
+        "$where turn=${s.turn} phase=${s.phase} player=${s.actingPlayer} prompt=\"$prompt\" legal=" +
+            legal.joinToString(",") { "${it.type}:${it.payload}" }
+
+    fun announce(where: String, s: GameState, legal: List<Action>, prompt: String) {
+        runCatching { android.util.Log.i(TAG, line(where, s, legal, prompt)) }
     }
 }
