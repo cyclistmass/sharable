@@ -61,6 +61,12 @@ Also:
 
 - Keep secrets out of git; the user logs in to services themselves.
 - Go easy on subagents: do work directly or extend a running agent.
+- **Don't wait blindly.** Give every long-running step (build, CI, emulator boot, install, upload,
+  network call) a time estimate. If it runs past that, stop and check whether it's stuck: process
+  alive, logs moving, emulator/adb connected, VPN/network up, port open, disk full, waiting on a
+  prompt. Fix the cause and make slow things faster where you can. Time is finite.
+- **When you find a bug, hunt its siblings.** Search the rest of the code (and scripts, CI, tests)
+  for the same mistake or pattern and fix those too, in the same change.
 - Build: `export JAVA_HOME="$(ls -d "/c/Program Files/Eclipse Adoptium"/jdk-17*)"; ./gradlew :engine:test :app:assembleDebug`.
 - Publish: commit here, then `git subtree pull --prefix=working-german-board-game ../catan-android main` in `C:\Users\mauro\sharable` and push.
 - **Every push that changes how the game looks re-records the gameplay GIF**: install the build,
