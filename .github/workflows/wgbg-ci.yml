@@ -83,7 +83,10 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           working-directory: working-german-board-game
-          script: bash tools/ci_monkey.sh apk/app-debug.apk 5000
+          # Menus and a base game, then straight into an Age of Chivalry game.
+          script: |
+            bash tools/ci_monkey.sh apk/app-debug.apk 4000
+            SETTLE=1 START=chivalry bash tools/ci_monkey.sh apk/app-debug.apk 3000
 
       - name: Upload monkey log
         if: always()
