@@ -999,7 +999,7 @@ private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer:
 }
 
 
-/** Hands a released cloud its throw; a no-op until the sea supports momentum. */
+/** Hands a released cloud its throw (the sea caps the speed and damps it to rest). */
 private fun flingCloud(sea: Sea, c: Sea.Cloud, vx: Float, vy: Float) {
-    if (!vx.isFinite() || !vy.isFinite()) return
+    if (vx.isFinite() && vy.isFinite()) sea.fling(c, vx, vy)
 }
