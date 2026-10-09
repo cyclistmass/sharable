@@ -32,3 +32,5 @@ All other graphics are drawn procedurally in code.
   standard pointy-top hex.
 - Reset arrow icon (`res/drawable-nodpi/reset_arrow*.webp`): made by Mauro DiBenedetto with ChatGPT.
 - Cliff strip (`res/drawable-nodpi/cliff_straight.webp`): made by Mauro DiBenedetto with ChatGPT; fringe cleaned.
+- Knight tokens, Pirate themed (`knight_pirate_*`): made by Mauro DiBenedetto with ChatGPT.
+- Knight tokens, Normal (`knight_normal_*`): generated with OpenAI Codex image generation for Mauro, matched to the pirate set.
