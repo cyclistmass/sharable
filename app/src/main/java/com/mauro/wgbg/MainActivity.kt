@@ -61,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clipToBounds
@@ -145,6 +146,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+/** Painted tile faces (Mauro's ChatGPT art) by resource; the desert last. */
+private val TILE_FACES = listOf(R.drawable.tile_timber, R.drawable.tile_clay, R.drawable.tile_fleece, R.drawable.tile_grain, R.drawable.tile_stone)
+private val TILE_DESERT = R.drawable.tile_desert
 
 private val TERRAIN_COLORS = mapOf(
     Resource.WOOD to Color(0xFF2E7D32),
@@ -257,6 +262,7 @@ fun WatchGameScreen(
     // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
     // game starts several times a second, which would otherwise wipe splashes and clouds.
     val oceanRes = LocalContext.current.resources
+    val tileFaces = TILE_FACES.withIndex().associate { (r, id) -> r to ImageBitmap.imageResource(id) } + (Resource.NONE to ImageBitmap.imageResource(TILE_DESERT))
     val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile); it.boatColors = PLAYER_COLORS } }
     // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
     // read the current game's sea and board through these.
@@ -443,7 +449,7 @@ fun WatchGameScreen(
             tick // redraw on every move
             seaTick // and on every sea frame
             if (inventory) drawInventory(measurer, wood) else {
-                drawGame(state, measurer, wood, camera, sea)
+                drawGame(state, measurer, wood, camera, sea, tileFaces)
                 if (!targets.isEmpty) drawTargets(state.board, targets, camera, (kotlin.math.sin(seaTick / 9f) + 1f) / 2f)
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
@@ -837,7 +843,7 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
     }
 }
 
-private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null) {
+private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null) {
     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
@@ -856,7 +862,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         // Zoomed in, skip tiles that are entirely off screen.
         val m = 1.2f * scale
         if (c.x < -m || c.y < -m || c.x > size.width + m || c.y > size.height + m) continue
-        drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift)
+        drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]))
     }
 
     // Ports: water patch and wooden piers first, then the raised trade-rate tokens.
@@ -902,7 +908,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
 /** One raised terrain tile (hex side = [scale] px) with its number token. */
 private fun DrawScope.drawTile(
     resource: Int, number: Int, variant: Int, c: Offset, scale: Float, measurer: TextMeasurer, wood: WoodPieces,
-    squash: Float = 1f, lift: Float = 1f,
+    squash: Float = 1f, lift: Float = 1f, face: ImageBitmap? = null,
 ) {
     // Inset corners so each tile reads as a separate piece. Corner order: clockwise from top.
     // The top face lies on the table, so tilting squashes it; the side walls are upright.
@@ -919,6 +925,16 @@ private fun DrawScope.drawTile(
         val a = top[i]
         val b = top[i + 1]
         drawPath(polygon(listOf(a, b, b + down, a + down)), base.shade(f))
+    }
+    if (face != null) {
+        // The painted face fills the hex top (pointy-top, sqrt(3) R wide, 2 R tall; tilting squashes it).
+        val r = scale * 0.93f
+        val w = sqrt(3f) * r
+        val hgt = 2 * r * squash
+        drawImage(face, dstOffset = IntOffset((c.x - w / 2).toInt(), (c.y - hgt / 2).toInt()), dstSize = IntSize(w.toInt(), hgt.toInt()),
+            filterQuality = FilterQuality.Medium)
+        if (number != 0) drawNumberToken(number, c + Offset(-0.36f * scale, -0.3f * scale * squash), scale, measurer, wood)
+        return
     }
     // Top face lit from the upper left.
     drawPath(
