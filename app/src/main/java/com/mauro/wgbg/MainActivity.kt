@@ -1293,7 +1293,7 @@ private fun DrawScope.drawTrough(board: Board, l: Layout, scale: Float, wood: Wo
         val r = scale * l.hexK(h)
         val hex = List(6) { i ->
             val a = Math.toRadians(-90.0 + 60 * i)
-            c + Offset((kotlin.math.cos(a) * r * 1.01f).toFloat(), (kotlin.math.sin(a) * r * 1.01f * l.squash).toFloat())
+            c + Offset((kotlin.math.cos(a) * r * 1.04f).toFloat(), (kotlin.math.sin(a) * r * 1.04f * l.squash).toFloat())
         }
         drawPath(polygon(hex), wood.brush(TOKEN_WOOD_INDEX))
         drawPath(polygon(hex), troughWood.copy(alpha = 0.82f))

@@ -50,8 +50,8 @@ class WoodPieces(res: Resources, colors: List<Color>) {
         val b2 = b + (a - b) * 0.17f
         val len = hypot(b2.x - a2.x, b2.y - a2.y)
         val n = Offset(-(b2.y - a2.y) / len, (b2.x - a2.x) / len)
-        val half = 0.065f * scale
-        val lift = Offset(0f, -0.07f * scale)
+        val half = 0.095f * scale // wide road plank, sitting in the trough between tiles
+        val lift = Offset(0f, -0.045f * scale)
         val lower = if (n.y >= 0f) n else -n // the long side facing the viewer
         val top = listOf(a2 + n * half + lift, b2 + n * half + lift, b2 - n * half + lift, a2 - n * half + lift)
         val side = listOf(a2 + lower * half + lift, b2 + lower * half + lift, b2 + lower * half, a2 + lower * half)
