@@ -217,6 +217,9 @@ class Sea(board: Board, seed: Int = 1) {
         var trailT = 0f
         /** Seconds before the boat may come about again (stops it flip-flopping at a lane end). */
         var turnCool = 0f
+        var laneDir = if (cos(heading) >= 0f) 1f else -1f
+        var passSide = if (y >= 0f) 1f else -1f
+        var laneStartX = -laneDir * OPEN_RX
     }
     /** Sail colours for the cruising boats (the players' colours). */
     var boatColors: List<Color> = listOf(Color(0xFFD32F2F), Color(0xFF1E63C6), Color(0xFFF57C00), Color(0xFFF5F5F5))
@@ -295,31 +298,37 @@ class Sea(board: Board, seed: Int = 1) {
      * its lane, and passes the island above or below rather than steering into it.
      */
     private fun sail(b: Boat, dt: Float) {
-        val dir = if (cos(b.heading) >= 0f) 1f else -1f
+        val dir = b.laneDir
         b.turnCool = (b.turnCool - dt).coerceAtLeast(0f)
         // End of the lane (near the screen edge): come about once, onto a new lane well inside the sea.
-        if (b.turnCool == 0f && !inOpenSea(b.x + dir * 0.9f, b.y, 0.4f)) {
-            b.tx = -dir * OPEN_RX * 0.8f
-            b.ty = ((rnd.nextFloat() * 2 - 1) * LANE_Y)
-            b.heading = if (dir > 0) PI.toFloat() else 0f
-            b.turnCool = 6f
+        if (b.turnCool == 0f && abs(b.x - b.laneStartX) >= OPEN_RX * 1.4f && abs(b.x) >= landR + 3.1f &&
+            !inOpenSea(b.x + dir * 1.2f, b.y, 0.4f)) {
+            b.laneDir = -dir
+            b.tx = b.laneDir * OPEN_RX * 0.95f
+            b.laneStartX = b.x
+            if (abs(b.y) > 0.5f) b.passSide = if (b.y > 0f) 1f else -1f
+            b.ty = b.passSide * LANE_Y
+            b.turnCool = 20f
         }
         // Never drift toward the narrow top/bottom of the sea: lanes stay within LANE_Y.
         if (kotlin.math.abs(b.ty) > LANE_Y) b.ty = kotlin.math.sign(b.ty) * LANE_Y
         var ty = b.ty
         // Keep clear of the island: lanes crossing it bend early to pass above or below.
-        if (kotlin.math.abs(b.x) < landR + 3f && kotlin.math.abs(ty) < landR + 0.8f) ty = if (b.y >= 0) landR + 1.0f else -(landR + 1.0f)
+        if (kotlin.math.abs(b.x) < landR + 3f && kotlin.math.abs(ty) < landR + 0.8f) ty = b.passSide * (landR + 0.35f)
         val near = hypot(b.x, b.y) < landR + 1.2f
         val maxClimb = if (near) 0.9f else 0.45f
-        val want = atan2((ty - b.y) * 0.6f, dir).coerceIn(-maxClimb, maxClimb).let { if (dir > 0) it else PI.toFloat() - it }
+        val climb = atan2((ty - b.y) * 0.6f, 1f).coerceIn(-maxClimb, maxClimb)
+        val want = if (b.laneDir > 0) climb else PI.toFloat() - climb
         var turn = want - b.heading
         while (turn > PI) turn -= 2 * PI.toFloat()
         while (turn < -PI) turn += 2 * PI.toFloat()
-        b.heading += turn.coerceIn(-0.35f * dt, 0.35f * dt)
+        b.heading += turn.coerceIn(-BOAT_TURN_RATE * dt, BOAT_TURN_RATE * dt)
         b.x += cos(b.heading) * b.speed * dt; b.y += sin(b.heading) * b.speed * dt
         // Never onto the land: a boat that got close is eased back out.
         val d = hypot(b.x, b.y)
         if (d < landR + 0.3f) { b.x *= (landR + 0.3f) / d; b.y *= (landR + 0.3f) / d }
+        val edge = sqrt((b.x / (OPEN_RX - 0.4f)).pow(2) + (b.y / (OPEN_RY - 0.4f)).pow(2))
+        if (edge > 1f) { b.x /= edge; b.y /= edge }
         // Record the wake trail every 0.2 s.
         b.trailT += dt
         if (b.trailT >= 0.2f) {
@@ -530,7 +539,7 @@ class Sea(board: Board, seed: Int = 1) {
         }
         drawCircle(Color.White.copy(alpha = 0.3f), 0.05f * s, at(b.x - cos(b.heading) * 0.2f, b.y + 0.19f))
         // Rolls gently on the swell and pitches a touch with its climb, pivoting at the waterline.
-        val roll = sin(time * 1.3f + b.phase * 2f) * 2.5f + sin(b.heading) * 6f * (if (right) 1f else -1f)
+        val roll = sin(time * 1.3f + b.phase * 2f) * 2.5f + sin(b.heading) * 2f * (if (right) 1f else -1f)
         val water = Offset(p.x, p.y + size * 0.22f)
         withTransform({ rotate(roll, water); if (!right) scale(-1f, 1f, p) }) {
             drawImage(img, dstOffset = IntOffset((p.x - size / 2).toInt(), (p.y - size * 0.7f + bob).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
@@ -767,6 +776,7 @@ class Sea(board: Board, seed: Int = 1) {
         /** Share of a cloud's speed into a bound that it keeps, reversed (soft bounce). Other cloud tunables: [CloudFeel]. */
         const val BOUNCE = 0.4f
         /** Cruising sailboats at Boats = 100%. */
+        const val BOAT_TURN_RATE = 0.35f
         const val MAX_BOATS = 8
         /** Wake trail points kept per boat (one every 0.2 s). */
         const val TRAIL = 14
