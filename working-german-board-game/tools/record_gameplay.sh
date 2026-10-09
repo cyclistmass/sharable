@@ -38,6 +38,6 @@ TMP="$(cygpath -w "$TEMP/play.mp4")"
 
 mkdir -p docs
 ffmpeg -loglevel error -y -i "$TMP" \
-  -vf "fps=10,scale=760:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=sierra2_4a" \
+  -vf "fps=8,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=sierra2_4a" \
   docs/gameplay-1x.gif
 ls -la docs/gameplay-1x.gif

@@ -67,11 +67,11 @@ def render(tris, cols, body, R):
         d.polygon(pts, fill=(int(c[0]), int(c[1]), int(c[2]), 255))
     return img.resize((SIZE, SIZE), Image.LANCZOS)
 
-# Face -> number, from generate.py: +z=1, -z=6, +x=3, -x=4, +y=2, -y=5. A pose showing face N to the camera:
-FACE_UP = {1: np.eye(3), 6: rot([1, 0, 0], math.pi), 3: rot([0, 1, 0], -math.pi / 2), 4: rot([0, 1, 0], math.pi / 2),
-           2: rot([1, 0, 0], math.pi / 2), 5: rot([1, 0, 0], -math.pi / 2)}
-# A slight 3/4 view so a resting die shows its top and two sides.
-VIEW = rot([1, 0, 0], 0.45) @ rot([0, 1, 0], -0.40)
+# Face -> number, from generate.py: +z=1, -z=6, +x=3, -x=4, +y=2, -y=5. A pose turning face N to point UP (+y):
+FACE_UP = {2: np.eye(3), 5: rot([1, 0, 0], math.pi), 1: rot([1, 0, 0], -math.pi / 2), 6: rot([1, 0, 0], math.pi / 2),
+           3: rot([0, 0, 1], math.pi / 2), 4: rot([0, 0, 1], -math.pi / 2)}
+# Looking down on the table at a steep angle, turned a little: the top face (the roll) dominates, two sides show.
+VIEW = rot([1, 0, 0], 0.95) @ rot([0, 1, 0], -0.55)
 
 def sheet(name, tumble=16):
     tris, cols, body = load(name)

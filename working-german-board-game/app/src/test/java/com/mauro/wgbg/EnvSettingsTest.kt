@@ -36,4 +36,25 @@ class EnvSettingsTest {
         assertEquals(1f, env.clouds)
         assertEquals(0f, env.birds)
     }
+
+    @Test
+    fun `volumes persist, are clamped and independent`() {
+        val store = MapStore()
+        SoundSettings(store).apply { musicVolume = 0.2f; soundVolume = 7f }
+        val again = SoundSettings(store)
+        assertEquals(0.2f, again.musicVolume)
+        assertEquals(1f, again.soundVolume)
+    }
+
+    @Test
+    fun `reset puts every setting back to its default`() {
+        val store = MapStore()
+        val env = EnvSettings(store).apply { this[Item.CLOUDS] = 1f; this[Item.WAVES] = 0f }
+        val sound = SoundSettings(store).apply { musicVolume = 0f; soundVolume = 0.1f }
+        env.reset(); sound.reset()
+        for (i in Item.entries) assertEquals(EnvSettings.DEFAULT, env[i])
+        assertEquals(SoundSettings.DEFAULT_MUSIC, sound.musicVolume)
+        assertEquals(SoundSettings.DEFAULT_SOUNDS, sound.soundVolume)
+        assertEquals(EnvSettings.DEFAULT, EnvSettings(store).clouds, "and the reset is saved")
+    }
 }
