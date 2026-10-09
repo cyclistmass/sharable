@@ -24,6 +24,11 @@ set +e
 code=$?
 set -e
 tail -5 monkey.txt
+# Random swipes can pull down the quick-settings shade and tap its tiles: undo what that can leave behind
+# (airplane mode left on once cut a later online test off the network).
+"$ADB" shell cmd connectivity airplane-mode disable || true
+"$ADB" shell svc wifi enable || true
+"$ADB" shell cmd statusbar collapse || true
 "$ADB" logcat -d -b crash > crash.txt || true
 if [ $code -ne 0 ] || grep -qE "// CRASH|// NOT RESPONDING|Monkey aborted" monkey.txt || grep -q "FATAL EXCEPTION" crash.txt; then
   echo "Monkey found a crash (seed $SEED):"
