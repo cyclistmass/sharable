@@ -394,21 +394,25 @@ class Sea(board: Board, seed: Int = 1) {
      * other way at low alpha so the surface shimmers, and the edges sinking to deep water.
      */
     private fun drawOcean(ds: DrawScope, bmp: Bitmap, c: Offset, s: Float, squash: Float, area: Rect, far: Float) {
-        val brushes = oceanBrushes ?: List(2) {
+        val brushes = oceanBrushes ?: List(3) {
             val sh = BitmapShader(bmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
             sh to ShaderBrush(sh)
         }.also { oceanBrushes = it }
         val tile = OCEAN_TILE * s / bmp.width                  // one tile spans OCEAN_TILE hex sides
+        // Three copies at non-multiple scales and different angles, so the tile's repeat never lines up into a grid.
         for ((i, pair) in brushes.withIndex()) {
             val (shader, brush) = pair
-            val drift = time * if (i == 0) 0.05f else -0.035f
+            val k = OCEAN_LAYERS[i]
+            val drift = time * k[3]
             oceanMatrix.reset()
-            oceanMatrix.setScale(tile * if (i == 0) 1f else 1.37f, tile * squash * if (i == 0) 1f else 1.37f)
-            if (i == 1) oceanMatrix.postRotate(31f)
+            oceanMatrix.setScale(tile * k[0], tile * k[0] * squash)
+            oceanMatrix.postRotate(k[1])
             oceanMatrix.postTranslate(c.x + drift * s, c.y + drift * s * 0.45f * squash)
             shader.setLocalMatrix(oceanMatrix)
-            ds.drawRect(brush, area.topLeft, area.size, alpha = if (i == 0) 1f else 0.3f)
+            ds.drawRect(brush, area.topLeft, area.size, alpha = k[2])
         }
+        // Broad soft mottling on top breaks up what is left of the repeat.
+        drawPatches(ds, c, s, squash, area, strength = 0.4f)
         // Deeper toward the edges of the screen; the island's waters stay bright.
         ds.drawRect(Brush.radialGradient(
             0f to Color.Transparent, (SEA_R * s / far).coerceIn(0.05f, 0.95f) to Color(0x22000A1E), 1f to Color(0x99000A1E),
@@ -417,7 +421,7 @@ class Sea(board: Board, seed: Int = 1) {
     }
 
     /** Two translucent layers of soft tonal patches drifting slowly in different directions. */
-    private fun drawPatches(ds: DrawScope, c: Offset, s: Float, squash: Float, area: Rect) {
+    private fun drawPatches(ds: DrawScope, c: Offset, s: Float, squash: Float, area: Rect, strength: Float = 1f) {
         val brushes = patchBrushes ?: patchPixels.map { px ->
             val bmp = Bitmap.createBitmap(px, PATCH_TEX, PATCH_TEX, Bitmap.Config.ARGB_8888)
             val sh = BitmapShader(bmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
@@ -434,7 +438,7 @@ class Sea(board: Board, seed: Int = 1) {
             patchMatrix.postRotate(if (i == 0) 0f else 24f)
             patchMatrix.postTranslate(c.x + drift * s * 1.3f, c.y + drift * s * squash * 0.6f + i * 37f)
             shader.setLocalMatrix(patchMatrix)
-            ds.drawRect(brush, area.topLeft, area.size, alpha = if (i == 0) 0.55f + 0.1f * sin(time * 0.21f) else 0.45f + 0.1f * sin(time * 0.17f + 2f))
+            ds.drawRect(brush, area.topLeft, area.size, alpha = strength * if (i == 0) 0.55f + 0.1f * sin(time * 0.21f) else 0.45f + 0.1f * sin(time * 0.17f + 2f))
         }
     }
 
@@ -599,7 +603,9 @@ class Sea(board: Board, seed: Int = 1) {
         /** Patch texture size in pixels, and how many hex sides one tile spans. */
         const val PATCH_TEX = 64
         /** How many hex sides one ocean tile spans on screen. */
-        const val OCEAN_TILE = 6f
+        const val OCEAN_TILE = 7f
+        /** Ocean layers: scale, rotation (degrees), alpha, drift speed. */
+        private val OCEAN_LAYERS = listOf(floatArrayOf(1f, 0f, 1f, 0.05f), floatArrayOf(1.37f, 31f, 0.4f, -0.035f), floatArrayOf(2.11f, -23f, 0.3f, 0.022f))
         private const val PATCH_TILE_A = 4.3f
         private const val PATCH_TILE_B = 3.1f
 

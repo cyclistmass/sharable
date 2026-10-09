@@ -13,6 +13,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -197,7 +199,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT) {
             LobbyScreen(l, onChange = { lobby = it }, onStart = { setup = it; gameNo++; screen = Screen.GAME }, onSettings = { screen = Screen.START })
         } ?: run { screen = Screen.START }
         Screen.GAME -> key(gameNo) {
-            BackHandler { screen = Screen.START }
+            // Back asks "Leave this game?" inside the game screen (same as Exit).
             WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START })
         }
     }
@@ -353,6 +355,8 @@ fun WatchGameScreen(
         camera = Camera.FIT
     }
     var panelOpen by remember { mutableStateOf(false) }
+    var confirmExit by remember { mutableStateOf(false) }
+    BackHandler { confirmExit = !confirmExit }
     // What the human may do right now (empty while bots move or in Watch mode).
     val legal = tick.let { if (human && !inventory && !state.isOver && state.actingPlayer == 0) Rules.legalActions(state) else emptyList() }
     val legalNow by rememberUpdatedState(legal)
@@ -498,11 +502,16 @@ fun WatchGameScreen(
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text("Game #$seed · turn ${players.first().turn}", style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Turn ${players.first().turn}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    // Small and out of the way; it asks before leaving.
+                    Text("Exit", color = Color(0xFFFFB4A0), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.border(1.dp, Color(0xFF8A6A2A), RoundedCornerShape(10.dp))
+                            .clickable { confirmExit = true }.padding(horizontal = 10.dp, vertical = 3.dp).testTag("menu-exit"))
+                }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
                     WoodButton(if (speed == MAX_SPEED) "Max" else "${speed}×", "menu-speed") { speed = if (speed == MAX_SPEED) 1 else speed * 2 }
-                    ColorButton("Exit game", Color(0xFFC0392B), "menu-exit", onClick = onExit)
                     WoodButton(if (human) "Watch bots" else "Play", "menu-watch") { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -521,6 +530,18 @@ fun WatchGameScreen(
         }
       }
         BrassButton(if (panelOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) { panelOpen = !panelOpen }
+        if (confirmExit) Column(
+            Modifier.align(Alignment.Center).brassEdgedWood().padding(18.dp).testTag("exit-confirm"),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Leave this game?", color = Color(0xFFF1D58A), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("It won't be saved.", color = Color(0xFFEDE6D8), fontSize = 13.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                WoodButton("Keep playing", "exit-no") { confirmExit = false }
+                ColorButton("Leave", Color(0xFFC0392B), "exit-yes") { confirmExit = false; onExit() }
+            }
+        }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.
         if (human && !inventory && tick.let { tradeButtonVisible(state) }) TradeToggle(
             open = tradeOpen || tradeNeedsMe(state, 0),
