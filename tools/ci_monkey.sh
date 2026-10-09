@@ -11,7 +11,7 @@ PKG=com.mauro.wgbg
 
 "$ADB" wait-for-device
 # A fresh CI emulator is busy for a while after boot; let it settle so its own load isn't read as our ANR.
-until [ "$("$ADB" shell getprop sys.boot_completed | tr -d '')" = "1" ]; do sleep 2; done
+until [ "$("$ADB" shell getprop sys.boot_completed | tr -dc '0-9')" = "1" ]; do sleep 2; done
 sleep "${SETTLE:-45}"
 "$ADB" install -r "$APK"
 "$ADB" shell am start -W -n "$PKG/.MainActivity"   # -W waits for the first frame
