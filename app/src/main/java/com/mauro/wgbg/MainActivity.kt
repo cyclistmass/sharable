@@ -141,7 +141,10 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color.Black)) {
-                AppRoot(debugCamera())
+                // Debug builds: `--es start chivalry|base` jumps straight into a game (CI monkey tests).
+                val debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+                val start = if (debug) intent.getStringExtra("start") else null
+                AppRoot(debugCamera(), start)
             }
         }
     }
@@ -205,9 +208,9 @@ private enum class Screen { START, LOBBY, GAME }
 
 /** Game start (#3) -> optional lobby (#19) -> the game; the in-game Exit goes back to game start. */
 @Composable
-fun AppRoot(initialCamera: Camera = Camera.FIT) {
-    var screen by rememberSaveable { mutableStateOf(Screen.START) }
-    var setup by remember { mutableStateOf(GameSetup()) }
+fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null) {
+    var screen by rememberSaveable { mutableStateOf(if (start != null) Screen.GAME else Screen.START) }
+    var setup by remember { mutableStateOf(if (start == "chivalry") GameSetup().withRuleset(Ruleset.CHIVALRY) else GameSetup()) }
     var lobby by remember { mutableStateOf<Lobby?>(null) }
     var gameNo by rememberSaveable { mutableIntStateOf(0) }
     when (screen) {
