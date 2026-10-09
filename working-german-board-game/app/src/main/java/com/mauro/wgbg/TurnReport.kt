@@ -4,6 +4,7 @@ import wgbg.engine.Action
 import wgbg.engine.ActionType
 import wgbg.engine.CARD_TYPES
 import wgbg.engine.GameState
+import wgbg.engine.Phase
 import wgbg.engine.Resource
 
 /** Our names for the five resources, in engine order (WOOD, BRICK, SHEEP, WHEAT, ORE). */
@@ -38,6 +39,8 @@ class TurnTracker(private val names: List<String>) {
             current = TurnReport(s.currentPlayer, s.turn)
         }
         val before = s.hands.copyOf()
+        val phaseBefore = s.phase
+        val counterer = s.counterFrom
         var d1 = 0
         var d2 = 0
         if (action.type == ActionType.ROLL && action.payload != 0L) {
@@ -59,7 +62,10 @@ class TurnTracker(private val names: List<String>) {
                 else (0 until s.numPlayers).mapNotNull { p -> changes(gained[p])?.let { "${names[p]} $it" } }
                     .ifEmpty { listOf("Nobody produced anything.") },
             )
-            ActionType.END_TURN, ActionType.REJECT_TRADE -> r
+            ActionType.END_TURN -> r
+            ActionType.REJECT_TRADE, ActionType.COUNTER_TRADE -> r
+            ActionType.ACCEPT_TRADE ->
+                if (phaseBefore == Phase.DECIDE_COUNTER) r.plus("$n traded with ${names[counterer]}: ${tradeText(gained[who])}") else r
             ActionType.MOVE_ROBBER -> {
                 val victim = action.robberVictim
                 r.plus(if (victim >= 0) "$n moved the bandit and took a card from ${names[victim]}" else "$n moved the bandit")

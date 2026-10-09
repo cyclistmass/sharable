@@ -28,6 +28,11 @@ enum class ActionType : ActionKind {
     CONFIRM_TRADE,
     CANCEL_TRADE,
     END_TURN,
+    /**
+     * A responder's counter to the open domestic offer. Same encoding as OFFER_TRADE and, like it,
+     * written from the offerer's side: what the offerer would give and get.
+     */
+    COUNTER_TRADE,
     ;
 
     override val id get() = ordinal
@@ -156,6 +161,8 @@ value class Action(val code: Long) {
             ActionType.PLAY_MONOPOLY -> "PLAY_MONOPOLY(${r[a]})"
             ActionType.OFFER_TRADE -> "OFFER_TRADE(give=${(0 until CARD_TYPES).map(::offerGive)}, " +
                 "want=${(0 until CARD_TYPES).map(::offerWant)})"
+            ActionType.COUNTER_TRADE -> "COUNTER_TRADE(offerer gives=${(0 until CARD_TYPES).map(::offerGive)}, " +
+                "gets=${(0 until CARD_TYPES).map(::offerWant)})"
             ActionType.CONFIRM_TRADE -> "CONFIRM_TRADE(with=$payload)"
             else -> type.toString()
         }
@@ -202,13 +209,18 @@ value class Action(val code: Long) {
         fun confirmTrade(acceptor: Int) = of(ActionType.CONFIRM_TRADE, acceptor.toLong())
 
         /** Domestic offer: [give] and [want] are per-resource counts (each 0..15). */
-        fun offerTrade(give: IntArray, want: IntArray): Action {
+        fun offerTrade(give: IntArray, want: IntArray) = of(ActionType.OFFER_TRADE, tradeTerms(give, want))
+
+        /** Counter-offer: [give] and [want] are what the OFFERER would give and get (each 0..15). */
+        fun counterTrade(give: IntArray, want: IntArray) = of(ActionType.COUNTER_TRADE, tradeTerms(give, want))
+
+        private fun tradeTerms(give: IntArray, want: IntArray): Long {
             var p = 0L
             for (r in 0 until CARD_TYPES) {
                 require(give[r] in 0..15 && want[r] in 0..15) { "trade counts must be 0..15" }
                 p = p or (give[r].toLong() shl (4 * r)) or (want[r].toLong() shl (20 + 4 * r))
             }
-            return of(ActionType.OFFER_TRADE, p)
+            return p
         }
 
         // ---------------------------------------------------- Cities & Knights

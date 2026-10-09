@@ -11,14 +11,21 @@ export MSYS_NO_PATHCONV=1
 "$A" shell am start -n com.mauro.wgbg/.MainActivity >/dev/null
 sleep 4
 
-# Open the panel, switch Max -> 1x, close the panel so the board fills the screen.
+# Taps the on-screen button whose text is $1 (found with uiautomator).
+tap_text() {
+  "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+  local B
+  B=$("$A" shell cat /sdcard/ui.xml | tr '>' '\n' | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]" | grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | head -1)
+  [ -n "$B" ] || { echo "button '$1' not found (is the panel layout changed?)"; exit 1; }
+  "$A" shell input tap $(( ${B%,*} + 20 )) $(( ${B#*,} + 20 ))
+  sleep 0.7
+}
+
+# Open the menu, switch to Watch bots (starts at Max), Max -> 1x, close the menu.
 "$A" shell input tap 2270 84
 sleep 1
-"$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-B=$("$A" shell cat /sdcard/ui.xml | tr '>' '\n' | grep -o 'text="Max"[^/]*bounds="\[[0-9]*,[0-9]*\]' | grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]')
-[ -n "$B" ] || { echo "speed button not found (is the panel layout changed?)"; exit 1; }
-"$A" shell input tap $(( ${B%,*} + 20 )) $(( ${B#*,} + 20 ))
-sleep 0.5
+tap_text "Watch bots"
+tap_text "Max"
 "$A" shell input tap 2270 84
 sleep 3
 

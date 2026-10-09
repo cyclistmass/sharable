@@ -125,6 +125,12 @@ object Rules {
                 var ok = true
                 for (r in 0 until CARD_TYPES) if (s.hand(p, r) < s.tradeOffer[CARD_TYPES + r]) ok = false
                 if (ok) out.add(Action.ACCEPT_TRADE)
+                if (s.config.generateTradeOffers) counterActions(s, p, out)
+            }
+
+            Phase.DECIDE_COUNTER -> {
+                out.add(Action.ACCEPT_TRADE)
+                out.add(Action.REJECT_TRADE)
             }
 
             Phase.DECIDE_ACCEPTEES -> {
@@ -215,6 +221,47 @@ object Rules {
         return mask
     }
 
+    /** 1-for-1 counters (offerer gives g, gets w), enumerated only for bots and fuzzing. */
+    private fun counterActions(s: GameState, p: Int, out: ActionBuffer) {
+        val o = s.currentPlayer
+        val give = IntArray(CARD_TYPES)
+        val want = IntArray(CARD_TYPES)
+        for (g in 0 until CARD_TYPES) {
+            if (s.hand(o, g) == 0) continue
+            for (w in 0 until CARD_TYPES) {
+                if (w == g || s.hand(p, w) == 0) continue
+                give[g] = 1; want[w] = 1
+                val a = Action.counterTrade(give, want)
+                if (isValidCounter(s, a)) out.add(a)
+                give[g] = 0; want[w] = 0
+            }
+        }
+    }
+
+    /**
+     * A counter must change the open offer, give and get something, never swap a resource for
+     * itself, and both sides must hold what they would hand over.
+     */
+    fun isValidCounter(s: GameState, a: Action): Boolean {
+        if (s.ck != null || s.phase != Phase.DECIDE_TRADE) return false
+        if (a.payload ushr 40 != 0L) return false
+        val p = s.actingPlayer
+        val o = s.currentPlayer
+        var gives = 0
+        var gets = 0
+        var same = true
+        for (r in 0 until CARD_TYPES) {
+            val g = a.offerGive(r)
+            val w = a.offerWant(r)
+            if (g > 0 && w > 0) return false
+            if (s.hand(o, r) < g || s.hand(p, r) < w) return false
+            if (g != s.tradeOffer[r] || w != s.tradeOffer[CARD_TYPES + r]) same = false
+            gives += g
+            gets += w
+        }
+        return gives > 0 && gets > 0 && !same
+    }
+
     /** Domestic offers are not enumerated (see [GameConfig.generateTradeOffers]) so they are validated here. */
     fun isValidOffer(s: GameState, a: Action): Boolean {
         if (s.phase != Phase.PLAY_TURN || !s.hasRolled || s.freeRoads > 0) return false
@@ -236,10 +283,11 @@ object Rules {
 
     fun isLegal(s: GameState, a: Action): Boolean {
         if (s.ck != null) {
-            if (a.type == ActionType.OFFER_TRADE) return false
+            if (a.type == ActionType.OFFER_TRADE || a.type == ActionType.COUNTER_TRADE) return false
             if (a.type == CkActionType.OFFER_TRADE_CK) return CitiesAndKnights.isValidOffer(s, a)
         }
         if (a.type == ActionType.OFFER_TRADE) return isValidOffer(s, a)
+        if (a.type == ActionType.COUNTER_TRADE) return isValidCounter(s, a)
         if (a.type == ActionType.ROLL && a.payload != 0L) {
             val ev = ((a.payload ushr 16) and 0xff).toInt() - 1
             if (a.a !in 1..6 || a.b !in 1..6 || ev !in -1..5) return false
@@ -349,27 +397,39 @@ object Rules {
                 s.actingPlayer = (p + 1) % s.numPlayers
             }
 
-            ActionType.ACCEPT_TRADE, ActionType.REJECT_TRADE -> {
-                if (a.type == ActionType.ACCEPT_TRADE) s.tradeAccepted = s.tradeAccepted or (1 shl p)
-                val next = (p + 1) % s.numPlayers
-                when {
-                    next != s.currentPlayer -> s.actingPlayer = next
-                    s.tradeAccepted == 0 -> endTrade(s)
-                    else -> {
-                        s.phase = Phase.DECIDE_ACCEPTEES
-                        s.actingPlayer = s.currentPlayer
+            ActionType.ACCEPT_TRADE, ActionType.REJECT_TRADE -> when {
+                s.phase == Phase.DECIDE_COUNTER && a.type == ActionType.ACCEPT_TRADE -> {
+                    val c = s.counterOffer!!
+                    for (r in 0 until CARD_TYPES) {
+                        s.tradeOffer[r] = c.offerGive(r)
+                        s.tradeOffer[CARD_TYPES + r] = c.offerWant(r)
                     }
+                    swapTrade(s, p, s.counterFrom)
+                    endTrade(s)
+                }
+                s.phase == Phase.DECIDE_COUNTER -> {
+                    // Counter refused: the original offer goes on round the table after the counterer.
+                    val from = s.counterFrom
+                    s.counterFrom = -1
+                    s.counterTerms = 0L
+                    s.phase = Phase.DECIDE_TRADE
+                    passOffer(s, from)
+                }
+                else -> {
+                    if (a.type == ActionType.ACCEPT_TRADE) s.tradeAccepted = s.tradeAccepted or (1 shl p)
+                    passOffer(s, p)
                 }
             }
 
+            ActionType.COUNTER_TRADE -> {
+                s.counterFrom = p
+                s.counterTerms = a.payload
+                s.phase = Phase.DECIDE_COUNTER
+                s.actingPlayer = s.currentPlayer
+            }
+
             ActionType.CONFIRM_TRADE -> {
-                val q = a.payload.toInt()
-                for (r in 0 until CARD_TYPES) {
-                    val give = s.tradeOffer[r]
-                    val want = s.tradeOffer[CARD_TYPES + r]
-                    s.hands[p * CARD_TYPES + r] += want - give
-                    s.hands[q * CARD_TYPES + r] += give - want
-                }
+                swapTrade(s, p, a.payload.toInt())
                 endTrade(s)
             }
 
@@ -556,9 +616,34 @@ object Rules {
         }
     }
 
+    /** Hands the offer to the player after [from], or closes the round at the offerer. */
+    private fun passOffer(s: GameState, from: Int) {
+        val next = (from + 1) % s.numPlayers
+        when {
+            next != s.currentPlayer -> s.actingPlayer = next
+            s.tradeAccepted == 0 -> endTrade(s)
+            else -> {
+                s.phase = Phase.DECIDE_ACCEPTEES
+                s.actingPlayer = s.currentPlayer
+            }
+        }
+    }
+
+    /** Offerer [p] and partner [q] exchange the cards in [GameState.tradeOffer]. */
+    private fun swapTrade(s: GameState, p: Int, q: Int) {
+        for (r in 0 until CARD_TYPES) {
+            val give = s.tradeOffer[r]
+            val want = s.tradeOffer[CARD_TYPES + r]
+            s.hands[p * CARD_TYPES + r] += want - give
+            s.hands[q * CARD_TYPES + r] += give - want
+        }
+    }
+
     internal fun endTrade(s: GameState) {
         s.tradeOffer.fill(0)
         s.tradeAccepted = 0
+        s.counterFrom = -1
+        s.counterTerms = 0L
         s.phase = Phase.PLAY_TURN
         s.actingPlayer = s.currentPlayer
     }

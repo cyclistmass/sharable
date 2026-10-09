@@ -22,6 +22,8 @@ fits the window at the top-left of the screen in physical pixels, brings it to t
 (with `-Launch`) restarts the app. Check the last line says `ROTATION_90` or `ROTATION_270`.
 
 Never start the emulator with a bare `emulator -avd ...` or move its window by hand.
+If the window is ever off screen or hidden behind the terminal, use the `center-emulator` skill
+(`tools/center_emulator.ps1`); the setup script runs it automatically as its last step.
 
 ## 2. Install and drive the app
 

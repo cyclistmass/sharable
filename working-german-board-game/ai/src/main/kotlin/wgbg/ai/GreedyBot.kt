@@ -24,6 +24,7 @@ class GreedyBot(seed: Long = 0, override val name: String = "Greedy") : Bot {
 
     override fun choose(state: GameState, legal: ActionBuffer): Action {
         tradeOffer(state, legal)?.let { return it }
+        tradeResponse(state, legal)?.let { return it }
         var best = legal[0]
         var bestScore = Double.NEGATIVE_INFINITY
         for (i in 0 until legal.size) {
@@ -52,9 +53,9 @@ class GreedyBot(seed: Long = 0, override val name: String = "Greedy") : Bot {
             ActionType.MOVE_ROBBER -> robberScore(s, me, a.robberHex, a.robberVictim)
             ActionType.DISCARD -> s.hand(me, a.discardResource).toDouble()
             ActionType.ROLL -> 50.0
-            ActionType.ACCEPT_TRADE -> if (offerHelpsMe(s, me)) 5.0 else -1.0
+            ActionType.ACCEPT_TRADE -> if (if (s.phase == Phase.DECIDE_COUNTER) counterHelpsMe(s, me) else offerHelpsMe(s, me)) 5.0 else -1.0
             ActionType.CONFIRM_TRADE -> 10.0 - s.publicVictoryPoints(a.payload.toInt()) // weakest partner first
-            ActionType.OFFER_TRADE -> -10.0
+            ActionType.OFFER_TRADE, ActionType.COUNTER_TRADE -> -10.0
             ActionType.END_TURN, ActionType.REJECT_TRADE, ActionType.CANCEL_TRADE -> 0.0
             else -> 1.0
         }
@@ -113,6 +114,41 @@ class GreedyBot(seed: Long = 0, override val name: String = "Greedy") : Bot {
         if (!Rules.isLegal(s, offer)) return null
         offersThisTurn++
         return offer
+    }
+
+    /**
+     * Answering someone's offer: accept it if it helps; otherwise, now and then, counter by asking
+     * for a card we're missing in place of what they offered. Null outside DECIDE_TRADE.
+     */
+    private fun tradeResponse(s: GameState, legal: ActionBuffer): Action? {
+        if (s.phase != Phase.DECIDE_TRADE || s.ck != null) return null
+        val me = s.actingPlayer
+        if (Action.ACCEPT_TRADE in legal && offerHelpsMe(s, me)) return Action.ACCEPT_TRADE
+        val o = s.currentPlayer
+        if (s.publicVictoryPoints(o) < s.config.vpToWin - 2 && rng.nextInt(100) < 50) {
+            val goal = target(s, me)
+            val want = IntArray(CARD_TYPES) { s.tradeOffer[CARD_TYPES + it] } // what the offerer still gets
+            val missing = (0 until CARD_TYPES).filter { s.hand(me, it) < goal[it] && want[it] == 0 && s.hand(o, it) > 0 }
+            for (m in missing.shuffled(java.util.Random(rng.nextInt(1 shl 30).toLong()))) {
+                val give = IntArray(CARD_TYPES).also { it[m] = 1 }
+                val counter = Action.counterTrade(give, want)
+                if (Rules.isLegal(s, counter)) return counter
+            }
+        }
+        return Action.REJECT_TRADE
+    }
+
+    /** As the offerer: take a counter unless it costs us more than it brings (or helps a near-winner). */
+    private fun counterHelpsMe(s: GameState, me: Int): Boolean {
+        val c = s.counterOffer ?: return false
+        if (s.publicVictoryPoints(s.counterFrom) >= s.config.vpToWin - 2) return false
+        val goal = target(s, me)
+        var gain = 0.0
+        for (r in 0 until CARD_TYPES) {
+            repeat(c.offerWant(r)) { gain += worth(s, me, goal, r, it) }
+            repeat(c.offerGive(r)) { gain -= worth(s, me, goal, r, -it - 1) }
+        }
+        return gain > -0.05
     }
 
     /** Accept if what we get is worth more to us than what we give, and the offerer isn't about to win. */

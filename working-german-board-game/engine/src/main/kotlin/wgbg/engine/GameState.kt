@@ -39,6 +39,10 @@ enum class Phase {
     DESERTER_PLACE,
     /** Spy: take a progress card from the target's hand (TAKE_PROGRESS). */
     SPY,
+
+    // Appended after the C&K prompts so every earlier ordinal stays stable.
+    /** The offerer answers a counter-offer from [GameState.counterFrom] (ACCEPT_TRADE / REJECT_TRADE). */
+    DECIDE_COUNTER,
 }
 
 /**
@@ -102,10 +106,17 @@ class GameState internal constructor(
     var largestArmyOwner = -1
     /** Bitmask of players that accepted the current trade offer. */
     var tradeAccepted = 0
+    /** Player whose counter-offer the offerer is deciding on (DECIDE_COUNTER), or -1. */
+    var counterFrom = -1
+    /** The pending counter's OFFER_TRADE-style payload, from the offerer's side. */
+    var counterTerms = 0L
     /** Winning player, or -1 (also when the game ended by the turn limit). */
     var winner = -1
 
     val isOver get() = phase == Phase.GAME_OVER
+
+    /** The pending counter-offer as a COUNTER_TRADE action, or null. */
+    val counterOffer: Action? get() = if (counterFrom < 0) null else Action.of(ActionType.COUNTER_TRADE, counterTerms)
 
     fun hand(p: Int, r: Int) = hands[p * CARD_TYPES + r]
 
@@ -165,6 +176,8 @@ class GameState internal constructor(
         s.longestRoadOwner = longestRoadOwner
         s.largestArmyOwner = largestArmyOwner
         s.tradeAccepted = tradeAccepted
+        s.counterFrom = counterFrom
+        s.counterTerms = counterTerms
         s.winner = winner
         return s
     }
@@ -189,6 +202,8 @@ class GameState internal constructor(
         mix(if (devPlayedThisTurn) 1 else 0); mix(freeRoads); mix(lastRoll)
         mix(longestRoadOwner); mix(largestArmyOwner); mix(tradeAccepted); mix(winner)
         mix((rng.seed ushr 32).toInt()); mix(rng.seed.toInt())
+        // Counter state is mixed in only while a counter is pending, so older hashes are unchanged.
+        if (counterFrom >= 0) { mix(counterFrom); mix((counterTerms ushr 32).toInt()); mix(counterTerms.toInt()) }
         // Base games hash exactly as before; C&K state is appended only when present.
         ck?.hashInto(::mix)
         return h

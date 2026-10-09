@@ -75,3 +75,6 @@ if ($Launch) {
 }
 $rot = (& $adb shell dumpsys window displays) | Select-String -Pattern "mCurrentRotation=(\S+)" | Select-Object -First 1
 "Display: $($rot.Matches[0].Groups[1].Value)  (want ROTATION_90 or ROTATION_270)"
+
+# 5. Last: center the window and bring it to the front (rotation may have moved it).
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "center_emulator.ps1")

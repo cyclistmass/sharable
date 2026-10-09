@@ -23,14 +23,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /** Card-border colors for Timber, Clay, Fleece, Grain, Stone (matches the card designs). */
-private val CARD_COLORS = listOf(Color(0xFF2E7D32), Color(0xFFBF5B30), Color(0xFF6E9A45), Color(0xFFC9962C), Color(0xFF4A5E80))
+internal val CARD_COLORS = listOf(Color(0xFF2E7D32), Color(0xFFBF5B30), Color(0xFF6E9A45), Color(0xFFC9962C), Color(0xFF4A5E80))
 private val FORTUNE_COLOR = Color(0xFF5B3A6E)
-private val CARD_FACE = Color(0xFFF2E7D3)
+internal val CARD_FACE = Color(0xFFF2E7D3)
 private val HUD_TEXT = Color(0xFFEDE6D8)
 
 /** The roll and what came of it, pinned to a corner of the board. */
 @Composable
-fun TurnHud(report: TurnReport?, previous: TurnReport?, modifier: Modifier = Modifier) {
+fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PLAYER_NAMES, modifier: Modifier = Modifier) {
     if (report == null) return
     Column(
         modifier.widthIn(max = 360.dp)
@@ -45,7 +45,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, modifier: Modifier = Mod
                 Die(report.die2, color)
                 Text("= ${report.die1 + report.die2}", color = HUD_TEXT, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
-            Text("${PLAYER_NAMES[report.player]}'s turn", color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(if (names[report.player] == "You") "Your turn" else "${names[report.player]}'s turn", color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
         for (line in report.production) Text(line, color = HUD_TEXT, fontSize = 12.sp, maxLines = 1)
         for (line in report.events.takeLast(4)) Text(line, color = HUD_TEXT.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 1)
