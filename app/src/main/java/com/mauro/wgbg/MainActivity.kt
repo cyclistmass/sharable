@@ -262,6 +262,7 @@ fun WatchGameScreen(
     // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
     // game starts several times a second, which would otherwise wipe splashes and clouds.
     val oceanRes = LocalContext.current.resources
+    val cliff = ImageBitmap.imageResource(R.drawable.cliff_straight)
     val tileFaces = TILE_FACES.withIndex().associate { (r, id) -> r to ImageBitmap.imageResource(id) } + (Resource.NONE to ImageBitmap.imageResource(TILE_DESERT))
     val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile); it.boatColors = PLAYER_COLORS } }
     // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
@@ -449,7 +450,7 @@ fun WatchGameScreen(
             tick // redraw on every move
             seaTick // and on every sea frame
             if (inventory) drawInventory(measurer, wood) else {
-                drawGame(state, measurer, wood, camera, sea, tileFaces)
+                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff)
                 if (!targets.isEmpty) drawTargets(state.board, targets, camera, (kotlin.math.sin(seaTick / 9f) + 1f) / 2f)
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
@@ -843,7 +844,7 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
     }
 }
 
-private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null) {
+private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: ImageBitmap? = null) {
     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
@@ -856,6 +857,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     val toScreen = { x: Float, y: Float -> l.project(x, y) }
     sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX))
 
+    if (cliff != null) drawCliffs(board, l, cliff)
     // Painter's order: top rows first so a lower tile's face covers the side wall above it.
     for (h in (0 until board.hexCount).sortedBy { l.rowKey(it) }) {
         val c = l.hexCenter(h)
@@ -1133,3 +1135,32 @@ private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer:
 
 /** A finished touch on a cloud: where it started and ended (px), path length, duration and release velocity (px/s). */
 private class GrabEnd(val start: Offset, val at: Offset, val travel: Float, val durationMs: Long, val velocity: Offset)
+
+/**
+ * Cliffs around the island (Mauro's ChatGPT art): the straight cliff strip laid along every coastline
+ * edge, grass lip tucked under the tile, rock face and surf hanging out over the sea.
+ */
+private fun DrawScope.drawCliffs(board: Board, l: Layout, cliff: ImageBitmap) {
+    val topo = board.topology
+    for ((v1, v2) in topo.edgeVertices) {
+        val shared = topo.vertexHexes[v1].filter { it in topo.vertexHexes[v2] }
+        if (shared.size != 1) continue                       // a coastline edge has land on one side only
+        var a = l.at(v1); var b = l.at(v2)
+        val c = l.hexCenter(shared[0])
+        val mid = (a + b) / 2f
+        val n = (mid - c).let { it / it.getDistance().coerceAtLeast(1e-3f) }
+        // Order the ends so the strip's "down" (its rock face and surf) points out to sea.
+        val d0 = b - a
+        if (-d0.y * n.x + d0.x * n.y < 0) { val t = a; a = b; b = t }
+        val d = b - a
+        val len = d.getDistance()
+        if (len < 2f) continue
+        val angle = Math.toDegrees(kotlin.math.atan2(d.y, d.x).toDouble()).toFloat()
+        val h = len * cliff.height / cliff.width * 1.8f   // taller than the art's ratio so the rock face reads at board size
+        withTransform({ translate(a.x, a.y); rotate(angle, pivot = Offset.Zero) }) {
+            // Slightly longer than the edge so neighbours overlap at the corners; the lip starts under the tile.
+            drawImage(cliff, dstOffset = IntOffset((-0.06f * len).toInt(), (-0.18f * h).toInt()),
+                dstSize = IntSize((1.12f * len).toInt(), h.toInt()), filterQuality = FilterQuality.Medium)
+        }
+    }
+}
