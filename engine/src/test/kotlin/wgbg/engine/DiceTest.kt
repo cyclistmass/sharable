@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 class DiceTest {
     /** Pearson chi-square of observed counts against expected probabilities. */
@@ -101,5 +102,43 @@ class DiceTest {
         }
         for (act in log) Rules.apply(b, act)
         assertEquals(a.stateHash(), b.stateHash())
+    }
+
+    @Test
+    fun `a deck dealt from its log alone deals every combination once per stack`() {
+        for (decks in 1..4) {
+            val drawn = ArrayList<Int>()
+            val perStack = 36 * decks - 5
+            repeat(3 * perStack) {
+                val r = DiceDeck.nextFromLog(drawn, decks)
+                drawn += DiceDeck.cardOf(r.d1, r.d2)
+            }
+            // Each stack (between reshuffles) holds no combination more than `decks` times.
+            for (stack in drawn.chunked(perStack)) {
+                val counts = stack.groupingBy { it }.eachCount()
+                assertTrue(counts.values.all { it <= decks }, "$decks decks: ${counts.values.max()} of one card")
+            }
+        }
+    }
+
+    @Test
+    fun `the log deck reshuffles on the in-memory deck's schedule`() {
+        val left = DiceDeck.leftInStack(List(31) { it }, decks = 1) // 36 - 5 = 31 draws make a stack
+        assertTrue(left.all { it == 1 }, "a fresh stack after 31 draws")
+        val partial = DiceDeck.leftInStack(listOf(0, 35), decks = 1)
+        assertEquals(0, partial[0]); assertEquals(0, partial[35]); assertEquals(34, partial.sum())
+        assertThrows<IllegalArgumentException> { DiceDeck.leftInStack(listOf(4, 4), decks = 1) }
+    }
+
+    @Test
+    fun `log deck sums come out in fair shares`() {
+        val drawn = ArrayList<Int>()
+        val sums = IntArray(11)
+        repeat(31 * 2000) {
+            val r = DiceDeck.nextFromLog(drawn, 1)
+            drawn += DiceDeck.cardOf(r.d1, r.d2)
+            sums[r.sum - 2]++
+        }
+        assertTrue(chiSquare(sums, sumProbs) < 35.6, "sums ${sums.toList()}")
     }
 }
