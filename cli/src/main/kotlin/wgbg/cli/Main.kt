@@ -6,6 +6,7 @@ import wgbg.engine.ActionBuffer
 import wgbg.engine.ActionType
 import wgbg.engine.CARD_TYPES
 import wgbg.engine.DevCard
+import wgbg.engine.DiceDeck
 import wgbg.engine.DiceStats
 import wgbg.engine.GameConfig
 import wgbg.engine.GameState
@@ -26,10 +27,12 @@ import kotlin.system.exitProcess
  * verify the whole game; the engine rejects any illegal move; dice are truly random
  * (OS secure generator) and recorded in the log.
  *
- *   wgbg new   <dir> --seats Claude,Alice,bot [--vp 10]
+ *   wgbg new   <dir> --seats Claude,Alice,bot [--vp 10] [--dice random|36|72|108|144]
  *   wgbg state <dir> --seat N        your view + numbered legal moves when it's your turn
  *   wgbg act   <dir> --seat N <move#>
  *   wgbg wait  <dir> --seat N [--timeout 600]   blocks until it's your turn (or game over)
+ *   wgbg offer <dir> --seat N --give "2 Timber" --want "1 Stone"   any offer on your turn
+ *   wgbg counter <dir> --seat N --give "1 Grain" --want "1 Clay"   answer an open offer with other terms
  *   wgbg log   <dir>                 replays and verifies the whole game
  *   wgbg dice  <dir> [--sample N]    histogram of the game's rolls (and N fresh true-random rolls)
  */
@@ -37,7 +40,7 @@ import kotlin.system.exitProcess
 private val RES = listOf("Timber", "Clay", "Fleece", "Grain", "Stone")
 private val FORTUNE = listOf("Sentinel", "Windfall", "Corner the Market", "Trailblazers", "Landmark")
 
-private class Record(val dir: File, val seats: List<String>, val seed: Long, val vp: Int, val actions: MutableList<Action>) {
+private class Record(val dir: File, val seats: List<String>, val seed: Long, val vp: Int, val actions: MutableList<Action>, /** 0 = true-random dice, else 1-4 stacked 36-card decks. */ val dice: Int = 0) {
     val config get() = GameConfig(numPlayers = seats.size, vpToWin = vp, generateTradeOffers = true, maxTurns = 400)
 
     fun replay(): GameState {
@@ -53,6 +56,7 @@ private class Record(val dir: File, val seats: List<String>, val seed: Long, val
             appendLine("seats=${seats.joinToString(",")}")
             appendLine("seed=$seed")
             appendLine("vp=$vp")
+            appendLine("dice=" + if (dice == 0) "random" else "deck:$dice")
             for (a in actions) appendLine(a.code)
         })
         val f = File(dir, "game.txt")
@@ -64,7 +68,8 @@ private class Record(val dir: File, val seats: List<String>, val seed: Long, val
             val lines = File(dir, "game.txt").readLines().filter { it.isNotBlank() && !it.startsWith("#") }
             val kv = lines.filter { '=' in it }.associate { it.substringBefore('=') to it.substringAfter('=') }
             val acts = lines.filter { '=' !in it }.map { Action(it.trim().toLong()) }.toMutableList()
-            return Record(dir, kv.getValue("seats").split(","), kv.getValue("seed").toLong(), kv.getValue("vp").toInt(), acts)
+            val dice = kv["dice"]?.removePrefix("deck:")?.toIntOrNull() ?: 0
+            return Record(dir, kv.getValue("seats").split(","), kv.getValue("seed").toLong(), kv.getValue("vp").toInt(), acts, dice)
         }
     }
 }
@@ -80,16 +85,29 @@ private fun <T> locked(dir: File, block: () -> T): T {
     try { return block() } finally { lock.delete() }
 }
 
-private val dice = TrueRandomDice()
+private val trueDice = TrueRandomDice()
+
+/** The rolls so far as deck cards (for deck dice). */
+private fun Record.drawnCards() = actions.filter { it.type == ActionType.ROLL && it.payload != 0L }.map { DiceDeck.cardOf(it.a, it.b) }
+
+/** The next roll: true-random dice, or the next card of this game's dice deck, dealt from the log. */
+private fun Record.roll(): Action = if (dice == 0) trueDice.next().toAction() else DiceDeck.nextFromLog(drawnCards(), dice).toAction()
+
+private fun Record.diceText() = if (dice == 0) "true random" else
+    "${36 * dice}-card deck, ${DiceDeck.leftInStack(drawnCards(), dice).sum() - 5} cards before the reshuffle"
 
 /** Lets built-in bots take every turn that is theirs, so people/agents only wait on each other. */
 private fun runBots(r: Record, s: GameState) {
     val buf = ActionBuffer()
+    // One bot per seat for the whole run: a bot keeps per-turn memory (like its two-offers-a-turn
+    // limit), and a fresh bot for every move forgot it and could offer forever.
+    val bots = HashMap<Int, GreedyBot>()
     var guard = 0
-    while (!s.isOver && r.seats[s.actingPlayer].equals("bot", ignoreCase = true) && guard++ < 5000) {
+    while (!s.isOver && r.seats[s.actingPlayer].equals("bot", ignoreCase = true) && guard++ < 50_000) {
         Rules.legalActions(s, buf)
-        var a = GreedyBot(r.seed * 31 + s.actingPlayer + r.actions.size).choose(s, buf)
-        if (a.type == ActionType.ROLL) a = dice.next().toAction()
+        val p = s.actingPlayer
+        var a = bots.getOrPut(p) { GreedyBot(r.seed * 31 + p + r.actions.size) }.choose(s, buf)
+        if (a.type == ActionType.ROLL) a = r.roll()
         Rules.applyChecked(s, a)
         r.actions += a
     }
@@ -140,8 +158,10 @@ private fun describe(s: GameState, a: Action, names: List<String>): String {
         ActionType.MOVE_ROBBER -> "Move the bandit to ${hexText(s, a.robberHex)}" + if (a.robberVictim >= 0) " and take a card from ${names[a.robberVictim]}" else ""
         ActionType.DISCARD -> "Discard 1 ${RES[a.discardResource]}"
         ActionType.OFFER_TRADE -> "Offer the players: you give ${cards { a.offerGive(it) }}, you get ${cards { a.offerWant(it) }}"
-        ActionType.ACCEPT_TRADE -> "Accept ${names[s.currentPlayer]}'s offer"
-        ActionType.REJECT_TRADE -> "Decline ${names[s.currentPlayer]}'s offer"
+        ActionType.ACCEPT_TRADE -> if (s.phase == Phase.DECIDE_COUNTER) "Accept ${names[s.counterFrom]}'s counter-offer" else "Accept ${names[s.currentPlayer]}'s offer"
+        ActionType.REJECT_TRADE -> if (s.phase == Phase.DECIDE_COUNTER) "Decline ${names[s.counterFrom]}'s counter-offer" else "Decline ${names[s.currentPlayer]}'s offer" +
+            if (Action.ACCEPT_TRADE !in Rules.legalActions(s)) " (you can't pay it; to counter: counter --seat $p --give ... --want ...)" else ""
+        ActionType.COUNTER_TRADE -> "Counter-offer to ${names[s.currentPlayer]}: you give ${cards { a.offerWant(it) }}, you get ${cards { a.offerGive(it) }}"
         ActionType.CONFIRM_TRADE -> "Do the trade with ${names[a.payload.toInt()]}"
         ActionType.CANCEL_TRADE -> "Cancel your offer"
         else -> a.toString()
@@ -159,8 +179,12 @@ private fun render(r: Record, s: GameState, seat: Int?): String = buildString {
     if (s.isOver) appendLine(if (s.winner >= 0) ">>> ${names[s.winner]} WINS <<<" else ">>> game ended without a winner (turn limit) <<<")
     else appendLine("Current player: ${names[s.currentPlayer]}, waiting on: ${names[s.actingPlayer]}")
     appendLine("Last roll: ${lastRollText(r)}")
+    appendLine("Dice: ${r.diceText()}")
     if (s.phase == Phase.DECIDE_TRADE || s.phase == Phase.DECIDE_ACCEPTEES) {
         appendLine("Open offer from ${names[s.currentPlayer]}: gives ${cards { s.tradeOffer[it] }}, wants ${cards { s.tradeOffer[CARD_TYPES + it] }}")
+    }
+    s.counterOffer?.let { c ->
+        appendLine("Counter-offer from ${names[s.counterFrom]} to ${names[s.currentPlayer]}: ${names[s.counterFrom]} gives ${cards { c.offerWant(it) }}, wants ${cards { c.offerGive(it) }}")
     }
     appendLine()
     appendLine("Scores (first to ${r.vp}):")
@@ -210,6 +234,7 @@ private fun pastTense(t: String) = t
     .replace("Move the bandit", "moved the bandit").replace(" and take a card", " and took a card")
     .replace("Discard ", "discarded ").replace("Offer the players: you give ", "offered: gives ").replace(", you get ", ", wants ")
     .replace("Do the trade with ", "traded with ").replace("Cancel your offer", "cancelled the offer")
+    .replace("Counter-offer to ", "countered ").replace(": you give ", ": gives ").replace(", you get ", ", wants ")
     .replace("End your turn", "ended the turn").replace("Accept ", "accepted ").replace("Decline ", "declined ")
 
 /** The last [n] moves in words, replayed from the log (everything here is public information). */
@@ -221,8 +246,8 @@ private fun recentMoves(r: Record, n: Int): List<String> {
         val before = IntArray(r.seats.size * CARD_TYPES) { s.hands[it] }
         var text = when (a.type) {
             ActionType.ROLL -> "rolled " + (if (a.payload != 0L) "${a.a} + ${a.b} = ${a.a + a.b}" else "")
-            ActionType.REJECT_TRADE -> "declined the offer"
-            ActionType.ACCEPT_TRADE -> "accepted the offer"
+            ActionType.REJECT_TRADE -> if (s.phase == Phase.DECIDE_COUNTER) "declined ${r.seats[s.counterFrom]}'s counter-offer" else "declined the offer"
+            ActionType.ACCEPT_TRADE -> if (s.phase == Phase.DECIDE_COUNTER) "accepted ${r.seats[s.counterFrom]}'s counter-offer" else "accepted the offer"
             ActionType.BUY_DEVELOPMENT_CARD -> "bought a Fortune card"
             else -> describe(s, a, r.seats).let(::pastTense)
         }
@@ -239,6 +264,20 @@ private fun recentMoves(r: Record, n: Int): List<String> {
 }
 
 // ------------------------------------------------------------------ commands
+
+/** Parses "2 Timber, 1 Clay" (also "2xTimber", "timber" = 1) into counts per resource. */
+internal fun parseCards(text: String): IntArray {
+    val out = IntArray(CARD_TYPES)
+    for (part in text.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }) {
+        val m = Regex("""(?i)(\d+)?\s*x?\s*([a-z]+)""").matchEntire(part) ?: fail("can't read \"$part\" (try \"2 Timber\")")
+        val n = m.groupValues[1].ifEmpty { "1" }.toInt()
+        val r = RES.indexOfFirst { it.equals(m.groupValues[2], ignoreCase = true) }
+        if (r < 0) fail("unknown card \"${m.groupValues[2]}\": use ${RES.joinToString()}")
+        if (n !in 1..15) fail("1-15 of a card per trade")
+        out[r] += n
+    }
+    return out
+}
 
 /** A text histogram of totals against the odds, with the fairness numbers under it. */
 internal fun diceReport(title: String, d: DiceStats): String = buildString {
@@ -265,7 +304,7 @@ private fun fail(msg: String): Nothing { System.err.println(msg); exitProcess(2)
 
 fun main(argv: Array<String>) {
     val args = argv.toList()
-    val cmd = args.getOrNull(0) ?: fail("usage: wgbg new|state|act|wait|log|dice <dir> ...")
+    val cmd = args.getOrNull(0) ?: fail("usage: wgbg new|state|act|wait|offer|counter|log|dice <dir> ...")
     val dir = File(args.getOrNull(1) ?: fail("missing game folder"))
     val seat = arg(args, "--seat")?.toInt()
     when (cmd) {
@@ -274,9 +313,11 @@ fun main(argv: Array<String>) {
             if (seats.size !in 2..4) fail("2-4 seats for v1")
             dir.mkdirs()
             if (File(dir, "game.txt").exists()) fail("a game already exists in $dir")
-            val r = Record(dir, seats, SecureRandom().nextLong(), arg(args, "--vp")?.toInt() ?: 10, mutableListOf())
+            val diceArg = arg(args, "--dice") ?: "random"
+            val decks = when (diceArg) { "random" -> 0; "36", "72", "108", "144" -> diceArg.toInt() / 36; else -> fail("--dice random|36|72|108|144") }
+            val r = Record(dir, seats, SecureRandom().nextLong(), arg(args, "--vp")?.toInt() ?: 10, mutableListOf(), decks)
             locked(dir) { val s = r.replay(); runBots(r, s); r.save() }
-            println("New game in $dir for ${seats.joinToString()} (seats 0..${seats.size - 1}). Seat 0 places first.")
+            println("New game in $dir for ${seats.joinToString()} (seats 0..${seats.size - 1}), dice: ${r.diceText()}. Seat 0 places first.")
         }
         "state" -> {
             val r = Record.load(dir)
@@ -293,7 +334,7 @@ fun main(argv: Array<String>) {
                 val legal = Rules.legalActions(s)
                 var a = legal.getOrNull(idx) ?: fail("no move [$idx]; run state again")
                 val text = describe(s, a, r.seats)
-                if (a.type == ActionType.ROLL) a = dice.next().toAction() // true-random dice, recorded
+                if (a.type == ActionType.ROLL) a = r.roll() // true-random or deck dice, recorded
                 Rules.applyChecked(s, a)
                 r.actions += a
                 runBots(r, s)
@@ -328,6 +369,32 @@ fun main(argv: Array<String>) {
             if (sample > 0) {
                 val src = TrueRandomDice()
                 print(diceReport("$sample fresh rolls from the same dice (${SecureRandom().algorithm})", DiceStats(List(sample) { src.next().sum })))
+            }
+        }
+        "offer", "counter" -> {
+            // Any trade terms, not just the 1-for-1 offers in the move list. --give is always what YOU give.
+            seat ?: fail("--seat N")
+            val give = parseCards(arg(args, "--give") ?: fail("--give \"2 Timber, 1 Clay\""))
+            val want = parseCards(arg(args, "--want") ?: fail("--want \"1 Stone\""))
+            locked(dir) {
+                val r = Record.load(dir)
+                val s = r.replay()
+                if (s.isOver) fail("the game is over")
+                if (s.actingPlayer != seat) fail("not your move: waiting on ${r.seats[s.actingPlayer]}")
+                // Counters are written from the offerer's side: what they would give (our want) and get (our give).
+                val a = if (cmd == "offer") Action.offerTrade(give, want) else Action.counterTrade(give = want, want = give)
+                if (!Rules.isLegal(s, a)) fail(
+                    if (cmd == "offer") "can't offer that now: offers are made on your turn after rolling, with cards you hold, for different cards"
+                    else "can't counter now: a counter answers an open offer to you, with cards you hold",
+                )
+                val text = describe(s, a, r.seats)
+                Rules.applyChecked(s, a)
+                r.actions += a
+                runBots(r, s)
+                r.save()
+                println("${r.seats[seat]}: $text")
+                println()
+                print(render(r, s, seat))
             }
         }
         "log" -> {

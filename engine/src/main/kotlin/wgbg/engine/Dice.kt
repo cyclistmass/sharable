@@ -66,6 +66,32 @@ class DiceDeck(
     }
 
     companion object {
+        /**
+         * The next card of a deck known only by its draws so far ([drawn], cards 0..35 as
+         * `(d1 - 1) * 6 + (d2 - 1)`, oldest first), for play-by-file games that keep no hidden state.
+         * Picking uniformly among the cards still in the stack deals exactly like a shuffled deck,
+         * and nothing in the log predicts the next card. Reshuffles on the same schedule as [next].
+         */
+        fun nextFromLog(drawn: List<Int>, decks: Int, reshuffleAt: Int = 5, rng: SecureRandom = SecureRandom()): DiceRoll {
+            val left = leftInStack(drawn, decks, reshuffleAt)
+            var k = rng.nextInt(left.sum())
+            var c = 0
+            while (k >= left[c]) { k -= left[c]; c++ }
+            return DiceRoll(c / 6 + 1, c % 6 + 1)
+        }
+
+        /** How many of each card (0..35) remain in the stack after [drawn]; a full stack after a reshuffle. */
+        fun leftInStack(drawn: List<Int>, decks: Int, reshuffleAt: Int = 5): IntArray {
+            require(decks in 1..8 && reshuffleAt in 0 until 36 * decks)
+            val perStack = 36 * decks - reshuffleAt
+            val left = IntArray(36) { decks }
+            for (c in drawn.takeLast(drawn.size % perStack)) left[c]--
+            require(left.all { it >= 0 }) { "the log draws a combination more often than the deck holds it" }
+            return left
+        }
+
+        fun cardOf(d1: Int, d2: Int) = (d1 - 1) * 6 + (d2 - 1)
+
         fun of(mode: DiceMode, decks: Int = 1): DiceSource = when (mode) {
             DiceMode.RANDOM -> TrueRandomDice()
             DiceMode.DECK -> DiceDeck(decks)
