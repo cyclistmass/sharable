@@ -54,16 +54,16 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, modifier: Modifier = Modifi
         t.animateTo(1f, tween((DiceSprites.FALL_S * 1000).toInt(), easing = LinearEasing))
     }
     if (die1 <= 0) return
-    // Drawn over the turn HUD (sized to it): the dice come in from just outside its bottom-left
-    // corner, roll up across it and settle on its top-right corner. Pure decoration: no physics.
+    // Drawn over the turn HUD (sized to it); pure decoration, no physics.
     Canvas(modifier) {
-        val side = 37.dp.toPx()
-        val start = Offset(-side * 1.3f, size.height + side * 0.15f)
+        val side = 46.dp.toPx()
+        // In from just below the HUD's bottom-right corner, up along its right side, to rest on its top-right corner.
+        val start = Offset(size.width - side * 1.4f, size.height + side * 0.6f)
         val rest = Offset(size.width - side * 2.25f, -side * 0.78f)
         fun at(p: Float, lead: Float): Offset {
             val u = DiceSprites.fall(p)                        // eases in and settles with small bounces
-            val hop = kotlin.math.sin(p.coerceAtMost(0.62f) / 0.62f * Math.PI.toFloat()) * side * 0.9f
-            return Offset(start.x + (rest.x + lead - start.x) * u, start.y + (rest.y - start.y) * u - hop)
+            val swing = kotlin.math.sin(p.coerceAtMost(0.62f) / 0.62f * Math.PI.toFloat()) * side * 0.7f
+            return Offset(start.x + lead * 0.4f + (rest.x + lead - start.x - lead * 0.4f) * u + swing, start.y + (rest.y - start.y) * u)
         }
         val p = t.value
         drawDie(red, DiceSprites.frame(p, die1, 3), at(p, 0f), side, (1 - p) * 300f)
