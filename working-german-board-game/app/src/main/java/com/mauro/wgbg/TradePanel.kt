@@ -82,10 +82,28 @@ fun tradeNeedsMe(s: GameState, me: Int) = tradeMode(s, me).let {
  * The open terms seen from [me]'s side: (what I get, what I give). For the offerer that is the
  * offer itself; for anyone else it is mirrored. A pending counter replaces the offer.
  */
+/** Card kinds a trade covers: the five resources, plus three commodities in Age of Chivalry. */
+fun tradeCards(s: GameState) = if (s.ck != null) wgbg.engine.CK_CARD_TYPES else CARD_TYPES
+
+/** Cards of kind [i] in [p]'s hand (resources, or commodities in Age of Chivalry). */
+fun holding(s: GameState, p: Int, i: Int) = if (i < CARD_TYPES) s.hand(p, i) else s.card(p, i)
+
+/** The offer action for these counts, in the ruleset's own encoding. */
+fun offerFor(s: GameState, give: IntArray, get: IntArray): Action? = runCatching {
+    if (s.ck != null) Action.offerTradeCk(give, get) else Action.offerTrade(give, get)
+}.getOrNull()
+
 fun termsFor(s: GameState, me: Int): Pair<IntArray, IntArray> {
+    val ck = s.ck
+    if (ck != null) {
+        val n = wgbg.engine.CK_CARD_TYPES
+        val gives = IntArray(n) { if (it < CARD_TYPES) s.tradeOffer[it] else ck.offer[it - CARD_TYPES] }
+        val gets = IntArray(n) { if (it < CARD_TYPES) s.tradeOffer[CARD_TYPES + it] else ck.offer[wgbg.engine.Commodity.COUNT + it - CARD_TYPES] }
+        return if (me == s.currentPlayer) gets to gives else gives to gets
+    }
     val c = s.counterOffer
-    val offerGives = IntArray(CARD_TYPES) { c?.offerGive(it) ?: s.tradeOffer[it] }
-    val offerGets = IntArray(CARD_TYPES) { c?.offerWant(it) ?: s.tradeOffer[CARD_TYPES + it] }
+    val offerGives = IntArray(tradeCards(s)) { c?.offerGive(it) ?: s.tradeOffer[it] }
+    val offerGets = IntArray(tradeCards(s)) { c?.offerWant(it) ?: s.tradeOffer[CARD_TYPES + it] }
     return if (me == s.currentPlayer) offerGets to offerGives else offerGives to offerGets
 }
 
@@ -93,11 +111,15 @@ fun termsFor(s: GameState, me: Int): Pair<IntArray, IntArray> {
 fun counterFor(get: IntArray, give: IntArray) = Action.counterTrade(give = get, want = give)
 
 fun bankRate(s: GameState, p: Int, r: Int): Int {
+    if (s.ck != null) return wgbg.engine.CitiesAndKnights.tradeRate(s, p, r)
     val m = s.portMask[p]
     return if (m and (1 shl r) != 0) 2 else if (m and Port.GENERIC_BIT != 0) 3 else 4
 }
 
 // ------------------------------------------------------------------ the chest
+
+/** Parchment, Weave, Silver edge colours (Academy green, Guilds gold, Crown blue). */
+private val COMMODITY_COLORS = listOf(Color(0xFF4CAF50), Color(0xFFE0B23A), Color(0xFF3F7FD6))
 
 /** Illustrated resource cards (Mauro's art), indexed like RESOURCE_NAMES. */
 val CARD_ART = listOf(R.drawable.card_timber, R.drawable.card_clay, R.drawable.card_fleece, R.drawable.card_grain, R.drawable.card_stone)
@@ -159,8 +181,8 @@ fun TradePanel(
     val key = listOf(s.turn, s.phase, s.actingPlayer, s.counterFrom, s.hands.sum())
     var maritime by remember { mutableStateOf(false) }
     var countering by remember(key) { mutableStateOf(false) }
-    var get by remember(key) { mutableStateOf(IntArray(CARD_TYPES)) }
-    var give by remember(key) { mutableStateOf(IntArray(CARD_TYPES)) }
+    var get by remember(key) { mutableStateOf(IntArray(tradeCards(s))) }
+    var give by remember(key) { mutableStateOf(IntArray(tradeCards(s))) }
     val (termGet, termGive) = termsFor(s, me)
     val editing = mode == TradeMode.COMPOSE || countering
     val showGet = if (editing) get else termGet
@@ -176,18 +198,18 @@ fun TradePanel(
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Tab("Players", !bankTab) { maritime = false }
-                if (mode == TradeMode.COMPOSE) Tab("Maritime", bankTab) { maritime = true; get = IntArray(CARD_TYPES); give = IntArray(CARD_TYPES) }
+                if (mode == TradeMode.COMPOSE) Tab("Maritime", bankTab) { maritime = true; get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) }
             }
             Text(status(s, me, mode, names, countering, bankTab), color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 maxLines = 1, modifier = Modifier.width(214.dp))
             Text(if (bankTab) "You get 1" else "You get", color = INK.copy(alpha = 0.7f), fontSize = 11.sp)
             CardRow(showGet, editing, single = bankTab, badge = { null }) { r, d ->
-                get = if (bankTab) IntArray(CARD_TYPES).also { it[r] = 1 } else get.copyOf().also { it[r] = (it[r] + d).coerceIn(0, 9) }
+                get = if (bankTab) IntArray(tradeCards(s)).also { it[r] = 1 } else get.copyOf().also { it[r] = (it[r] + d).coerceIn(0, 9) }
             }
             Text("You give", color = INK.copy(alpha = 0.7f), fontSize = 11.sp)
-            CardRow(showGive, editing, single = bankTab, badge = { r -> if (bankTab) "${bankRate(s, me, r)}:1" else "have ${s.hand(me, r)}" }) { r, d ->
-                give = if (bankTab) IntArray(CARD_TYPES).also { it[r] = bankRate(s, me, r) }
-                else give.copyOf().also { it[r] = (it[r] + d).coerceIn(0, s.hand(me, r)) }
+            CardRow(showGive, editing, single = bankTab, badge = { r -> if (bankTab) "${bankRate(s, me, r)}:1" else "have ${holding(s, me, r)}" }) { r, d ->
+                give = if (bankTab) IntArray(tradeCards(s)).also { it[r] = bankRate(s, me, r) }
+                else give.copyOf().also { it[r] = (it[r] + d).coerceIn(0, holding(s, me, r)) }
             }
             if (!bankTab && s.currentPlayer == me) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 for (p in 0 until s.numPlayers) if (p != me) {
@@ -209,7 +231,7 @@ fun TradePanel(
                 val w = get.indexOfFirst { it > 0 }
                 if (g >= 0 && w >= 0) Action.maritimeTrade(g, w).takeIf { it in legal } else null
             }
-            mode == TradeMode.COMPOSE -> Action.offerTrade(give, get).takeIf { Rules.isLegal(s, it) }
+            mode == TradeMode.COMPOSE -> offerFor(s, give, get)?.takeIf { Rules.isLegal(s, it) }
             countering -> counterFor(get, give).takeIf { Rules.isLegal(s, it) }
             mode == TradeMode.RESPOND || mode == TradeMode.REVIEW_COUNTER -> Action.ACCEPT_TRADE.takeIf { it in legal }
             mode == TradeMode.PICK_PARTNER -> legal.filter { it.type == ActionType.CONFIRM_TRADE }.singleOrNull()
@@ -217,16 +239,16 @@ fun TradePanel(
         }
         val no: (() -> Unit)? = when {
             countering -> { { countering = false } }
-            mode == TradeMode.COMPOSE -> { { if (get.any { it > 0 } || give.any { it > 0 }) { get = IntArray(CARD_TYPES); give = IntArray(CARD_TYPES) } else onClose() } }
+            mode == TradeMode.COMPOSE -> { { if (get.any { it > 0 } || give.any { it > 0 }) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } else onClose() } }
             mode == TradeMode.RESPOND || mode == TradeMode.REVIEW_COUNTER -> { { onMove(Action.REJECT_TRADE) } }
             mode == TradeMode.PICK_PARTNER -> { { onMove(Action.CANCEL_TRADE) } }
             else -> null
         }
-        val counter: (() -> Unit)? = if (mode == TradeMode.RESPOND && !countering) {
+        val counter: (() -> Unit)? = if (mode == TradeMode.RESPOND && !countering && s.ck == null) {
             { get = termGet.copyOf(); give = termGive.copyOf(); countering = true }
         } else null
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            BigButton(if (countering) "Send" else "Yes", YES, "trade-yes", yes?.let { a -> { onMove(a); if (mode == TradeMode.COMPOSE) { get = IntArray(CARD_TYPES); give = IntArray(CARD_TYPES) } } })
+            BigButton(if (countering) "Send" else "Yes", YES, "trade-yes", yes?.let { a -> { onMove(a); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
             BigButton("No", NO, "trade-no", no)
             BigButton("Counter", COUNTER, "trade-counter", counter)
         }
@@ -257,7 +279,7 @@ private fun Tab(label: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun CardRow(counts: IntArray, editable: Boolean, single: Boolean, badge: (Int) -> String?, change: (Int, Int) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (r in 0 until CARD_TYPES) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        for (r in counts.indices) Column(horizontalAlignment = Alignment.CenterHorizontally) {
             val n = counts[r]
             val lit = n > 0
             Box(
@@ -267,7 +289,12 @@ private fun CardRow(counts: IntArray, editable: Boolean, single: Boolean, badge:
                 contentAlignment = Alignment.Center,
             ) {
                 // The illustrated card; dimmed until it is part of the trade.
-                Image(painterResource(CARD_ART[r]), RESOURCE_NAMES[r], Modifier.fillMaxSize(), alpha = if (lit) 1f else 0.45f)
+                if (r < CARD_ART.size) Image(painterResource(CARD_ART[r]), RESOURCE_NAMES[r], Modifier.fillMaxSize(), alpha = if (lit) 1f else 0.45f)
+                else Box(Modifier.fillMaxSize().background(Color(0xFFEFE3C8).copy(alpha = if (lit) 1f else 0.45f), RoundedCornerShape(5.dp))
+                    .border(2.dp, COMMODITY_COLORS[r - CARD_ART.size], RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
+                    // Commodities (Age of Chivalry) until their card art lands.
+                    Text(ALL_CARD_NAMES[r], color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                }
                 if (lit) Text("$n", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.background(Color(0xCC2A1B10), CircleShape).padding(horizontal = 7.dp, vertical = 1.dp))
             }
@@ -313,4 +340,4 @@ fun TradeToggle(open: Boolean, attention: Boolean, onClick: () -> Unit, modifier
 }
 
 /** The Trade button appears once setup is over (no trading while placing the first homesteads). */
-fun tradeButtonVisible(s: GameState) = s.ck == null && s.phase != Phase.BUILD_INITIAL_SETTLEMENT && s.phase != Phase.BUILD_INITIAL_ROAD // C&K trading UI: later (#4)
+fun tradeButtonVisible(s: GameState) = s.phase != Phase.BUILD_INITIAL_SETTLEMENT && s.phase != Phase.BUILD_INITIAL_ROAD
