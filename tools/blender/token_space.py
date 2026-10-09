@@ -1,6 +1,6 @@
 """Shared number-plate reservation, in lattice units (nominal hex side 1)."""
 import math
-CX, CY, TOKEN_R, CLEAR_R = -.36, .30, .30, .345
+CX, CY, TOKEN_R, CLEAR_R = -.36, .30, .27, .31
 MAX_TILT = math.radians(55)
 
 def distance(x,y): return math.hypot(x-CX,y-CY)

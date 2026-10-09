@@ -1,4 +1,6 @@
 {
   "samples": 99,
-  "modified_geometry_max_shared_boundary_error": 3.3306690738754696e-16
+  "modified_geometry_max_shared_boundary_error": 1.6653345369377348e-16,
+  "clearing_radius": 0.31,
+  "plate_radius": 0.27
 }

@@ -18,7 +18,7 @@ def ridge(x,y,a,b):
     if not 0<=u<=1:return 0
     distance=math.hypot(x-a[0]-u*dx,y-a[1]-u*dy)
     saddle=(a[2]*(1-u)+b[2]*u)*.76*(1-.24*math.sin(math.pi*u)**2)
-    return saddle*max(0,1-distance/.17)
+    return saddle*max(0,1-distance/.20)
 
 def local_height(x,y):
     # Repeated shoulder exits stay at the same heights on either side of a shared edge.
@@ -32,9 +32,9 @@ def height(x,y):
     # Periodic R3 east-west shoulder + lower diagonal foothill connection.
     # Summits near an edge are completed by the adjacent instance, not faded to zero.
     row_distance=abs((y-.10+ROW/2)%ROW-ROW/2)
-    shoulder=.54*max(0,1-row_distance/.59)
+    shoulder=.60*max(0,1-row_distance/.59)
     diagonal=(y-math.sqrt(3)*x-.10+ROW)%(2*ROW)-ROW
-    spur=.26*max(0,1-abs(diagonal)/.46)
+    spur=.31*max(0,1-abs(diagonal)/.46)
     z=max(shoulder,spur,.018)
     for ox,oy in OFFSETS:
         xx=x-ox;yy=y-oy

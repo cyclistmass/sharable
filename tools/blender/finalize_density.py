@@ -5,7 +5,7 @@ import argparse,hashlib,json,re
 ROOT=Path(__file__).resolve().parents[2];OUT=ROOT/'docs/design/tiles-3d-models'
 
 def crop_animals():
-    folder=OUT/'animation-layers/fleece';crop=(232,208,360,336)
+    folder=OUT/'animation-layers/fleece';crop=(248,208,376,336)
     for i in range(16):
         source=Image.open(folder/'raw'/f'animals_mid_{i:02d}_raw.png').convert('RGBA')
         box=source.getchannel('A').getbbox()
@@ -14,7 +14,7 @@ def crop_animals():
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--crop-only',action='store_true');args=parser.parse_args()
-    if args.crop_only:crop_animals();print('16 animal crops safe at (232,208), 128px');return
+    if args.crop_only:crop_animals();print('16 animal crops safe at (248,208), 128px');return
     baseline=json.loads((OUT/'density-before/baseline.json').read_text())
     for f,digest in baseline['timber_sha256'].items():assert hashlib.sha256((OUT/f).read_bytes()).hexdigest()==digest,f
     for f,digest in baseline['app_sha256'].items():assert hashlib.sha256((ROOT/f).read_bytes()).hexdigest()==digest,f

@@ -84,8 +84,9 @@ def goat(x,y,heading=0,phase=0,z=None):
     eye=mat('goat eye',(.006,.006,.004),0)
     for side in [-1,1]:pebble((.08,side*.017,headz+.009),(.003,.003,.003),eye,True)
     z=pasture(x,y) if z is None else z
+    goat_scale=1.25
     for o in set(bpy.context.scene.objects)-before:
-        loc=o.location.copy();o.location=(x+loc.x*math.cos(heading)-loc.y*math.sin(heading),y+loc.x*math.sin(heading)+loc.y*math.cos(heading),z+loc.z);o.rotation_euler.z+=heading
+        loc=o.location.copy()*goat_scale;o.scale*=goat_scale;o.location=(x+loc.x*math.cos(heading)-loc.y*math.sin(heading),y+loc.x*math.sin(heading)+loc.y*math.cos(heading),z+loc.z);o.rotation_euler.z+=heading
 
 def fleece():
     terrain_base('fleece',(.17,.34,.065));grass=mat('lush rolling meadow',(.19,.36,.07),.28)
@@ -93,7 +94,7 @@ def fleece():
     rng=random.Random(5201)
     greens=[mat('grass leaf '+str(i),c,.14) for i,c in enumerate([(.08,.23,.035),(.16,.34,.055),(.30,.43,.10)])]
     tufts=[Batch('grass clumps '+str(i),m) for i,m in enumerate(greens)]
-    for i in range(330):
+    for i in range(480):
         x=rng.uniform(-.73,.73);y=rng.uniform(-.77,.77)
         if not inside(x,y,.84):continue
         # Leave hoof clearings and the front wandering path unobstructed.
@@ -123,7 +124,7 @@ def fleece():
     for x,y,sz in [(.02,.67,.11),(.12,.65,.09),(.55,.33,.10)]:pebble((x,y,pasture(x,y)+sz*.3),(sz,sz*.8,sz*.7),rock)
     goat(.02,.67,.2,1.0,pasture(.02,.67)+.068);goat(.53,.33,-1.0,1.8,pasture(.53,.33)+.06)
     bush=Batch('dense meadow bushes',greens[0])
-    for x,y in [(-.66,-.27),(.61,.36),(-.57,.61),(.35,-.59),(-.06,.71)]:
+    for x,y in [(-.66,-.27),(.61,.36),(-.57,.61),(.35,-.59),(-.06,.71),(.04,.32),(.05,-.30)]:
         if not inside(x,y,.85):continue
         for j in range(7):
             xx=x+rng.uniform(-.05,.05);yy=y+rng.uniform(-.04,.04)
@@ -131,7 +132,7 @@ def fleece():
     bush.finish()
     flowers=[Batch('wildflower '+str(i),mat('petal '+str(i),c,0)) for i,c in enumerate([(.88,.76,.48),(.61,.25,.42),(.88,.88,.74)])]
     stems=Batch('wildflower stems',greens[0])
-    for i in range(95):
+    for i in range(135):
         x=rng.uniform(-.71,.71);y=rng.uniform(-.75,.73)
         if not inside(x,y,.85) or (.02<x<.4 and -.49<y<-.26):continue
         z=pasture(x,y)+rng.uniform(.04,.07);stems.rod((x,y,z-.05),(x,y,z),.0018)
@@ -153,10 +154,10 @@ def grain():
     for row in range(15):
         # Closed sculpted canopy row: a soft textured mass, not floating stick heads.
         vs=[];fs=[];previous=None
-        for k in range(43):
-            x=-.67+k*.0315;y=row_y(x,row)
+        for k in range(49):
+            x=-.67+k*.027;y=row_y(x,row)
             if not inside(x,y,.83):continue
-            if (x>.25 and y<.08) or (x<.02 and y<.30) or not allowed(x,y,field_ground(x,y)+.34,.06):
+            if (x>.25 and y<.08) or (x<-.04 and y<.30) or not allowed(x,y,field_ground(x,y)+.34,.04):
                 previous=None;continue
             start=len(vs)
             for side,zz in [(-1,.005),(-.52,.21),(0,.24),(.52,.21),(1,.005)]:
@@ -235,7 +236,7 @@ def clay():
     cube('kiln top',(x,y,z+.305),(.32,.28,.034),brick,.007)
     for j in range(6):cube('chimney course',(x+.055,y+.035,z+.34+j*.045),(.087,.086,.039),brick,.003)
     cube('chimney mouth',(x+.055,y+.035,z+.611),(.055,.055,.005),black)
-    for layer in range(4):
+    for layer in range(5):
         for a in range(5):
             for b in range(2):cube('stack of drying bricks',(.05+a*.065,-.64+b*.041,clay_height(.05+a*.065,-.64+b*.041)+.017+layer*.030),(.059,.035,.025),brick,.002)
     # Two slatted drying rack shelves carrying spaced unfired bricks.
@@ -255,10 +256,13 @@ def clay():
     for i in range(8):pole('roof slat',(sx-.175+i*.05,sy-.15,sz+.223),(sx-.175+i*.05,sy,sz+.314),.005,roof,4)
     pole('pit descent plank',(-.53,-.28,.05),(-.25,-.24,-.09),.022,wood,6)
     rubble=Batch('clay yard rubble',mat('yard rubble',(.34,.20,.095),.20));rng=random.Random(7041)
-    for i in range(55):
+    for i in range(80):
         xx=rng.uniform(-.73,.73);yy=rng.uniform(-.72,.72)
         if inside(xx,yy,.85) and clay_height(xx,yy)>.06:rubble.ellipsoid((xx,yy,clay_height(xx,yy)+.008),(.014,.019,.010),rng.random()*TAU)
     rubble.finish(False)
+    for bx,by in [(.04,.30),(.08,-.47)]:
+        for layer in range(3):
+            for k in range(3):cube('extra clay yard brick stack',(bx+k*.055,by,clay_height(bx,by)+.014+layer*.028),(.049,.033,.025),brick,.002)
 
 def dune_height(x,y):
     u=x*.83+y*.56;wave=.5+.5*math.sin(10.6*u+.90*math.sin(y*2.7))
@@ -266,18 +270,18 @@ def dune_height(x,y):
     t=max(0,min(1,(q-.67)/.33));t=t*t*(3-2*t)
     ridge=.055+.38*wave**2*(1-.80*t)
     ripple=.007*math.sin(x*61+y*37+2*math.sin(y*7))*(.4+.6*wave)*(1-.5*t)
-    return ridge+ripple
+    return ridge+ripple+.055*math.exp(-((x-.08)**2+(y+.56)**2)/.045)
 
 def desert():
     terrain_base('desert',(.54,.32,.11));sand=mat('dune ochre sand',(.64,.40,.15),.15)
     v2.field('solid dunes with actual fine ripples',dune_height,sand,True,62,192)
     rockm=mat('warm desert outcrops',(.30,.20,.12),.22);rng=random.Random(6704)
-    for cx,cy,size in [(.30,.61,.14),(.46,.39,.15),(.51,-.40,.13)]:
+    for cx,cy,size in [(.30,.61,.14),(.46,.39,.15),(.51,-.40,.13),(-.68,-.31,.055),(.09,-.64,.075)]:
         for j in range(4):
             x=cx+rng.uniform(-.07,.07);y=cy+rng.uniform(-.06,.06);s=size*rng.uniform(.5,1.0)
             o=pebble((x,y,dune_height(x,y)+s*.40),(s,s*.7,s*.85),rockm);o.rotation_euler.z=rng.random()*TAU
     small=Batch('scattered desert stones',rockm)
-    for i in range(55):
+    for i in range(80):
         x=rng.uniform(-.71,.71);y=rng.uniform(-.71,.71)
         if inside(x,y,.85):small.ellipsoid((x,y,dune_height(x,y)+.008),(.02,.017,.018),rng.random()*TAU)
     small.finish(False)
@@ -285,7 +289,7 @@ def desert():
     pole('bleached dead tree trunk',(x,y,z),(x-.04,y,z+.37),.024,bark)
     for a,b in [((x-.02,y,z+.16),(x-.15,y+.04,z+.27)),((x-.15,y+.04,z+.27),(x-.20,y+.03,z+.34)),((x-.04,y,z+.28),(x+.08,y-.03,z+.34)),((x-.04,y,z+.32),(x-.10,y,z+.43))]:pole('dead tree fork',a,b,.011,bark)
     scrub=Batch('desert dry scrub and grasses',mat('dry scrub ochre',(.34,.24,.105),.16))
-    for i in range(22):
+    for i in range(30):
         x=rng.uniform(-.69,.69);y=rng.uniform(-.73,.73)
         if not inside(x,y,.84) or (abs(x)<.18 and abs(y)<.3):continue
         for j in range(7):
@@ -303,7 +307,7 @@ def timber():
     rng=random.Random(832);base('timber',2)
     bark=mat('V2 forest bark',(.24,.105,.035),.22)
     greens=[mat('V2 forest pine '+str(i),c,.20) for i,c in enumerate([(.055,.17,.045),(.10,.26,.055),(.23,.36,.075),(.34,.43,.12)])]
-    for x,y,h in [(.03,.70,.50),(.24,.60,.59),(.48,.40,.66),(.62,.08,.57),(.41,.02,.60),(.45,-.28,.53),(.20,-.53,.40),(.57,-.48,.34),(.20,.05,.45)]:
+    for x,y,h in [(.03,.70,.50),(.24,.60,.59),(.48,.40,.66),(.62,.08,.57),(.41,.02,.60),(.45,-.28,.53),(.20,-.53,.40),(.57,-.48,.34),(.20,.05,.45),(.00,.65,.38),(.08,.33,.26),(-.71,-.24,.16)]:
         h=min(h,max(.18,min(front_cap(x-.352*h,y),front_cap(x,y),front_cap(x+.352*h,y))*.93))
         tree(x,y,h,2,rng,(bark,greens))
     end=mat('pale cut log ends',(.61,.39,.15),.1)

@@ -68,3 +68,5 @@ All other graphics are drawn procedurally in code.
 - V2 number-clearing revision (`docs/design/tiles-3d-models/`): own procedural Blender geometry, terrain clearings, plate-proof artwork and exclusion masks created for Mauro with Codex. Sources: `tools/blender/token_space.py`, `render_density.py`, `alpine_chain.py`, `animate_v2.py`, `compose_token_check.py`. No downloaded models or new third-party assets.
 
 - V2 Fleece alpacas and terracotta Clay revision: own procedural models/materials, including `tools/blender/alpacas.py`; no downloaded animal meshes or textures.
+
+- Bandit V1 skeleton corsair: original procedural Blender model, straw weave/fraying, afro curls, skull, coat and cutlass; source `tools/blender/render_bandit_v1.py`. No downloaded meshes or external character references.

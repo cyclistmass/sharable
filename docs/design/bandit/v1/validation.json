@@ -1,0 +1,98 @@
+{
+  "designs": 1,
+  "transparent_512px_sprites": 13,
+  "production_tilt_steps": 8,
+  "tilt_radians": [
+    0.0,
+    0.13714285714285715,
+    0.2742857142857143,
+    0.4114285714285714,
+    0.5485714285714286,
+    0.6857142857142857,
+    0.8228571428571428,
+    0.96
+  ],
+  "number_plate_overlap_pixels": 0,
+  "app_files_unchanged": 146,
+  "render_seconds": 39.339999999999996,
+  "bounds": {
+    "bandit_v1_flat.png": [
+      212,
+      212,
+      325,
+      278
+    ],
+    "bandit_v1_front.png": [
+      109,
+      51,
+      431,
+      455
+    ],
+    "bandit_v1_max.png": [
+      212,
+      128,
+      325,
+      264
+    ],
+    "bandit_v1_mid.png": [
+      212,
+      160,
+      325,
+      271
+    ],
+    "bandit_v1_threequarter.png": [
+      99,
+      56,
+      427,
+      462
+    ],
+    "bandit_v1_tilt_00.png": [
+      212,
+      212,
+      325,
+      278
+    ],
+    "bandit_v1_tilt_01.png": [
+      212,
+      195,
+      325,
+      275
+    ],
+    "bandit_v1_tilt_02.png": [
+      212,
+      180,
+      325,
+      274
+    ],
+    "bandit_v1_tilt_03.png": [
+      212,
+      166,
+      325,
+      273
+    ],
+    "bandit_v1_tilt_04.png": [
+      212,
+      154,
+      325,
+      270
+    ],
+    "bandit_v1_tilt_05.png": [
+      212,
+      144,
+      325,
+      268
+    ],
+    "bandit_v1_tilt_06.png": [
+      212,
+      135,
+      325,
+      266
+    ],
+    "bandit_v1_tilt_07.png": [
+      212,
+      128,
+      325,
+      264
+    ]
+  }
+}

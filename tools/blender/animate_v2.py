@@ -27,10 +27,10 @@ def wind_patch(source,save_mask=False):
     mask=Image.new('L',(512,512));d=ImageDraw.Draw(mask)
     for row in range(15):
         points=[]
-        for j in range(43):
-            x=-.67+j*.0315;y=-.55+row*.078+.065*math.sin(2.4*x+.03*row)
+        for j in range(49):
+            x=-.67+j*.027;y=-.55+row*.078+.065*math.sin(2.4*x+.03*row)
             z=.055+.047*math.sin(2.3*x+.4)*math.cos(1.7*y)
-            if abs(y)+abs(x)/math.sqrt(3)>.83 or (x>.25 and y<.08) or (x<.02 and y<.30) or not allowed(x,y,z+.34,.06):
+            if abs(y)+abs(x)/math.sqrt(3)>.83 or (x>.25 and y<.08) or (x<-.04 and y<.30) or not allowed(x,y,z+.34,.04):
                 if len(points)>1:d.line(points,fill=255,width=14)
                 points=[];continue
             points.append(project(x,y,z+.245))
@@ -63,7 +63,7 @@ class Overlays:
         self.animals=[]
         for i in range(16):
             layer=Image.new('RGBA',(512,512))
-            layer.alpha_composite(Image.open(OUT/'animation-layers/fleece'/f'animals_mid_{i:02d}.png').convert('RGBA'),(232,208))
+            layer.alpha_composite(Image.open(OUT/'animation-layers/fleece'/f'animals_mid_{i:02d}.png').convert('RGBA'),(248,208))
             self.animals.append(layer)
         self.token_guard=screen_mask()
         self.wind=wind_patch(self.base['grain'],True)

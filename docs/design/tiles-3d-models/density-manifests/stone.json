@@ -42,10 +42,10 @@
         0.79
       ]
     ],
-    "scree_stones": 62,
+    "scree_stones": 57,
     "pines": 5,
     "mesh_vertices": 3361,
-    "ridge_vertices_sha256": "8471e16f5a1b6c22dd441cd4eead338aea133102aaa4f29bd2fc04f592eeddcf",
+    "ridge_vertices_sha256": "86c4256972af63062c2ff89f5003c4a58d926559b613c2c8943cc66111608848",
     "continuity": {
       "shared_edge_samples": 99,
       "max_height_error": 1.6653345369377348e-16,
@@ -57,37 +57,37 @@
         -0.36,
         0.3
       ],
-      "token_radius": 0.3,
-      "clearing_radius": 0.345,
+      "token_radius": 0.27,
+      "clearing_radius": 0.31,
       "upright_plate": true,
       "foreground_max_tilt_degrees": 55,
-      "pruned_objects": 43,
+      "pruned_objects": 33,
       "flattened_surfaces": 1
     }
   },
-  "scene_objects": 45,
+  "scene_objects": 50,
   "renders": [
     {
       "file": "stone_V2_flat.png",
-      "seconds": 5.69,
+      "seconds": 7.17,
       "tilt": 0,
       "resolution": 512
     },
     {
       "file": "stone_V2_mid.png",
-      "seconds": 5.56,
+      "seconds": 7.45,
       "tilt": 0.48,
       "resolution": 512
     },
     {
       "file": "stone_V2_max.png",
-      "seconds": 4.84,
+      "seconds": 6.78,
       "tilt": 0.96,
       "resolution": 512
     },
     {
       "file": "stone_V2_max_mock1024.png",
-      "seconds": 19.36,
+      "seconds": 26.0,
       "tilt": 0.96,
       "resolution": 1024
     }

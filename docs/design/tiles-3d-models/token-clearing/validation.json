@@ -4,8 +4,8 @@
     -0.36,
     0.3
   ],
-  "token_radius": 0.3,
-  "clearing_radius": 0.345,
+  "token_radius": 0.27,
+  "clearing_radius": 0.31,
   "upright_circle": true,
   "animation_checks": [
     {

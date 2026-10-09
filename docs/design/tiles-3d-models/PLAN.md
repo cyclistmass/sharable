@@ -16,17 +16,17 @@ Names, hex base/thickness and upper-left sun/soft sky follow the approved V2 set
 
 ## Assets, APK and memory
 
-Current delivery: six terrains × three views = 18 static sources, all refreshed for number clearance. PNGs: **3,394,444 bytes**; trial lossless WebP: **1,284,292 bytes**. Eight-step estimate remains 72 shipping files + metadata, **3,842,387 bytes**, excluding review animations and sheets.
+Current delivery: six terrains × three views = 18 static sources, all refreshed for number clearance. PNGs: **3,485,237 bytes**; trial lossless WebP: **1,347,352 bytes**. Eight-step estimate remains 72 shipping files + metadata, **4,065,603 bytes**, excluding review animations and sheets.
 
 | Proposed eight-step shipping assets | Count | Estimated compressed bytes |
 | --- | ---: | ---: |
-| Six terrain bases | 48 | 3,424,779 |
-| 16-phase sheep-and-goat atlases | 8 | 371,136 |
-| Grain wind masks | 8 | 14,448 |
-| Desert heat masks | 8 | 23,912 |
-| Total | **72 files + metadata** | **3,842,387 bytes** |
+| Six terrain bases | 48 | 3,592,939 |
+| 16-phase alpaca-and-goat atlases | 8 | 371,136 |
+| Grain wind masks | 8 | 16,528 |
+| Desert heat masks | 8 | 24,376 |
+| Total | **72 files + metadata** | **4,065,603 bytes** |
 
-At six steps: 36 bases + 6 atlases + 12 masks = 54 files, about 2.88 MB. Preview animated WebPs, raw 512px animal sources, historical sheep-only sprites, comparison sheets, 1024px Stone mock and bandit options are excluded. Ship only the selected bandit, separately measured. PNG/WebP ZIP savings are small; these are asset estimates, not measured APK deltas.
+At six steps: 36 bases + 6 atlases + 12 masks = 54 files, about 3.05 MB. Preview animated WebPs, raw 512px animal sources, historical sheep-only sprites, comparison sheets, 1024px Stone mock and bandit options are excluded. Ship only the selected bandit, separately measured. PNG/WebP ZIP savings are small; these are asset estimates, not measured APK deltas.
 
 Decoded RGBA at 512px: all eight angles cost 48 MiB; the recommended adjacent-angle pair shared across six terrains costs 12 MiB. Two 1024 x 256 animal atlases add 2 MiB; two derived Grain patches and two Desert patches add 4 MiB. Four 256px ALPHA8 masks add .25 MiB (1 MiB if RGBA). Total active CPU bitmap estimate **18.25-19 MiB**, plus decode intermediates, board layers and possible GPU copies. Avoid per-hex duplicates and eagerly loading all angles. Mipmaps add about one third; a 1024px tier quadruples memory.
 
@@ -77,7 +77,7 @@ Export the procedural models as GLB, instance shared meshes across tiles, use on
 
 Costs: rendering surface/lifecycle integration with Compose, native renderer binaries per ABI, materials/export compatibility (Blender noise nodes must be baked or replaced), lighting/environment setup, GPU/frame/battery budget, picking/unprojection, synchronising screen overlays and physical-device testing. GLB mesh assets can be smaller than dozens of raster angles, but native libraries can erase that win. APK and performance costs need measurement from an ABI-specific build, not a guessed universal number. Route (a) needs no new native engine and reuses the Canvas board; route (b) is a renderer project. Planning estimates: several days for a narrow two-terrain spike and at least several weeks for reliable full-board integration, subject to device/occlusion requirements.
 
-Choose (b) if rotation, large close-ups, convincing inter-tile shadows, moving sheep/trees with real depth, or arbitrary piece occlusion become requirements. Stay with (a) for fixed azimuth, bounded tilt, fixed lighting and a modest terrain set if the eight-step fade looks good on device. Reuse these geometry generators either way.
+Choose (b) if rotation, large close-ups, convincing inter-tile shadows, moving alpacas/trees with real depth, or arbitrary piece occlusion become requirements. Stay with (a) for fixed azimuth, bounded tilt, fixed lighting and a modest terrain set if the eight-step fade looks good on device. Reuse these geometry generators either way.
 
 ## Validation plan and current results
 
@@ -93,18 +93,24 @@ Before app integration is accepted:
 ### Follow-up integration sequence
 
 1. Keep this round as palette-only. Evaluate the six terrains and motion at real game size; decide whether Grain's displacement and the low-key mist/smoke need intensity tuning. Reserve number-token space and edge routes in the final compositions before declaring the art ready.
-2. Extend `render_density.py` to the eight camera samples, export sheep-and-goat atlases and Grain/Desert masks at every angle, record common anchors/height-aware effect metadata, and trial lossless WebP. Do not ship mid-only animation at every tilt: ground contact and chimney anchors would drift.
+2. Extend `render_density.py` to the eight camera samples, export alpaca-and-goat atlases and Grain/Desert masks at every angle, record common anchors/height-aware effect metadata, and trial lossless WebP. Do not ship mid-only animation at every tilt: ground contact and chimney anchors would drift.
 3. Compare hard nearest-angle selection against premultiplied cross-fade using the existing seam-test requirements. If needed, split ground/base and upright content into passes before wiring. Update the 72-file budget if split passes are chosen.
 4. Add a bounded async terrain/angle/atlas/mask cache and the V2 renderer in separate files, then wire it into the board in a later authorized MainActivity round. Retain existing relief/TileLife as selectable fallbacks. Group effects with their terrain when depth is needed; share the 8s clock and obey pause/reduced-motion/density controls without deleting the sheep object.
-5. Use one sheep atlas draw, allocation-free curves/ellipses and a reused wheat mesh per tile. Prefetch neighbours; test the grain operation and premultiplied mixes for frame budget, not just the number of draw calls. Use deterministic per-tile phase offsets so duplicate ranges/fields do not all move in lockstep.
+5. Use one alpaca-and-goat atlas draw, allocation-free curves/ellipses and a reused wheat mesh per tile. Prefetch neighbours; test the grain operation and premultiplied mixes for frame budget, not just the number of draw calls. Use deterministic per-tile phase offsets so duplicate ranges/fields do not all move in lockstep.
 6. Validate token/piece priority, all adjacent tilt brackets, APK/memory delta, async decode failure and motion at fit/4× zoom on a physical device. No app/device tests were run this round.
 
-Current added validation: 18 static RGBA images with nonempty transparent margins; 16 cropped sheep-and-goat layers with safe borders; 1024 × 256 atlas layout; six decoded animated WebPs with 64 frames/8s/infinite loop; exact reference phase 0/8 equality, nonzero frame changes and ordinary-size final-to-first changes. SHA-256 base hashes detect stale render/composition races. Visually inspect all three static inspection sheets, both board patches, every terrain's four-phase sheet and all 64 cropped overlay-frame cells. Browser preview automation is separate from these verified asset checks. Engine rules/unit, random fuzz and emulator/monkey checks remain inapplicable/not run because application/rules code is unchanged and Mauro explicitly forbids emulator work.
+Current added validation: 18 static RGBA images with nonempty transparent margins; 16 cropped alpaca-and-goat layers with safe borders; 1024 × 256 atlas layout; six decoded animated WebPs with 64 frames/8s/infinite loop; exact reference phase 0/8 equality, nonzero frame changes and ordinary-size final-to-first changes. SHA-256 base hashes detect stale render/composition races. Visually inspect all three static inspection sheets, both board patches, every terrain's four-phase sheet and all 64 cropped overlay-frame cells. Browser preview automation is separate from these verified asset checks. Engine rules/unit, random fuzz and emulator/monkey checks remain inapplicable/not run because application/rules code is unchanged and Mauro explicitly forbids emulator work.
 
 Reproduce with tools/blender/run_token_clearings.ps1; current preview file inventory is token-clearing/FILES.txt.
 
 ## Shared number clearing (current revision)
 
-Follow ART_SPEC.md and the common `token_space.py` constants. Store centre (-0.36, +0.30), ground radius 0.345 and upright plate radius 0.30 in renderer metadata. At runtime project the centre with Layout's tilt/scale, but keep the plate circle upright. Cache one ALPHA8 guard per angle (or generate it analytically); no new shipping files are needed. Apply it after all TileLife blur, sprite interpolation and Grain/Desert displacement. A pair of 512px ALPHA8 guards adds 0.5 MiB to the active bitmap estimate; use 256px cached masks with a conservative margin for 0.125 MiB instead. Do not allocate per hex or per frame.
+Follow ART_SPEC.md and the common `token_space.py` constants. Store centre (-0.36, +0.30), ground radius 0.31 and upright plate radius 0.27 in renderer metadata. At runtime project the centre with Layout's tilt/scale, but keep the plate circle upright. Cache one ALPHA8 guard per angle (or generate it analytically); no new shipping files are needed. Apply it after all TileLife blur, sprite interpolation and Grain/Desert displacement. A pair of 512px ALPHA8 guards adds 0.5 MiB to the active bitmap estimate; use 256px cached masks with a conservative margin for 0.125 MiB instead. Do not allocate per hex or per frame.
 
 Order each terrain sprite and its number plate together back-to-front; keep pieces/UI in their existing passes. Verify neighbour overdraw using token-check-patch-max.png before wiring. The low foreground geometry is part of the art, not only a compositing mask. All 18 sources and six review loops were regenerated; the eight production tilt steps still need sequential rendering. Current budget/render evidence is token-clearing/REPORT.md; use `run_token_clearings.ps1` to reproduce this revision.
+
+## Bandit V1 review prototype
+
+One original skeleton corsair, generated by `tools/blender/render_bandit_v1.py`. Eight transparent 512px production-angle PNGs follow t=.96*i/7; their measured total is 642,790 bytes. Three flat/mid/max review sources and two closer portraits are additional review files. Preserve the fixed ground-foot anchor (256,256) and ortho scale 2.65; a later renderer should place this already-sized figure rather than reuse the nearly invisible 0.13 pawn scale. Decoding two adjacent RGBA sprites costs 2 MiB, plus transient decode storage. Cross-fade with premultiplied alpha and draw the pawn in the board depth order.
+
+The Timber/Grain proof places its foot at (+0.25,-0.58), keeping the upright radius-0.27 plate clear. Actual placement and neighbour occlusion still need game integration checks. Review `../bandit/bandit-v1.png`, `../bandit/bandit-v1-tilt-steps.png` and the separate 25% phone proof. Reproduce portraits, then tilt sprites in separate sequential Blender batches, then `compose_bandit_v1.py`. No app integration is included.

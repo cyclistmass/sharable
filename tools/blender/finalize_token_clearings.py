@@ -13,7 +13,7 @@ def main():
     timings+=json.loads((OUT/'density-manifests/stone_patch.json').read_text())['renders']
     report=f'''# V2 number-clearance pass
 
-All six terrains have a flat circle at model (-0.36, +0.30), radius 0.345 for the upright game's radius-0.30 plate. The low foreground apron also protects the plate at 55°. See ART_SPEC.md for the shared rule and source coordinates.
+All six terrains have a flat circle at model (-0.36, +0.30), radius 0.31 for the upright chosen prototype's radius-0.27 plate (the app still draws 0.30 pending integration). The low foreground apron also protects the plate at 55°. See ART_SPEC.md for the shared rule and source coordinates.
 
 Terrain changes: Timber trees form a rear/right forest around a glade; Stone keeps seven Alpine summits around a flat warm-rock shelf; Fleece has a trampled patch, grouped alpacas and tiny goats and a rear wall/gate; Grain rows stop at a threshed clearing; Clay has a level yard with the shed moved behind/right; Desert has a flat sand pan and relocated outcrops. Surface spacing avoids coincident-face black artifacts. Tall content stays behind or beside the plate.
 
@@ -62,7 +62,7 @@ Inspected all eighteen views, six four-phase sheets and all 64 cells of each ove
     text+='''
 ## Shared number clearing (current revision)
 
-Follow ART_SPEC.md and the common `token_space.py` constants. Store centre (-0.36, +0.30), ground radius 0.345 and upright plate radius 0.30 in renderer metadata. At runtime project the centre with Layout's tilt/scale, but keep the plate circle upright. Cache one ALPHA8 guard per angle (or generate it analytically); no new shipping files are needed. Apply it after all TileLife blur, sprite interpolation and Grain/Desert displacement. A pair of 512px ALPHA8 guards adds 0.5 MiB to the active bitmap estimate; use 256px cached masks with a conservative margin for 0.125 MiB instead. Do not allocate per hex or per frame.
+Follow ART_SPEC.md and the common `token_space.py` constants. Store centre (-0.36, +0.30), ground radius 0.31 and upright plate radius 0.27 in renderer metadata. At runtime project the centre with Layout's tilt/scale, but keep the plate circle upright. Cache one ALPHA8 guard per angle (or generate it analytically); no new shipping files are needed. Apply it after all TileLife blur, sprite interpolation and Grain/Desert displacement. A pair of 512px ALPHA8 guards adds 0.5 MiB to the active bitmap estimate; use 256px cached masks with a conservative margin for 0.125 MiB instead. Do not allocate per hex or per frame.
 
 Order each terrain sprite and its number plate together back-to-front; keep pieces/UI in their existing passes. Verify neighbour overdraw using token-check-patch-max.png before wiring. The low foreground geometry is part of the art, not only a compositing mask. All 18 sources and six review loops were regenerated; the eight production tilt steps still need sequential rendering. Current budget/render evidence is token-clearing/REPORT.md; use `run_token_clearings.ps1` to reproduce this revision.
 '''

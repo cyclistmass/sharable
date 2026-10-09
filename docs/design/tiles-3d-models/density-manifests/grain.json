@@ -2,15 +2,15 @@
   "blender": "4.5.1 LTS",
   "threads": 2,
   "metadata": {
-    "ears": 388,
+    "ears": 504,
     "curved_crop_rows": 15,
     "token_space": {
       "token_center": [
         -0.36,
         0.3
       ],
-      "token_radius": 0.3,
-      "clearing_radius": 0.345,
+      "token_radius": 0.27,
+      "clearing_radius": 0.31,
       "upright_plate": true,
       "foreground_max_tilt_degrees": 55,
       "pruned_objects": 3,
@@ -21,19 +21,19 @@
   "renders": [
     {
       "file": "grain_V2_flat.png",
-      "seconds": 6.14,
+      "seconds": 7.77,
       "tilt": 0,
       "resolution": 512
     },
     {
       "file": "grain_V2_mid.png",
-      "seconds": 5.75,
+      "seconds": 7.78,
       "tilt": 0.48,
       "resolution": 512
     },
     {
       "file": "grain_V2_max.png",
-      "seconds": 4.98,
+      "seconds": 6.7,
       "tilt": 0.96,
       "resolution": 512
     }

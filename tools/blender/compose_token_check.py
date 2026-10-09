@@ -24,7 +24,7 @@ def plate(size=512,tilt=0,number=6):
 def main():
     sheet=Image.new('RGBA',(1750,3500),'#4a3020');d=ImageDraw.Draw(sheet)
     d.text((25,20),'V2 | shared number-plate clearing',font=font(32),fill='#f1d58a')
-    d.text((25,65),'Centre (-0.36, +0.30) | plate r 0.30 | flat clearing r 0.345 | plate stays round at tilt',font=font(21),fill='#efe3c8')
+    d.text((25,65),'Centre (-0.36, +0.30) | plate r 0.27 | flat clearing r 0.31 | plate stays round at tilt',font=font(21),fill='#efe3c8')
     for row,r in enumerate(TERRAINS):
         y=120+row*555;d.text((15,y+235),r.title(),font=font(23),fill='#f1d58a')
         for col,(name,t) in enumerate(ANGLES):

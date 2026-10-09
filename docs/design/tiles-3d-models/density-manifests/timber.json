@@ -7,31 +7,31 @@
         -0.36,
         0.3
       ],
-      "token_radius": 0.3,
-      "clearing_radius": 0.345,
+      "token_radius": 0.27,
+      "clearing_radius": 0.31,
       "upright_plate": true,
       "foreground_max_tilt_degrees": 55,
-      "pruned_objects": 11,
+      "pruned_objects": 9,
       "flattened_surfaces": 0
     }
   },
-  "scene_objects": 65,
+  "scene_objects": 80,
   "renders": [
     {
       "file": "timber_V2_flat.png",
-      "seconds": 5.3,
+      "seconds": 6.47,
       "tilt": 0,
       "resolution": 512
     },
     {
       "file": "timber_V2_mid.png",
-      "seconds": 4.94,
+      "seconds": 6.95,
       "tilt": 0.48,
       "resolution": 512
     },
     {
       "file": "timber_V2_max.png",
-      "seconds": 4.41,
+      "seconds": 5.88,
       "tilt": 0.96,
       "resolution": 512
     }
