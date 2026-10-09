@@ -209,12 +209,17 @@ class Sea(board: Board, seed: Int = 1) {
     init { repeat(4) { clouds += newCloud() } } // 4 = the default cloud amount (0.5 of 8)
 
     /** A tiny sailboat cruising the open sea toward a target, its sail in a player's colour. */
-    internal class Boat(var x: Float, var y: Float, var tx: Float, var ty: Float, var heading: Float, val speed: Float, val color: Int, val phase: Float)
+    internal class Boat(var x: Float, var y: Float, var tx: Float, var ty: Float, var heading: Float, val speed: Float, val color: Int, val phase: Float) {
+        /** Where the boat has been (x, y pairs, newest first): its wake follows the real path. */
+        val trail = FloatArray(2 * TRAIL)
+        var trailN = 0
+        var trailT = 0f
+    }
     /** Sail colours for the cruising boats (the players' colours). */
     var boatColors: List<Color> = listOf(Color(0xFFD32F2F), Color(0xFF1E63C6), Color(0xFFF57C00), Color(0xFFF5F5F5))
     internal val boats: List<Boat> = List(MAX_BOATS) { i ->
         val (x, y) = seaPoint(0.7f); val (tx, ty) = seaPoint(0.7f)
-        Boat(x, y, tx, ty, atan2(ty - y, tx - x), 0.10f + rnd.nextFloat() * 0.08f, i % 4, rnd.nextFloat() * 6f)
+        Boat(x, y, tx, y, if (rnd.nextBoolean()) 0f else PI.toFloat(), 0.10f + rnd.nextFloat() * 0.08f, i % 4, rnd.nextFloat() * 6f)
     }
     /** Boats shown at the Boats slider's setting (none at 0, all at 1). */
     val boatCount get() = (boats01 * MAX_BOATS).roundToInt().coerceIn(0, MAX_BOATS)
@@ -281,17 +286,41 @@ class Sea(board: Board, seed: Int = 1) {
     }
 
     /** Steers [b] toward its target, turning gently and going around the island; picks a new target on arrival. */
+    /**
+     * Side-view sloops can only look right sailing across the screen, so each boat cruises east-west
+     * lanes: it holds a heading within ~25 degrees of horizontal, slows into a gentle turn at the end of
+     * its lane, and passes the island above or below rather than steering into it.
+     */
     private fun sail(b: Boat, dt: Float) {
-        if (hypot(b.tx - b.x, b.ty - b.y) < 0.3f) { val (x, y) = seaPoint(0.7f); b.tx = x; b.ty = y }
-        var want = atan2(b.ty - b.y, b.tx - b.x)
-        // Heading into the island: sail around it instead (keep it on the port side).
-        val ahead = Offset(b.x + cos(want) * 0.8f, b.y + sin(want) * 0.8f)
-        if (hypot(ahead.x, ahead.y) < landR + 0.6f) want = atan2(b.y, b.x) + PI.toFloat() / 2
+        val dir = if (cos(b.heading) >= 0f) 1f else -1f
+        // End of the lane (near the screen edge): come about and pick a new lane height.
+        if (!inOpenSea(b.x + dir * 0.9f, b.y, 0.4f)) {
+            b.tx = -dir * OPEN_RX * 0.8f
+            b.ty = ((rnd.nextFloat() * 2 - 1) * OPEN_RY * 0.75f)
+            b.heading = if (dir > 0) PI.toFloat() else 0f
+        }
+        var ty = b.ty
+        // Keep clear of the island: lanes crossing it bend early to pass above or below.
+        if (kotlin.math.abs(b.x) < landR + 3f && kotlin.math.abs(ty) < landR + 0.8f) ty = if (b.y >= 0) landR + 1.0f else -(landR + 1.0f)
+        val near = hypot(b.x, b.y) < landR + 1.2f
+        val maxClimb = if (near) 0.9f else 0.45f
+        val want = atan2((ty - b.y) * 0.6f, dir).coerceIn(-maxClimb, maxClimb).let { if (dir > 0) it else PI.toFloat() - it }
         var turn = want - b.heading
         while (turn > PI) turn -= 2 * PI.toFloat()
         while (turn < -PI) turn += 2 * PI.toFloat()
-        b.heading += turn.coerceIn(-0.9f * dt, 0.9f * dt)
+        b.heading += turn.coerceIn(-0.35f * dt, 0.35f * dt)
         b.x += cos(b.heading) * b.speed * dt; b.y += sin(b.heading) * b.speed * dt
+        // Never onto the land: a boat that got close is eased back out.
+        val d = hypot(b.x, b.y)
+        if (d < landR + 0.3f) { b.x *= (landR + 0.3f) / d; b.y *= (landR + 0.3f) / d }
+        // Record the wake trail every 0.2 s.
+        b.trailT += dt
+        if (b.trailT >= 0.2f) {
+            b.trailT = 0f
+            System.arraycopy(b.trail, 0, b.trail, 2, b.trail.size - 2)
+            b.trail[0] = b.x; b.trail[1] = b.y
+            if (b.trailN < TRAIL) b.trailN++
+        }
     }
 
     /** True if [p] (lattice) is on open water. */
@@ -478,13 +507,25 @@ class Sea(board: Board, seed: Int = 1) {
         val bob = sin(time * 2.2f + b.phase) * 0.02f * s
         val right = cos(b.heading) >= 0f
         val img = sprites[b.color % sprites.size]
-        boatWake?.let { w ->
-            val ww = size * 1.1f; val wh = ww / 2
-            withTransform({ if (!right) scale(-1f, 1f, p) }) {
-                drawImage(w, dstOffset = IntOffset((p.x - ww * 0.95f).toInt(), (p.y + size * 0.18f - wh / 2).toInt()), dstSize = IntSize(ww.toInt(), wh.toInt()), alpha = 0.7f)
+        // Wake: two thin foam lines spreading from the stern along the path the boat actually took,
+        // fading with age, plus a little churn right at the stern.
+        if (b.trailN > 1) for (side in intArrayOf(-1, 1)) {
+            var px = 0f; var py = 0f
+            for (i in 0 until b.trailN) {
+                val x = b.trail[2 * i]; val y = b.trail[2 * i + 1]
+                val nx = if (i + 1 < b.trailN) b.trail[2 * i + 2] else x; val ny = if (i + 1 < b.trailN) b.trail[2 * i + 3] else y
+                val dx = x - nx; val dy = y - ny; val l = hypot(dx, dy).coerceAtLeast(1e-4f)
+                val spread = 0.03f + i * 0.022f
+                val q = at(x - dy / l * spread * side, y + dx / l * spread * side + 0.19f)  // at the waterline
+                if (i > 0) drawLine(Color.White.copy(alpha = 0.6f * (1f - i / TRAIL.toFloat())), Offset(px, py), q, (0.022f - i * 0.0012f).coerceAtLeast(0.006f) * s, StrokeCap.Round)
+                px = q.x; py = q.y
             }
         }
-        withTransform({ if (!right) scale(-1f, 1f, p) }) {
+        drawCircle(Color.White.copy(alpha = 0.3f), 0.05f * s, at(b.x - cos(b.heading) * 0.2f, b.y + 0.19f))
+        // Rolls gently on the swell and pitches a touch with its climb, pivoting at the waterline.
+        val roll = sin(time * 1.3f + b.phase * 2f) * 2.5f + sin(b.heading) * 6f * (if (right) 1f else -1f)
+        val water = Offset(p.x, p.y + size * 0.22f)
+        withTransform({ rotate(roll, water); if (!right) scale(-1f, 1f, p) }) {
             drawImage(img, dstOffset = IntOffset((p.x - size / 2).toInt(), (p.y - size * 0.7f + bob).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
                 filterQuality = FilterQuality.Medium)
         }
@@ -693,6 +734,8 @@ class Sea(board: Board, seed: Int = 1) {
         const val BOUNCE = 0.4f
         /** Cruising sailboats at Boats = 100%. */
         const val MAX_BOATS = 8
+        /** Wake trail points kept per boat (one every 0.2 s). */
+        const val TRAIL = 14
         /** Speed (units/s) at which a cloud left over the island floats back out to sea. */
         const val FLOAT_OUT = 0.45f
 
