@@ -187,6 +187,16 @@ class Sea(board: Board, seed: Int = 1) {
     internal val birds = List(8) { i -> Seabird(seed * 31 + i, landR + 0.5f + 0.42f * i) }
     private val birdPath = Path()
     private val glints = List(160) { val (x, y) = seaPoint(0.2f); floatArrayOf(x, y, rnd.nextFloat() * 6f, 0.6f + rnd.nextFloat()) }
+    internal var raidersTrack = 0f
+    internal var raidersTarget = 0
+    private var raidersBattles: Int? = null
+    private var raidersRunIn = 0f
+
+    internal fun observeRaiders(track: Int, battles: Int) {
+        if (raidersBattles != null && battles > raidersBattles!!) raidersRunIn = 8f
+        raidersBattles = battles
+        raidersTarget = track
+    }
     internal var time = 0f
         private set
 
@@ -252,6 +262,9 @@ class Sea(board: Board, seed: Int = 1) {
         // touch physics on clouds uses real time and is unaffected.
         val pdt = dt * (0.25f + 1.5f * motion)
         time += pdt
+        raidersRunIn = (raidersRunIn - pdt).coerceAtLeast(0f)
+        val orbitTarget = if (raidersRunIn > 0f) wgbg.engine.CkPiece.BARBARIAN_TRACK.toFloat() else raidersTarget.toFloat()
+        raidersTrack += (orbitTarget - raidersTrack) * (1f - exp(-pdt / 3f))
         for (p in drops) p.age += dt
         drops.removeAll { it.age > it.life }
         for (r in rings) r.age += dt

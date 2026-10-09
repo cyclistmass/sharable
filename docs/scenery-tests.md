@@ -4,3 +4,5 @@
 
 Rules are unchanged. Run the existing engine/AI/network unit, random-play fuzz and illegal-action suites as regression coverage; add seeded animation simulation for the changed movement.
 
+#37: Sample 721 angles at every Raiders track position. Check open-sea and sprite margins, strictly shrinking radius and continuous positions. Simulate track advances, resets and the battle run-in. In a later device session, inspect start=chivalry for HUD/panel clearance and the wake at fit zoom and tilt; device checks are not performed here.
+

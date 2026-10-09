@@ -1248,15 +1248,29 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         else -> {}
     }
     fun over() {
-        // Age of Chivalry: the Raiders' ship sails its arc toward the island as the track advances (#2).
+        // Age of Chivalry: the Raiders' ship circles closer as the track advances (#37).
         // It bobs with the sea's clock, so it rides above the still board rather than inside it.
         val ckState = s.ck
         if (ckState != null && raiders != null) {
-            val (lx, ly) = raidersAt(ckState.barbarianPos, board, sea?.time ?: 0f)
-            val at = l.project(lx, ly)
-            val size = 1.15f * scale * l.kAt(ly)
-            drawImage(raiders, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
-                filterQuality = FilterQuality.Medium)
+            sea?.observeRaiders(ckState.barbarianPos, ckState.barbarianAttacks)
+            val clock = sea?.time ?: 0f
+            val track = sea?.raidersTrack ?: ckState.barbarianPos.toFloat()
+            val landR = sea?.landR ?: board.topology.vertexPos.maxOf { kotlin.math.hypot(it.x * sqrt(3f) / 2f, it.y / 2f) }
+            val pose = raidersPose(track, landR, clock)
+            val at = l.project(pose.x, pose.y)
+            val size = 1.15f * scale * l.kAt(pose.y)
+            val right = kotlin.math.cos(pose.heading) >= 0f
+            sea?.boatWake?.let { wake ->
+                val stern = l.project(pose.x - kotlin.math.cos(pose.heading) * 0.35f, pose.y - kotlin.math.sin(pose.heading) * 0.35f)
+                withTransform({ rotate(Math.toDegrees(pose.heading.toDouble()).toFloat(), stern) }) {
+                    drawImage(wake, dstOffset = IntOffset((stern.x - size * 0.6f).toInt(), (stern.y - size * 0.15f).toInt()),
+                        dstSize = IntSize((size * 0.7f).toInt(), (size * 0.3f).toInt()), alpha = 0.4f)
+                }
+            }
+            withTransform({ if (!right) scale(-1f, 1f, at) }) {
+                drawImage(raiders, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
+                    filterQuality = FilterQuality.Medium)
+            }
         }
         sea?.drawSky(this, toScreen, scale * l.kAt(0f))
     }
@@ -1608,19 +1622,25 @@ private fun DrawScope.drawCliffs(board: Board, l: Layout, cliffs: List<ImageBitm
     }
 }
 
-/**
- * Where the Raiders' ship sits (lattice) for track position [pos] 0..BARBARIAN_TRACK: far out to the
- * right at 0, curving in to just off the coast at the attack, bobbing gently with [time].
- */
-internal fun raidersAt(pos: Int, board: Board, time: Float): Pair<Float, Float> {
-    val landR = board.topology.vertexPos.maxOf { kotlin.math.hypot(it.x * sqrt(3f) / 2f, it.y / 2f) }
-    val f = (pos.coerceIn(0, wgbg.engine.CkPiece.BARBARIAN_TRACK) / wgbg.engine.CkPiece.BARBARIAN_TRACK.toFloat())
-    val r = landR + 0.9f + (1f - f) * 3.2f
-    val a = Math.toRadians(-18.0 + 30.0 * f).toFloat()   // out on the open sea to the right, clear of the HUD
-    val bob = kotlin.math.sin(time * 1.3f) * 0.03f
-    return (kotlin.math.cos(a) * r) to (kotlin.math.sin(a) * r + bob)
+/** Continuous sea-clock orbit, with track changes eased by Sea before drawing in OVER. */
+internal data class RaidersPose(val x: Float, val y: Float, val heading: Float)
+
+internal fun raidersPose(track: Float, landR: Float, time: Float): RaidersPose {
+    val f = (track / wgbg.engine.CkPiece.BARBARIAN_TRACK).coerceIn(0f, 1f)
+    val near = landR + 0.6f
+    // Compact enough to fit beside the panels, inside the open-sea bounds with sprite clearance.
+    val rx = near + (minOf(6.2f, Sea.OPEN_RX - 0.7f) - near) * (1f - f)
+    val ry = near + (Sea.OPEN_RY - 0.4f - near) * (1f - f)
+    val a = time * 0.025f
+    return RaidersPose(kotlin.math.cos(a) * rx, kotlin.math.sin(a) * ry,
+        kotlin.math.atan2(kotlin.math.cos(a) * ry, -kotlin.math.sin(a) * rx))
 }
 
+internal fun raidersAt(pos: Int, board: Board, time: Float): Pair<Float, Float> {
+    val landR = board.topology.vertexPos.maxOf { kotlin.math.hypot(it.x * sqrt(3f) / 2f, it.y / 2f) }
+    val p = raidersPose(pos.toFloat(), landR, time)
+    return p.x to p.y
+}
 /**
  * The report the turn panel shows: the tracker's current one if it belongs to whoever's turn it is,
  * otherwise a fresh header for the new turn (the tracker only opens it on that player's first move).
