@@ -27,6 +27,11 @@ import kotlin.math.hypot
 class WoodPieces(res: Resources, colors: List<Color>) {
     private val stains: List<Brush> = colors.map { stain(res, it) }
     private val bases = colors
+    /** Micro-brick paving for road tops (Codex art): long brick edges run across the road. */
+    private val bricks: android.graphics.BitmapShader = android.graphics.BitmapShader(
+        BitmapFactory.decodeResource(res, R.drawable.road_bricks), android.graphics.Shader.TileMode.REPEAT, android.graphics.Shader.TileMode.MIRROR)
+    private val brickBrush = ShaderBrush(bricks)
+    private val brickMatrix = android.graphics.Matrix()
 
     /** The stained-wood fill for color [i], for drawing other wooden things (tokens). */
     fun brush(i: Int): Brush = stains[i]
@@ -57,7 +62,19 @@ class WoodPieces(res: Resources, colors: List<Color>) {
         val side = listOf(a2 + lower * half + lift, b2 + lower * half + lift, b2 + lower * half, a2 + lower * half)
         drawPath(poly(side.map { it + Offset(0.03f * scale, 0.05f * scale) }), Color.Black.copy(alpha = 0.22f))
         face(side, player, dark = 0.38f)
-        face(top, player, light = 0.1f)
+        // Top: brick paving turned to run along the road (the texture's 128 px height = road width),
+        // tinted by multiplying with the player's colour.
+        val topPath = poly(top)
+        brickMatrix.reset()
+        val k = 2 * half / 128f
+        brickMatrix.setScale(k, k)
+        brickMatrix.postTranslate(0f, -half)
+        brickMatrix.postRotate(Math.toDegrees(kotlin.math.atan2((b2 - a2).y, (b2 - a2).x).toDouble()).toFloat())
+        brickMatrix.postTranslate((a2 + lift).x, (a2 + lift).y)
+        bricks.setLocalMatrix(brickMatrix)
+        drawPath(topPath, brickBrush)
+        drawPath(topPath, bases[player], blendMode = androidx.compose.ui.graphics.BlendMode.Multiply)
+        drawPath(topPath, Color.White.copy(alpha = 0.06f))
         edge(top, player)
     }
 
