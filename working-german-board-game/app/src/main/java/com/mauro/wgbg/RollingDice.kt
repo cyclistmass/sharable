@@ -82,6 +82,9 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
                 slots: Pair<Rect, Rect>? = null,
                 /** Settings > Theme: the Pirate dice instead of the Normal ones. */
                 pirate: Boolean = false,
+                /** Age of Chivalry: the event die's face (-1 = none) and the pad it lands on (root coordinates). */
+                event: Int = -1,
+                eventSlot: Rect? = null,
                 /** True while the dice are in the air; the panel hides its resting dice until they land. */
                 onFlying: (Boolean) -> Unit = {}) {
     var origin by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(Offset.Zero) }
@@ -111,6 +114,7 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
         val p = t.value
         if (p >= DiceSprites.HANDOVER) return@Canvas        // settled: the panel's own dice are showing
         val q = ((p - 0.07f) / 0.93f).coerceIn(0f, 1f)
+        val qe = ((p - 0.03f) / 0.94f).coerceIn(0f, 1f)          // the event die, between the two
         val center = Offset(size.width / 2, size.height / 2)
         val half = kotlin.math.hypot(size.width / 2, size.height / 2)
         val start = center + Offset(cos(angle), kotlin.math.sin(angle)) * (half * reach)
@@ -122,6 +126,13 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
         val perp = Offset(-dir.y, dir.x)
         drawDie(rest1, p, start, perp, redTumble, redFace, spin = 1, turns = 1.4f)
         drawDie(rest2, q, start, perp, ivoryTumble, ivoryFace, spin = 3, turns = -1.6f)
+        if (event >= 0 && eventSlot != null) {
+            val r = eventSlot.translate(-origin)
+            val cube = r.width * DIE_FACE_SHARE
+            val hop = kotlin.math.sin(qe.coerceAtMost(DiceSprites.LAND) / DiceSprites.LAND * Math.PI.toFloat())
+            val c = start + (r.center - start) * DiceSprites.fall(qe) - perp * (hop * cube * 0.5f) - Offset(0f, DiceSprites.bounce(qe) * cube)
+            rotate(DiceSprites.spin(qe, 1.2f), pivot = c) { drawEventFace(event, c, cube * (1f + 0.35f * hop)) }
+        }
     }
 }
 

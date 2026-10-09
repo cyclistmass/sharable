@@ -127,4 +127,33 @@ class TradePanelTest {
         assertEquals("Yes" to "No", tradeButtonLabels(TradeMode.REVIEW_COUNTER, countering = false, bank = false, entered = false))
         assertEquals("Trade" to "Cancel", tradeButtonLabels(TradeMode.PICK_PARTNER, countering = false, bank = false, entered = false))
     }
+
+    @Test
+    fun `one row of cards - top asks, bottom offers, the other half switches, hold takes one back`() {
+        val z = IntArray(5)
+        var (g, v) = askOffer(z, z, 0, CardTap.ASK, have = 0)
+        assertEquals(1, g[0]); assertEquals(0, v[0])
+        askOffer(g, v, 0, CardTap.ASK, have = 0).let { g = it.first; v = it.second }
+        assertEquals(2, g[0])
+        askOffer(g, v, 0, CardTap.OFFER, have = 3).let { g = it.first; v = it.second }   // switch over
+        assertEquals(0, g[0]); assertEquals(1, v[0])
+        askOffer(g, v, 0, CardTap.OFFER, have = 1).let { g = it.first; v = it.second }   // can't offer more than held
+        assertEquals(1, v[0])
+        assertEquals(0, askOffer(z, z, 2, CardTap.OFFER, have = 0).second[2])              // nothing to offer
+        askOffer(g, v, 0, CardTap.TAKE_BACK, have = 1).let { g = it.first; v = it.second }
+        assertEquals(0, v[0]); assertEquals(0, g[0])
+        for (i in 0..20) g = askOffer(g, v, 1, CardTap.ASK, have = 0).first
+        assertEquals(9, g[1])                                                             // asks stop at 9
+    }
+
+    @Test
+    fun `with the bank it is one card each way at your rate`() {
+        val z = IntArray(5)
+        var (g, v) = askOffer(z, z, 3, CardTap.ASK, have = 0, bankRate = 4)
+        askOffer(g, v, 1, CardTap.OFFER, have = 4, bankRate = 4).let { g = it.first; v = it.second }
+        assertEquals(1, g[3]); assertEquals(4, v[1])
+        askOffer(g, v, 2, CardTap.ASK, have = 0, bankRate = 4).let { g = it.first; v = it.second }   // pick another
+        assertEquals(0, g[3]); assertEquals(1, g[2])
+        assertEquals(0, askOffer(g, z, 0, CardTap.OFFER, have = 3, bankRate = 4).second[0])           // can't pay 4 with 3
+    }
 }

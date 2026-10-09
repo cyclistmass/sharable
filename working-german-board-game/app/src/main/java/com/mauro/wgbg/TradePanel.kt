@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -209,14 +212,13 @@ fun TradePanel(
             }
             Text(status(s, me, mode, names, countering, bankTab), color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 maxLines = 1, modifier = Modifier.width(214.dp))
-            Text(if (bankTab) "You get 1" else "You get", color = INK.copy(alpha = 0.7f), fontSize = 11.sp)
-            CardRow(showGet, editing, single = bankTab, badge = { null }) { r, d ->
-                get = if (bankTab) IntArray(tradeCards(s)).also { it[r] = 1 } else get.copyOf().also { it[r] = (it[r] + d).coerceIn(0, 9) }
-            }
-            Text("You give", color = INK.copy(alpha = 0.7f), fontSize = 11.sp)
-            CardRow(showGive, editing, single = bankTab, badge = { r -> if (bankTab) "${bankRate(s, me, r)}:1" else "have ${holding(s, me, r)}" }) { r, d ->
-                give = if (bankTab) IntArray(tradeCards(s)).also { it[r] = bankRate(s, me, r) }
-                else give.copyOf().also { it[r] = (it[r] + d).coerceIn(0, holding(s, me, r)) }
+            if (editing) Text(if (bankTab) "Top: the card you want · bottom: what you pay" else "Tap top to ask · bottom to offer · hold to take back",
+                color = INK.copy(alpha = 0.7f), fontSize = 11.sp)
+            // One row of cards (Mauro, #49): the top half of a card asks for it, the bottom half offers it.
+            AskOfferRow(showGet, showGive, editing,
+                under = { r -> if (bankTab) "${bankRate(s, me, r)}:1" else "have ${holding(s, me, r)}" }) { r, tap ->
+                val (g, v) = askOffer(get, give, r, tap, holding(s, me, r), if (bankTab) bankRate(s, me, r) else 0)
+                get = g; give = v
             }
             if (mode == TradeMode.PICK_PARTNER) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (a in legal.filter { it.type == ActionType.CONFIRM_TRADE })
@@ -288,6 +290,73 @@ private fun Tab(label: String, selected: Boolean, onClick: () -> Unit) {
             .border(1.dp, BRASS, RoundedCornerShape(8.dp)).clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 4.dp).testTag("tab-$label"),
     ) { Text(label, color = if (selected) WOOD_DARK else INK, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+}
+
+/** What a tap on a trade card does (#49). */
+enum class CardTap { ASK, OFFER, TAKE_BACK }
+
+/**
+ * The new (get, give) after a [tap] on card [r]. Asking adds one (up to 9), offering adds one (up to [have]
+ * held); a card is never both asked and offered, so tapping the other half switches it over. Take-back
+ * removes one from whichever side holds it. With the bank ([bankRate] > 0) it is one card each way: the top
+ * picks the card you want, the bottom the card you pay [bankRate] of.
+ */
+fun askOffer(get: IntArray, give: IntArray, r: Int, tap: CardTap, have: Int, bankRate: Int = 0): Pair<IntArray, IntArray> {
+    val g = get.copyOf(); val v = give.copyOf()
+    if (bankRate > 0) {
+        when (tap) {
+            CardTap.ASK -> { g.fill(0); g[r] = 1; v[r] = 0 }
+            CardTap.OFFER -> if (have >= bankRate) { v.fill(0); v[r] = bankRate; g[r] = 0 }
+            CardTap.TAKE_BACK -> { g[r] = 0; v[r] = 0 }
+        }
+        return g to v
+    }
+    when (tap) {
+        CardTap.ASK -> { if (v[r] > 0) v[r] = 0; g[r] = (g[r] + 1).coerceAtMost(9) }
+        CardTap.OFFER -> if (have > 0) { if (g[r] > 0) g[r] = 0; v[r] = (v[r] + 1).coerceAtMost(have) }
+        CardTap.TAKE_BACK -> if (g[r] > 0) g[r]-- else if (v[r] > 0) v[r]--
+    }
+    return g to v
+}
+
+/**
+ * One row of cards for a trade: green "+N" on a card's top edge is asked for, red "−N" on its bottom edge is
+ * offered. Tap the top half to ask, the bottom half to offer, hold to take one back.
+ */
+@Composable
+private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, under: (Int) -> String?, onTap: (Int, CardTap) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (r in get.indices) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val asked = get[r]; val offered = give[r]
+            val lit = asked > 0 || offered > 0
+            Box(
+                Modifier.size(width = 42.dp, height = 60.dp)
+                    .then(if (lit) Modifier.border(2.dp, if (asked > 0) Color(0xFF8BD18B) else Color(0xFFE57373), RoundedCornerShape(5.dp)) else Modifier)
+                    .then(if (editable) Modifier.pointerInput(r) {
+                        detectTapGestures(
+                            onTap = { at -> onTap(r, if (at.y < size.height / 2f) CardTap.ASK else CardTap.OFFER) },
+                            onLongPress = { onTap(r, CardTap.TAKE_BACK) },
+                        )
+                    } else Modifier)
+                    .testTag("card-$r"),
+                contentAlignment = Alignment.Center,
+            ) {
+                // The illustrated card; dimmed until it is part of the trade.
+                if (r < CARD_ART.size) Image(painterResource(CARD_ART[r]), RESOURCE_NAMES[r], Modifier.fillMaxSize(), alpha = if (lit) 1f else 0.5f)
+                else Box(Modifier.fillMaxSize().background(Color(0xFFEFE3C8).copy(alpha = if (lit) 1f else 0.5f), RoundedCornerShape(5.dp))
+                    .border(2.dp, COMMODITY_COLORS[r - CARD_ART.size], RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
+                    // Commodities (Age of Chivalry) until their card art lands.
+                    Text(ALL_CARD_NAMES[r], color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                }
+                if (editable && !lit) Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x66FFFFFF)))   // the halfway line
+                if (asked > 0) Text("+$asked", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopCenter).background(Color(0xE0388E3C), CircleShape).padding(horizontal = 6.dp))
+                if (offered > 0) Text("−$offered", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.BottomCenter).background(Color(0xE0C0392B), CircleShape).padding(horizontal = 6.dp))
+            }
+            under(r)?.let { Text(it, color = INK.copy(alpha = 0.6f), fontSize = 9.sp) }
+        }
+    }
 }
 
 /** Five resource cards; tap adds one (or picks it, for the bank), the "−" under a card takes one back. */

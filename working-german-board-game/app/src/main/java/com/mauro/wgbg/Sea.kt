@@ -134,7 +134,7 @@ class Sea(board: Board, seed: Int = 1) {
         // Double-size crests out in the deeper water.
         var big = 0
         while (big < BIG_WAVELETS) { val (x, y) = waterPoint(); if (coastDist(x, y) > 1f && add(x, y, big = true)) big++ }
-        wavelets = list
+        wavelets = list.shuffled(Random(seed * 97))
 
         // Breaking spots: about two thirds of the coastline edges, away from the corners.
         breaks = coast.filter { rnd.nextFloat() < 0.7f }.mapIndexed { i, c ->
@@ -176,17 +176,40 @@ class Sea(board: Board, seed: Int = 1) {
     val clouds = ArrayList<Cloud>()
     /** Scenery amounts, 0..1 (from the menu's sliders): clouds, birds, harbour boats and waves. */
     var clouds01 = 0.5f
+        set(value) {
+            field = value.coerceIn(0f, 1f)
+            if (field == 0f) clouds.clear()
+            // Slider changes take effect on this frame, including zero while dragging.
+            while (clouds.count { it.poof < 0 } > cloudTarget) {
+                clouds.remove(clouds.last { it.poof < 0 })
+            }
+            while (clouds.count { it.poof < 0 } < cloudTarget) clouds += newCloud()
+        }
     var birds01 = 0.5f
     var boats01 = 0.5f
     var waves01 = 0.5f
     /** How fast passive things move (waves, glints, drift, gulls); 0.5 is normal. */
     var motion = 0.5f
-    /** Clouds wanted on the sea: none at 0, up to 8. */
-    val cloudTarget get() = (clouds01 * 8f).roundToInt().coerceIn(0, 8)
+    /** Clouds wanted on the sea: four at 50%, sixteen at 100%. */
+    val cloudTarget get() = sceneryCount(clouds01, 16)
     /** Pale articulated seabirds (Birds slider sets how many show). */
-    internal val birds = List(8) { i -> Seabird(seed * 31 + i, landR + 0.5f + 0.42f * i) }
+    internal val birds = List(16) { i -> Seabird(seed * 31 + i, landR + 0.5f + 0.21f * i) }
+    internal val birdCount get() = sceneryCount(birds01, birds.size)
+    internal val waveCount get() = sceneryCount(waves01, wavelets.size)
+    internal val whitecapScale get() = 0.65f + 0.7f * waves01.coerceIn(0f, 1f)
+    internal val whitecapAlpha get() = 0.4f + 0.6f * waves01.coerceIn(0f, 1f)
     private val birdPath = Path()
-    private val glints = List(160) { val (x, y) = seaPoint(0.2f); floatArrayOf(x, y, rnd.nextFloat() * 6f, 0.6f + rnd.nextFloat()) }
+    private val glints = List(320) { val (x, y) = seaPoint(0.2f); floatArrayOf(x, y, rnd.nextFloat() * 6f, 0.6f + rnd.nextFloat()) }
+    internal var raidersTrack = 0f
+    internal var raidersTarget = 0
+    private var raidersBattles: Int? = null
+    private var raidersRunIn = 0f
+
+    internal fun observeRaiders(track: Int, battles: Int) {
+        if (raidersBattles != null && battles > raidersBattles!!) raidersRunIn = 8f
+        raidersBattles = battles
+        raidersTarget = track
+    }
     internal var time = 0f
         private set
 
@@ -207,7 +230,7 @@ class Sea(board: Board, seed: Int = 1) {
     private val patchMatrix = Matrix()
     private val crescent = Path()
 
-    init { repeat(4) { clouds += newCloud() } } // 4 = the default cloud amount (0.5 of 8)
+    init { repeat(4) { clouds += newCloud() } } // 4 = the default cloud amount (0.5 squared of 16)
 
     /** A tiny sailboat cruising the open sea toward a target, its sail in a player's colour. */
     internal class Boat(var x: Float, var y: Float, var tx: Float, var ty: Float, var heading: Float, val speed: Float, val color: Int, val phase: Float) {
@@ -217,6 +240,9 @@ class Sea(board: Board, seed: Int = 1) {
         var trailT = 0f
         /** Seconds before the boat may come about again (stops it flip-flopping at a lane end). */
         var turnCool = 0f
+        var laneDir = if (cos(heading) >= 0f) 1f else -1f
+        var passSide = if (y >= 0f) 1f else -1f
+        var laneStartX = -laneDir * OPEN_RX
     }
     /** Sail colours for the cruising boats (the players' colours). */
     var boatColors: List<Color> = listOf(Color(0xFFD32F2F), Color(0xFF1E63C6), Color(0xFFF57C00), Color(0xFFF5F5F5))
@@ -225,7 +251,7 @@ class Sea(board: Board, seed: Int = 1) {
         Boat(x, y.coerceIn(-LANE_Y, LANE_Y), tx, y.coerceIn(-LANE_Y, LANE_Y), if (rnd.nextBoolean()) 0f else PI.toFloat(), 0.10f + rnd.nextFloat() * 0.08f, i % 4, rnd.nextFloat() * 6f)
     }
     /** Boats shown at the Boats slider's setting (none at 0, all at 1). */
-    val boatCount get() = (boats01 * MAX_BOATS).roundToInt().coerceIn(0, MAX_BOATS)
+    val boatCount get() = sceneryCount(boats01, MAX_BOATS)
 
     /** A random point on the open sea at least [margin] from the coast and the screen edge. */
     private fun seaPoint(margin: Float): Pair<Float, Float> {
@@ -249,6 +275,9 @@ class Sea(board: Board, seed: Int = 1) {
         // touch physics on clouds uses real time and is unaffected.
         val pdt = dt * (0.25f + 1.5f * motion)
         time += pdt
+        raidersRunIn = (raidersRunIn - pdt).coerceAtLeast(0f)
+        val orbitTarget = if (raidersRunIn > 0f) wgbg.engine.CkPiece.BARBARIAN_TRACK.toFloat() else raidersTarget.toFloat()
+        raidersTrack += (orbitTarget - raidersTrack) * (1f - exp(-pdt / 3f))
         for (p in drops) p.age += dt
         drops.removeAll { it.age > it.life }
         for (r in rings) r.age += dt
@@ -295,31 +324,37 @@ class Sea(board: Board, seed: Int = 1) {
      * its lane, and passes the island above or below rather than steering into it.
      */
     private fun sail(b: Boat, dt: Float) {
-        val dir = if (cos(b.heading) >= 0f) 1f else -1f
+        val dir = b.laneDir
         b.turnCool = (b.turnCool - dt).coerceAtLeast(0f)
         // End of the lane (near the screen edge): come about once, onto a new lane well inside the sea.
-        if (b.turnCool == 0f && !inOpenSea(b.x + dir * 0.9f, b.y, 0.4f)) {
-            b.tx = -dir * OPEN_RX * 0.8f
-            b.ty = ((rnd.nextFloat() * 2 - 1) * LANE_Y)
-            b.heading = if (dir > 0) PI.toFloat() else 0f
-            b.turnCool = 6f
+        if (b.turnCool == 0f && abs(b.x - b.laneStartX) >= OPEN_RX * 1.4f && abs(b.x) >= landR + 3.1f &&
+            !inOpenSea(b.x + dir * 1.2f, b.y, 0.4f)) {
+            b.laneDir = -dir
+            b.tx = b.laneDir * OPEN_RX * 0.95f
+            b.laneStartX = b.x
+            if (abs(b.y) > 0.5f) b.passSide = if (b.y > 0f) 1f else -1f
+            b.ty = b.passSide * LANE_Y
+            b.turnCool = 20f
         }
         // Never drift toward the narrow top/bottom of the sea: lanes stay within LANE_Y.
         if (kotlin.math.abs(b.ty) > LANE_Y) b.ty = kotlin.math.sign(b.ty) * LANE_Y
         var ty = b.ty
         // Keep clear of the island: lanes crossing it bend early to pass above or below.
-        if (kotlin.math.abs(b.x) < landR + 3f && kotlin.math.abs(ty) < landR + 0.8f) ty = if (b.y >= 0) landR + 1.0f else -(landR + 1.0f)
+        if (kotlin.math.abs(b.x) < landR + 3f && kotlin.math.abs(ty) < landR + 0.8f) ty = b.passSide * (landR + 0.35f)
         val near = hypot(b.x, b.y) < landR + 1.2f
         val maxClimb = if (near) 0.9f else 0.45f
-        val want = atan2((ty - b.y) * 0.6f, dir).coerceIn(-maxClimb, maxClimb).let { if (dir > 0) it else PI.toFloat() - it }
+        val climb = atan2((ty - b.y) * 0.6f, 1f).coerceIn(-maxClimb, maxClimb)
+        val want = if (b.laneDir > 0) climb else PI.toFloat() - climb
         var turn = want - b.heading
         while (turn > PI) turn -= 2 * PI.toFloat()
         while (turn < -PI) turn += 2 * PI.toFloat()
-        b.heading += turn.coerceIn(-0.35f * dt, 0.35f * dt)
+        b.heading += turn.coerceIn(-BOAT_TURN_RATE * dt, BOAT_TURN_RATE * dt)
         b.x += cos(b.heading) * b.speed * dt; b.y += sin(b.heading) * b.speed * dt
         // Never onto the land: a boat that got close is eased back out.
         val d = hypot(b.x, b.y)
         if (d < landR + 0.3f) { b.x *= (landR + 0.3f) / d; b.y *= (landR + 0.3f) / d }
+        val edge = sqrt((b.x / (OPEN_RX - 0.4f)).pow(2) + (b.y / (OPEN_RY - 0.4f)).pow(2))
+        if (edge > 1f) { b.x /= edge; b.y /= edge }
         // Record the wake trail every 0.2 s.
         b.trailT += dt
         if (b.trailT >= 0.2f) {
@@ -455,15 +490,15 @@ class Sea(board: Board, seed: Int = 1) {
             if (part == WaterPart.BASE) return@with
         }
         // Sun glints twinkling.
-        val glintCount = (glints.size * waves01).toInt()
+        val glintCount = sceneryCount(waves01, glints.size)
         for (i in 0 until glintCount) {
             val g = glints[i]
             val a = (sin(time * g[3] + g[2]) * 0.5f + 0.5f)
             if (a > 0.55f) drawCircle(Color.White.copy(alpha = (a - 0.55f) * 1.4f), 0.018f * s, at(g[0], g[1]))
         }
         // Waves slider: how many wavelets and whitecaps show (none at 0; the water's colour and texture stay).
-        for (w in wavelets) if ((w.id * 0.618f) % 1f < waves01) drawWavelet(this, at, w)
-        for (b in breaks) drawBreak(this, at, s, b)
+        for (i in 0 until waveCount) drawWavelet(this, at, wavelets[i])
+        for (i in 0 until sceneryCount(waves01, breaks.size)) drawBreak(this, at, s, breaks[i])
         // Tiny sailboats (Boats slider): a wooden hull with a little wake, the sail in a player's colour.
         val sprites = boatSprites
         for (i in 0 until boatCount) if (sprites != null) drawBoatSprite(this, at, s, boats[i], sprites) else drawBoat(this, at, s, boats[i])
@@ -530,7 +565,7 @@ class Sea(board: Board, seed: Int = 1) {
         }
         drawCircle(Color.White.copy(alpha = 0.3f), 0.05f * s, at(b.x - cos(b.heading) * 0.2f, b.y + 0.19f))
         // Rolls gently on the swell and pitches a touch with its climb, pivoting at the waterline.
-        val roll = sin(time * 1.3f + b.phase * 2f) * 2.5f + sin(b.heading) * 6f * (if (right) 1f else -1f)
+        val roll = sin(time * 1.3f + b.phase * 2f) * 2.5f + sin(b.heading) * 2f * (if (right) 1f else -1f)
         val water = Offset(p.x, p.y + size * 0.22f)
         withTransform({ rotate(roll, water); if (!right) scale(-1f, 1f, p) }) {
             drawImage(img, dstOffset = IntOffset((p.x - size / 2).toInt(), (p.y - size * 0.7f + bob).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
@@ -590,7 +625,7 @@ class Sea(board: Board, seed: Int = 1) {
     }
 
     private fun drawWavelet(ds: DrawScope, at: (Float, Float) -> Offset, w: Wavelet) {
-        val a = waveletAlpha(w, time)
+        val a = waveletAlpha(w, time) * whitecapAlpha
         if (a < 0.01f) return
         val u = loop(w, time); val n = loopIndex(w, time)
         // Each loop it takes a slightly different angle and length; within a loop it lengthens and bends.
@@ -598,9 +633,9 @@ class Sea(board: Board, seed: Int = 1) {
         val px = cos(ang); val py = sin(ang)
         val nx = -py; val ny = px
         val swell = sin(PI.toFloat() * u)
-        val half = w.len / 2 * (0.6f + 0.4f * swell) * (1 + 0.25f * hop(w.id, n, 3))
+        val half = w.len * whitecapScale / 2 * (0.6f + 0.4f * swell) * (1 + 0.25f * hop(w.id, n, 3))
         val bow = w.len * (0.24f + 0.1f * sin(2 * PI.toFloat() * u + w.id))
-        val thick = maxOf(0.016f, w.len * if (w.big) 0.12f else 0.15f)
+        val thick = whitecapScale * maxOf(0.016f, w.len * if (w.big) 0.12f else 0.15f)
         val cx = waveletX(w, time); val cy = waveletY(w, time)
         // A slight hook: one end trails, so it reads as a brush stroke rather than a symmetric arc.
         val hook = w.len * 0.15f * hop(w.id, n, 4)
@@ -657,7 +692,6 @@ class Sea(board: Board, seed: Int = 1) {
             val lift = if (p.dy < 0) -sin(PI.toFloat() * t) * 0.15f else 0f
             drawCircle(Color(0xFFE8F7FF).copy(alpha = 1 - t), p.r * s, at(p.x + p.dx * t, p.y + p.dy * t * 0.4f + lift))
         }
-        val birdCount = (birds01 * birds.size).roundToInt()
         for (bi in 0 until birdCount) {
             val b = birds[bi]
             // A faint shadow on the water below, then the bird.
@@ -749,6 +783,9 @@ class Sea(board: Board, seed: Int = 1) {
     }
 
     companion object {
+        /** Quadratic density: fine low-end control, default at a quarter of the expanded pool. */
+        internal fun sceneryCount(value: Float, maximum: Int): Int =
+            (value.coerceIn(0f, 1f).pow(2) * maximum).roundToInt()
         private val SQRT3 = sqrt(3f)
         /** Inradius of a land hex (side 1). */
         private val HEX_IN = SQRT3 / 2
@@ -766,8 +803,9 @@ class Sea(board: Board, seed: Int = 1) {
         private const val WOBBLE = 0.45f
         /** Share of a cloud's speed into a bound that it keeps, reversed (soft bounce). Other cloud tunables: [CloudFeel]. */
         const val BOUNCE = 0.4f
-        /** Cruising sailboats at Boats = 100%. */
-        const val MAX_BOATS = 8
+        /** Cruising sailboats at Boats = 100% (four at the default). */
+        const val BOAT_TURN_RATE = 0.35f
+        const val MAX_BOATS = 16
         /** Wake trail points kept per boat (one every 0.2 s). */
         const val TRAIL = 14
         /** Boat lanes stay within this distance of the middle, where the sea is wide. */
@@ -775,8 +813,8 @@ class Sea(board: Board, seed: Int = 1) {
         /** Speed (units/s) at which a cloud left over the island floats back out to sea. */
         const val FLOAT_OUT = 0.45f
 
-        const val SMALL_WAVELETS = 330
-        const val BIG_WAVELETS = 30
+        const val SMALL_WAVELETS = 660
+        const val BIG_WAVELETS = 60
         /** How far a wavelet may hop from home between loops, and how far it drifts within one. */
         const val HOP = 0.09f
         const val DRIFT = 0.035f

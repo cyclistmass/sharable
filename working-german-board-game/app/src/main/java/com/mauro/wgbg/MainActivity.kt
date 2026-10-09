@@ -629,6 +629,13 @@ fun WatchGameScreen(
     var hudTopRight by remember { mutableStateOf<Offset?>(null) }
     var diceFlying by remember { mutableStateOf(false) }
     var diceSlots by remember { mutableStateOf<Pair<androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect>?>(null) }
+    var eventSlot by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    // The turn panel fits under the player list (taller in Age of Chivalry), so neither hides the dice.
+    var stripBottom by remember { mutableStateOf(0f) }
+    var screenHeight by remember { mutableStateOf(0f) }
+    val turnHudHeight = with(LocalDensity.current) {
+        if (screenHeight <= 0f) 210.dp else ((screenHeight - stripBottom).toDp() - 16.dp).coerceIn(110.dp, 210.dp)
+    }
     BackHandler { confirmExit = !confirmExit }
     // What the human may do right now (empty while bots move or in Watch mode).
     val legal = tick.let { if (me >= 0 && !inventory && !state.isOver && state.actingPlayer == me) Rules.legalActions(state) else emptyList() }
@@ -639,7 +646,7 @@ fun WatchGameScreen(
     val chestOpen = me >= 0 && !inventory && tick.let {
         (tradeOpen && tradeButtonVisible(state)) || tradeNeedsMe(state, me) || (tradeMode(state, me) == TradeMode.WAITING && state.currentPlayer == me)
     }
-    Box(modifier) {
+    Box(modifier.onGloballyPositioned { screenHeight = it.size.height.toFloat() }) {
       Box(Modifier.fillMaxSize()) { // the menu floats over the board, so the ocean always fills the screen
       Box(Modifier.fillMaxSize()) {
         // The board sits beside the player strip and turn panel (TurnHud is 360 dp wide, plus its 8 dp margins).
@@ -745,7 +752,7 @@ fun WatchGameScreen(
                 }
                 drawLayer(boardLayer)
                 drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER)
-                if (!targets.isEmpty) drawTargets(state.board, targets, camera, (kotlin.math.sin(seaTick / 9f) + 1f) / 2f)
+                if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me))
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
         }
@@ -765,14 +772,15 @@ fun WatchGameScreen(
             val rolled = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
             // While the trade chest is open it docks here, over the turn panel, so the board stays in view.
             if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
-                TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme)
+                TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme,
+                    eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight)
             }
-            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, onFlying = { diceFlying = it },
+            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
         // The game state is mutated in place, so these get `tick` to redraw after every move.
-        if (!inventory) PlayerStrip(state, me, names, tick, Modifier.align(Alignment.TopStart).padding(8.dp))
+        if (!inventory) PlayerStrip(state, me, names, tick, Modifier.align(Alignment.TopStart).padding(8.dp).onGloballyPositioned { stripBottom = it.boundsInParent().bottom })
         if (net != null && !inventory) onlineView?.let { v ->
             Column(Modifier.align(Alignment.TopCenter).padding(top = 52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 OnlineConnectionStatus(v)
@@ -886,36 +894,54 @@ fun WatchGameScreen(
 }
 
 /** Glowing rings where the human can build or move the bandit; [pulse] 0..1 breathes the glow. */
+/**
+ * Where you can build or move the bandit (Mauro: "larger, brighter, in the player's colour but a little lighter,
+ * blinking in a non-annoying way"). [glow] is the lightened player colour; [pulse] 0..1 is a slow breath: the
+ * marks never fade below 60% and swell a little, rather than flash. A thin dark outline keeps them readable on
+ * light tiles (and for White).
+ */
 private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, pulse: Float, glow: Color = Color(0xFFFFE08A)) {
     if (size.minDimension < 2f) return
     val l = Layout.fit(board, size.width, size.height, camera)
     if (!l.scale.isFinite() || l.scale <= 0f) return
-    val a = 0.55f + 0.4f * pulse
+    val a = 0.6f + 0.4f * pulse
+    val swell = 1f + 0.1f * pulse
+    val ink = Color(0xFF1A120B)
     for (v in t.vertices) {
         val p = vertexLattice(board, v)
         val c = l.project(p.x, p.y)
-        val r = 0.17f * l.scale * l.kAt(p.y)
-        drawCircle(glow.copy(alpha = 0.3f * a), r * 1.5f, c)
-        drawCircle(glow.copy(alpha = a), r, c, style = Stroke(r * 0.3f))
+        val r = 0.26f * l.scale * l.kAt(p.y) * swell
+        drawCircle(glow.copy(alpha = 0.32f * a), r * 1.6f, c)                       // soft halo
+        drawCircle(glow.copy(alpha = 0.55f + 0.35f * a), r, c)                       // lit centre
+        drawCircle(ink.copy(alpha = 0.55f), r, c, style = Stroke(r * 0.12f))         // outline
+        drawCircle(Color.White.copy(alpha = 0.7f * a), r * 0.82f, c, style = Stroke(r * 0.1f))
     }
     for (e in t.edges) {
         val ends = board.topology.edgeVertices[e]
         val p0 = vertexLattice(board, ends[0])
         val p1 = vertexLattice(board, ends[1])
-        val a0 = l.project(p0.x + (p1.x - p0.x) * 0.22f, p0.y + (p1.y - p0.y) * 0.22f)
-        val a1 = l.project(p1.x + (p0.x - p1.x) * 0.22f, p1.y + (p0.y - p1.y) * 0.22f)
-        val w = 0.11f * l.scale * l.kAt((p0.y + p1.y) / 2)
-        drawLine(glow.copy(alpha = 0.45f * a), a0, a1, w * 2.6f, StrokeCap.Round)
-        drawLine(glow.copy(alpha = 0.6f + 0.4f * a), a0, a1, w * 1.1f, StrokeCap.Round)
+        val a0 = l.project(p0.x + (p1.x - p0.x) * 0.2f, p0.y + (p1.y - p0.y) * 0.2f)
+        val a1 = l.project(p1.x + (p0.x - p1.x) * 0.2f, p1.y + (p0.y - p1.y) * 0.2f)
+        val w = 0.15f * l.scale * l.kAt((p0.y + p1.y) / 2) * swell
+        drawLine(glow.copy(alpha = 0.35f * a), a0, a1, w * 2.8f, StrokeCap.Round)    // soft halo
+        drawLine(ink.copy(alpha = 0.55f), a0, a1, w * 1.35f, StrokeCap.Round)        // outline
+        drawLine(glow.copy(alpha = 0.65f + 0.35f * a), a0, a1, w * 1.05f, StrokeCap.Round)
     }
     for (h in t.hexes) {
         val p = hexLattice(board, h)
         val c = l.project(p.x, p.y)
-        val r = 0.62f * l.scale * l.kAt(p.y)
-        drawCircle(glow.copy(alpha = 0.18f * a), r, c)
+        val r = 0.62f * l.scale * l.kAt(p.y) * swell
+        drawCircle(glow.copy(alpha = 0.22f * a), r, c)
+        drawCircle(ink.copy(alpha = 0.5f), r, c, style = Stroke(r * 0.1f))
         drawCircle(glow.copy(alpha = a), r, c, style = Stroke(r * 0.07f))
     }
 }
+
+/** Your build marks' colour: your player colour, lightened toward white. */
+internal fun targetGlow(player: Int): Color = PLAYER_COLORS[player.coerceIn(0, PLAYER_COLORS.size - 1)].let { lerp(it, Color.White, 0.45f) }
+
+/** The marks' slow breath, 0..1, one cycle every [period] seconds. */
+internal fun targetPulse(seconds: Float, period: Float = 1.8f): Float = (kotlin.math.sin(seconds * 2f * Math.PI.toFloat() / period) + 1f) / 2f
 
 /**
  * Board gestures: one finger pans, pinch zooms, and two fingers dragged up or down together
@@ -1230,15 +1256,29 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         else -> {}
     }
     fun over() {
-        // Age of Chivalry: the Raiders' ship sails its arc toward the island as the track advances (#2).
+        // Age of Chivalry: the Raiders' ship circles closer as the track advances (#37).
         // It bobs with the sea's clock, so it rides above the still board rather than inside it.
         val ckState = s.ck
         if (ckState != null && raiders != null) {
-            val (lx, ly) = raidersAt(ckState.barbarianPos, board, sea?.time ?: 0f)
-            val at = l.project(lx, ly)
-            val size = 1.15f * scale * l.kAt(ly)
-            drawImage(raiders, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
-                filterQuality = FilterQuality.Medium)
+            sea?.observeRaiders(ckState.barbarianPos, ckState.barbarianAttacks)
+            val clock = sea?.time ?: 0f
+            val track = sea?.raidersTrack ?: ckState.barbarianPos.toFloat()
+            val landR = sea?.landR ?: board.topology.vertexPos.maxOf { kotlin.math.hypot(it.x * sqrt(3f) / 2f, it.y / 2f) }
+            val pose = raidersPose(track, landR, clock)
+            val at = l.project(pose.x, pose.y)
+            val size = 1.15f * scale * l.kAt(pose.y)
+            val right = kotlin.math.cos(pose.heading) >= 0f
+            sea?.boatWake?.let { wake ->
+                val stern = l.project(pose.x - kotlin.math.cos(pose.heading) * 0.35f, pose.y - kotlin.math.sin(pose.heading) * 0.35f)
+                withTransform({ rotate(Math.toDegrees(pose.heading.toDouble()).toFloat(), stern) }) {
+                    drawImage(wake, dstOffset = IntOffset((stern.x - size * 0.6f).toInt(), (stern.y - size * 0.15f).toInt()),
+                        dstSize = IntSize((size * 0.7f).toInt(), (size * 0.3f).toInt()), alpha = 0.4f)
+                }
+            }
+            withTransform({ if (!right) scale(-1f, 1f, at) }) {
+                drawImage(raiders, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
+                    filterQuality = FilterQuality.Medium)
+            }
         }
         sea?.drawSky(this, toScreen, scale * l.kAt(0f))
     }
@@ -1590,19 +1630,25 @@ private fun DrawScope.drawCliffs(board: Board, l: Layout, cliffs: List<ImageBitm
     }
 }
 
-/**
- * Where the Raiders' ship sits (lattice) for track position [pos] 0..BARBARIAN_TRACK: far out to the
- * right at 0, curving in to just off the coast at the attack, bobbing gently with [time].
- */
-internal fun raidersAt(pos: Int, board: Board, time: Float): Pair<Float, Float> {
-    val landR = board.topology.vertexPos.maxOf { kotlin.math.hypot(it.x * sqrt(3f) / 2f, it.y / 2f) }
-    val f = (pos.coerceIn(0, wgbg.engine.CkPiece.BARBARIAN_TRACK) / wgbg.engine.CkPiece.BARBARIAN_TRACK.toFloat())
-    val r = landR + 0.9f + (1f - f) * 3.2f
-    val a = Math.toRadians(-18.0 + 30.0 * f).toFloat()   // out on the open sea to the right, clear of the HUD
-    val bob = kotlin.math.sin(time * 1.3f) * 0.03f
-    return (kotlin.math.cos(a) * r) to (kotlin.math.sin(a) * r + bob)
+/** Continuous sea-clock orbit, with track changes eased by Sea before drawing in OVER. */
+internal data class RaidersPose(val x: Float, val y: Float, val heading: Float)
+
+internal fun raidersPose(track: Float, landR: Float, time: Float): RaidersPose {
+    val f = (track / wgbg.engine.CkPiece.BARBARIAN_TRACK).coerceIn(0f, 1f)
+    val near = landR + 0.6f
+    // Compact enough to fit beside the panels, inside the open-sea bounds with sprite clearance.
+    val rx = near + (minOf(6.2f, Sea.OPEN_RX - 0.7f) - near) * (1f - f)
+    val ry = near + (Sea.OPEN_RY - 0.4f - near) * (1f - f)
+    val a = time * 0.025f
+    return RaidersPose(kotlin.math.cos(a) * rx, kotlin.math.sin(a) * ry,
+        kotlin.math.atan2(kotlin.math.cos(a) * ry, -kotlin.math.sin(a) * rx))
 }
 
+internal fun raidersAt(pos: Int, board: Board, time: Float): Pair<Float, Float> {
+    val landR = board.topology.vertexPos.maxOf { kotlin.math.hypot(it.x * sqrt(3f) / 2f, it.y / 2f) }
+    val p = raidersPose(pos.toFloat(), landR, time)
+    return p.x to p.y
+}
 /**
  * The report the turn panel shows: the tracker's current one if it belongs to whoever's turn it is,
  * otherwise a fresh header for the new turn (the tracker only opens it on that player's first move).

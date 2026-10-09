@@ -40,6 +40,12 @@ private val HUD_TEXT = Color(0xFFEDE6D8)
 fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PLAYER_NAMES, modifier: Modifier = Modifier,
             /** Reports where the two dice are (root coordinates), so thrown dice can fly to them. */
             onDiceSlots: ((androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect) -> Unit)? = null,
+            /** Age of Chivalry: where the event die rests (root coordinates). */
+            onEventSlot: ((androidx.compose.ui.geometry.Rect) -> Unit)? = null,
+            /** Age of Chivalry: the panel has a third pad for the event die. */
+            eventDie: Boolean = false,
+            /** The panel's height; shorter when the player list above needs the room (Age of Chivalry). */
+            height: androidx.compose.ui.unit.Dp = 210.dp,
             /** False while thrown dice are still in the air (the resting dice appear when they land). */
             showDice: Boolean = true,
             /** Dice set: false = Normal (carved red + ivory), true = Pirate (ship-timber + bone, dark brass pips). */
@@ -47,7 +53,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
     if (report == null) return
     // Fixed size, so the dice always sit in the same spot; longer turns scroll inside.
     Column(
-        modifier.size(width = 360.dp, height = 210.dp)
+        modifier.size(width = 360.dp, height = height)
             .brassEdgedWood()
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .verticalScroll(androidx.compose.foundation.rememberScrollState()),
@@ -59,6 +65,8 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
                 var r1 by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
                 Die3d(report.die1, red = true, pirate = pirate, pad = color, visible = showDice && report.rolled, modifier = Modifier.onGloballyPositioned { r1 = it.boundsInRoot() })
                 Die3d(report.die2, red = false, pirate = pirate, pad = color, visible = showDice && report.rolled, modifier = Modifier.onGloballyPositioned { c -> r1?.let { a -> onDiceSlots?.invoke(a, c.boundsInRoot()) } })
+                if (eventDie) EventDie3d(report.event, pad = color, visible = showDice && report.rolled && report.event >= 0,
+                    modifier = Modifier.onGloballyPositioned { onEventSlot?.invoke(it.boundsInRoot()) })
                 if (report.rolled && showDice) Text("= ${report.die1 + report.die2}", color = HUD_TEXT, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
             Text(if (names[report.player] == "You") "Your turn" else "${names[report.player]}'s turn", color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -141,6 +149,52 @@ private fun Die3d(value: Int, red: Boolean, pirate: Boolean, pad: Color, visible
         // The hand-made die (Codex art), square on the pad with the roll on top.
         drawImage(face, dstOffset = androidx.compose.ui.unit.IntOffset((size.width / 2 - side / 2).toInt(), (size.height / 2 - side / 2).toInt()),
             dstSize = androidx.compose.ui.unit.IntSize(side.toInt(), side.toInt()), filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium)
+    }
+}
+
+/** The Age of Chivalry event die resting on its pad: the Raiders' ship or a coloured gate. */
+@Composable
+private fun EventDie3d(face: Int, pad: Color, visible: Boolean, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(DIE_DP.dp)) {
+        val side = size.width * DIE_FACE_SHARE
+        val halo = DIE_HALO_DP.dp.toPx()
+        val padTopLeft = Offset(size.width / 2 - side / 2 - halo, size.height / 2 - side / 2 - halo)
+        val padSize = Size(side + 2 * halo, side + 2 * halo)
+        drawRoundRect(pad.copy(alpha = 0.85f), topLeft = padTopLeft, size = padSize, cornerRadius = CornerRadius(padSize.minDimension * 0.2f))
+        if (visible) drawEventFace(face, Offset(size.width / 2, size.height / 2), side)
+    }
+}
+
+/**
+ * The event die's face drawn in code (a stand-in until Codex's art, #48): an aged ivory cube with the
+ * Raiders' ship (faces 0-2) or a gate in its track's colour (3 trade yellow, 4 politics blue, 5 science green).
+ */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawEventFace(face: Int, c: Offset, side: Float) {
+    val tl = c - Offset(side / 2, side / 2)
+    val r = CornerRadius(side * 0.18f)
+    drawRoundRect(Color(0xFFE9DFC6), topLeft = tl, size = Size(side, side), cornerRadius = r)
+    drawRoundRect(Color(0xFF5A4630), topLeft = tl, size = Size(side, side), cornerRadius = r,
+        style = androidx.compose.ui.graphics.drawscope.Stroke(side * 0.05f))
+    val u = side / 10f
+    if (face in 0 until wgbg.engine.EventDie.SHIP_FACES) {
+        val ink = Color(0xFF2A1B10)
+        // Hull, mast and a square sail.
+        val hull = androidx.compose.ui.graphics.Path().apply {
+            moveTo(c.x - 3.6f * u, c.y + 1.2f * u); lineTo(c.x + 3.6f * u, c.y + 1.2f * u)
+            lineTo(c.x + 2.4f * u, c.y + 3f * u); lineTo(c.x - 2.4f * u, c.y + 3f * u); close()
+        }
+        drawPath(hull, ink)
+        drawLine(ink, Offset(c.x, c.y + 1.2f * u), Offset(c.x, c.y - 3.4f * u), u * 0.5f)
+        drawRect(Color(0xFF8C2F23), topLeft = Offset(c.x - 2.2f * u, c.y - 3f * u), size = Size(4.4f * u, 3.4f * u))
+    } else {
+        val gate = when (wgbg.engine.EventDie.gateTrack(face)) {
+            wgbg.engine.Track.TRADE -> Color(0xFFE0B23A); wgbg.engine.Track.POLITICS -> Color(0xFF3F7FD6); else -> Color(0xFF4CAF50)
+        }
+        // A city gate: two towers and an arch, in the track's colour.
+        drawRect(gate, topLeft = Offset(c.x - 3.4f * u, c.y - 3f * u), size = Size(6.8f * u, 6f * u))
+        drawArc(Color(0xFF2A1B10), 180f, 180f, true, topLeft = Offset(c.x - 1.6f * u, c.y - 0.6f * u), size = Size(3.2f * u, 3.2f * u))
+        drawRect(Color(0xFF2A1B10), topLeft = Offset(c.x - 1.6f * u, c.y + 1f * u), size = Size(3.2f * u, 2f * u))
+        for (x in listOf(-3.4f, -1.4f, 0.6f, 2.6f)) drawRect(gate, topLeft = Offset(c.x + x * u, c.y - 4f * u), size = Size(0.8f * u, 1f * u))
     }
 }
 
