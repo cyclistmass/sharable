@@ -156,14 +156,17 @@ def build(resource,style):
         if abs(x)*.577+abs(y)>.87 or x*x+y*y<.08: continue
         pebble((x,y,.015),(.035,.045,.025),rng.choice(rocks[:3]),style==2)
 
-for style in [1,2]:
-    for resource in ['timber','stone']:
-        s,cam=setup(); build(resource,style)
-        for name,tilt in [('flat',0),('mid',.48),('max',.96)]:
-            cam.location=(0,-8*math.sin(tilt),8*math.cos(tilt))
-            cam.rotation_euler=(Vector((0,0,0))-cam.location).to_track_quat('-Z','Y').to_euler()
-            path=OUT/f'{resource}_V{style}_{name}.png'; s.render.filepath=str(path)
-            start=time.monotonic(); bpy.ops.render.render(write_still=True)
-            timings.append(dict(file=path.name,seconds=round(time.monotonic()-start,2),tilt=tilt))
-            print('PALETTE_RENDER',timings[-1],flush=True)
-(OUT/'render-manifest.json').write_text(json.dumps(dict(blender=bpy.app.version_string,ortho_scale=ORTHO,radius=R,anchor=[256,256],renders=timings),indent=2))
+def main():
+    for style in [1,2]:
+        for resource in ['timber','stone']:
+            s,cam=setup(); build(resource,style)
+            for name,tilt in [('flat',0),('mid',.48),('max',.96)]:
+                cam.location=(0,-8*math.sin(tilt),8*math.cos(tilt))
+                cam.rotation_euler=(Vector((0,0,0))-cam.location).to_track_quat('-Z','Y').to_euler()
+                path=OUT/f'{resource}_V{style}_{name}.png'; s.render.filepath=str(path)
+                start=time.monotonic(); bpy.ops.render.render(write_still=True)
+                timings.append(dict(file=path.name,seconds=round(time.monotonic()-start,2),tilt=tilt))
+                print('PALETTE_RENDER',timings[-1],flush=True)
+    (OUT/'render-manifest.json').write_text(json.dumps(dict(blender=bpy.app.version_string,ortho_scale=ORTHO,radius=R,anchor=[256,256],renders=timings),indent=2))
+
+if __name__=='__main__': main()

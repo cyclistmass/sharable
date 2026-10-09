@@ -9,62 +9,62 @@
   "renders": [
     {
       "file": "timber_V1_flat.png",
-      "seconds": 2.19,
+      "seconds": 1.53,
       "tilt": 0
     },
     {
       "file": "timber_V1_mid.png",
-      "seconds": 1.81,
+      "seconds": 1.17,
       "tilt": 0.48
     },
     {
       "file": "timber_V1_max.png",
-      "seconds": 1.86,
+      "seconds": 1.09,
       "tilt": 0.96
     },
     {
       "file": "stone_V1_flat.png",
-      "seconds": 1.94,
+      "seconds": 1.14,
       "tilt": 0
     },
     {
       "file": "stone_V1_mid.png",
-      "seconds": 1.73,
+      "seconds": 1.09,
       "tilt": 0.48
     },
     {
       "file": "stone_V1_max.png",
-      "seconds": 1.7,
+      "seconds": 1.0,
       "tilt": 0.96
     },
     {
       "file": "timber_V2_flat.png",
-      "seconds": 2.08,
+      "seconds": 1.33,
       "tilt": 0
     },
     {
       "file": "timber_V2_mid.png",
-      "seconds": 1.97,
+      "seconds": 1.41,
       "tilt": 0.48
     },
     {
       "file": "timber_V2_max.png",
-      "seconds": 1.77,
+      "seconds": 1.19,
       "tilt": 0.96
     },
     {
       "file": "stone_V2_flat.png",
-      "seconds": 1.98,
+      "seconds": 1.22,
       "tilt": 0
     },
     {
       "file": "stone_V2_mid.png",
-      "seconds": 1.92,
+      "seconds": 1.2,
       "tilt": 0.48
     },
     {
       "file": "stone_V2_max.png",
-      "seconds": 1.69,
+      "seconds": 1.09,
       "tilt": 0.96
     }
   ]

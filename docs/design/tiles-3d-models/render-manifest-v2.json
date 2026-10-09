@@ -1,0 +1,235 @@
+{
+  "blender": "4.5.1 LTS",
+  "ortho_scale": 2.65,
+  "radius": 0.93,
+  "anchor": [
+    256,
+    256
+  ],
+  "period_seconds": 8,
+  "sheep_frames": 16,
+  "sheep_layer_size": 128,
+  "sheep_crop_origin": [
+    232,
+    232
+  ],
+  "renders": [
+    {
+      "file": "stone_V2_flat.png",
+      "seconds": 1.92,
+      "kind": "tile",
+      "terrain": "stone",
+      "tilt": 0
+    },
+    {
+      "file": "stone_V2_mid.png",
+      "seconds": 1.78,
+      "kind": "tile",
+      "terrain": "stone",
+      "tilt": 0.48
+    },
+    {
+      "file": "stone_V2_max.png",
+      "seconds": 1.59,
+      "kind": "tile",
+      "terrain": "stone",
+      "tilt": 0.96
+    },
+    {
+      "file": "fleece_V2_flat.png",
+      "seconds": 1.77,
+      "kind": "tile",
+      "terrain": "fleece",
+      "tilt": 0
+    },
+    {
+      "file": "fleece_V2_mid.png",
+      "seconds": 1.66,
+      "kind": "tile",
+      "terrain": "fleece",
+      "tilt": 0.48
+    },
+    {
+      "file": "fleece_V2_max.png",
+      "seconds": 1.44,
+      "kind": "tile",
+      "terrain": "fleece",
+      "tilt": 0.96
+    },
+    {
+      "file": "grain_V2_flat.png",
+      "seconds": 2.41,
+      "kind": "tile",
+      "terrain": "grain",
+      "tilt": 0
+    },
+    {
+      "file": "grain_V2_mid.png",
+      "seconds": 2.22,
+      "kind": "tile",
+      "terrain": "grain",
+      "tilt": 0.48
+    },
+    {
+      "file": "grain_V2_max.png",
+      "seconds": 1.86,
+      "kind": "tile",
+      "terrain": "grain",
+      "tilt": 0.96
+    },
+    {
+      "file": "clay_V2_flat.png",
+      "seconds": 1.75,
+      "kind": "tile",
+      "terrain": "clay",
+      "tilt": 0
+    },
+    {
+      "file": "clay_V2_mid.png",
+      "seconds": 1.67,
+      "kind": "tile",
+      "terrain": "clay",
+      "tilt": 0.48
+    },
+    {
+      "file": "clay_V2_max.png",
+      "seconds": 1.47,
+      "kind": "tile",
+      "terrain": "clay",
+      "tilt": 0.96
+    },
+    {
+      "file": "desert_V2_flat.png",
+      "seconds": 1.73,
+      "kind": "tile",
+      "terrain": "desert",
+      "tilt": 0
+    },
+    {
+      "file": "desert_V2_mid.png",
+      "seconds": 1.7,
+      "kind": "tile",
+      "terrain": "desert",
+      "tilt": 0.48
+    },
+    {
+      "file": "desert_V2_max.png",
+      "seconds": 1.53,
+      "kind": "tile",
+      "terrain": "desert",
+      "tilt": 0.96
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_00.png",
+      "seconds": 1.03,
+      "kind": "sheep-layer",
+      "frame": 0,
+      "phase": 0.0
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_01.png",
+      "seconds": 0.95,
+      "kind": "sheep-layer",
+      "frame": 1,
+      "phase": 0.39269908169872414
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_02.png",
+      "seconds": 0.94,
+      "kind": "sheep-layer",
+      "frame": 2,
+      "phase": 0.7853981633974483
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_03.png",
+      "seconds": 0.98,
+      "kind": "sheep-layer",
+      "frame": 3,
+      "phase": 1.1780972450961724
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_04.png",
+      "seconds": 1.02,
+      "kind": "sheep-layer",
+      "frame": 4,
+      "phase": 1.5707963267948966
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_05.png",
+      "seconds": 0.98,
+      "kind": "sheep-layer",
+      "frame": 5,
+      "phase": 1.9634954084936207
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_06.png",
+      "seconds": 0.95,
+      "kind": "sheep-layer",
+      "frame": 6,
+      "phase": 2.356194490192345
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_07.png",
+      "seconds": 0.95,
+      "kind": "sheep-layer",
+      "frame": 7,
+      "phase": 2.748893571891069
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_08.png",
+      "seconds": 0.95,
+      "kind": "sheep-layer",
+      "frame": 8,
+      "phase": 3.141592653589793
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_09.png",
+      "seconds": 0.95,
+      "kind": "sheep-layer",
+      "frame": 9,
+      "phase": 3.5342917352885173
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_10.png",
+      "seconds": 0.98,
+      "kind": "sheep-layer",
+      "frame": 10,
+      "phase": 3.9269908169872414
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_11.png",
+      "seconds": 0.95,
+      "kind": "sheep-layer",
+      "frame": 11,
+      "phase": 4.319689898685965
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_12.png",
+      "seconds": 0.95,
+      "kind": "sheep-layer",
+      "frame": 12,
+      "phase": 4.71238898038469
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_13.png",
+      "seconds": 1.0,
+      "kind": "sheep-layer",
+      "frame": 13,
+      "phase": 5.105088062083414
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_14.png",
+      "seconds": 1.0,
+      "kind": "sheep-layer",
+      "frame": 14,
+      "phase": 5.497787143782138
+    },
+    {
+      "file": "animation-layers\\fleece\\sheep_mid_15.png",
+      "seconds": 0.98,
+      "kind": "sheep-layer",
+      "frame": 15,
+      "phase": 5.890486225480862
+    }
+  ]
+}

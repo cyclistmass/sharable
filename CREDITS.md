@@ -7,11 +7,15 @@
   Converted to grayscale and stained per player at runtime.
 
 All other graphics are drawn procedurally in code.
-- Modelled Timber and Stone palette (`docs/design/tiles-3d-models/`): original procedural
-  Blender meshes and materials authored by Codex for Mauro. Trees, crags, thick hex bases,
-  logs and stones are built from scratch in `tools/blender/render_models.py`; contact sheet
-  and sprite neighbour mocks in `tools/blender/compose_palette.py`. No downloaded models,
-  third-party textures or generated-image assets. Palette only; not installed in the app.
+- Modelled tile palettes (`docs/design/tiles-3d-models/`): original procedural Blender
+  meshes/materials authored by Codex for Mauro. The approved V2 set covers Timber, Stone,
+  Fleece, Grain, Clay and Desert: connected ranges, trees, sheep, wheat, kiln, terraces,
+  dunes and thick hex bases. Sources: `tools/blender/render_models.py` and
+  `tools/blender/render_v2_set.py`. Sheep-only sprite phases are original Blender renders;
+  bird, mist, wheat wind, smoke and dust overlays are original procedural code in
+  `tools/blender/animate_v2.py`. Palette/mock composition: `compose_palette.py` and
+  `compose_v2_set.py` in the same directory. No downloaded models, third-party textures
+  or generated-image assets. Palette only; not installed in the app.
 - Tile relief faces (`relief_*.webp`) and comparison palette (`docs/design/tiles-3d/`):
   authored by Codex for Mauro from Mauro's existing owned tile paintings. The original
   procedural color-height brush relief bake is reproducible with `tools/art/tiles-3d.cjs`.
