@@ -487,8 +487,8 @@ fun WatchGameScreen(
                 "Knight level $lv", Modifier.size(width = 76.dp, height = 110.dp))
         }
         if (!inventory) {
-            val report = tick.let { if (speed == MAX_SPEED) tracker.last else tracker.current ?: tracker.last }
-            val previous = tick.let { if (speed == MAX_SPEED) null else tracker.last.takeIf { it !== report } }
+            val report = tick.let { if (speed == MAX_SPEED) tracker.last else turnHeader(tracker, state) }
+            val previous = tick.let { if (speed == MAX_SPEED) null else (if (report === tracker.current) tracker.last else tracker.current ?: tracker.last).takeIf { it !== report } }
             // The roll's dice roll across the turn HUD and rest on its top-right corner until the next roll.
             val rolled = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
             Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
@@ -1243,4 +1243,14 @@ internal fun raidersAt(pos: Int, board: Board, time: Float): Pair<Float, Float> 
     val a = Math.toRadians(-18.0 + 30.0 * f).toFloat()   // out on the open sea to the right, clear of the HUD
     val bob = kotlin.math.sin(time * 1.3f) * 0.03f
     return (kotlin.math.cos(a) * r) to (kotlin.math.sin(a) * r + bob)
+}
+
+/**
+ * The report the turn panel shows: the tracker's current one if it belongs to whoever's turn it is,
+ * otherwise a fresh header for the new turn (the tracker only opens it on that player's first move).
+ */
+internal fun turnHeader(tracker: TurnTracker, s: GameState): TurnReport? {
+    val cur = tracker.current
+    if (s.phase == wgbg.engine.Phase.BUILD_INITIAL_SETTLEMENT || s.phase == wgbg.engine.Phase.BUILD_INITIAL_ROAD || s.isOver) return cur ?: tracker.last
+    return if (cur != null && cur.player == s.currentPlayer && cur.turn == s.turn) cur else TurnReport(s.currentPlayer, s.turn)
 }
