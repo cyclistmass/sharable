@@ -117,7 +117,7 @@ fun GearButton(open: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier
     val turn by animateFloatAsState(if (open) 60f else 0f, label = "gear-turn")
     Image(
         painterResource(if (pressed) R.drawable.settings_gear_pressed else R.drawable.settings_gear), "Settings",
-        modifier.size(52.dp).rotate(turn).clickable(interactionSource = source, indication = null, onClick = onClick).testTag("gear"),
+        modifier.rotate(turn).clickable(interactionSource = source, indication = null, onClick = onClick).testTag("gear"),
     )
 }
 

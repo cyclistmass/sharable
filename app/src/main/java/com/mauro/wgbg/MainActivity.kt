@@ -508,7 +508,7 @@ fun WatchGameScreen(
         if (panelOpen) CompositionLocalProvider(LocalContentColor provides Color(0xFFEDE6D8)) {
             Column(
                 Modifier.align(Alignment.TopEnd).fillMaxHeight()
-                    .padding(top = 116.dp, end = 8.dp, bottom = 8.dp) // below the Menu button and the gear
+                    .padding(top = 60.dp, end = 8.dp, bottom = 8.dp)
                     .width(340.dp)
                     .brassEdgedWood()
                     .verticalScroll(rememberScrollState())
@@ -516,6 +516,8 @@ fun WatchGameScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    GearButton(settingsOpen, { settingsOpen = true; panelOpen = false }, Modifier.size(44.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text("Turn ${players.first().turn}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     // Small and out of the way; it asks before leaving.
                     Text("Exit", color = Color(0xFFFFB4A0), fontSize = 12.sp, fontWeight = FontWeight.Bold,
@@ -542,10 +544,9 @@ fun WatchGameScreen(
         }
       }
         BrassButton(if (panelOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) { panelOpen = !panelOpen }
-        // The gear sits directly under the Menu button; its panel opens below it.
-        GearButton(settingsOpen, { settingsOpen = !settingsOpen }, Modifier.align(Alignment.TopEnd).padding(top = 58.dp, end = 22.dp))
+        // Settings open from the gear inside the Menu, so the board stays clean.
         if (settingsOpen) SettingsPanel(env, sound, onClose = { settingsOpen = false },
-            Modifier.align(Alignment.TopEnd).padding(top = 116.dp, end = 8.dp))
+            Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp))
         if (confirmExit) Column(
             Modifier.align(Alignment.Center).brassEdgedWood().padding(18.dp).testTag("exit-confirm"),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -563,7 +564,7 @@ fun WatchGameScreen(
             open = tradeOpen || tradeNeedsMe(state, 0),
             attention = tick.let { tradeNeedsMe(state, 0) },
             onClick = { tradeOpen = !tradeOpen },
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (panelOpen || settingsOpen) 376.dp else 84.dp),
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (panelOpen || settingsOpen) 376.dp else 8.dp),
         )
     }
 }
