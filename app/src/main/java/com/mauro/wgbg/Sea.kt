@@ -404,7 +404,7 @@ class Sea(board: Board, seed: Int = 1) {
         if (ocean != null) drawOcean(this, ocean, c, s, squash, all, far) else drawPatches(this, c, s, squash, all)
         // Shallows hugging the coast: stacked translucent hex halos read as a soft gradient.
         for ((grow, alpha) in listOf(1.22f to 0.18f, 1.14f to 0.22f, 1.07f to 0.28f)) {
-            for (h in land) drawPath(hexPath(at, h, grow), SHALLOW.copy(alpha = alpha))
+            drawPath(coastPath(at, grow), SHALLOW.copy(alpha = alpha))
         }
         // Sun glints twinkling.
         val glintCount = (glints.size * waves01).toInt()
@@ -427,7 +427,7 @@ class Sea(board: Board, seed: Int = 1) {
             drawOval(Color.White.copy(alpha = 0.9f * (1 - t)), cc - Offset(rr, rr * 0.62f * squash), Size(2 * rr, 2 * rr * 0.62f * squash), style = Stroke(0.03f * s))
         }
         // Surf line on the coast (tiles cover its inner half).
-        for (h in land) drawPath(hexPath(at, h, 1.06f), Color.White.copy(alpha = 0.8f), style = Stroke(0.05f * s))
+        drawPath(coastPath(at, 1.06f), Color.White.copy(alpha = 0.8f), style = Stroke(0.05f * s))
     }
 
     /**
@@ -638,6 +638,20 @@ class Sea(board: Board, seed: Int = 1) {
                 r * u, p + Offset(dx * u, dy * u), alpha = fade)
             for ((dx, dy, r) in TOPS) drawCircle(Color.White.copy(alpha = fade), r * u, p + Offset(dx * u, dy * u))
         }
+    }
+
+    // The coast halos and surf line, one path per grow factor holding every land hex, rebuilt only
+    // when the projection moves (sampled at three lattice points) instead of 76 new paths a frame.
+    private val coastPaths = HashMap<Float, Path>()
+    private val coastKey = FloatArray(6)
+
+    private fun coastPath(at: (Float, Float) -> Offset, grow: Float): Path {
+        val o = at(0f, 0f); val x = at(1f, 0f); val y = at(0f, 1f)
+        if (o.x != coastKey[0] || o.y != coastKey[1] || x.x != coastKey[2] || x.y != coastKey[3] || y.x != coastKey[4] || y.y != coastKey[5]) {
+            coastPaths.clear()
+            coastKey[0] = o.x; coastKey[1] = o.y; coastKey[2] = x.x; coastKey[3] = x.y; coastKey[4] = y.x; coastKey[5] = y.y
+        }
+        return coastPaths.getOrPut(grow) { Path().apply { for (h in land) addPath(hexPath(at, h, grow)) } }
     }
 
     private fun hexPath(at: (Float, Float) -> Offset, c: Offset, grow: Float) = Path().apply {
