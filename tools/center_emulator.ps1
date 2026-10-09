@@ -1,8 +1,8 @@
 # Centers the running emulator window on the primary screen, landscape-sized, and keeps it there.
 # The emulator re-lays out its own window when the display rotates (e.g. when the app starts in
 # landscape), which can push it off screen after it was placed, so this re-checks and re-centers.
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File tools\center_emulator.ps1 [-Width 0.9]
-param([double]$Width = 0.9, [int]$Checks = 4)
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File tools\center_emulator.ps1 [-Port 5554] [-Width 0.9]
+param([int]$Port = 0, [double]$Width = 0.9, [int]$Checks = 4)
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type @'
@@ -21,7 +21,7 @@ public class EmuCenter {
 [EmuCenter]::SetProcessDPIAware() | Out-Null   # physical pixels (4K at 250% on this PC)
 
 $p = Get-Process qemu-system-x86_64 -ErrorAction SilentlyContinue |
-     Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -like "Android Emulator*" } | Select-Object -First 1
+     Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -like "Android Emulator*" -and ($Port -eq 0 -or $_.MainWindowTitle -like "*:$Port*") } | Select-Object -First 1
 if (-not $p) { throw "No emulator window. Start it with tools\emulator.ps1 first." }
 $h = $p.MainWindowHandle
 $wa = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
