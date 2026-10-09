@@ -12,7 +12,7 @@ export ANDROID_SERIAL="${ANDROID_SERIAL:-emulator-5554}"
 export ANDROID_SERIAL="${ANDROID_SERIAL:-emulator-5554}"
 
 "$A" shell am force-stop com.mauro.wgbg
-"$A" shell am start -n com.mauro.wgbg/.MainActivity >/dev/null
+"$A" shell am start --activity-clear-task -n com.mauro.wgbg/.MainActivity >/dev/null
 sleep 4
 
 # Taps the on-screen button whose text is $1 (found with uiautomator).

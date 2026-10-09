@@ -132,6 +132,7 @@ class MainActivity : ComponentActivity() {
     /** Debug builds only: start with a given view, e.g. `am start ... --ef zoom 2 --ef tilt 0.8` (for screenshots). */
     private fun debugCamera(): Camera {
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE == 0) return Camera.FIT
+        if (intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return Camera.FIT // stale extras from recents
         return Camera(intent.getFloatExtra("zoom", 1f).coerceIn(Camera.MIN_ZOOM, Camera.MAX_ZOOM), Offset.Zero,
             intent.getFloatExtra("tilt", 0f).coerceIn(0f, Camera.MAX_TILT))
     }
@@ -150,7 +151,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color.Black)) {
                 // Debug builds: `--es start chivalry|base` jumps straight into a game (CI monkey tests).
-                val debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+                // Debug extras only count for a fresh launch: Android relaunches a task from recents (even after a
+                // reboot) with its ORIGINAL intent, which once silently brought back autoplay in a hand-played game.
+                val fromHistory = intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+                val debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0 && !fromHistory
                 val start = if (debug) intent.getStringExtra("start") else null
                 // Debug builds: `--es firebase emu` plays online against the Firebase emulators on the dev PC.
                 val firebaseEmu = debug && intent.getStringExtra("firebase") == "emu"
@@ -532,10 +536,15 @@ fun WatchGameScreen(
             var v = views.receive()
             while (true) {
                 onlineView = v
-                if (v.actions.size < applied.size || v.actions.subList(0, applied.size) != applied) { epoch++; return@LaunchedEffect }
+                if (v.actions.size < applied.size || v.actions.subList(0, applied.size) != applied) {
+                    runCatching { android.util.Log.w("WGBG-MOVES", "${online.id} history changed at ${applied.size}: rebuilding") }
+                    epoch++; return@LaunchedEffect
+                }
                 var rolled = false
                 for (a in v.actions.subList(applied.size, v.actions.size)) {
                     val who = state.actingPlayer
+                    // Every phone logs the same move list; comparing two phones' logs pins down a desync.
+                    runCatching { android.util.Log.i("WGBG-MOVES", "${online.id} #${applied.size} p$who ${names[who]} ${a.type}:${a.payload}${if (applied.size > v.confirmedSeq) " (mine, unconfirmed)" else ""}") }
                     noteResponse(who, a)
                     tracker.apply(state, who, a) { Rules.apply(state, a) }
                     logMove(who, a)
@@ -823,6 +832,11 @@ fun WatchGameScreen(
             }
         }
       }
+        // Debug autoplay must never be invisible: a bot playing your seat looked like a desync in a playtest.
+        if (autoplay || autoSetup) Text(if (autoplay) "AUTOPLAY (debug): a bot plays your seat" else "AUTOSETUP (debug)",
+            color = Color(0xFFFFB4A0), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 14.dp, end = 120.dp).background(Color(0xCC2A1B10), RoundedCornerShape(8.dp))
+                .padding(horizontal = 8.dp, vertical = 3.dp).testTag("debug-badge"))
         BrassButton(if (panelOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) { panelOpen = !panelOpen }
         // Settings open from the gear inside the Menu, so the board stays clean.
         if (settingsOpen) SettingsPanel(env, sound, onClose = { settingsOpen = false },
