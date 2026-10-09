@@ -260,6 +260,7 @@ fun WatchGameScreen(
     LaunchedEffect(sea) { // the sea keeps moving even when the game is paused
         var last = 0L
         while (true) withFrameNanos { now ->
+            sea.clouds01 = env.clouds; sea.birds01 = env.birds; sea.boats01 = env.boats; sea.waves01 = env.waves
             if (last != 0L) sea.update(((now - last) / 1e9f).coerceAtMost(0.05f))
             last = now
             seaTick++
@@ -836,7 +837,8 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         val ps = scale * (l.k(p.v1) + l.k(p.v2)) / 2f
         PortGeom(p.type, a, b, mid, n, mid + Offset(n.x, n.y * l.squash) * (0.58f * ps), ps)
     }
-    for (pg in ports) drawPortWater(pg, pg.scale, l.squash)
+    // Boats slider: a share of the harbours get their little sailboat.
+    for ((i, pg) in ports.withIndex()) drawPortWater(pg, pg.scale, l.squash, showBoat = (i * 0.618f) % 1f < (sea?.boats01 ?: 1f))
     for (pg in ports) drawPortPiersAndToken(pg, pg.scale, measurer, wood)
 
     // Roads.
@@ -965,7 +967,7 @@ private class PortGeom(val type: Int, val a: Offset, val b: Offset, val mid: Off
 
 private val WATER = Color(0xFF4FA3D9)
 
-private fun DrawScope.drawPortWater(pg: PortGeom, scale: Float, squash: Float = 1f) {
+private fun DrawScope.drawPortWater(pg: PortGeom, scale: Float, squash: Float = 1f, showBoat: Boolean = true) {
     val c = pg.mid + Offset(pg.out.x, pg.out.y * squash) * (0.5f * scale)
     // The water lies flat on the table, so tilting squashes it.
     // Harbor shallows: a soft lighter patch on the sea rather than a separate pond.
@@ -981,6 +983,7 @@ private fun DrawScope.drawPortWater(pg: PortGeom, scale: Float, squash: Float = 
     }
     drawPath(waves, Color.White.copy(alpha = 0.8f), style = Stroke(0.018f * scale, cap = StrokeCap.Round))
     // A little sailboat off to the side.
+    if (!showBoat) return
     val perp = Offset(-pg.out.y, pg.out.x)
     val boat = pg.mid + pg.out * (0.62f * scale) + perp * (0.42f * scale)
     val u = 0.09f * scale

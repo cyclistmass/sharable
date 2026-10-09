@@ -1,6 +1,10 @@
 package com.mauro.wgbg
 
 import android.content.Context
+import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,65 +36,60 @@ class PrefsStore(context: Context) : FloatStore {
 }
 
 /**
- * Environmental Density (how many decorations: clouds, birds, boats, whitecaps, water effects)
- * and Environmental Motion (how strongly passive things move: waves, drift, bobbing, wind).
- * Both run 0..1, are independent of each other and of the game, and persist across restarts.
+ * Scenery amounts, each 0..1 and saved across restarts: how many clouds, birds and harbour
+ * boats show, and how busy the waves are. Pure decoration; the game never reads them.
  */
 class EnvSettings(private val store: FloatStore) {
-    private var d by mutableFloatStateOf(store.get(DENSITY, DEFAULT_DENSITY).coerceIn(0f, 1f))
-    private var m by mutableFloatStateOf(store.get(MOTION, DEFAULT_MOTION).coerceIn(0f, 1f))
+    enum class Item(val label: String, val key: String) {
+        CLOUDS("Clouds", "env-clouds"), BIRDS("Birds", "env-birds"), BOATS("Boats", "env-boats"), WAVES("Waves", "env-waves")
+    }
+
+    private val values = Item.entries.associateWith { mutableFloatStateOf(store.get(it.key, DEFAULT).coerceIn(0f, 1f)) }
+
+    operator fun get(item: Item): Float = values.getValue(item).floatValue
 
     /** Clamped to 0..1 and saved on every change. */
-    var density: Float
-        get() = d
-        set(v) { d = v.coerceIn(0f, 1f); store.put(DENSITY, d) }
-    var motion: Float
-        get() = m
-        set(v) { m = v.coerceIn(0f, 1f); store.put(MOTION, m) }
+    operator fun set(item: Item, v: Float) {
+        val c = v.coerceIn(0f, 1f)
+        values.getValue(item).floatValue = c
+        store.put(item.key, c)
+    }
 
-    /** The preset the density matches, if any. */
-    val preset: Preset? get() = Preset.entries.firstOrNull { kotlin.math.abs(it.density - density) < 0.005f }
-
-    enum class Preset(val label: String, val density: Float) { MINIMAL("Minimal", 0.20f), BALANCED("Balanced", 0.45f), RICH("Rich", 0.85f) }
+    val clouds get() = this[Item.CLOUDS]
+    val birds get() = this[Item.BIRDS]
+    val boats get() = this[Item.BOATS]
+    val waves get() = this[Item.WAVES]
 
     companion object {
-        const val DENSITY = "env-density"
-        const val MOTION = "env-motion"
-        const val DEFAULT_DENSITY = 0.45f
-        const val DEFAULT_MOTION = 0.50f
+        const val DEFAULT = 0.5f
     }
 }
 
-/** Sliders and presets for the menu panel. */
+/** Scenery in the menu: a header with a ^ that opens and closes four sliders. */
 @Composable
 fun EnvControls(env: EnvSettings) {
+    var open by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Scenery", fontSize = 13.sp)
-            for (p in EnvSettings.Preset.entries)
-                Choice(p.label, selected = env.preset == p, tag = "preset-${p.name}", modifier = Modifier.height(34.dp), size = 12.sp) { env.density = p.density }
+        Row(
+            Modifier.clickable { open = !open }.testTag("scenery-toggle").height(36.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Scenery", fontSize = 14.sp)
+            // ^ points up when the sliders are open (tap to close), down when closed.
+            Text(if (open) "^" else "v", fontSize = 18.sp, color = Color(0xFFD9B865), modifier = Modifier.width(24.dp))
         }
-        Labeled("Density ${(env.density * 100).roundToInt()}%") {
-            Slider(env.density, { env.density = it }, Modifier.width(200.dp).testTag("env-density"), colors = brassSlider())
+        if (open) for (item in EnvSettings.Item.entries) Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${item.label} ${(env[item] * 100).roundToInt()}%", fontSize = 12.sp, modifier = Modifier.width(96.dp))
+            Slider(env[item], { env[item] = it }, Modifier.width(200.dp).testTag("env-${item.name.lowercase()}"), colors = brassSlider())
         }
-        Labeled("Motion ${(env.motion * 100).roundToInt()}%") {
-            Slider(env.motion, { env.motion = it }, Modifier.width(200.dp).testTag("env-motion"), colors = brassSlider())
-        }
-    }
-}
-
-@Composable
-private fun Labeled(label: String, content: @Composable () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 12.sp, modifier = Modifier.width(96.dp))
-        content()
     }
 }
 
 /** Sliders in the motif: brass thumb and track over dark wood. */
 @Composable
 private fun brassSlider() = androidx.compose.material3.SliderDefaults.colors(
-    thumbColor = androidx.compose.ui.graphics.Color(0xFFD9B865),
-    activeTrackColor = androidx.compose.ui.graphics.Color(0xFFC9A04A),
-    inactiveTrackColor = androidx.compose.ui.graphics.Color(0xFF3A2414),
+    thumbColor = Color(0xFFD9B865),
+    activeTrackColor = Color(0xFFC9A04A),
+    inactiveTrackColor = Color(0xFF3A2414),
 )

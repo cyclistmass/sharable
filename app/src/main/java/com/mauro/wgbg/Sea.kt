@@ -24,6 +24,7 @@ import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.sin
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -168,7 +169,16 @@ class Sea(board: Board, seed: Int = 1) {
     private val drops = ArrayList<Puff>()
     private val rings = ArrayList<Ring>()
     val clouds = ArrayList<Cloud>()
-    private val gulls = List(3) { i -> Gull(rnd.nextFloat() * 2 * PI.toFloat(), landR + 0.4f + 0.18f * i, (0.04f + 0.017f * i) * if (i % 2 == 1) -1 else 1, rnd.nextFloat() * 6) }
+    /** Scenery amounts, 0..1 (from the menu's sliders): clouds, birds, harbour boats and waves. */
+    var clouds01 = 0.5f
+    var birds01 = 0.5f
+    var boats01 = 0.5f
+    var waves01 = 0.5f
+    /** How fast passive things move (waves, glints, drift, gulls); 0.5 is normal. */
+    var motion = 0.5f
+    /** Clouds wanted on the sea: none at 0, up to 8. */
+    val cloudTarget get() = (clouds01 * 8f).roundToInt().coerceIn(0, 8)
+    private val gulls = List(8) { i -> Gull(rnd.nextFloat() * 2 * PI.toFloat(), landR + 0.4f + 0.45f * i, (0.04f + 0.006f * i) * if (i % 2 == 1) -1 else 1, rnd.nextFloat() * 6) }
     private val glints = List(160) { val (x, y) = seaPoint(0.2f); floatArrayOf(x, y, rnd.nextFloat() * 6f, 0.6f + rnd.nextFloat()) }
     internal var time = 0f
         private set
@@ -179,7 +189,7 @@ class Sea(board: Board, seed: Int = 1) {
     private val patchMatrix = Matrix()
     private val crescent = Path()
 
-    init { repeat(4) { clouds += newCloud() } }
+    init { repeat(4) { clouds += newCloud() } } // 4 = the default cloud amount (0.5 of 8)
 
     /** A random point on the open sea at least [margin] from the coast and the screen edge. */
     private fun seaPoint(margin: Float): Pair<Float, Float> {
@@ -199,12 +209,15 @@ class Sea(board: Board, seed: Int = 1) {
 
     /** Advances the animation by [dt] seconds. */
     fun update(dt: Float) {
-        time += dt
+        // Passive animation (waves, glints, drift, gulls) runs faster or slower with the Motion setting;
+        // touch physics on clouds uses real time and is unaffected.
+        val pdt = dt * (0.25f + 1.5f * motion)
+        time += pdt
         for (p in drops) p.age += dt
         drops.removeAll { it.age > it.life }
         for (r in rings) r.age += dt
         rings.removeAll { it.age - it.delay > 1.3f }
-        for (g in gulls) { g.a += g.speed * dt; g.phase += dt * 3 }
+        for (g in gulls) { g.a += g.speed * pdt; g.phase += pdt * 3 }
         for (c in clouds) {
             if (c.poof >= 0) { c.poof += dt; continue }
             c.wobble = (c.wobble - dt).coerceAtLeast(0f)
@@ -215,7 +228,7 @@ class Sea(board: Board, seed: Int = 1) {
                 keepOnSea(c)
                 continue
             }
-            val a = atan2(c.y, c.x) + c.drift * dt
+            val a = atan2(c.y, c.x) + c.drift * pdt
             val d = hypot(c.x, c.y)
             c.x = cos(a) * d; c.y = sin(a) * d
             // Momentum from a tap, nudge or flick: carries on, slows smoothly to rest, bounces softly off the bounds.
@@ -227,10 +240,12 @@ class Sea(board: Board, seed: Int = 1) {
             }
             keepOnSea(c)
         }
-        // A poofed cloud is replaced a few seconds later somewhere else on the sea.
-        val gone = clouds.count { it.poof > 3.5f }
+        // A poofed cloud is replaced a few seconds later somewhere else on the sea; the count follows
+        // the density setting (extra clouds drift off by fading, missing ones drift in).
         clouds.removeAll { it.poof > 3.5f }
-        repeat(gone) { clouds += newCloud() }
+        val live = clouds.count { it.poof < 0 }
+        if (live > cloudTarget) clouds.lastOrNull { it.poof < 0 && !it.dragging }?.let { it.poof = 0f }
+        else if (clouds.count { it.poof < 0 } < cloudTarget && clouds.size < cloudTarget + 2) clouds += newCloud()
     }
 
     /** True if [p] (lattice) is on open water. */
@@ -345,11 +360,14 @@ class Sea(board: Board, seed: Int = 1) {
             for (h in land) drawPath(hexPath(at, h, grow), SHALLOW.copy(alpha = alpha))
         }
         // Sun glints twinkling.
-        for (g in glints) {
+        val glintCount = (glints.size * waves01).toInt()
+        for (i in 0 until glintCount) {
+            val g = glints[i]
             val a = (sin(time * g[3] + g[2]) * 0.5f + 0.5f)
             if (a > 0.55f) drawCircle(Color.White.copy(alpha = (a - 0.55f) * 1.4f), 0.018f * s, at(g[0], g[1]))
         }
-        for (w in wavelets) drawWavelet(this, at, w)
+        // Waves slider: how many wavelets and whitecaps show (none at 0; the water's colour and texture stay).
+        for (w in wavelets) if ((w.id * 0.618f) % 1f < waves01) drawWavelet(this, at, w)
         for (b in breaks) drawBreak(this, at, s, b)
         for (r in rings) {
             val t = ((r.age - r.delay) / 1.2f).coerceIn(0f, 1f)
@@ -461,7 +479,9 @@ class Sea(board: Board, seed: Int = 1) {
             val lift = if (p.dy < 0) -sin(PI.toFloat() * t) * 0.15f else 0f
             drawCircle(Color(0xFFE8F7FF).copy(alpha = 1 - t), p.r * s, at(p.x + p.dx * t, p.y + p.dy * t * 0.4f + lift))
         }
-        for (g in gulls) {
+        val gullCount = (birds01 * gulls.size).roundToInt()
+        for (gi in 0 until gullCount) {
+            val g = gulls[gi]
             val p = at(cos(g.a) * g.r, sin(g.a) * g.r)
             val flap = (0.55f + 0.45f * sin(g.phase)) * 0.06f * s
             val w = 0.11f * s

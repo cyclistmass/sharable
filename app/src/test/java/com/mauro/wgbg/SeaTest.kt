@@ -136,8 +136,20 @@ class SeaTest {
             if (i % 50 == 0) sea.clouds.firstOrNull { it.poof < 0 }?.let(sea::poof)
             sea.update(dt)
         }
-        assertEquals(4, sea.clouds.size)
+        // A poofed cloud fades while its replacement drifts in, so allow one or two on their way out.
+        assertTrue(sea.clouds.count { it.poof < 0 } in sea.cloudTarget - 1..sea.cloudTarget, "live clouds ${sea.clouds.count { it.poof < 0 }}")
+        assertTrue(sea.clouds.size <= sea.cloudTarget + 2)
         for (c in sea.clouds) assertTrue(c.x.isFinite() && c.y.isFinite())
+    }
+
+    @Test
+    fun `the Clouds slider sets how many clouds are on the sea, fading extras out`() {
+        val sea = Sea(board)
+        for ((amount, want) in listOf(0f to 0, 1f to 8, 0.25f to 2)) {
+            sea.clouds01 = amount
+            repeat(60 * 8) { sea.update(dt) }               // 8 s to settle
+            assertEquals(want, sea.clouds.count { it.poof < 0 }, "at $amount")
+        }
     }
 
     @Test

@@ -110,7 +110,7 @@ fun Modifier.brassEdgedWood(edge: Dp = 5.dp): Modifier {
     val brass = rememberTexture(R.drawable.old_brass, 200.dp)
     return shadow(8.dp, RectangleShapeCompat).drawBehind {
         drawRect(wood)
-        drawRect(Brush.verticalGradient(listOf(Color(0x80462814), Color(0xBD1A0F07))))
+        drawRect(Brush.verticalGradient(listOf(Color(0xC22E1A0C), Color(0xE6120A04))))
         val e = edge.toPx()
         // The brass frame, then a bevel: light on the outer top-left, dark on the inner edge.
         drawRect(brass, Offset(e / 2, e / 2), Size(size.width - e, size.height - e), style = Stroke(e))
