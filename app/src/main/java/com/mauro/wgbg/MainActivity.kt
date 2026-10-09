@@ -359,6 +359,7 @@ fun WatchGameScreen(
     }
     var panelOpen by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(false) }
     var hudTopRight by remember { mutableStateOf<Offset?>(null) }
     BackHandler { confirmExit = !confirmExit }
     // What the human may do right now (empty while bots move or in Watch mode).
@@ -526,8 +527,6 @@ fun WatchGameScreen(
                         diceSetting = (diceSetting + 1) % 5
                     }
                 }
-                EnvControls(env)
-                SoundControls(sound)
                 PlayerPanel(players)
                 Text("Wins: " + names.indices.joinToString("  ") { "${names[it]} ${wins[it]}" } + "  · draws ${wins[4]}",
                     style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
@@ -536,6 +535,10 @@ fun WatchGameScreen(
         }
       }
         BrassButton(if (panelOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) { panelOpen = !panelOpen }
+        // The gear: every setting in one panel, left of the Menu button.
+        GearButton(settingsOpen, { settingsOpen = !settingsOpen }, Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 108.dp))
+        if (settingsOpen) SettingsPanel(env, sound, onClose = { settingsOpen = false },
+            Modifier.align(Alignment.TopEnd).padding(top = 64.dp, end = 8.dp))
         if (confirmExit) Column(
             Modifier.align(Alignment.Center).brassEdgedWood().padding(18.dp).testTag("exit-confirm"),
             horizontalAlignment = Alignment.CenterHorizontally,

@@ -27,3 +27,4 @@ All other graphics are drawn procedurally in code.
 - ZXing core (https://github.com/zxing/zxing), Apache License 2.0: draws the lobby's invite QR code.
 - Painted ocean tile (`res/drawable-nodpi/ocean_tile.webp`): made by Mauro DiBenedetto with ChatGPT
   image generation (seamless top-down ocean texture).
+- Settings gear icon (`res/drawable-nodpi/settings_gear*.webp`): made by Mauro DiBenedetto with ChatGPT.

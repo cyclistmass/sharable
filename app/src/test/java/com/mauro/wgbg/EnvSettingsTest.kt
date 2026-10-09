@@ -45,4 +45,16 @@ class EnvSettingsTest {
         assertEquals(0.2f, again.musicVolume)
         assertEquals(1f, again.soundVolume)
     }
+
+    @Test
+    fun `reset puts every setting back to its default`() {
+        val store = MapStore()
+        val env = EnvSettings(store).apply { this[Item.CLOUDS] = 1f; this[Item.WAVES] = 0f }
+        val sound = SoundSettings(store).apply { musicVolume = 0f; soundVolume = 0.1f }
+        env.reset(); sound.reset()
+        for (i in Item.entries) assertEquals(EnvSettings.DEFAULT, env[i])
+        assertEquals(SoundSettings.DEFAULT_MUSIC, sound.musicVolume)
+        assertEquals(SoundSettings.DEFAULT_SOUNDS, sound.soundVolume)
+        assertEquals(EnvSettings.DEFAULT, EnvSettings(store).clouds, "and the reset is saved")
+    }
 }
