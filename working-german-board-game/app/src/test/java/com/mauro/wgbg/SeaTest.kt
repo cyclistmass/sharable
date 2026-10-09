@@ -345,4 +345,17 @@ class SeaTest {
         sea.boats01 = 0f
         assertEquals(0, sea.boatCount)
     }
+
+    @Test
+    fun `boats never flip-flop, at most one turn every few seconds`() {
+        val sea = Sea(board)
+        sea.boats01 = 1f
+        val last = sea.boats.map { kotlin.math.cos(it.heading) >= 0f }.toMutableList()
+        val turns = IntArray(sea.boats.size)
+        repeat(60 * 120) {
+            sea.update(dt)
+            sea.boats.forEachIndexed { i, b -> val r = kotlin.math.cos(b.heading) >= 0f; if (r != last[i]) { turns[i]++; last[i] = r } }
+        }
+        for (n in turns) assertTrue(n < 25, "a boat turned $n times in 2 minutes")
+    }
 }
