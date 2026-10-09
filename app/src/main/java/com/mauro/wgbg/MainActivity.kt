@@ -90,6 +90,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.layer.CompositingStrategy
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -421,8 +422,11 @@ fun WatchGameScreen(
         val resources = LocalContext.current.resources
         val wood = remember { WoodPieces(resources, PLAYER_COLORS + TOKEN_WOOD) }
         // The board's still parts are recorded once and replayed every sea frame (see BoardPart).
-        val boardLayer = rememberGraphicsLayer()
+        // Offscreen: the GPU keeps each layer's finished pixels, so an unchanged layer costs one image copy.
+        val boardLayer = rememberGraphicsLayer().apply { compositingStrategy = CompositingStrategy.Offscreen }
         val boardLayerKey = remember { arrayOfNulls<BoardLayerKey>(1) }
+        val waterLayer = rememberGraphicsLayer().apply { compositingStrategy = CompositingStrategy.Offscreen }
+        val waterLayerKey = remember { arrayOfNulls<WaterLayerKey>(1) }
         Canvas(
             Modifier.fillMaxSize()
                 .clipToBounds() // never draw the board under the side panel
@@ -494,6 +498,14 @@ fun WatchGameScreen(
             if (!inventory) seaTick // and on every sea frame (the Inventory screen holds still)
             if (inventory) drawInventory(measurer, wood) else {
                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
+                val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
+                val layerSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt())
+                val waterKey = WaterLayerKey(camera, size, (sea.time * 6f).toInt())
+                if (waterLayerKey[0] != waterKey) {
+                    waterLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.WATER) }
+                    waterLayerKey[0] = waterKey
+                }
+                drawLayer(waterLayer)
                 drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.UNDER)
                 // Re-record the still board only when something on it can have changed: a move, the
                 // camera, the canvas size or a look setting. Otherwise the last recording is replayed.
@@ -501,8 +513,7 @@ fun WatchGameScreen(
                 if (boardLayerKey[0] != key) {
                     // The explicit-density overload gives the layer its own draw scope; recording through
                     // this Canvas's scope makes the two scopes ask each other for density forever.
-                    boardLayer.record(androidx.compose.ui.unit.Density(density, fontScale), layoutDirection,
-                        androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt())) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL) }
+                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL) }
                     boardLayerKey[0] = key
                 }
                 drawLayer(boardLayer)
@@ -913,13 +924,17 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
 }
 
 /**
- * The board is drawn in three passes so its still parts needn't be redrawn on every sea frame:
- * [UNDER] the moving water, [STILL] everything that only changes with a move, the camera or a
- * setting (wood, cliffs, tiles, numbers, ports, roads and pieces), recorded once into a layer and
- * replayed, then [OVER] the things that move on their own (the Raiders' ship, birds and clouds).
- * [ALL] draws the lot in one go.
+ * The board is drawn in passes so its slow parts needn't be repainted on every sea frame:
+ * [WATER] the painted sea, which only drifts a few px a second (cached, refreshed ~6 times a second),
+ * [UNDER] what moves on the water every frame (glints, wavelets, boats, splashes), [STILL] everything
+ * that only changes with a move, the camera or a setting (wood, cliffs, tiles, numbers, ports, roads
+ * and pieces, cached), then [OVER] the things that move on their own (the Raiders' ship, birds and
+ * clouds). [ALL] draws the lot in one go.
  */
-internal enum class BoardPart { UNDER, STILL, OVER, ALL }
+internal enum class BoardPart { WATER, UNDER, STILL, OVER, ALL }
+
+/** What the cached [BoardPart.WATER] layer depends on: the camera, the size, and the sea's clock in 1/6 s steps. */
+private data class WaterLayerKey(val camera: Camera, val size: Size, val step: Int)
 
 /** Everything the [BoardPart.STILL] recording depends on; when it changes the layer is re-recorded. */
 private data class BoardLayerKey(
@@ -938,7 +953,12 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     val lift = 1f + 1.2f * kotlin.math.sin(l.tilt)
     val stand = 1f + 0.15f * kotlin.math.sin(l.tilt)
     val toScreen = { x: Float, y: Float -> l.project(x, y) }
-    if (part == BoardPart.UNDER || part == BoardPart.ALL) sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX))
+    when (part) {
+        BoardPart.WATER -> { sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX), Sea.WaterPart.BASE); return }
+        BoardPart.UNDER -> sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX), Sea.WaterPart.LIVE)
+        BoardPart.ALL -> sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX))
+        else -> {}
+    }
     fun over() {
         // Age of Chivalry: the Raiders' ship sails its arc toward the island as the track advances (#2).
         // It bobs with the sea's clock, so it rides above the still board rather than inside it.

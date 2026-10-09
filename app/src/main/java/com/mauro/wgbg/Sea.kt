@@ -388,23 +388,35 @@ class Sea(board: Board, seed: Int = 1) {
 
     // ------------------------------------------------------------------ drawing
 
-    /** Water, waves, surf and splashes: drawn before the tiles. [at] maps lattice to screen; [s] is px per side. */
-    fun drawWater(ds: DrawScope, at: (Float, Float) -> Offset, s: Float, squash: Float, woodBrush: Brush) = with(ds) {
-        val c = at(0f, 0f)
-        // The ocean fills the whole screen (no frame); deeper toward the edges.
-        val far = maxOf(hypot(c.x, c.y), hypot(size.width - c.x, c.y), hypot(c.x, size.height - c.y), hypot(size.width - c.x, size.height - c.y))
-            .coerceAtLeast(1f)
-        val f = { r: Float -> (r * s / far).coerceIn(0.01f, 0.99f) }
-        val all = Rect(Offset.Zero, size)
-        drawRect(Brush.radialGradient(
-            0.0f to DEEP_SHORE, f(SEA_R * 0.72f) to DEEP_SHORE, f(SEA_R) to DEEP_MID, 1f to DEEP_RIM,
-            center = c, radius = far,
-        ), all.topLeft, all.size)
-        val ocean = oceanBitmap
-        if (ocean != null) drawOcean(this, ocean, c, s, squash, all, far) else drawPatches(this, c, s, squash, all)
-        // Shallows hugging the coast: stacked translucent hex halos read as a soft gradient.
-        for ((grow, alpha) in listOf(1.22f to 0.18f, 1.14f to 0.22f, 1.07f to 0.28f)) {
-            drawPath(coastPath(at, grow), SHALLOW.copy(alpha = alpha))
+    /** Which part of the water [drawWater] paints: the slow painted base can be cached; the rest moves every frame. */
+    enum class WaterPart { BASE, LIVE, ALL }
+
+    /**
+     * Water, waves, surf and splashes: drawn before the tiles. [at] maps lattice to screen; [s] is px per side.
+     * BASE is the painted sea (gradient, drifting ocean texture, shallows, surf line), which only drifts a few
+     * px a second, so the board caches it; LIVE is what moves every frame (glints, wavelets, boats, splashes).
+     */
+    fun drawWater(ds: DrawScope, at: (Float, Float) -> Offset, s: Float, squash: Float, woodBrush: Brush, part: WaterPart = WaterPart.ALL) = with(ds) {
+        if (part != WaterPart.LIVE) {
+            val c = at(0f, 0f)
+            // The ocean fills the whole screen (no frame); deeper toward the edges.
+            val far = maxOf(hypot(c.x, c.y), hypot(size.width - c.x, c.y), hypot(c.x, size.height - c.y), hypot(size.width - c.x, size.height - c.y))
+                .coerceAtLeast(1f)
+            val f = { r: Float -> (r * s / far).coerceIn(0.01f, 0.99f) }
+            val all = Rect(Offset.Zero, size)
+            drawRect(Brush.radialGradient(
+                0.0f to DEEP_SHORE, f(SEA_R * 0.72f) to DEEP_SHORE, f(SEA_R) to DEEP_MID, 1f to DEEP_RIM,
+                center = c, radius = far,
+            ), all.topLeft, all.size)
+            val ocean = oceanBitmap
+            if (ocean != null) drawOcean(this, ocean, c, s, squash, all, far) else drawPatches(this, c, s, squash, all)
+            // Shallows hugging the coast: stacked translucent hex halos read as a soft gradient.
+            for ((grow, alpha) in listOf(1.22f to 0.18f, 1.14f to 0.22f, 1.07f to 0.28f)) {
+                drawPath(coastPath(at, grow), SHALLOW.copy(alpha = alpha))
+            }
+            // Surf line on the coast (tiles cover its inner half).
+            drawPath(coastPath(at, 1.06f), Color.White.copy(alpha = 0.8f), style = Stroke(0.05f * s))
+            if (part == WaterPart.BASE) return@with
         }
         // Sun glints twinkling.
         val glintCount = (glints.size * waves01).toInt()
@@ -426,8 +438,6 @@ class Sea(board: Board, seed: Int = 1) {
             val cc = at(r.x, r.y)
             drawOval(Color.White.copy(alpha = 0.9f * (1 - t)), cc - Offset(rr, rr * 0.62f * squash), Size(2 * rr, 2 * rr * 0.62f * squash), style = Stroke(0.03f * s))
         }
-        // Surf line on the coast (tiles cover its inner half).
-        drawPath(coastPath(at, 1.06f), Color.White.copy(alpha = 0.8f), style = Stroke(0.05f * s))
     }
 
     /**
