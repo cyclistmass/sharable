@@ -14,7 +14,7 @@ PKG=com.mauro.wgbg
 until [ "$("$ADB" shell getprop sys.boot_completed | tr -dc '0-9')" = "1" ]; do sleep 2; done
 sleep "${SETTLE:-45}"
 "$ADB" install -r "$APK"
-"$ADB" shell am start -W -n "$PKG/.MainActivity" ${START:+--es start "$START"}   # -W waits for the first frame; START=chivalry|base jumps into a game
+"$ADB" shell am start -W --activity-clear-task -n "$PKG/.MainActivity" ${START:+--es start "$START"}   # -W waits for the first frame; START=chivalry|base jumps into a game
 sleep 10
 "$ADB" logcat -c
 echo "monkey: $EVENTS events, seed $SEED"

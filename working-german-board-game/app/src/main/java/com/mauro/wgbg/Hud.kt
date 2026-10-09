@@ -127,15 +127,19 @@ private fun MiniCard(edge: Color, label: String, count: Int, face: Color) {
 private fun Die3d(value: Int, red: Boolean, pirate: Boolean, pad: Color, visible: Boolean, modifier: Modifier = Modifier) {
     val face = androidx.compose.ui.graphics.ImageBitmap.imageResource(diceFace(red, pirate, value))
     Canvas(modifier.size(DIE_DP.dp)) {
-        // A pad in the roller's colour the die sits on (shown even while the dice are in the air).
-        val r = CornerRadius(size.minDimension * 0.22f)
-        drawRoundRect(pad.copy(alpha = 0.85f), topLeft = Offset(-size.width * 0.06f, size.height * 0.08f), size = Size(size.width * 1.12f, size.height * 0.98f), cornerRadius = r)
-        drawRoundRect(Color.Black.copy(alpha = 0.35f), topLeft = Offset(-size.width * 0.06f, size.height * 0.08f), size = Size(size.width * 1.12f, size.height * 0.98f), cornerRadius = r,
+        // The die is centred in its slot (where the thrown die lands) at DIE_FACE_SHARE of it; the pad in the
+        // roller's colour shows a thin even halo of DIE_HALO_DP round it (shown even while the dice fly).
+        val side = size.width * DIE_FACE_SHARE
+        val halo = DIE_HALO_DP.dp.toPx()
+        val padTopLeft = Offset(size.width / 2 - side / 2 - halo, size.height / 2 - side / 2 - halo)
+        val padSize = Size(side + 2 * halo, side + 2 * halo)
+        val r = CornerRadius(padSize.minDimension * 0.2f)
+        drawRoundRect(pad.copy(alpha = 0.85f), topLeft = padTopLeft, size = padSize, cornerRadius = r)
+        drawRoundRect(Color.Black.copy(alpha = 0.35f), topLeft = padTopLeft, size = padSize, cornerRadius = r,
             style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f))
         if (!visible) return@Canvas
         // The hand-made die (Codex art), square on the pad with the roll on top.
-        val side = size.width * 0.9f
-        drawImage(face, dstOffset = androidx.compose.ui.unit.IntOffset((size.width / 2 - side / 2).toInt(), (size.height * 0.57f - side / 2).toInt()),
+        drawImage(face, dstOffset = androidx.compose.ui.unit.IntOffset((size.width / 2 - side / 2).toInt(), (size.height / 2 - side / 2).toInt()),
             dstSize = androidx.compose.ui.unit.IntSize(side.toInt(), side.toInt()), filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium)
     }
 }
@@ -154,3 +158,7 @@ private val DICE_PB = listOf(R.drawable.dice_pb_1, R.drawable.dice_pb_2, R.drawa
 
 /** Size of the panel's dice; thrown dice land at exactly this size. */
 const val DIE_DP = 36
+/** The die's share of its slot (Mauro: 2% bigger than the first 0.9); the thrown die lands at the same size. */
+const val DIE_FACE_SHARE = 0.918f
+/** The roller's-colour halo round a resting die, dp (Mauro: 2). */
+const val DIE_HALO_DP = 2

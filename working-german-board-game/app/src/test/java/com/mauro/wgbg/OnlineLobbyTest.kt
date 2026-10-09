@@ -85,4 +85,25 @@ class OnlineLobbyTest {
         assertEquals("Not synced: 2 moves waiting for the server", connectionLabel(false, 2, stuck = true))
         assertEquals("Reconnecting…", connectionLabel(reconnecting = true, pending = 0, stuck = false))
     }
+
+    @Test
+    fun `a seated player gets back into a started game after the app was closed, by rejoin or by typing the code`() {
+        val store = MemoryStore()
+        val setup = GameSetup(name = "Mauro").withSeat(1, SeatKind.FRIEND)
+        val host = LobbySession.host(InMemoryTransport("h", store), setup, 5, code = "TIDE-94").join()
+        val guest = joinFirstOpenSeat(InMemoryTransport("c", store), GameSetup(name = "Crest"), "TIDE-94").join()
+        val seats = host.client.view().room!!.seats
+        host.transport.editLobby("TIDE-94", seats.map { it.copy(ready = true) }, seats).join()
+        host.transport.start("TIDE-94").join()
+        guest.close()                                            // the app was killed
+        val back = LobbySession.rejoin(InMemoryTransport("c", store), GameSetup(name = "Crest"), "TIDE-94").join()
+        assertEquals(Status.playing, back.client.view().room!!.status)
+        assertNotNull(back.client.view().state)
+        back.close()
+        val typed = joinFirstOpenSeat(InMemoryTransport("c", store), GameSetup(name = "Crest"), "TIDE-94").join()   // typed the code again
+        assertEquals("c", typed.client.view().room!!.seats[typed.client.view().room!!.seats.indexOfFirst { it.uid == "c" }].uid)
+        val stranger = runCatching { LobbySession.rejoin(InMemoryTransport("x", store), GameSetup(name = "Max"), "TIDE-94").join() }
+        assertEquals("That room is full or has started", onlineProblem(stranger.exceptionOrNull()!!))
+        listOf(host, typed).forEach { it.close() }
+    }
 }

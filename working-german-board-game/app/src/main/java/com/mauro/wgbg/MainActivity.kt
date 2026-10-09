@@ -132,6 +132,7 @@ class MainActivity : ComponentActivity() {
     /** Debug builds only: start with a given view, e.g. `am start ... --ef zoom 2 --ef tilt 0.8` (for screenshots). */
     private fun debugCamera(): Camera {
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE == 0) return Camera.FIT
+        if (intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return Camera.FIT // stale extras from recents
         return Camera(intent.getFloatExtra("zoom", 1f).coerceIn(Camera.MIN_ZOOM, Camera.MAX_ZOOM), Offset.Zero,
             intent.getFloatExtra("tilt", 0f).coerceIn(0f, Camera.MAX_TILT))
     }
@@ -150,7 +151,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color.Black)) {
                 // Debug builds: `--es start chivalry|base` jumps straight into a game (CI monkey tests).
-                val debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+                // Debug extras only count for a fresh launch: Android relaunches a task from recents (even after a
+                // reboot) with its ORIGINAL intent, which once silently brought back autoplay in a hand-played game.
+                val fromHistory = intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+                val debug = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0 && !fromHistory
                 val start = if (debug) intent.getStringExtra("start") else null
                 // Debug builds: `--es firebase emu` plays online against the Firebase emulators on the dev PC.
                 val firebaseEmu = debug && intent.getStringExtra("firebase") == "emu"
@@ -250,13 +254,34 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     var session by remember { mutableStateOf<LobbySession?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    // The room this phone sits in, kept across restarts: Android may kill a backgrounded app, and a player
+    // must be able to get back into a live game (playtest: the app came back on the start screen, game lost).
+    val savedRoom = remember { context.getSharedPreferences("online", android.content.Context.MODE_PRIVATE) }
+    fun enterRoom(s: LobbySession) {
+        session = s; savedRoom.edit().putString("room", s.id).putString("name", setup.name).apply(); screen = Screen.ONLINE_LOBBY
+    }
     fun failed(e: Throwable) { busy = false; problem = onlineProblem(e) }
     fun leaveRoom() {
         session?.let { s ->
             if (!s.client.view().let { it.room?.host == s.uid } && s.client.view().room?.status == Status.lobby) s.transport.leave(s.id)
             s.close()
         }
+        savedRoom.edit().remove("room").apply()
         session = null; screen = Screen.START
+    }
+    // Back after the app was closed or killed while in a room: rejoin it (the game catches up from its moves).
+    LaunchedEffect(Unit) {
+        val code = savedRoom.getString("room", null) ?: return@LaunchedEffect
+        if (start != null || session != null) return@LaunchedEffect
+        setup = setup.copy(name = savedRoom.getString("name", null) ?: setup.name)
+        busy = true; problem = "Rejoining room $code…"
+        LobbySession.rejoin(transport.value, setup, code).whenComplete { r, e ->
+            scope.launch {
+                busy = false
+                if (e != null) { savedRoom.edit().remove("room").apply(); problem = "Couldn't rejoin $code: ${onlineProblem(e)}" }
+                else { problem = null; enterRoom(r) }
+            }
+        }
     }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { session?.close() } }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
@@ -273,7 +298,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 onOpenLobby = { s ->
                     setup = s; busy = true; problem = null
                     LobbySession.host(transport.value, s, java.security.SecureRandom().nextLong()).whenComplete { r, e ->
-                        scope.launch { if (e != null) failed(e) else { busy = false; session = r; screen = Screen.ONLINE_LOBBY } }
+                        scope.launch { if (e != null) failed(e) else { busy = false; enterRoom(r) } }
                     }
                 },
                 onJoinRoom = { s -> setup = s; problem = null; screen = Screen.JOIN },
@@ -283,7 +308,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 JoinRoomScreen(setup.name, busy, onJoin = { code, name ->
                     setup = setup.copy(name = name); busy = true; problem = null
                     joinFirstOpenSeat(transport.value, setup, code).whenComplete { r, e ->
-                        scope.launch { if (e != null) failed(e) else { busy = false; session = r; screen = Screen.ONLINE_LOBBY } }
+                        scope.launch { if (e != null) failed(e) else { busy = false; enterRoom(r) } }
                     }
                 }, onBack = { screen = Screen.START })
             }
@@ -327,7 +352,8 @@ internal fun joinFirstOpenSeat(transport: wgbg.net.GameTransport, setup: GameSet
             e == null -> java.util.concurrent.CompletableFuture.completedFuture(s)
             !seatRefused -> java.util.concurrent.CompletableFuture.failedFuture(e)
             seat < GameSetup.MAX_SEATS - 1 -> joinFirstOpenSeat(transport, setup, code, seat + 1)
-            else -> java.util.concurrent.CompletableFuture.failedFuture(IllegalStateException("That room is full or has started"))
+            // No seat to take: maybe it's because you already sit there (back after the app was closed).
+            else -> LobbySession.rejoin(transport, setup, code)
         }
     }
 
@@ -532,10 +558,15 @@ fun WatchGameScreen(
             var v = views.receive()
             while (true) {
                 onlineView = v
-                if (v.actions.size < applied.size || v.actions.subList(0, applied.size) != applied) { epoch++; return@LaunchedEffect }
+                if (v.actions.size < applied.size || v.actions.subList(0, applied.size) != applied) {
+                    runCatching { android.util.Log.w("WGBG-MOVES", "${online.id} history changed at ${applied.size}: rebuilding") }
+                    epoch++; return@LaunchedEffect
+                }
                 var rolled = false
                 for (a in v.actions.subList(applied.size, v.actions.size)) {
                     val who = state.actingPlayer
+                    // Every phone logs the same move list; comparing two phones' logs pins down a desync.
+                    runCatching { android.util.Log.i("WGBG-MOVES", "${online.id} #${applied.size} p$who ${names[who]} ${a.type}:${a.payload}${if (applied.size > v.confirmedSeq) " (mine, unconfirmed)" else ""}") }
                     noteResponse(who, a)
                     tracker.apply(state, who, a) { Rules.apply(state, a) }
                     logMove(who, a)
@@ -823,6 +854,11 @@ fun WatchGameScreen(
             }
         }
       }
+        // Debug autoplay must never be invisible: a bot playing your seat looked like a desync in a playtest.
+        if (autoplay || autoSetup) Text(if (autoplay) "AUTOPLAY (debug): a bot plays your seat" else "AUTOSETUP (debug)",
+            color = Color(0xFFFFB4A0), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 14.dp, end = 120.dp).background(Color(0xCC2A1B10), RoundedCornerShape(8.dp))
+                .padding(horizontal = 8.dp, vertical = 3.dp).testTag("debug-badge"))
         BrassButton(if (panelOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) { panelOpen = !panelOpen }
         // Settings open from the gear inside the Menu, so the board stays clean.
         if (settingsOpen) SettingsPanel(env, sound, onClose = { settingsOpen = false },

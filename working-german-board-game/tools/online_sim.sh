@@ -44,7 +44,8 @@ for d in $HOST $GUEST; do
   "$A" -s $d shell settings put secure stylus_handwriting_enabled 0
   "$A" -s $d logcat -c
   "$A" -s $d shell am force-stop com.mauro.wgbg
-  "$A" -s $d shell am start -n com.mauro.wgbg/.MainActivity $FB_EXTRA --ez autoplay true >/dev/null
+  "$A" -s $d shell pm clear com.mauro.wgbg >/dev/null   # no remembered room to rejoin, no stale sign-in
+  "$A" -s $d shell am start --activity-clear-task -n com.mauro.wgbg/.MainActivity $FB_EXTRA --ez autoplay true >/dev/null
 done
 sleep 5
 tap_text $GUEST "Got it" 2>/dev/null || true

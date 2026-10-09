@@ -38,7 +38,7 @@ object DiceSprites {
     /** Die size at rest when the panel's slots aren't known yet, dp. */
     const val SIDE_DP = 55
     /** Share of a tumbling render's width the cube fills (the resting faces fill their whole image). */
-    const val TUMBLE_SHARE = 0.70f
+    const val TUMBLE_SHARE = 347f / 512f   // every tumble render normalised to a 347 px body in a 512 px frame (Codex)
     /** Animation time of the first touch-down: from here on the die shows its rolled face, square. */
     const val LAND = 0.62f
     /** Animation time when both dice have settled and the panel's own dice take over. */
@@ -128,7 +128,7 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
 /** One die at animation time [u], flying from [start] to its resting square [r] (drawn as the panel draws it). */
 private fun DrawScope.drawDie(r: Rect, u: Float, start: Offset, perp: Offset, tumble: List<ImageBitmap>, face: ImageBitmap,
                               spin: Int, turns: Float) {
-    val cube = r.width * 0.9f                                            // Die3d draws the face at 90% of its icon
+    val cube = r.width * DIE_FACE_SHARE                                  // exactly the size Die3d draws it
     val hop = kotlin.math.sin(u.coerceAtMost(DiceSprites.LAND) / DiceSprites.LAND * Math.PI.toFloat())
     val b = DiceSprites.bounce(u)
     val c = start + (r.center - start) * DiceSprites.fall(u) + perp * (hop * cube * 0.6f) - Offset(0f, b * cube)
