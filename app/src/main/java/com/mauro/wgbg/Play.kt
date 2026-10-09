@@ -168,3 +168,31 @@ private fun Picker(title: String, options: List<Pair<String, Action>>, onMove: (
         MoveButton("Back") { close() }
     }
 }
+
+// ------------------------------------------------------------------ confirming board taps
+
+/** The question asked before a tapped board move is made. */
+fun confirmTitle(s: GameState, a: Action): String = when (a.type) {
+    ActionType.BUILD_SETTLEMENT -> if (s.phase == Phase.BUILD_INITIAL_SETTLEMENT) "Place your homestead here?" else "Build a homestead here?"
+    ActionType.BUILD_CITY -> "Upgrade this homestead to a town?"
+    ActionType.BUILD_ROAD -> if (s.phase == Phase.BUILD_INITIAL_ROAD || s.freeRoads > 0) "Place a free road here?" else "Build a road here?"
+    ActionType.MOVE_ROBBER -> "Move the bandit here?"
+    else -> "Do this?"
+}
+
+/** A warning worth a second look (the bandit on your own land), or null. */
+fun confirmWarning(s: GameState, me: Int, a: Action): String? {
+    if (a.type != ActionType.MOVE_ROBBER) return null
+    val h = a.robberHex
+    val mine = s.board.topology.hexVertices[h].any { s.vertexOwner[it] == me }
+    if (!mine) return null
+    val r = s.board.hexResource[h]
+    val what = if (r in 0 until CARD_TYPES) "your own ${RES[r]}" else "nothing"
+    return "Careful: this tile touches your own buildings. The bandit would block $what."
+}
+
+/** Button text for one confirming choice. */
+fun confirmLabel(s: GameState, a: Action, names: List<String>): String =
+    if (a.type != ActionType.MOVE_ROBBER) "Confirm"
+    else if (a.robberVictim < 0) "Move it (nobody to rob)"
+    else "Rob ${names[a.robberVictim]} (${s.cardCount(a.robberVictim)} cards)"

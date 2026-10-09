@@ -183,7 +183,8 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
     // Moves from the human's taps and buttons; the game loop checks each against the rules.
     val humanMoves = remember { Channel<Action>(Channel.UNLIMITED) }
     var tradeOpen by remember { mutableStateOf(false) }
-    var victims by remember { mutableStateOf<List<Action>>(emptyList()) }
+    // A tapped board move waits here for Confirm (or a second tap on the same spot).
+    var pending by remember { mutableStateOf<List<Action>>(emptyList()) }
     val responses = remember(seed, seats) { mutableStateMapOf<Int, String>() }
     // Dice setting cycles: random, then deck stacks of 1-4 x 36 cards (asked per game once the new-game screen exists).
     var diceSetting by remember { mutableIntStateOf(0) } // 0 = random, n = n decks
@@ -302,6 +303,7 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
     val legal = tick.let { if (human && !inventory && !state.isOver && state.actingPlayer == 0) Rules.legalActions(state) else emptyList() }
     val legalNow by rememberUpdatedState(legal)
     val targets = Targets.of(legal)
+    val chosen = pending.filter { it in legal } // a stale pick (the turn moved on) is dropped
     Box(modifier) {
       Row(Modifier.fillMaxSize()) {
       Box(Modifier.weight(1f).fillMaxHeight()) {
@@ -340,8 +342,9 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                         val p = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(at)
                         val moves = if (inventory) emptyList() else movesAt(boardNow, legalNow, p)
                         when {
-                            moves.size == 1 -> humanMoves.trySend(moves[0])
-                            moves.size > 1 -> victims = moves // the bandit can rob more than one player there
+                            moves.isNotEmpty() && moves == pending && moves.size == 1 -> { pending = emptyList(); humanMoves.trySend(moves[0]) }
+                            moves.isNotEmpty() -> pending = moves
+                            pending.isNotEmpty() -> pending = emptyList() // tapping elsewhere cancels
                             !inventory && seaNow.isWater(p) -> seaNow.splash(p)
                         }
                     }, onDoubleTap = { at ->
@@ -357,6 +360,7 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
             if (inventory) drawInventory(measurer, wood) else {
                 drawGame(state, measurer, wood, camera, sea)
                 if (!targets.isEmpty) drawTargets(state.board, targets, camera, (kotlin.math.sin(seaTick / 9f) + 1f) / 2f)
+                if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
         }
         if (!inventory) {
@@ -365,24 +369,27 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
             TurnHud(report, previous, names, Modifier.align(Alignment.BottomStart).padding(8.dp))
         }
         if (human && !inventory) {
-            val send: (Action) -> Unit = { a -> victims = emptyList(); humanMoves.trySend(a) }
+            val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
             val needsMe = tradeNeedsMe(state, 0)
             // The trade chest docks where the move buttons sit and takes their place while it is open.
             val chest = tradeOpen || needsMe || (tradeMode(state, 0) == TradeMode.WAITING && state.currentPlayer == 0)
             if (chest) TradePanel(state, 0, legal, names, send, onClose = { tradeOpen = false }, responses = responses,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp))
             else if (legal.isNotEmpty()) HumanControls(state, 0, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp))
-            if (victims.isNotEmpty()) Column(
-                Modifier.align(Alignment.Center).chest(),
+            if (chosen.isNotEmpty()) Column(
+                Modifier.align(Alignment.TopCenter).padding(top = 8.dp).chest(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("Rob whom?", color = Color(0xFFEDE6D8), fontWeight = FontWeight.Bold)
+                Text(confirmTitle(state, chosen[0]), color = Color(0xFFEDE6D8), fontWeight = FontWeight.Bold)
+                confirmWarning(state, 0, chosen[0])?.let { Text(it, color = Color(0xFFFFB4A0), fontSize = 13.sp) }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (a in victims) FilledTonalButton(onClick = { send(a) }) {
-                        Text(if (a.robberVictim < 0) "No one" else "${names[a.robberVictim]} (${state.cardCount(a.robberVictim)} cards)")
+                    for (a in chosen) FilledTonalButton(onClick = { send(a) },
+                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF3E9B4F), contentColor = Color.White)) {
+                        Text(confirmLabel(state, a, names))
                     }
-                    FilledTonalButton(onClick = { victims = emptyList() }) { Text("Back") }
+                    FilledTonalButton(onClick = { pending = emptyList() },
+                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFFC0392B), contentColor = Color.White)) { Text("Cancel") }
                 }
             }
             if (tick.let { state.isOver }) Column(
@@ -447,11 +454,10 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
 }
 
 /** Glowing rings where the human can build or move the bandit; [pulse] 0..1 breathes the glow. */
-private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, pulse: Float) {
+private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, pulse: Float, glow: Color = Color(0xFFFFE08A)) {
     if (size.minDimension < 2f) return
     val l = Layout.fit(board, size.width, size.height, camera)
     if (!l.scale.isFinite() || l.scale <= 0f) return
-    val glow = Color(0xFFFFE08A)
     val a = 0.55f + 0.4f * pulse
     for (v in t.vertices) {
         val p = vertexLattice(board, v)
