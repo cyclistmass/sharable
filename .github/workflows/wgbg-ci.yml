@@ -74,11 +74,14 @@ jobs:
       - name: Monkey test on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          # Lean Automated Test Device image (no Google services eating the CPU right after boot).
+          api-level: 33
           arch: x86_64
-          target: google_apis
+          target: aosp_atd
+          cores: 3
+          ram-size: 4096M
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           working-directory: working-german-board-game
           script: bash tools/ci_monkey.sh apk/app-debug.apk 5000
 
