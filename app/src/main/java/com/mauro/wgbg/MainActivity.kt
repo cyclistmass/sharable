@@ -188,6 +188,9 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
     var speed by remember { mutableIntStateOf(if (human) 2 else MAX_SPEED) }
     val wins = remember { mutableStateListOf(0, 0, 0, 0, 0) } // per seat, last slot = draws
     var inventory by remember { mutableStateOf(false) }
+    // Scenery settings (density and motion), kept across restarts; the sea reads them once it supports them.
+    val appContext = LocalContext.current.applicationContext
+    val env = remember { EnvSettings(PrefsStore(appContext)) }
     // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
     // game starts several times a second, which would otherwise wipe splashes and clouds.
     val sea = remember { Sea(state.board) }
@@ -401,6 +404,7 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                         Text(if (diceSetting == 0) "Dice: random" else "Dice: ${36 * diceSetting} deck · ${(dice as? DiceDeck)?.remaining ?: ""}")
                     }
                 }
+                EnvControls(env)
                 PlayerPanel(players)
                 Text("Wins: " + names.indices.joinToString("  ") { "${names[it]} ${wins[it]}" } + "  · draws ${wins[4]}",
                     style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
