@@ -1,0 +1,395 @@
+{
+  "tiles": [
+    {
+      "file": "timber_V2_flat.png",
+      "bytes": 196685,
+      "webp_lossless_bytes": 75618,
+      "alpha_bounds": [
+        99,
+        76,
+        414,
+        435
+      ]
+    },
+    {
+      "file": "timber_V2_mid.png",
+      "bytes": 188049,
+      "webp_lossless_bytes": 69736,
+      "alpha_bounds": [
+        99,
+        89,
+        415,
+        434
+      ]
+    },
+    {
+      "file": "timber_V2_max.png",
+      "bytes": 167067,
+      "webp_lossless_bytes": 60070,
+      "alpha_bounds": [
+        99,
+        102,
+        415,
+        393
+      ]
+    },
+    {
+      "file": "stone_V2_flat.png",
+      "bytes": 199629,
+      "webp_lossless_bytes": 78392,
+      "alpha_bounds": [
+        99,
+        76,
+        413,
+        436
+      ]
+    },
+    {
+      "file": "stone_V2_mid.png",
+      "bytes": 206633,
+      "webp_lossless_bytes": 79990,
+      "alpha_bounds": [
+        99,
+        40,
+        413,
+        434
+      ]
+    },
+    {
+      "file": "stone_V2_max.png",
+      "bytes": 186369,
+      "webp_lossless_bytes": 66406,
+      "alpha_bounds": [
+        99,
+        9,
+        413,
+        393
+      ]
+    },
+    {
+      "file": "fleece_V2_flat.png",
+      "bytes": 223776,
+      "webp_lossless_bytes": 98198,
+      "alpha_bounds": [
+        99,
+        76,
+        413,
+        436
+      ]
+    },
+    {
+      "file": "fleece_V2_mid.png",
+      "bytes": 221187,
+      "webp_lossless_bytes": 98942,
+      "alpha_bounds": [
+        99,
+        93,
+        413,
+        434
+      ]
+    },
+    {
+      "file": "fleece_V2_max.png",
+      "bytes": 190421,
+      "webp_lossless_bytes": 81336,
+      "alpha_bounds": [
+        99,
+        131,
+        413,
+        393
+      ]
+    },
+    {
+      "file": "grain_V2_flat.png",
+      "bytes": 217244,
+      "webp_lossless_bytes": 88234,
+      "alpha_bounds": [
+        99,
+        76,
+        413,
+        436
+      ]
+    },
+    {
+      "file": "grain_V2_mid.png",
+      "bytes": 214070,
+      "webp_lossless_bytes": 87916,
+      "alpha_bounds": [
+        99,
+        91,
+        413,
+        434
+      ]
+    },
+    {
+      "file": "grain_V2_max.png",
+      "bytes": 183583,
+      "webp_lossless_bytes": 71378,
+      "alpha_bounds": [
+        99,
+        122,
+        413,
+        393
+      ]
+    },
+    {
+      "file": "clay_V2_flat.png",
+      "bytes": 190579,
+      "webp_lossless_bytes": 70648,
+      "alpha_bounds": [
+        99,
+        76,
+        413,
+        436
+      ]
+    },
+    {
+      "file": "clay_V2_mid.png",
+      "bytes": 195066,
+      "webp_lossless_bytes": 73088,
+      "alpha_bounds": [
+        99,
+        85,
+        413,
+        434
+      ]
+    },
+    {
+      "file": "clay_V2_max.png",
+      "bytes": 170232,
+      "webp_lossless_bytes": 61722,
+      "alpha_bounds": [
+        99,
+        112,
+        413,
+        393
+      ]
+    },
+    {
+      "file": "desert_V2_flat.png",
+      "bytes": 185754,
+      "webp_lossless_bytes": 64656,
+      "alpha_bounds": [
+        99,
+        76,
+        413,
+        436
+      ]
+    },
+    {
+      "file": "desert_V2_mid.png",
+      "bytes": 187393,
+      "webp_lossless_bytes": 66280,
+      "alpha_bounds": [
+        99,
+        90,
+        413,
+        434
+      ]
+    },
+    {
+      "file": "desert_V2_max.png",
+      "bytes": 161500,
+      "webp_lossless_bytes": 54742,
+      "alpha_bounds": [
+        99,
+        123,
+        413,
+        393
+      ]
+    }
+  ],
+  "layers": [
+    {
+      "file": "animation-layers\\fleece\\animals_mid_00.png",
+      "bytes": 8405,
+      "alpha_bounds": [
+        17,
+        4,
+        112,
+        109
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_01.png",
+      "bytes": 8417,
+      "alpha_bounds": [
+        20,
+        4,
+        112,
+        109
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_02.png",
+      "bytes": 8383,
+      "alpha_bounds": [
+        22,
+        4,
+        113,
+        109
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_03.png",
+      "bytes": 8126,
+      "alpha_bounds": [
+        24,
+        5,
+        113,
+        110
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_04.png",
+      "bytes": 8140,
+      "alpha_bounds": [
+        24,
+        5,
+        113,
+        111
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_05.png",
+      "bytes": 8109,
+      "alpha_bounds": [
+        24,
+        6,
+        113,
+        112
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_06.png",
+      "bytes": 8345,
+      "alpha_bounds": [
+        22,
+        6,
+        113,
+        113
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_07.png",
+      "bytes": 8338,
+      "alpha_bounds": [
+        20,
+        6,
+        112,
+        114
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_08.png",
+      "bytes": 8433,
+      "alpha_bounds": [
+        17,
+        6,
+        112,
+        115
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_09.png",
+      "bytes": 8410,
+      "alpha_bounds": [
+        14,
+        6,
+        110,
+        115
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_10.png",
+      "bytes": 8314,
+      "alpha_bounds": [
+        12,
+        6,
+        110,
+        115
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_11.png",
+      "bytes": 8330,
+      "alpha_bounds": [
+        10,
+        5,
+        110,
+        115
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_12.png",
+      "bytes": 8219,
+      "alpha_bounds": [
+        10,
+        5,
+        109,
+        114
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_13.png",
+      "bytes": 8264,
+      "alpha_bounds": [
+        10,
+        4,
+        110,
+        113
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_14.png",
+      "bytes": 8508,
+      "alpha_bounds": [
+        12,
+        4,
+        110,
+        111
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_15.png",
+      "bytes": 8452,
+      "alpha_bounds": [
+        15,
+        4,
+        110,
+        110
+      ]
+    },
+    {
+      "file": "animation-layers\\grain\\wind_mask_mid.png",
+      "bytes": 2066
+    },
+    {
+      "file": "animation-layers\\grain\\wind_patch_mid.png",
+      "bytes": 16033
+    },
+    {
+      "file": "animation-layers\\grain\\wind_patch_mid.webp",
+      "bytes": 12320
+    },
+    {
+      "file": "animation-layers\\desert\\heat_mask_mid.png",
+      "bytes": 3047
+    },
+    {
+      "file": "animation-layers\\desert\\heat_patch_mid.webp",
+      "bytes": 11024
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_atlas.webp",
+      "bytes": 53970,
+      "dimensions": [
+        1024,
+        256
+      ]
+    }
+  ],
+  "tile_png_bytes": 3485237,
+  "tile_lossless_webp_bytes": 1347352,
+  "animal_png_bytes": 133193
+}

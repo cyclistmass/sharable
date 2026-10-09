@@ -1,0 +1,77 @@
+{
+  "blender": "4.5.1 LTS",
+  "threads": 2,
+  "metadata": {
+    "selected_study": "R3 Alpine chain",
+    "original_summits": 4,
+    "added_summits": 3,
+    "summits": [
+      [
+        0.0,
+        0.7,
+        1.08
+      ],
+      [
+        0.2,
+        0.52,
+        0.78
+      ],
+      [
+        0.49,
+        0.22,
+        0.92
+      ],
+      [
+        0.56,
+        -0.12,
+        0.7
+      ],
+      [
+        0.12,
+        -0.4,
+        0.65
+      ],
+      [
+        0.33,
+        -0.44,
+        0.74
+      ],
+      [
+        0.57,
+        0.47,
+        0.79
+      ]
+    ],
+    "scree_stones": 57,
+    "pines": 5,
+    "mesh_vertices": 3361,
+    "ridge_vertices_sha256": "86c4256972af63062c2ff89f5003c4a58d926559b613c2c8943cc66111608848",
+    "continuity": {
+      "shared_edge_samples": 99,
+      "max_height_error": 1.6653345369377348e-16,
+      "physical_lattice_width": 1.6108072510390559,
+      "physical_lattice_row": 1.395
+    },
+    "token_space": {
+      "token_center": [
+        -0.36,
+        0.3
+      ],
+      "token_radius": 0.27,
+      "clearing_radius": 0.31,
+      "upright_plate": true,
+      "foreground_max_tilt_degrees": 55,
+      "pruned_objects": 33,
+      "flattened_surfaces": 1
+    }
+  },
+  "scene_objects": 426,
+  "renders": [
+    {
+      "file": "stone-alpine/stone_R3_chain_patch_max.png",
+      "seconds": 62.97,
+      "tilt": 0.96,
+      "resolution": 1536
+    }
+  ]
+}

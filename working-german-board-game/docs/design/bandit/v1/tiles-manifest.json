@@ -1,0 +1,71 @@
+{
+  "metadata": {
+    "own_original_design": true,
+    "straw_hat": true,
+    "afro": true,
+    "cutlass": true,
+    "model_scale": 0.46,
+    "foot_anchor": [
+      0,
+      0,
+      0
+    ]
+  },
+  "renders": [
+    {
+      "file": "bandit_v1_tilt_00.png",
+      "tilt_radians": 0.0,
+      "render_seconds": 2.92
+    },
+    {
+      "file": "bandit_v1_tilt_01.png",
+      "tilt_radians": 0.13714285714285715,
+      "render_seconds": 2.8
+    },
+    {
+      "file": "bandit_v1_tilt_02.png",
+      "tilt_radians": 0.2742857142857143,
+      "render_seconds": 2.78
+    },
+    {
+      "file": "bandit_v1_tilt_03.png",
+      "tilt_radians": 0.4114285714285714,
+      "render_seconds": 2.83
+    },
+    {
+      "file": "bandit_v1_tilt_04.png",
+      "tilt_radians": 0.5485714285714286,
+      "render_seconds": 2.77
+    },
+    {
+      "file": "bandit_v1_tilt_05.png",
+      "tilt_radians": 0.6857142857142857,
+      "render_seconds": 2.86
+    },
+    {
+      "file": "bandit_v1_tilt_06.png",
+      "tilt_radians": 0.8228571428571428,
+      "render_seconds": 2.84
+    },
+    {
+      "file": "bandit_v1_tilt_07.png",
+      "tilt_radians": 0.96,
+      "render_seconds": 2.86
+    },
+    {
+      "file": "bandit_v1_flat.png",
+      "tilt_radians": 0,
+      "render_seconds": 2.8
+    },
+    {
+      "file": "bandit_v1_mid.png",
+      "tilt_radians": 0.48,
+      "render_seconds": 2.81
+    },
+    {
+      "file": "bandit_v1_max.png",
+      "tilt_radians": 0.96,
+      "render_seconds": 2.78
+    }
+  ]
+}

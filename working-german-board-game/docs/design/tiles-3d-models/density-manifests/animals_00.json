@@ -1,0 +1,14 @@
+{
+  "blender": "4.5.1 LTS",
+  "threads": 2,
+  "metadata": {},
+  "scene_objects": 25,
+  "renders": [
+    {
+      "file": "animation-layers/fleece/raw/animals_mid_00_raw.png",
+      "seconds": 2.62,
+      "tilt": 0.48,
+      "resolution": 512
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "blender": "4.5.1 LTS",
+  "radius": 0.93,
+  "thickness": 0.22,
+  "single_ortho": 2.65,
+  "patch_ortho": 8.5,
+  "renders": [
+    {
+      "file": "R1_flat.png",
+      "degrees": 0
+    },
+    {
+      "file": "R1_mid.png",
+      "degrees": 27.5
+    },
+    {
+      "file": "R1_max.png",
+      "degrees": 55
+    },
+    {
+      "file": "R1_patch_55.png",
+      "degrees": 55,
+      "tiles": 9
+    },
+    {
+      "file": "R2_flat.png",
+      "degrees": 0
+    },
+    {
+      "file": "R2_mid.png",
+      "degrees": 27.5
+    },
+    {
+      "file": "R2_max.png",
+      "degrees": 55
+    },
+    {
+      "file": "R2_patch_55.png",
+      "degrees": 55,
+      "tiles": 9
+    },
+    {
+      "file": "R3_flat.png",
+      "degrees": 0
+    },
+    {
+      "file": "R3_mid.png",
+      "degrees": 27.5
+    },
+    {
+      "file": "R3_max.png",
+      "degrees": 55
+    },
+    {
+      "file": "R3_patch_55.png",
+      "degrees": 55,
+      "tiles": 9
+    }
+  ]
+}

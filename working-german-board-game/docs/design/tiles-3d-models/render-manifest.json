@@ -1,0 +1,71 @@
+{
+  "blender": "4.5.1 LTS",
+  "ortho_scale": 2.65,
+  "radius": 0.93,
+  "anchor": [
+    256,
+    256
+  ],
+  "renders": [
+    {
+      "file": "timber_V1_flat.png",
+      "seconds": 1.53,
+      "tilt": 0
+    },
+    {
+      "file": "timber_V1_mid.png",
+      "seconds": 1.17,
+      "tilt": 0.48
+    },
+    {
+      "file": "timber_V1_max.png",
+      "seconds": 1.09,
+      "tilt": 0.96
+    },
+    {
+      "file": "stone_V1_flat.png",
+      "seconds": 1.14,
+      "tilt": 0
+    },
+    {
+      "file": "stone_V1_mid.png",
+      "seconds": 1.09,
+      "tilt": 0.48
+    },
+    {
+      "file": "stone_V1_max.png",
+      "seconds": 1.0,
+      "tilt": 0.96
+    },
+    {
+      "file": "timber_V2_flat.png",
+      "seconds": 1.33,
+      "tilt": 0
+    },
+    {
+      "file": "timber_V2_mid.png",
+      "seconds": 1.41,
+      "tilt": 0.48
+    },
+    {
+      "file": "timber_V2_max.png",
+      "seconds": 1.19,
+      "tilt": 0.96
+    },
+    {
+      "file": "stone_V2_flat.png",
+      "seconds": 1.22,
+      "tilt": 0
+    },
+    {
+      "file": "stone_V2_mid.png",
+      "seconds": 1.2,
+      "tilt": 0.48
+    },
+    {
+      "file": "stone_V2_max.png",
+      "seconds": 1.09,
+      "tilt": 0.96
+    }
+  ]
+}

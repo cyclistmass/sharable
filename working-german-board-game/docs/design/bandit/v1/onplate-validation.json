@@ -1,0 +1,68 @@
+{
+  "views": [
+    {
+      "view": "tilt_00",
+      "tilt_radians": 0.0,
+      "visible_digit_or_pip_pixels": 0
+    },
+    {
+      "view": "tilt_01",
+      "tilt_radians": 0.13714285714285715,
+      "visible_digit_or_pip_pixels": 0
+    },
+    {
+      "view": "tilt_02",
+      "tilt_radians": 0.2742857142857143,
+      "visible_digit_or_pip_pixels": 0
+    },
+    {
+      "view": "tilt_03",
+      "tilt_radians": 0.4114285714285714,
+      "visible_digit_or_pip_pixels": 0
+    },
+    {
+      "view": "tilt_04",
+      "tilt_radians": 0.5485714285714286,
+      "visible_digit_or_pip_pixels": 0
+    },
+    {
+      "view": "tilt_05",
+      "tilt_radians": 0.6857142857142857,
+      "visible_digit_or_pip_pixels": 0
+    },
+    {
+      "view": "tilt_06",
+      "tilt_radians": 0.8228571428571428,
+      "visible_digit_or_pip_pixels": 0
+    },
+    {
+      "view": "tilt_07",
+      "tilt_radians": 0.96,
+      "visible_digit_or_pip_pixels": 0
+    },
+    {
+      "view": "flat",
+      "tilt_radians": 0,
+      "visible_digit_or_pip_pixels": 0
+    },
+    {
+      "view": "mid",
+      "tilt_radians": 0.48,
+      "visible_digit_or_pip_pixels": 0
+    },
+    {
+      "view": "max",
+      "tilt_radians": 0.96,
+      "visible_digit_or_pip_pixels": 0
+    }
+  ],
+  "app_files_unchanged": 146,
+  "render_seconds": 33.83,
+  "anchor": [
+    -0.36,
+    0.3
+  ],
+  "model_scale": 0.7,
+  "brim_diameter": 0.644,
+  "upright_seal_radius": 0.278
+}

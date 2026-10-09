@@ -1,0 +1,110 @@
+[
+  {
+    "terrain": "timber",
+    "preview": "timber_V2_mid_animated.webp",
+    "bytes": 1089848,
+    "frames": 64,
+    "duration_ms": 8000,
+    "period_endpoint_equal": true,
+    "input_sha256": "91bfacdab3bedff3aef9025c66af7064f8d7336369736cfacabfe19429c3e070",
+    "min_adjacent_change": 3608,
+    "max_adjacent_change": 12265,
+    "loop_boundary_change": 10273,
+    "review_crop": [
+      212,
+      51,
+      373,
+      247
+    ]
+  },
+  {
+    "terrain": "stone",
+    "preview": "stone_V2_mid_animated.webp",
+    "bytes": 1938170,
+    "frames": 64,
+    "duration_ms": 8000,
+    "period_endpoint_equal": true,
+    "input_sha256": "a90b627790f55cf8f31ec99a3b391e1683345e5e701ac0f6ec1c310a85738311",
+    "min_adjacent_change": 2987,
+    "max_adjacent_change": 11389,
+    "loop_boundary_change": 7838,
+    "review_crop": [
+      192,
+      34,
+      397,
+      284
+    ]
+  },
+  {
+    "terrain": "fleece",
+    "preview": "fleece_V2_mid_animated.webp",
+    "bytes": 716040,
+    "frames": 64,
+    "duration_ms": 8000,
+    "period_endpoint_equal": true,
+    "input_sha256": "4f8d5e769bdedd4affdf1f026462dba8623d78233f0bf308a4c3bc1cf4e02a05",
+    "min_adjacent_change": 4373,
+    "max_adjacent_change": 8378,
+    "loop_boundary_change": 7583,
+    "review_crop": [
+      246,
+      200,
+      373,
+      335
+    ]
+  },
+  {
+    "terrain": "grain",
+    "preview": "grain_V2_mid_animated.webp",
+    "bytes": 3095952,
+    "frames": 64,
+    "duration_ms": 8000,
+    "period_endpoint_equal": true,
+    "input_sha256": "c1bfdf326c7d054f34e32d240ac6d5217de1180ffc91aa26777325a432369829",
+    "min_adjacent_change": 47415,
+    "max_adjacent_change": 52661,
+    "loop_boundary_change": 48295,
+    "review_crop": [
+      218,
+      102,
+      394,
+      346
+    ]
+  },
+  {
+    "terrain": "clay",
+    "preview": "clay_V2_mid_animated.webp",
+    "bytes": 450908,
+    "frames": 64,
+    "duration_ms": 8000,
+    "period_endpoint_equal": true,
+    "input_sha256": "1cde438b62d93249b2c6c7eb50729b7c3124e8cb9e4c172c0ccc473e07e6d1cb",
+    "min_adjacent_change": 481,
+    "max_adjacent_change": 856,
+    "loop_boundary_change": 856,
+    "review_crop": [
+      310,
+      125,
+      375,
+      210
+    ]
+  },
+  {
+    "terrain": "desert",
+    "preview": "desert_V2_mid_animated.webp",
+    "bytes": 1200062,
+    "frames": 64,
+    "duration_ms": 8000,
+    "period_endpoint_equal": true,
+    "input_sha256": "713ce8dd103480ed4d84f27d5cb1475d581c8035ae00a2281b93afd75029fc14",
+    "min_adjacent_change": 3972,
+    "max_adjacent_change": 4568,
+    "loop_boundary_change": 4178,
+    "review_crop": [
+      106,
+      176,
+      353,
+      368
+    ]
+  }
+]

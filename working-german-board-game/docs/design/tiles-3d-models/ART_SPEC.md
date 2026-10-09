@@ -1,0 +1,20 @@
+# V2 tile art specification
+
+- Names: **Timber, Stone, Fleece, Grain, Clay, Desert**. Use `terrain_V2_flat/mid/max.png`, lower-case terrain keys in scripts, descriptive own-model names; no borrowed game names.
+- Number plate: nominal hex side **1**, centre **(-0.36, -0.30)** in the game's screen-down lattice coordinates, or **(-0.36, +0.30)** in Blender's screen-up ground plane. Target radius **0.27**. `MainActivity.kt`, `drawTile` → `drawNumberToken`, currently draws a radius-0.30 upright circle at every tilt; the chosen prototype radius is 0.27, pending app integration. Its centre's vertical offset scales with `cos(tilt)`; its radius does not.
+- Every terrain reserves a **flat, empty ground circle of radius 0.31** (about 15% larger). Forest glade / rock shelf / trampled pasture / threshed wheat / levelled clay yard / sand pan. Blend the edge into local terrain; keep props, canopy overhangs and moving layers outside it. Desert reserves the space even though its game tile is normally unnumbered.
+- Camera faces from **world -Y**. Keep foreground ground and props low enough to miss the upright plate at **55°**, including a safety apron beyond the projected clearing ellipse. Put tall trees, peaks and buildings behind or beside it. Also protect the next rear neighbours' plates; the shared height guard uses their nominal hex centres (+/-sqrt(3)/2, +1.5). Validate with real-size round plates at **0°, 27.5°, 55°**, and depth-sort tile-plus-plate layers in a mixed neighbour proof. Never hide collisions by painting every plate on top of the whole board.
+- Hex: pointy-top, visible inset radius **0.93**, width **1.6108**, base top **0**, bottom **-0.22**, bevel **0.018**; retain the existing V2 edge material. Terrain clearing surface sits just above the base to avoid coincident-face artifacts.
+- Orthographic transparent RGBA, **512 × 512**, camera scale **2.65**; upper-left sun plus soft sky. Palette: moss greens, warm dark rock and ivory snow, golden wheat, rust clay, ochre sand; wood **#4A3020** and old brass for review sheets.
+- Assets must be **our own or clearly CC0**, recorded in `CREDITS.md`. These models, effects and proof plates are own procedural assets. Keep TileLife as the overlay layer; apply the same plate exclusion mask after displacement, interpolation and blur.
+
+Reproduce sequentially with `tools/blender/run_token_clearings.ps1`. No application changes are part of this art pass.
+
+## Bandit
+
+The approved original V1 skeleton corsair **stands on and blocks the number plate**. Ground foot/base centre is tile **(-0.36,+0.30)** in Blender, projected screen offset (-0.36,-0.30*cos(tilt)). Sprite anchor is **(256,256)** in the padded 512px image, orthographic scale **2.65**. Own model scale **0.70** (previous off-plate prototype 0.46); full-round straw brim diameter **0.644**, above the plate diameter **0.54**. Turn the front brim upward so the skull remains readable at tilt.
+
+Bake an **opaque upright dark base seal radius 0.278** under the feet, matching the upright plate at every tilt. Draw plate first, then the complete Bandit sprite; never redraw blocked digits/pips over it. Preserve padding and use premultiplied cross-fades. Eight steps use tilt=0.96*i/7. Verify zero visible digit/pip pixels at every step, plus flat/mid/max tile and phone proofs. Reproduce with `render_bandit_v1.py --batch onplate`, then `compose_bandit_onplate.py`; earlier off-plate proofs are historical.
+
+- **Fleece means alpaca fleece:** 6?8 alpacas in small groups, long fluffy necks and upright ears, cream/white/fawn/brown coats; grazing and one or two looking up. Keep the lush pasture, wall/gate and horned, bearded goats enlarged 25% for phone readability, still visibly smaller than alpacas. Motion: gentle shifts, grazing neck bends and head turns, outside the number clearing.
+- **Clay colour:** a restrained terracotta/brick-red ground, terraces and cut faces; wet bottom darker red-brown. Keep the kiln and brick stacks distinct, and Clay clearly redder than Desert ochre.

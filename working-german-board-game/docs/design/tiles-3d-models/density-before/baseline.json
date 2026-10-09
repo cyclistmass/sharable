@@ -1,0 +1,12 @@
+{
+  "timber_sha256": {
+    "timber_V2_flat.png": "005b30ad9004ed47f13ef2de63b699cf5fd6c1f51dc9a8eb6e9772caa6f42bb2",
+    "timber_V2_mid.png": "9f87ff6dcdb3184a25a8e56b74f443fcea19faec52c78a0c1aaf1f66cd2bc4cc",
+    "timber_V2_max.png": "708e5c6d344080276a66016616db268fd4e675f1b8421382f6229f535cae42cc",
+    "timber_V2_mid_animated.webp": "37182709bca40e450e75062e3b774e6f08a964eb565e9abec165a3b3672af069"
+  },
+  "app_sha256": {
+    "app\\src\\main\\java\\com\\mauro\\wgbg\\MainActivity.kt": "61a08671f65d74dbfc9cebd4c892c82bb393948d3ee8837963090e6e8b82bf86",
+    "app\\src\\main\\java\\com\\mauro\\wgbg\\TileLife.kt": "a5179be7533adf6d002186ded2c9471d9fb347c14eb45100fef527c1e5b163f3"
+  }
+}

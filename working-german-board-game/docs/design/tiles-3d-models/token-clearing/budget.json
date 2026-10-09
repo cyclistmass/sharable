@@ -1,0 +1,129 @@
+{
+  "png_bytes": 3485237,
+  "trial_webp_bytes": 1347352,
+  "eight_step_shipping_files": 72,
+  "eight_step_estimated_bytes": 4065603,
+  "final_render_seconds": 211.97,
+  "renders": [
+    {
+      "file": "timber_V2_flat.png",
+      "seconds": 6.47,
+      "tilt": 0,
+      "resolution": 512
+    },
+    {
+      "file": "timber_V2_mid.png",
+      "seconds": 6.95,
+      "tilt": 0.48,
+      "resolution": 512
+    },
+    {
+      "file": "timber_V2_max.png",
+      "seconds": 5.88,
+      "tilt": 0.96,
+      "resolution": 512
+    },
+    {
+      "file": "stone_V2_flat.png",
+      "seconds": 7.17,
+      "tilt": 0,
+      "resolution": 512
+    },
+    {
+      "file": "stone_V2_mid.png",
+      "seconds": 7.45,
+      "tilt": 0.48,
+      "resolution": 512
+    },
+    {
+      "file": "stone_V2_max.png",
+      "seconds": 6.78,
+      "tilt": 0.96,
+      "resolution": 512
+    },
+    {
+      "file": "stone_V2_max_mock1024.png",
+      "seconds": 26.0,
+      "tilt": 0.96,
+      "resolution": 1024
+    },
+    {
+      "file": "fleece_V2_flat.png",
+      "seconds": 7.19,
+      "tilt": 0,
+      "resolution": 512
+    },
+    {
+      "file": "fleece_V2_mid.png",
+      "seconds": 7.34,
+      "tilt": 0.48,
+      "resolution": 512
+    },
+    {
+      "file": "fleece_V2_max.png",
+      "seconds": 6.12,
+      "tilt": 0.96,
+      "resolution": 512
+    },
+    {
+      "file": "grain_V2_flat.png",
+      "seconds": 7.77,
+      "tilt": 0,
+      "resolution": 512
+    },
+    {
+      "file": "grain_V2_mid.png",
+      "seconds": 7.78,
+      "tilt": 0.48,
+      "resolution": 512
+    },
+    {
+      "file": "grain_V2_max.png",
+      "seconds": 6.7,
+      "tilt": 0.96,
+      "resolution": 512
+    },
+    {
+      "file": "clay_V2_flat.png",
+      "seconds": 6.53,
+      "tilt": 0,
+      "resolution": 512
+    },
+    {
+      "file": "clay_V2_mid.png",
+      "seconds": 6.76,
+      "tilt": 0.48,
+      "resolution": 512
+    },
+    {
+      "file": "clay_V2_max.png",
+      "seconds": 6.17,
+      "tilt": 0.96,
+      "resolution": 512
+    },
+    {
+      "file": "desert_V2_flat.png",
+      "seconds": 6.91,
+      "tilt": 0,
+      "resolution": 512
+    },
+    {
+      "file": "desert_V2_mid.png",
+      "seconds": 6.94,
+      "tilt": 0.48,
+      "resolution": 512
+    },
+    {
+      "file": "desert_V2_max.png",
+      "seconds": 6.09,
+      "tilt": 0.96,
+      "resolution": 512
+    },
+    {
+      "file": "stone-alpine/stone_R3_chain_patch_max.png",
+      "seconds": 62.97,
+      "tilt": 0.96,
+      "resolution": 1536
+    }
+  ]
+}

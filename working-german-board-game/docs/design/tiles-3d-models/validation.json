@@ -1,0 +1,146 @@
+[
+  {
+    "file": "stone_V1_flat.png",
+    "bytes": 179680,
+    "alpha_bounds": [
+      99,
+      76,
+      413,
+      435
+    ],
+    "webp_lossless_bytes": 62268,
+    "webp_q90_bytes": 11436
+  },
+  {
+    "file": "stone_V1_max.png",
+    "bytes": 163861,
+    "alpha_bounds": [
+      99,
+      58,
+      413,
+      393
+    ],
+    "webp_lossless_bytes": 51700,
+    "webp_q90_bytes": 10198
+  },
+  {
+    "file": "stone_V1_mid.png",
+    "bytes": 174391,
+    "alpha_bounds": [
+      99,
+      98,
+      413,
+      434
+    ],
+    "webp_lossless_bytes": 59016,
+    "webp_q90_bytes": 10488
+  },
+  {
+    "file": "stone_V2_flat.png",
+    "bytes": 191653,
+    "alpha_bounds": [
+      99,
+      76,
+      413,
+      435
+    ],
+    "webp_lossless_bytes": 68114,
+    "webp_q90_bytes": 12838
+  },
+  {
+    "file": "stone_V2_max.png",
+    "bytes": 172748,
+    "alpha_bounds": [
+      99,
+      47,
+      413,
+      393
+    ],
+    "webp_lossless_bytes": 56962,
+    "webp_q90_bytes": 11084
+  },
+  {
+    "file": "stone_V2_mid.png",
+    "bytes": 187642,
+    "alpha_bounds": [
+      99,
+      93,
+      413,
+      434
+    ],
+    "webp_lossless_bytes": 65076,
+    "webp_q90_bytes": 11794
+  },
+  {
+    "file": "timber_V1_flat.png",
+    "bytes": 197119,
+    "alpha_bounds": [
+      99,
+      76,
+      413,
+      435
+    ],
+    "webp_lossless_bytes": 72238,
+    "webp_q90_bytes": 13564
+  },
+  {
+    "file": "timber_V1_max.png",
+    "bytes": 170195,
+    "alpha_bounds": [
+      99,
+      90,
+      413,
+      393
+    ],
+    "webp_lossless_bytes": 58448,
+    "webp_q90_bytes": 11286
+  },
+  {
+    "file": "timber_V1_mid.png",
+    "bytes": 187134,
+    "alpha_bounds": [
+      99,
+      91,
+      413,
+      434
+    ],
+    "webp_lossless_bytes": 66862,
+    "webp_q90_bytes": 11932
+  },
+  {
+    "file": "timber_V2_flat.png",
+    "bytes": 211347,
+    "alpha_bounds": [
+      99,
+      76,
+      413,
+      435
+    ],
+    "webp_lossless_bytes": 84278,
+    "webp_q90_bytes": 15718
+  },
+  {
+    "file": "timber_V2_max.png",
+    "bytes": 179017,
+    "alpha_bounds": [
+      99,
+      86,
+      413,
+      393
+    ],
+    "webp_lossless_bytes": 66100,
+    "webp_q90_bytes": 11980
+  },
+  {
+    "file": "timber_V2_mid.png",
+    "bytes": 199353,
+    "alpha_bounds": [
+      99,
+      85,
+      413,
+      434
+    ],
+    "webp_lossless_bytes": 75862,
+    "webp_q90_bytes": 13346
+  }
+]
