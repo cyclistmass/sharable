@@ -65,8 +65,15 @@ class EnvSettings(private val store: FloatStore) {
         store.put(item.key, c)
     }
 
+    private val pirate = mutableFloatStateOf(store.get(THEME, 0f))
+
+    /** Knight art: Normal (armoured knights) or Pirate themed (afro skeleton crew). Saved. */
+    var pirateTheme: Boolean
+        get() = pirate.floatValue > 0.5f
+        set(v) { pirate.floatValue = if (v) 1f else 0f; store.put(THEME, pirate.floatValue) }
+
     /** Back to the defaults (saved). */
-    fun reset() { for (i in Item.entries) this[i] = DEFAULT }
+    fun reset() { for (i in Item.entries) this[i] = DEFAULT; pirateTheme = false }
 
     val clouds get() = this[Item.CLOUDS]
     val birds get() = this[Item.BIRDS]
@@ -75,6 +82,7 @@ class EnvSettings(private val store: FloatStore) {
 
     companion object {
         const val DEFAULT = 0.5f
+        const val THEME = "theme-pirate"
     }
 }
 
@@ -93,6 +101,11 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
         }
         Text("Scenery", fontSize = 13.sp, color = Color(0xFFD9B865))
         for (item in EnvSettings.Item.entries) SliderRow(item.label, env[item], "env-${item.name.lowercase()}") { env[item] = it }
+        Text("Theme", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Normal", selected = !env.pirateTheme, tag = "theme-normal", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.pirateTheme = false }
+            Choice("Pirate themed", selected = env.pirateTheme, tag = "theme-pirate", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.pirateTheme = true }
+        }
         Text("Sound", fontSize = 13.sp, color = Color(0xFFD9B865))
         SliderRow("Music", sound.musicVolume, "vol-music") { sound.musicVolume = it }
         SliderRow("Sounds", sound.soundVolume, "vol-sounds") { sound.soundVolume = it }
@@ -117,7 +130,7 @@ fun GearButton(open: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier
     val turn by animateFloatAsState(if (open) 60f else 0f, label = "gear-turn")
     Image(
         painterResource(if (pressed) R.drawable.settings_gear_pressed else R.drawable.settings_gear), "Settings",
-        modifier.size(52.dp).rotate(turn).clickable(interactionSource = source, indication = null, onClick = onClick).testTag("gear"),
+        modifier.rotate(turn).clickable(interactionSource = source, indication = null, onClick = onClick).testTag("gear"),
     )
 }
 

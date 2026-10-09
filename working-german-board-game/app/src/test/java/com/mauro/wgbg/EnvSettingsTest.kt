@@ -57,4 +57,14 @@ class EnvSettingsTest {
         assertEquals(SoundSettings.DEFAULT_SOUNDS, sound.soundVolume)
         assertEquals(EnvSettings.DEFAULT, EnvSettings(store).clouds, "and the reset is saved")
     }
+
+    @Test
+    fun `knight theme is saved and reset goes back to Normal`() {
+        val store = MapStore()
+        EnvSettings(store).pirateTheme = true
+        val again = EnvSettings(store)
+        assertEquals(true, again.pirateTheme)
+        again.reset()
+        assertEquals(false, EnvSettings(store).pirateTheme)
+    }
 }

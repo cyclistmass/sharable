@@ -9,6 +9,8 @@ import wgbg.engine.Resource
 
 /** Our names for the five resources, in engine order (WOOD, BRICK, SHEEP, WHEAT, ORE). */
 val RESOURCE_NAMES = listOf("Timber", "Clay", "Fleece", "Grain", "Stone")
+/** Every card a hand can hold, by engine card index: the resources, then the Age of Chivalry commodities. */
+val ALL_CARD_NAMES = RESOURCE_NAMES + listOf("Parchment", "Weave", "Silver")
 
 /** What happened in one player's turn: the roll, who got what, and what they did. */
 data class TurnReport(

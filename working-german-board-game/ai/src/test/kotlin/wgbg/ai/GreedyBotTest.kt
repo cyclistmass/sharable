@@ -22,4 +22,22 @@ class GreedyBotTest {
         println("greedy win rate vs 3 random: ${100 * wins / games}% ($finished/$games finished)")
         assertTrue(wins > games / 2, "greedy should win most games, won $wins/$games")
     }
+
+    @Test
+    fun `greedy bots finish Age of Chivalry games without crashing`() {
+        repeat(30) { g ->
+            val s = wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS, numPlayers = 3 + g % 2, maxTurns = 400), g.toLong())
+            val bots = List(s.numPlayers) { GreedyBot(g * 10L + it) }
+            val buf = wgbg.engine.ActionBuffer()
+            var steps = 0
+            while (!s.isOver && steps < 200_000) {
+                wgbg.engine.Rules.legalActions(s, buf)
+                val a = bots[s.actingPlayer].choose(s, buf)
+                org.junit.jupiter.api.Assertions.assertTrue(wgbg.engine.Rules.isLegal(s, a), "illegal $a")
+                wgbg.engine.Rules.apply(s, a)
+                steps++
+            }
+            org.junit.jupiter.api.Assertions.assertTrue(s.isOver, "game $g did not finish")
+        }
+    }
 }

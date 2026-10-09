@@ -126,16 +126,13 @@ fun HumanControls(
     // Info on the left, the buttons in a column hugging the right edge with the main one (Roll /
     // End turn) at the very bottom: everything within reach of a right thumb.
     Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(
-            Modifier.widthIn(max = 340.dp).brassEdgedWood().padding(12.dp),
+        // Board A: the prompt, points and hand live elsewhere (TurnPrompt, PlayerStrip, HandRow); this
+        // panel only appears for Fortune cards and the pickers.
+        val fortune = (0 until DevCard.COUNT).filter { s.devHand[me * DevCard.COUNT + it] > 0 }
+        if (fortune.isNotEmpty() || sheet != null) Column(
+            Modifier.widthIn(max = 300.dp).brassEdgedWood().padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(prompt(s, legal, names), color = INK_LIGHT, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("You: ${s.victoryPoints(me)} VP", color = INK_LIGHT, fontSize = 13.sp)
-                MiniHand(List(CARD_TYPES) { s.hand(me, it) }, s.devCount(me))
-            }
-            val fortune = (0 until DevCard.COUNT).filter { s.devHand[me * DevCard.COUNT + it] > 0 }
             if (fortune.isNotEmpty()) Text("Fortune cards: " + fortune.joinToString(", ") { "${s.devHand[me * DevCard.COUNT + it]} ${FORTUNE[it]}" }, color = INK_LIGHT, fontSize = 12.sp)
             when (sheet) {
                 "yop" -> Picker("Windfall: take", legal.filter { it.type == ActionType.PLAY_YEAR_OF_PLENTY }
@@ -155,7 +152,7 @@ fun HumanControls(
                 legal.firstOrNull { it.type == t }?.let { a -> MoveButton(label, primary) { onMove(a) } }
             }
             if (ActionType.DISCARD in types) for (a in legal.filter { it.type == ActionType.DISCARD })
-                MoveButton("Discard ${RES[a.discardResource]}") { onMove(a) }
+                MoveButton(if (a.discardResource < 0) "Discard at random" else "Discard ${ALL_CARD_NAMES[a.discardResource]}") { onMove(a) }
             single(ActionType.BUY_DEVELOPMENT_CARD, "Buy Fortune card")
             single(ActionType.PLAY_KNIGHT_CARD, "Play Sentinel")
             single(ActionType.PLAY_ROAD_BUILDING, "Play Trailblazers")

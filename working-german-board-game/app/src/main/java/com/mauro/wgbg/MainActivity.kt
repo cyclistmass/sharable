@@ -151,6 +151,18 @@ class MainActivity : ComponentActivity() {
 private val TILE_FACES = listOf(R.drawable.tile_timber, R.drawable.tile_clay, R.drawable.tile_fleece, R.drawable.tile_grain, R.drawable.tile_stone)
 private val TILE_DESERT = R.drawable.tile_desert
 
+private val KNIGHTS_PIRATE = listOf(
+    R.drawable.knight_pirate_l1_inactive, R.drawable.knight_pirate_l1_active, R.drawable.knight_pirate_l2_inactive,
+    R.drawable.knight_pirate_l2_active, R.drawable.knight_pirate_l3_inactive, R.drawable.knight_pirate_l3_active,
+)
+private val KNIGHTS_NORMAL = listOf(
+    R.drawable.knight_normal_l1_inactive, R.drawable.knight_normal_l1_active, R.drawable.knight_normal_l2_inactive,
+    R.drawable.knight_normal_l2_active, R.drawable.knight_normal_l3_inactive, R.drawable.knight_normal_l3_active,
+)
+
+private val KNIGHT_CARDS_NORMAL = listOf(R.drawable.card_knight_normal_1, R.drawable.card_knight_normal_2, R.drawable.card_knight_normal_3)
+private val KNIGHT_CARDS_PIRATE = listOf(R.drawable.card_knight_pirate_1, R.drawable.card_knight_pirate_2, R.drawable.card_knight_pirate_3)
+
 private val TERRAIN_COLORS = mapOf(
     Resource.WOOD to Color(0xFF2E7D32),
     Resource.BRICK to Color(0xFFBF5B30),
@@ -263,6 +275,10 @@ fun WatchGameScreen(
     // game starts several times a second, which would otherwise wipe splashes and clouds.
     val oceanRes = LocalContext.current.resources
     val cliff = ImageBitmap.imageResource(R.drawable.cliff_straight)
+    val raiders = ImageBitmap.imageResource(R.drawable.raiders_ship)
+    // Knight art per theme: index (level - 1) * 2 + (active ? 1 : 0).
+    val knightsPirate = KNIGHTS_PIRATE.map { ImageBitmap.imageResource(it) }
+    val knightsNormal = KNIGHTS_NORMAL.map { ImageBitmap.imageResource(it) }
     val tileFaces = TILE_FACES.withIndex().associate { (r, id) -> r to ImageBitmap.imageResource(id) } + (Resource.NONE to ImageBitmap.imageResource(TILE_DESERT))
     val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile); it.boatColors = PLAYER_COLORS } }
     // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
@@ -450,7 +466,7 @@ fun WatchGameScreen(
             tick // redraw on every move
             seaTick // and on every sea frame
             if (inventory) drawInventory(measurer, wood) else {
-                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff)
+                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, if (env.pirateTheme) knightsPirate else knightsNormal, raiders)
                 if (!targets.isEmpty) drawTargets(state.board, targets, camera, (kotlin.math.sin(seaTick / 9f) + 1f) / 2f)
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
@@ -459,6 +475,10 @@ fun WatchGameScreen(
         if (inventory) Row(Modifier.align(Alignment.BottomCenter).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((r, art) in CARD_ART.withIndex()) androidx.compose.foundation.Image(
                 androidx.compose.ui.res.painterResource(art), RESOURCE_NAMES[r], Modifier.size(width = 76.dp, height = 110.dp))
+            // Knight cards in the chosen theme (Normal / Pirate themed).
+            for (lv in 1..3) androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(if (env.pirateTheme) KNIGHT_CARDS_PIRATE[lv - 1] else KNIGHT_CARDS_NORMAL[lv - 1]),
+                "Knight level $lv", Modifier.size(width = 76.dp, height = 110.dp))
         }
         if (!inventory) {
             val report = tick.let { if (speed == MAX_SPEED) tracker.last else tracker.current ?: tracker.last }
@@ -471,12 +491,19 @@ fun WatchGameScreen(
             if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight,
                 modifier = Modifier.fillMaxSize())
         }
+        // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
+        // The game state is mutated in place, so these get `tick` to redraw after every move.
+        if (!inventory) PlayerStrip(state, if (human) 0 else -1, names, tick, Modifier.align(Alignment.TopStart).padding(8.dp))
+        if (human && !inventory) tick.let {
+            TurnPrompt(prompt(state, legal, names), Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+            if (!tradeOpen && !tradeNeedsMe(state, 0)) HandRow(state, 0, tick, Modifier.align(Alignment.BottomCenter).offset(x = 60.dp).padding(bottom = 6.dp))
+        }
         if (human && !inventory) {
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
             val needsMe = tradeNeedsMe(state, 0)
             // The trade chest docks where the move buttons sit and takes their place while it is open.
             val chest = (tradeOpen && tradeButtonVisible(state)) || needsMe || (tradeMode(state, 0) == TradeMode.WAITING && state.currentPlayer == 0)
-            if (chest) TradePanel(state, 0, legal, names, send, onClose = { tradeOpen = false }, responses = responses,
+            if (chest) TradePanel(state, 0, legal, names, send, onClose = { tradeOpen = false }, responses = responses, version = tick,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp))
             else if (legal.isNotEmpty()) HumanControls(state, 0, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp))
             if (chosen.isNotEmpty()) Column(
@@ -516,6 +543,8 @@ fun WatchGameScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    GearButton(settingsOpen, { settingsOpen = true; panelOpen = false }, Modifier.size(44.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text("Turn ${players.first().turn}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     // Small and out of the way; it asks before leaving.
                     Text("Exit", color = Color(0xFFFFB4A0), fontSize = 12.sp, fontWeight = FontWeight.Bold,
@@ -542,10 +571,9 @@ fun WatchGameScreen(
         }
       }
         BrassButton(if (panelOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) { panelOpen = !panelOpen }
-        // The gear: every setting in one panel, left of the Menu button.
-        GearButton(settingsOpen, { settingsOpen = !settingsOpen }, Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 108.dp))
+        // Settings open from the gear inside the Menu, so the board stays clean.
         if (settingsOpen) SettingsPanel(env, sound, onClose = { settingsOpen = false },
-            Modifier.align(Alignment.TopEnd).padding(top = 64.dp, end = 8.dp))
+            Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp))
         if (confirmExit) Column(
             Modifier.align(Alignment.Center).brassEdgedWood().padding(18.dp).testTag("exit-confirm"),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -563,7 +591,7 @@ fun WatchGameScreen(
             open = tradeOpen || tradeNeedsMe(state, 0),
             attention = tick.let { tradeNeedsMe(state, 0) },
             onClick = { tradeOpen = !tradeOpen },
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (panelOpen) 356.dp else 8.dp),
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (panelOpen || settingsOpen) 376.dp else 8.dp),
         )
     }
 }
@@ -844,7 +872,7 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
     }
 }
 
-private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: ImageBitmap? = null) {
+private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: ImageBitmap? = null, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null) {
     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
@@ -858,6 +886,15 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX))
 
     if (cliff != null) drawCliffs(board, l, cliff)
+    // Age of Chivalry: the Raiders' ship sails its arc toward the island as the track advances (#2).
+    val ckState = s.ck
+    if (ckState != null && raiders != null) {
+        val (lx, ly) = raidersAt(ckState.barbarianPos, board, sea?.time ?: 0f)
+        val at = l.project(lx, ly)
+        val size = 1.15f * scale * l.kAt(ly)
+        drawImage(raiders, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
+            filterQuality = FilterQuality.Medium)
+    }
     // Painter's order: top rows first so a lower tile's face covers the side wall above it.
     for (h in (0 until board.hexCount).sortedBy { l.rowKey(it) }) {
         val c = l.hexCenter(h)
@@ -890,6 +927,20 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     }
 
     // Robber.
+    // Age of Chivalry knights: the theme's token at each corner, on a ring in the owner's colour.
+    val ck = s.ck
+    if (ck != null && knights != null) for (v in 0 until board.topology.vertexCount) {
+        val owner = ck.knightOwner[v]
+        if (owner < 0) continue
+        val level = ck.knightLevel[v].coerceIn(1, 3)
+        val img = knights[(level - 1) * 2 + if (ck.isActive(v)) 1 else 0]
+        val at = l.at(v)
+        val size = 0.62f * scale * l.k(v)
+        drawOval(PLAYER_COLORS[owner], at + Offset(-size * 0.42f, -size * 0.12f), Size(size * 0.84f, size * 0.3f * l.squash))
+        drawOval(Color.Black.copy(alpha = 0.5f), at + Offset(-size * 0.42f, -size * 0.12f), Size(size * 0.84f, size * 0.3f * l.squash), style = Stroke(size * 0.03f))
+        drawImage(img, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size * 0.92f).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
+            filterQuality = FilterQuality.Medium)
+    }
     if (s.robberHex >= 0) {
         val rs = scale * l.hexK(s.robberHex) * stand
         drawRobber(l.hexCenter(s.robberHex) + Offset(0.15f * rs, 0.15f * rs * l.squash), rs)
@@ -1163,4 +1214,17 @@ private fun DrawScope.drawCliffs(board: Board, l: Layout, cliff: ImageBitmap) {
                 dstSize = IntSize((1.12f * len).toInt(), h.toInt()), filterQuality = FilterQuality.Medium)
         }
     }
+}
+
+/**
+ * Where the Raiders' ship sits (lattice) for track position [pos] 0..BARBARIAN_TRACK: far out to the
+ * right at 0, curving in to just off the coast at the attack, bobbing gently with [time].
+ */
+internal fun raidersAt(pos: Int, board: Board, time: Float): Pair<Float, Float> {
+    val landR = board.topology.vertexPos.maxOf { kotlin.math.hypot(it.x * sqrt(3f) / 2f, it.y / 2f) }
+    val f = (pos.coerceIn(0, wgbg.engine.CkPiece.BARBARIAN_TRACK) / wgbg.engine.CkPiece.BARBARIAN_TRACK.toFloat())
+    val r = landR + 0.9f + (1f - f) * 3.2f
+    val a = Math.toRadians(-18.0 + 30.0 * f).toFloat()   // out on the open sea to the right, clear of the HUD
+    val bob = kotlin.math.sin(time * 1.3f) * 0.03f
+    return (kotlin.math.cos(a) * r) to (kotlin.math.sin(a) * r + bob)
 }

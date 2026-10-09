@@ -49,9 +49,10 @@ class GreedyBot(seed: Long = 0, override val name: String = "Greedy") : Bot {
             ActionType.PLAY_MONOPOLY -> 700.0 + s.handSizeOthers(me, a.payload.toInt())
             ActionType.BUILD_ROAD -> roadScore(s, me, a.payload.toInt())
             ActionType.MARITIME_TRADE ->
-                if (s.hand(me, a.maritimeGive) >= 4 && s.hand(me, a.maritimeGet) == 0) 200.0 else -1.0
+                // Card indices here may be commodities (Age of Chivalry), so read them with card(), not hand().
+                if (s.card(me, a.maritimeGive) >= 4 && s.card(me, a.maritimeGet) == 0) 200.0 else -1.0
             ActionType.MOVE_ROBBER -> robberScore(s, me, a.robberHex, a.robberVictim)
-            ActionType.DISCARD -> s.hand(me, a.discardResource).toDouble()
+            ActionType.DISCARD -> if (a.discardResource < 0) 0.0 else s.card(me, a.discardResource).toDouble()
             ActionType.ROLL -> 50.0
             ActionType.ACCEPT_TRADE -> if (if (s.phase == Phase.DECIDE_COUNTER) counterHelpsMe(s, me) else offerHelpsMe(s, me)) 5.0 else -1.0
             ActionType.CONFIRM_TRADE -> 10.0 - s.publicVictoryPoints(a.payload.toInt()) // weakest partner first
