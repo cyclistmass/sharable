@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -312,7 +313,17 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                     boardGestures(
                         grab = { p -> seaNow.cloudAt(lattice(p))?.also { dragged = it } != null },
                         onGrabMove = { p -> dragged?.let { seaNow.move(it, lattice(p)) } },
-                        onGrabEnd = { moved -> dragged?.let { if (!moved) seaNow.poof(it) }; dragged = null },
+                        onGrabEnd = { moved, at, v ->
+                            dragged?.let { c ->
+                                if (!moved) seaNow.poof(c)
+                                else {
+                                    // Screen px/s to lattice units/s, sampled over 0.1 s so tilt is accounted for.
+                                    val d = lattice(at + v * 0.1f) - lattice(at)
+                                    flingCloud(seaNow, c, d.x * 10f, d.y * 10f)
+                                }
+                            }
+                            dragged = null
+                        },
                         onTransform = { centroid, pan, zoom ->
                             lastTouch = System.nanoTime()
                             camera = camera.transform(centroid, pan, zoom, Size(size.width.toFloat(), size.height.toFloat()))
@@ -470,22 +481,28 @@ private suspend fun PointerInputScope.boardGestures(
     onTilt: (dy: Float) -> Unit,
     grab: (Offset) -> Boolean = { false },
     onGrabMove: (Offset) -> Unit = {},
-    onGrabEnd: (moved: Boolean) -> Unit = {},
+    onGrabEnd: (moved: Boolean, at: Offset, velocity: Offset) -> Unit = { _, _, _ -> },
 ) = awaitEachGesture {
     val first = awaitFirstDown(requireUnconsumed = false)
     // A single finger landing on a cloud drags that cloud (a tap without moving poofs it).
     if (grab(first.position)) {
         var moved = false
         var travel = 0f
+        var last = first.position
+        // Release velocity (px/s) so a thrown cloud keeps going.
+        val tracker = VelocityTracker().apply { addPosition(first.uptimeMillis, first.position) }
         do {
             val event = awaitPointerEvent()
             val c = event.changes.firstOrNull { it.id == first.id } ?: break
             travel += (c.position - c.previousPosition).getDistance()
             if (travel > viewConfiguration.touchSlop) moved = true
             if (moved) onGrabMove(c.position)
+            tracker.addPosition(c.uptimeMillis, c.position)
+            last = c.position
             c.consume()
         } while (c.pressed)
-        onGrabEnd(moved)
+        val v = tracker.calculateVelocity()
+        onGrabEnd(moved, last, Offset(v.x, v.y))
         return@awaitEachGesture
     }
     var mode = 0 // 0 undecided, 1 transform, 2 tilt
@@ -973,3 +990,8 @@ private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer:
     }
 }
 
+
+/** Hands a released cloud its throw; a no-op until the sea supports momentum. */
+private fun flingCloud(sea: Sea, c: Sea.Cloud, vx: Float, vy: Float) {
+    if (!vx.isFinite() || !vy.isFinite()) return
+}
