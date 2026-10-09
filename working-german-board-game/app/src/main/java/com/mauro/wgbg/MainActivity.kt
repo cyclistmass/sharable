@@ -156,7 +156,9 @@ class MainActivity : ComponentActivity() {
                 val firebaseEmu = debug && intent.getStringExtra("firebase") == "emu"
                 // Debug builds: `--ez autoplay true` lets a bot play your seat in online games (two-phone sims, #35).
                 val autoplay = debug && intent.getBooleanExtra("autoplay", false)
-                AppRoot(debugCamera(), start, firebaseEmu, autoplay)
+                // Debug builds: `--ez autosetup true` lets a bot place your opening pieces (scripted UI tests).
+                val autoSetup = debug && intent.getBooleanExtra("autosetup", false)
+                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup)
             }
         }
     }
@@ -236,7 +238,7 @@ private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME 
  * The in-game Exit goes back to game start (leaving the room).
  */
 @Composable
-fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseEmu: Boolean = false, autoplay: Boolean = false) {
+fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseEmu: Boolean = false, autoplay: Boolean = false, autoSetup: Boolean = false) {
     var screen by rememberSaveable { mutableStateOf(if (start != null) Screen.GAME else Screen.START) }
     var setup by remember { mutableStateOf(if (start == "chivalry") GameSetup().withRuleset(Ruleset.CHIVALRY) else GameSetup()) }
     var lobby by remember { mutableStateOf<Lobby?>(null) }
@@ -301,7 +303,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             } ?: run { screen = Screen.START }
             Screen.GAME -> key(gameNo) {
                 // Back asks "Leave this game?" inside the game screen (same as Exit).
-                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START })
+                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup)
             }
         }
         problem?.let { msg ->
@@ -360,6 +362,8 @@ fun WatchGameScreen(
     online: LobbySession? = null,
     /** Debug: a bot plays your seat in an online game (two-phone simulations). */
     autoplay: Boolean = false,
+    /** Debug: a bot places your opening homesteads and roads, then you play. */
+    autoSetup: Boolean = false,
 ) {
     var seed by remember { mutableLongStateOf(System.nanoTime() and 0xffffffL) }
     // Who sits where in an online room (frozen once it starts); null offline.
@@ -472,7 +476,8 @@ fun WatchGameScreen(
         suspend fun step(): ActionKind {
             Rules.legalActions(state, buf)
             val who = state.actingPlayer
-            var action = if (who == me) {
+            val placing = state.phase == Phase.BUILD_INITIAL_SETTLEMENT || state.phase == Phase.BUILD_INITIAL_ROAD
+            var action = if (who == me && !(autoSetup && placing)) {
                 tick++ // show the human what they can do
                 var a: Action
                 do a = humanMoves.receive() while (!Rules.isLegal(state, a))
@@ -599,6 +604,10 @@ fun WatchGameScreen(
     val legalNow by rememberUpdatedState(legal)
     val targets = Targets.of(legal)
     val chosen = pending.filter { it in legal } // a stale pick (the turn moved on) is dropped
+    // The trade chest: open when you opened it, or when a trade waits on you (or you wait on answers to yours).
+    val chestOpen = me >= 0 && !inventory && tick.let {
+        (tradeOpen && tradeButtonVisible(state)) || tradeNeedsMe(state, me) || (tradeMode(state, me) == TradeMode.WAITING && state.currentPlayer == me)
+    }
     Box(modifier) {
       Box(Modifier.fillMaxSize()) { // the menu floats over the board, so the ocean always fills the screen
       Box(Modifier.fillMaxSize()) {
@@ -723,7 +732,8 @@ fun WatchGameScreen(
             val previous = tick.let { if (speed == MAX_SPEED) null else (if (report === tracker.current) tracker.last else tracker.current ?: tracker.last).takeIf { it !== report } }
             // The roll's dice roll across the turn HUD and rest on its top-right corner until the next roll.
             val rolled = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
-            Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
+            // While the trade chest is open it docks here, over the turn panel, so the board stays in view.
+            if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
                 TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme)
             }
             if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, onFlying = { diceFlying = it },
@@ -745,9 +755,8 @@ fun WatchGameScreen(
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
             val needsMe = tradeNeedsMe(state, me)
             // The trade chest docks where the move buttons sit and takes their place while it is open.
-            val chest = (tradeOpen && tradeButtonVisible(state)) || needsMe || (tradeMode(state, me) == TradeMode.WAITING && state.currentPlayer == me)
-            if (chest) TradePanel(state, me, legal, names, send, onClose = { tradeOpen = false }, responses = responses, version = tick,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp))
+            if (chestOpen) TradePanel(state, me, legal, names, send, onClose = { tradeOpen = false }, responses = responses, version = tick,
+                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
             else if (legal.isNotEmpty()) HumanControls(state, me, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp))
             if (chosen.isNotEmpty()) Column(
                 Modifier.align(Alignment.TopCenter).padding(top = 8.dp).chest(),

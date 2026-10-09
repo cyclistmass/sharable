@@ -199,6 +199,13 @@ fun TradePanel(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Tab("Players", !bankTab) { maritime = false }
                 if (mode == TradeMode.COMPOSE) Tab("Maritime", bankTab) { maritime = true; get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) }
+                // Everyone's answer to your offer, up here beside the tabs: a row at the bottom ran off the
+                // chest on a landscape phone.
+                if (!bankTab && s.currentPlayer == me) for (p in 0 until s.numPlayers) if (p != me) {
+                    val mark = responses[p] ?: if (mode == TradeMode.WAITING && s.actingPlayer == p) "…" else ""
+                    Text("${names[p]} $mark", color = when (mark) { "✓" -> Color(0xFF8BD18B); "✗" -> Color(0xFFE57373); "⇄" -> COUNTER; else -> INK.copy(alpha = 0.7f) },
+                        fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.testTag("answer-$p"))
+                }
             }
             Text(status(s, me, mode, names, countering, bankTab), color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 maxLines = 1, modifier = Modifier.width(214.dp))
@@ -210,13 +217,6 @@ fun TradePanel(
             CardRow(showGive, editing, single = bankTab, badge = { r -> if (bankTab) "${bankRate(s, me, r)}:1" else "have ${holding(s, me, r)}" }) { r, d ->
                 give = if (bankTab) IntArray(tradeCards(s)).also { it[r] = bankRate(s, me, r) }
                 else give.copyOf().also { it[r] = (it[r] + d).coerceIn(0, holding(s, me, r)) }
-            }
-            if (!bankTab && s.currentPlayer == me) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                for (p in 0 until s.numPlayers) if (p != me) {
-                    val mark = responses[p] ?: if (mode == TradeMode.WAITING && s.actingPlayer == p) "…" else ""
-                    Text("${names[p]} $mark", color = when (mark) { "✓" -> Color(0xFF8BD18B); "✗" -> Color(0xFFE57373); "⇄" -> COUNTER; else -> INK.copy(alpha = 0.7f) },
-                        fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("answer-$p"))
-                }
             }
             if (mode == TradeMode.PICK_PARTNER) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (a in legal.filter { it.type == ActionType.CONFIRM_TRADE })
@@ -249,7 +249,9 @@ fun TradePanel(
         } else null
         val labels = tradeButtonLabels(mode, countering, bankTab, get.any { it > 0 } || give.any { it > 0 })
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            BigButton(labels.first, YES, "trade-yes", yes?.let { a -> { onMove(a); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
+            // Several takers: the "Trade with …" buttons choose, so no greyed-out Trade beside them.
+            if (!(mode == TradeMode.PICK_PARTNER && yes == null))
+                BigButton(labels.first, YES, "trade-yes", yes?.let { a -> { onMove(a); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
             BigButton(labels.second, NO, "trade-no", no)
             // Counter only means something when answering someone else's offer.
             if (mode == TradeMode.RESPOND) BigButton("Counter", COUNTER, "trade-counter", counter)
@@ -296,7 +298,7 @@ private fun CardRow(counts: IntArray, editable: Boolean, single: Boolean, badge:
             val n = counts[r]
             val lit = n > 0
             Box(
-                Modifier.size(width = 38.dp, height = 55.dp)
+                Modifier.size(width = 34.dp, height = 48.dp) // small enough that the chest fits a landscape phone
                     .then(if (lit) Modifier.border(2.dp, BRASS_LIGHT, RoundedCornerShape(5.dp)) else Modifier)
                     .then(if (editable) Modifier.clickable { change(r, 1) } else Modifier),
                 contentAlignment = Alignment.Center,
