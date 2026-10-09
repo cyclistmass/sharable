@@ -1,0 +1,66 @@
+[
+  {
+    "name": "cliff_top_1",
+    "original": {
+      "width": 768,
+      "height": 174,
+      "bytes": 83418,
+      "rgbaBytes": 534528
+    },
+    "candidate": {
+      "width": 384,
+      "height": 87,
+      "bytes": 52934,
+      "rgbaBytes": 133632
+    },
+    "maxVisibleError": 0
+  },
+  {
+    "name": "cliff_top_2",
+    "original": {
+      "width": 768,
+      "height": 174,
+      "bytes": 72170,
+      "rgbaBytes": 534528
+    },
+    "candidate": {
+      "width": 384,
+      "height": 87,
+      "bytes": 46652,
+      "rgbaBytes": 133632
+    },
+    "maxVisibleError": 0
+  },
+  {
+    "name": "cliff_top_3",
+    "original": {
+      "width": 768,
+      "height": 174,
+      "bytes": 86254,
+      "rgbaBytes": 534528
+    },
+    "candidate": {
+      "width": 384,
+      "height": 87,
+      "bytes": 56838,
+      "rgbaBytes": 133632
+    },
+    "maxVisibleError": 0
+  },
+  {
+    "name": "cliff_straight",
+    "original": {
+      "width": 1024,
+      "height": 225,
+      "bytes": 148654,
+      "rgbaBytes": 921600
+    },
+    "candidate": {
+      "width": 512,
+      "height": 113,
+      "bytes": 109878,
+      "rgbaBytes": 231424
+    },
+    "maxVisibleError": 0
+  }
+]

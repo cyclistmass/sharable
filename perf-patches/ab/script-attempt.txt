@@ -1,0 +1,8 @@
+﻿bash : 10-09 09:23:16.481 13816 41852 F adb.exe : adb_utils.cpp:315 Cannot mkdir '\.android': Permission denied
+At line:2 char:355
++ ... es/ab/raw'; bash tools/perf_ab.sh ../catan-android-perfA/app/build/ou ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (10-09 09:23:16....rmission denied:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+10-09 09:23:16.602 27884 41320 F adb.exe : adb_utils.cpp:315 Cannot mkdir '\.android': Permission denied

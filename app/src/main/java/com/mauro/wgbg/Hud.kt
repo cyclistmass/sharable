@@ -123,14 +123,15 @@ private fun MiniCard(edge: Color, label: String, count: Int, face: Color) {
 /** A resting 3D die (the same sprites the throw uses) at the panel's dice size, showing [value] on top. */
 @Composable
 private fun Die3d(value: Int, red: Boolean, pirate: Boolean, pad: Color, visible: Boolean, modifier: Modifier = Modifier) {
-    val face = androidx.compose.ui.graphics.ImageBitmap.imageResource(diceFace(red, pirate, value))
+    val face = if (visible) androidx.compose.ui.graphics.ImageBitmap.imageResource(diceFace(red, pirate, value)) else null
+    val outline = androidx.compose.runtime.remember { androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f) }
     Canvas(modifier.size(DIE_DP.dp)) {
         // A pad in the roller's colour the die sits on (shown even while the dice are in the air).
         val r = CornerRadius(size.minDimension * 0.22f)
         drawRoundRect(pad.copy(alpha = 0.85f), topLeft = Offset(-size.width * 0.06f, size.height * 0.08f), size = Size(size.width * 1.12f, size.height * 0.98f), cornerRadius = r)
         drawRoundRect(Color.Black.copy(alpha = 0.35f), topLeft = Offset(-size.width * 0.06f, size.height * 0.08f), size = Size(size.width * 1.12f, size.height * 0.98f), cornerRadius = r,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f))
-        if (!visible) return@Canvas
+            style = outline)
+        if (face == null) return@Canvas
         // The hand-made die (Codex art), square on the pad with the roll on top.
         val side = size.width * 0.9f
         drawImage(face, dstOffset = androidx.compose.ui.unit.IntOffset((size.width / 2 - side / 2).toInt(), (size.height * 0.57f - side / 2).toInt()),
