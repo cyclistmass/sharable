@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import wgbg.engine.Board
 import kotlin.math.PI
+import kotlin.math.pow
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -689,11 +690,38 @@ class Sea(board: Board, seed: Int = 1) {
             val jig = c.wobble / WOBBLE
             val u = 0.16f * s * (1 - 0.08f * c.hits) * (1 + 0.12f * jig * sin(c.wobble * 40f))
             drawOval(Color(0xFF002040).copy(alpha = 0.22f * fade), p + Offset(-1.1f * u, 1.0f * u), Size(2.8f * u, 0.6f * u))
-            for ((dx, dy, r) in UNDER) drawCircle(Color(0xFFB9CBE0).copy(alpha = fade), r * u, p + Offset(dx * u, dy * u))
-            for ((dx, dy, r) in PUFFS[c.shape]) drawCircle(
-                Brush.radialGradient(listOf(Color.White, Color(0xFFF4F8FC), Color(0xFFC9D8EA)), center = p + Offset((dx - 0.3f * r) * u, (dy - 0.4f * r) * u), radius = 1.5f * r * u),
-                r * u, p + Offset(dx * u, dy * u), alpha = fade)
-            for ((dx, dy, r) in TOPS) drawCircle(Color.White.copy(alpha = fade), r * u, p + Offset(dx * u, dy * u))
+            // The puffs come from a sprite painted once per shape and zoom bucket, then scaled and faded.
+            val (img, box) = cloudSprite(c.shape, u)
+            drawImage(img, dstOffset = IntOffset((p.x + box.left * u).toInt(), (p.y + box.top * u).toInt()),
+                dstSize = IntSize((box.width * u).toInt(), (box.height * u).toInt()), alpha = fade, filterQuality = FilterQuality.Medium)
+        }
+    }
+
+    // Cloud sprites: each shape's ten-odd gradient puffs painted once into a bitmap instead of every frame.
+    // Keyed by shape and a zoom bucket (the unit rounded up to a power of 1.5), so a zoom-in repaints sharper.
+    private val cloudSprites = HashMap<Int, Pair<ImageBitmap, Rect>>()
+
+    private fun cloudSprite(shape: Int, u: Float): Pair<ImageBitmap, Rect> {
+        val bucket = kotlin.math.ceil(kotlin.math.ln(u.coerceAtLeast(8f) / 8f) / kotlin.math.ln(1.5f)).toInt()
+        return cloudSprites.getOrPut(shape * 64 + bucket) {
+            val unit = 8f * 1.5f.pow(bucket)
+            val parts = UNDER + PUFFS[shape] + TOPS
+            val box = Rect(parts.minOf { it.first - it.third }, parts.minOf { it.second - it.third },
+                parts.maxOf { it.first + it.third }, parts.maxOf { it.second + it.third })
+            val w = (box.width * unit).toInt().coerceAtLeast(1); val h = (box.height * unit).toInt().coerceAtLeast(1)
+            val img = ImageBitmap(w, h)
+            val o = Offset(-box.left * unit, -box.top * unit)
+            androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
+                androidx.compose.ui.unit.Density(1f), androidx.compose.ui.unit.LayoutDirection.Ltr,
+                androidx.compose.ui.graphics.Canvas(img), Size(w.toFloat(), h.toFloat()),
+            ) {
+                for ((dx, dy, r) in UNDER) drawCircle(Color(0xFFB9CBE0), r * unit, o + Offset(dx * unit, dy * unit))
+                for ((dx, dy, r) in PUFFS[shape]) drawCircle(
+                    Brush.radialGradient(listOf(Color.White, Color(0xFFF4F8FC), Color(0xFFC9D8EA)), center = o + Offset((dx - 0.3f * r) * unit, (dy - 0.4f * r) * unit), radius = 1.5f * r * unit),
+                    r * unit, o + Offset(dx * unit, dy * unit))
+                for ((dx, dy, r) in TOPS) drawCircle(Color.White, r * unit, o + Offset(dx * unit, dy * unit))
+            }
+            img to box
         }
     }
 
