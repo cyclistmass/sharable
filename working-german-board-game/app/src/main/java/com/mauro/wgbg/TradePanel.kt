@@ -313,4 +313,4 @@ fun TradeToggle(open: Boolean, attention: Boolean, onClick: () -> Unit, modifier
 }
 
 /** The Trade button appears once setup is over (no trading while placing the first homesteads). */
-fun tradeButtonVisible(s: GameState) = s.phase != Phase.BUILD_INITIAL_SETTLEMENT && s.phase != Phase.BUILD_INITIAL_ROAD
+fun tradeButtonVisible(s: GameState) = s.ck == null && s.phase != Phase.BUILD_INITIAL_SETTLEMENT && s.phase != Phase.BUILD_INITIAL_ROAD // C&K trading UI: later (#4)
