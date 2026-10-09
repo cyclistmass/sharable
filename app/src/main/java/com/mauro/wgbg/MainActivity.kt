@@ -483,6 +483,12 @@ fun WatchGameScreen(
             if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight,
                 modifier = Modifier.fillMaxSize())
         }
+        // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
+        if (!inventory) PlayerStrip(state, if (human) 0 else -1, names, Modifier.align(Alignment.TopStart).padding(8.dp))
+        if (human && !inventory) {
+            TurnPrompt(prompt(state, legal, names), Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+            if (!tradeOpen && !tradeNeedsMe(state, 0)) HandRow(state, 0, Modifier.align(Alignment.BottomCenter).offset(x = 60.dp).padding(bottom = 6.dp))
+        }
         if (human && !inventory) {
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
             val needsMe = tradeNeedsMe(state, 0)
