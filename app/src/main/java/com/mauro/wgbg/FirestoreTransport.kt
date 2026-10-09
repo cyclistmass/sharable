@@ -51,9 +51,16 @@ class FirestoreTransport(private val auth: FirebaseAuth, private val db: Firebas
     private val games get() = db.collection("games")
     private val uid get() = auth.currentUser?.uid ?: error("Sign in first")
     @Synchronized override fun signIn(): CompletableFuture<String> {
-        auth.currentUser?.let { return CompletableFuture.completedFuture(it.uid) }
         signingIn?.takeUnless { it.isCompletedExceptionally }?.let { return it }
-        return auth.signInAnonymously().future().thenApply { it.user!!.uid }.also { signingIn = it }
+        val fresh = { auth.signInAnonymously().future().thenApply { it.user!!.uid } }
+        // A remembered sign-in can be dead (its account deleted, or made against the debug emulators):
+        // check its token first, and sign in afresh if the server refuses it.
+        val saved = auth.currentUser
+        val result = if (saved == null) fresh() else saved.getIdToken(false).future()
+            .thenApply { CompletableFuture.completedFuture(saved.uid) }
+            .exceptionally { auth.signOut(); fresh() }
+            .thenCompose { it }
+        return result.also { signingIn = it }
     }
     override fun create(room: Room): CompletableFuture<Room> {
         require(room.host == uid)

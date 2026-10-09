@@ -5,11 +5,13 @@
 #
 # Needs: both emulator lanes up (tools/emulator.ps1 -Lane 1 / -Lane 2), the debug APK installed on both, and
 #   firebase emulators:start --only firestore,auth --project workinggermangame   (Java 21+ on PATH)
-# Usage (Git Bash, project root): tools/online_sim.sh [ruleset: base|chivalry] [timeout seconds]
+# Usage (Git Bash, project root): [FIREBASE=live] tools/online_sim.sh [ruleset: base|chivalry] [timeout seconds]
 set -eEuo pipefail
 trap 'echo "FAILED at line $LINENO: $BASH_COMMAND"' ERR
 RULESET="${1:-base}"
 LIMIT="${2:-900}"
+# FIREBASE=live plays on the real project (needs google-services.json in the build and deployed rules).
+FB_EXTRA="--es firebase emu"; [ "${FIREBASE:-emu}" = live ] && FB_EXTRA=""
 HOST=emulator-5554
 GUEST=emulator-5556
 A="$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe"
@@ -42,7 +44,7 @@ for d in $HOST $GUEST; do
   "$A" -s $d shell settings put secure stylus_handwriting_enabled 0
   "$A" -s $d logcat -c
   "$A" -s $d shell am force-stop com.mauro.wgbg
-  "$A" -s $d shell am start -n com.mauro.wgbg/.MainActivity --es firebase emu --ez autoplay true >/dev/null
+  "$A" -s $d shell am start -n com.mauro.wgbg/.MainActivity $FB_EXTRA --ez autoplay true >/dev/null
 done
 sleep 5
 tap_text $GUEST "Got it" 2>/dev/null || true
