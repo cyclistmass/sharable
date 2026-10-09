@@ -128,7 +128,7 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
 /** One die at animation time [u], flying from [start] to its resting square [r] (drawn as the panel draws it). */
 private fun DrawScope.drawDie(r: Rect, u: Float, start: Offset, perp: Offset, tumble: List<ImageBitmap>, face: ImageBitmap,
                               spin: Int, turns: Float) {
-    val cube = r.width * 0.9f                                            // Die3d draws the face at 90% of its icon
+    val cube = r.width * DIE_FACE_SHARE                                  // exactly the size Die3d draws it
     val hop = kotlin.math.sin(u.coerceAtMost(DiceSprites.LAND) / DiceSprites.LAND * Math.PI.toFloat())
     val b = DiceSprites.bounce(u)
     val c = start + (r.center - start) * DiceSprites.fall(u) + perp * (hop * cube * 0.6f) - Offset(0f, b * cube)
