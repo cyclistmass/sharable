@@ -90,6 +90,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.layer.CompositingStrategy
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -418,6 +421,12 @@ fun WatchGameScreen(
         val measurer = rememberTextMeasurer()
         val resources = LocalContext.current.resources
         val wood = remember { WoodPieces(resources, PLAYER_COLORS + TOKEN_WOOD) }
+        // The board's still parts are recorded once and replayed every sea frame (see BoardPart).
+        // Offscreen: the GPU keeps each layer's finished pixels, so an unchanged layer costs one image copy.
+        val boardLayer = rememberGraphicsLayer().apply { compositingStrategy = CompositingStrategy.Offscreen }
+        val boardLayerKey = remember { arrayOfNulls<BoardLayerKey>(1) }
+        val waterLayer = rememberGraphicsLayer().apply { compositingStrategy = CompositingStrategy.Offscreen }
+        val waterLayerKey = remember { arrayOfNulls<WaterLayerKey>(1) }
         Canvas(
             Modifier.fillMaxSize()
                 .clipToBounds() // never draw the board under the side panel
@@ -486,9 +495,29 @@ fun WatchGameScreen(
                 },
         ) {
             tick // redraw on every move
-            seaTick // and on every sea frame
+            if (!inventory) seaTick // and on every sea frame (the Inventory screen holds still)
             if (inventory) drawInventory(measurer, wood) else {
-                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, if (env.pirateTheme) knightsPirate else knightsNormal, raiders)
+                val knights = if (env.pirateTheme) knightsPirate else knightsNormal
+                val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
+                val layerSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt())
+                val waterKey = WaterLayerKey(camera, size, (sea.time * 6f).toInt())
+                if (waterLayerKey[0] != waterKey) {
+                    waterLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.WATER) }
+                    waterLayerKey[0] = waterKey
+                }
+                drawLayer(waterLayer)
+                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.UNDER)
+                // Re-record the still board only when something on it can have changed: a move, the
+                // camera, the canvas size or a look setting. Otherwise the last recording is replayed.
+                val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff)
+                if (boardLayerKey[0] != key) {
+                    // The explicit-density overload gives the layer its own draw scope; recording through
+                    // this Canvas's scope makes the two scopes ask each other for density forever.
+                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL) }
+                    boardLayerKey[0] = key
+                }
+                drawLayer(boardLayer)
+                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER)
                 if (!targets.isEmpty) drawTargets(state.board, targets, camera, (kotlin.math.sin(seaTick / 9f) + 1f) / 2f)
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
@@ -894,7 +923,26 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
     }
 }
 
-private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null) {
+/**
+ * The board is drawn in passes so its slow parts needn't be repainted on every sea frame:
+ * [WATER] the painted sea, which only drifts a few px a second (cached, refreshed ~6 times a second),
+ * [UNDER] what moves on the water every frame (glints, wavelets, boats, splashes), [STILL] everything
+ * that only changes with a move, the camera or a setting (wood, cliffs, tiles, numbers, ports, roads
+ * and pieces, cached), then [OVER] the things that move on their own (the Raiders' ship, birds and
+ * clouds). [ALL] draws the lot in one go.
+ */
+internal enum class BoardPart { WATER, UNDER, STILL, OVER, ALL }
+
+/** What the cached [BoardPart.WATER] layer depends on: the camera, the size, and the sea's clock in 1/6 s steps. */
+private data class WaterLayerKey(val camera: Camera, val size: Size, val step: Int)
+
+/** Everything the [BoardPart.STILL] recording depends on; when it changes the layer is re-recorded. */
+private data class BoardLayerKey(
+    val game: Int, val tick: Int, val camera: Camera, val size: Size, val tileLine: Boolean,
+    val knights: List<ImageBitmap>?, val faces: Map<Int, ImageBitmap>?, val cliff: List<ImageBitmap>?,
+)
+
+private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null, part: BoardPart = BoardPart.ALL) {
     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
@@ -905,19 +953,30 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     val lift = 1f + 1.2f * kotlin.math.sin(l.tilt)
     val stand = 1f + 0.15f * kotlin.math.sin(l.tilt)
     val toScreen = { x: Float, y: Float -> l.project(x, y) }
-    sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX))
+    when (part) {
+        BoardPart.WATER -> { sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX), Sea.WaterPart.BASE); return }
+        BoardPart.UNDER -> sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX), Sea.WaterPart.LIVE)
+        BoardPart.ALL -> sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX))
+        else -> {}
+    }
+    fun over() {
+        // Age of Chivalry: the Raiders' ship sails its arc toward the island as the track advances (#2).
+        // It bobs with the sea's clock, so it rides above the still board rather than inside it.
+        val ckState = s.ck
+        if (ckState != null && raiders != null) {
+            val (lx, ly) = raidersAt(ckState.barbarianPos, board, sea?.time ?: 0f)
+            val at = l.project(lx, ly)
+            val size = 1.15f * scale * l.kAt(ly)
+            drawImage(raiders, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
+                filterQuality = FilterQuality.Medium)
+        }
+        sea?.drawSky(this, toScreen, scale * l.kAt(0f))
+    }
+    if (part == BoardPart.OVER) { over(); return }
+    if (part == BoardPart.UNDER) return
 
     drawTrough(board, l, scale, wood)
     if (cliff != null) drawCliffs(board, l, cliff)
-    // Age of Chivalry: the Raiders' ship sails its arc toward the island as the track advances (#2).
-    val ckState = s.ck
-    if (ckState != null && raiders != null) {
-        val (lx, ly) = raidersAt(ckState.barbarianPos, board, sea?.time ?: 0f)
-        val at = l.project(lx, ly)
-        val size = 1.15f * scale * l.kAt(ly)
-        drawImage(raiders, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
-            filterQuality = FilterQuality.Medium)
-    }
     // Painter's order: top rows first so a lower tile's face covers the side wall above it.
     for (h in (0 until board.hexCount).sortedBy { l.rowKey(it) }) {
         val c = l.hexCenter(h)
@@ -978,7 +1037,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             if (s.vertexBuilding[v] == Piece.CITY) city(l.at(v), owner, ps) else settlement(l.at(v), owner, ps)
         }
     }
-    sea?.drawSky(this, toScreen, scale * l.kAt(0f))
+    if (part == BoardPart.ALL) over()
 }
 
 /** One raised terrain tile (hex side = [scale] px) with its number token. */
