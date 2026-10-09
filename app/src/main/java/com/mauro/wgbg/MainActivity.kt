@@ -241,7 +241,7 @@ fun WatchGameScreen(
 ) {
     var seed by remember { mutableLongStateOf(System.nanoTime() and 0xffffffL) }
     // Play mode: you are seat 0 ("You"); Watch mode: bots in every seat at full speed.
-    var human by remember { mutableStateOf(setup.ruleset == Ruleset.BASE) }
+    var human by remember { mutableStateOf(true) }
     val names = if (human) listOf("You") + PLAYER_NAMES.drop(1) else PLAYER_NAMES
     val seats = setup.players.size
     val state = remember(seed, seats) { Rules.newGame(setup.config(), seed) }

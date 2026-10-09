@@ -46,7 +46,8 @@ class Targets(val vertices: Set<Int>, val edges: Set<Int>, val hexes: Set<Int>) 
 
     companion object {
         fun of(legal: List<Action>) = Targets(
-            vertices = legal.filter { it.type == ActionType.BUILD_SETTLEMENT || it.type == ActionType.BUILD_CITY }.map { it.payload.toInt() }.toSet(),
+            vertices = legal.filter { it.type == ActionType.BUILD_SETTLEMENT || it.type == ActionType.BUILD_CITY }.map { it.payload.toInt() }.toSet() +
+                legal.filter { it.type in CK_VERTEX_KINDS }.map { ckVertex(it) }.filter { it >= 0 },
             edges = legal.filter { it.type == ActionType.BUILD_ROAD }.map { it.payload.toInt() }.toSet(),
             hexes = legal.filter { it.type == ActionType.MOVE_ROBBER }.map { it.robberHex }.toSet(),
         )
@@ -73,6 +74,7 @@ fun movesAt(b: Board, legal: List<Action>, p: Offset): List<Action> {
             ActionType.BUILD_SETTLEMENT, ActionType.BUILD_CITY -> vertexLattice(b, a.payload.toInt())
             ActionType.BUILD_ROAD -> edgeLattice(b, a.payload.toInt())
             ActionType.MOVE_ROBBER -> hexLattice(b, a.robberHex)
+            in CK_VERTEX_KINDS -> ckVertex(a).takeIf { it >= 0 }?.let { vertexLattice(b, it) } ?: continue
             else -> continue
         }
         val d = hypot(at.x - p.x, at.y - p.y) * if (a.type == ActionType.MOVE_ROBBER) 0.5f else 1f // tiles are big targets
@@ -90,7 +92,7 @@ private val PANEL = Color(0xE6141210)
 private val INK_LIGHT = Color(0xFFEDE6D8)
 
 /** One-line instruction for what the human should do now. */
-fun prompt(s: GameState, legal: List<Action>, names: List<String>): String = when {
+fun prompt(s: GameState, legal: List<Action>, names: List<String>): String = ckPrompt(s, legal) ?: when {
     s.phase == Phase.BUILD_INITIAL_SETTLEMENT -> "Tap a glowing corner to place a homestead"
     s.phase == Phase.BUILD_INITIAL_ROAD -> "Tap a glowing edge to place a road"
     s.phase == Phase.MOVE_ROBBER -> "Tap a tile to move the bandit"
@@ -122,6 +124,7 @@ fun HumanControls(
     modifier: Modifier = Modifier,
 ) {
     var sheet by remember { mutableStateOf<String?>(null) } // which picker is open
+    var ckChoices by remember { mutableStateOf<Pair<String, List<Action>>?>(null) }
     val types = legal.map { it.type }.toSet()
     // Info on the left, the buttons in a column hugging the right edge with the main one (Roll /
     // End turn) at the very bottom: everything within reach of a right thumb.
@@ -139,11 +142,14 @@ fun HumanControls(
                     .map { a -> (RES[a.yopFirst] + if (a.yopSecond >= 0) " + ${RES[a.yopSecond]}" else "") to a }, onMove) { sheet = null }
                 "mono" -> Picker("Corner the Market: everyone hands you all their", legal.filter { it.type == ActionType.PLAY_MONOPOLY }
                     .map { a -> RES[a.payload.toInt()] to a }, onMove) { sheet = null }
+                "ck" -> ckChoices?.let { (label, acts) ->
+                    Picker(label, acts.map { a -> (if (a.type == wgbg.engine.CkActionType.PLAY_PROGRESS) progressOption(a) else if (a.type == ActionType.MARITIME_TRADE) bankLabel(a) else ckLabel(s, a, names) ?: a.toString()) to a }, onMove) { sheet = null }
+                }
             }
         }
         val buttonTypes = setOf(ActionType.ROLL, ActionType.END_TURN, ActionType.DISCARD, ActionType.BUY_DEVELOPMENT_CARD,
             ActionType.PLAY_KNIGHT_CARD, ActionType.PLAY_ROAD_BUILDING, ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY)
-        if (sheet == null && types.any { it in buttonTypes }) Column(
+        if (sheet == null && (types.any { it in buttonTypes } || ckButtonGroups(s, legal, names).isNotEmpty())) Column(
             Modifier.width(176.dp).testTag("thumb-buttons"),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -158,6 +164,11 @@ fun HumanControls(
             single(ActionType.PLAY_ROAD_BUILDING, "Play Trailblazers")
             if (ActionType.PLAY_YEAR_OF_PLENTY in types) MoveButton("Play Windfall…") { sheet = "yop" }
             if (ActionType.PLAY_MONOPOLY in types) MoveButton("Play Corner the Market…") { sheet = "mono" }
+            // Age of Chivalry moves that aren't board taps: one button per kind (or card), a picker if it has choices.
+            for ((label, acts) in ckButtonGroups(s, legal, names)) {
+                if (acts.size == 1) MoveButton(label) { onMove(acts[0]) }
+                else MoveButton("$label…") { ckChoices = label to acts; sheet = "ck" }
+            }
             // The main move last, in the bottom-right corner.
             single(ActionType.ROLL, "Roll", primary = true)
             single(ActionType.END_TURN, "End turn", primary = ActionType.ROLL !in types && legal.none { it.type == ActionType.BUILD_SETTLEMENT || it.type == ActionType.BUILD_CITY })
@@ -189,7 +200,7 @@ fun confirmTitle(s: GameState, a: Action): String = when (a.type) {
     ActionType.BUILD_CITY -> "Upgrade this homestead to a town?"
     ActionType.BUILD_ROAD -> if (s.phase == Phase.BUILD_INITIAL_ROAD || s.freeRoads > 0) "Place a free road here?" else "Build a road here?"
     ActionType.MOVE_ROBBER -> "Move the bandit here?"
-    else -> "Do this?"
+    else -> "Choose what to do here"
 }
 
 /** A warning worth a second look (the bandit on your own land), or null. */
@@ -205,6 +216,6 @@ fun confirmWarning(s: GameState, me: Int, a: Action): String? {
 
 /** Button text for one confirming choice. */
 fun confirmLabel(s: GameState, a: Action, names: List<String>): String =
-    if (a.type != ActionType.MOVE_ROBBER) "Confirm"
+    ckLabel(s, a, names) ?: if (a.type != ActionType.MOVE_ROBBER) "Confirm"
     else if (a.robberVictim < 0) "Move it (nobody to rob)"
     else "Rob ${names[a.robberVictim]} (${s.cardCount(a.robberVictim)} cards)"
