@@ -214,12 +214,14 @@ class Sea(board: Board, seed: Int = 1) {
         val trail = FloatArray(2 * TRAIL)
         var trailN = 0
         var trailT = 0f
+        /** Seconds before the boat may come about again (stops it flip-flopping at a lane end). */
+        var turnCool = 0f
     }
     /** Sail colours for the cruising boats (the players' colours). */
     var boatColors: List<Color> = listOf(Color(0xFFD32F2F), Color(0xFF1E63C6), Color(0xFFF57C00), Color(0xFFF5F5F5))
     internal val boats: List<Boat> = List(MAX_BOATS) { i ->
         val (x, y) = seaPoint(0.7f); val (tx, ty) = seaPoint(0.7f)
-        Boat(x, y, tx, y, if (rnd.nextBoolean()) 0f else PI.toFloat(), 0.10f + rnd.nextFloat() * 0.08f, i % 4, rnd.nextFloat() * 6f)
+        Boat(x, y.coerceIn(-LANE_Y, LANE_Y), tx, y.coerceIn(-LANE_Y, LANE_Y), if (rnd.nextBoolean()) 0f else PI.toFloat(), 0.10f + rnd.nextFloat() * 0.08f, i % 4, rnd.nextFloat() * 6f)
     }
     /** Boats shown at the Boats slider's setting (none at 0, all at 1). */
     val boatCount get() = (boats01 * MAX_BOATS).roundToInt().coerceIn(0, MAX_BOATS)
@@ -293,12 +295,16 @@ class Sea(board: Board, seed: Int = 1) {
      */
     private fun sail(b: Boat, dt: Float) {
         val dir = if (cos(b.heading) >= 0f) 1f else -1f
-        // End of the lane (near the screen edge): come about and pick a new lane height.
-        if (!inOpenSea(b.x + dir * 0.9f, b.y, 0.4f)) {
+        b.turnCool = (b.turnCool - dt).coerceAtLeast(0f)
+        // End of the lane (near the screen edge): come about once, onto a new lane well inside the sea.
+        if (b.turnCool == 0f && !inOpenSea(b.x + dir * 0.9f, b.y, 0.4f)) {
             b.tx = -dir * OPEN_RX * 0.8f
-            b.ty = ((rnd.nextFloat() * 2 - 1) * OPEN_RY * 0.75f)
+            b.ty = ((rnd.nextFloat() * 2 - 1) * LANE_Y)
             b.heading = if (dir > 0) PI.toFloat() else 0f
+            b.turnCool = 6f
         }
+        // Never drift toward the narrow top/bottom of the sea: lanes stay within LANE_Y.
+        if (kotlin.math.abs(b.ty) > LANE_Y) b.ty = kotlin.math.sign(b.ty) * LANE_Y
         var ty = b.ty
         // Keep clear of the island: lanes crossing it bend early to pass above or below.
         if (kotlin.math.abs(b.x) < landR + 3f && kotlin.math.abs(ty) < landR + 0.8f) ty = if (b.y >= 0) landR + 1.0f else -(landR + 1.0f)
@@ -736,6 +742,8 @@ class Sea(board: Board, seed: Int = 1) {
         const val MAX_BOATS = 8
         /** Wake trail points kept per boat (one every 0.2 s). */
         const val TRAIL = 14
+        /** Boat lanes stay within this distance of the middle, where the sea is wide. */
+        const val LANE_Y = OPEN_RY * 0.6f
         /** Speed (units/s) at which a cloud left over the island floats back out to sea. */
         const val FLOAT_OUT = 0.45f
 
