@@ -4,7 +4,10 @@ import wgbg.engine.*
 import java.util.concurrent.CompletableFuture
 
 data class ClientView(val room: Room?, val state: GameState?, val confirmedSeq: Long,
-    val pendingCount: Int, val reconnecting: Boolean, val error: Throwable? = null)
+    val pendingCount: Int, val reconnecting: Boolean, val error: Throwable? = null,
+    /** Every applied action in order (confirmed, then this phone's predictions): [state] is their replay.
+     *  The game screen replays new ones itself to build its turn reports; a shorter or changed list means a rollback. */
+    val actions: List<Action> = emptyList())
 
 /** Own for the lifetime of a room, across screens. UI receives local state before any I/O starts. */
 class GameClient(val transport: GameTransport, val id: String, val uid: String,
@@ -24,7 +27,8 @@ class GameClient(val transport: GameTransport, val id: String, val uid: String,
     private var publishing = 0
     private var flushing = false
     val localApplyNanos = mutableListOf<Long>()
-    @Synchronized fun view() = ClientView(room, displayed?.copy(), driver.confirmedSeq, pending.size, reconnecting, error)
+    @Synchronized fun view() = ClientView(room, displayed?.copy(), driver.confirmedSeq, pending.size, reconnecting, error,
+        if (displayed == null) emptyList() else driver.actions + pending.map { MoveCodec.decode(it.action)!! })
     @Synchronized fun watch(observer: (ClientView) -> Unit): Subscription {
         observers.add(observer); observer(view())
         return Subscription { synchronized(this) { observers.remove(observer) } }

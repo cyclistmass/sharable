@@ -247,12 +247,25 @@ fun TradePanel(
         val counter: (() -> Unit)? = if (mode == TradeMode.RESPOND && !countering && s.ck == null) {
             { get = termGet.copyOf(); give = termGive.copyOf(); countering = true }
         } else null
+        val labels = tradeButtonLabels(mode, countering, bankTab, get.any { it > 0 } || give.any { it > 0 })
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            BigButton(if (countering) "Send" else "Yes", YES, "trade-yes", yes?.let { a -> { onMove(a); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
-            BigButton("No", NO, "trade-no", no)
-            BigButton("Counter", COUNTER, "trade-counter", counter)
+            BigButton(labels.first, YES, "trade-yes", yes?.let { a -> { onMove(a); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
+            BigButton(labels.second, NO, "trade-no", no)
+            // Counter only means something when answering someone else's offer.
+            if (mode == TradeMode.RESPOND) BigButton("Counter", COUNTER, "trade-counter", counter)
         }
     }
+}
+
+/**
+ * What the green and red buttons say: Yes/No only when answering someone; your own offer is "Offer"
+ * (or "Trade" with the bank) and "Clear"/"Close"; picking a partner is "Trade"/"Cancel"; a counter is "Send"/"Back".
+ */
+internal fun tradeButtonLabels(mode: TradeMode, countering: Boolean, bank: Boolean, entered: Boolean): Pair<String, String> = when {
+    countering -> "Send" to "Back"
+    mode == TradeMode.COMPOSE -> (if (bank) "Trade" else "Offer") to (if (entered) "Clear" else "Close")
+    mode == TradeMode.PICK_PARTNER -> "Trade" to "Cancel"
+    else -> "Yes" to "No"
 }
 
 private fun status(s: GameState, me: Int, mode: TradeMode, names: List<String>, countering: Boolean, bank: Boolean): String = when {

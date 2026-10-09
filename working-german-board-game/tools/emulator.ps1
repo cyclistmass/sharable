@@ -1,7 +1,14 @@
 # Starts (if needed) the test emulator, puts it in landscape, and fits its window on screen.
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File tools\emulator.ps1 [-Avd Pixel8_API36] [-Launch]
-param([string]$Avd = "Pixel8_API36", [switch]$Launch)
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File tools\emulator.ps1 [-Lane 1|2] [-Launch]
+# Two lanes can run side by side: lane 1 = Pixel8_API36 on emulator-5554, lane 2 = Pixel6_API34 on
+# emulator-5556. Each lane only ever checks, restarts and moves its OWN emulator.
+param([int]$Lane = 1, [string]$Avd = "", [int]$Port = 0, [switch]$Launch)
 $ErrorActionPreference = "Stop"
+if (-not $Avd) { $Avd = @("Pixel8_API36", "Pixel6_API34")[$Lane - 1] }
+if (-not $Port) { $Port = 5552 + 2 * $Lane }
+$serial = "emulator-$Port"
+$env:ANDROID_SERIAL = $serial       # every adb call below (and in child jobs) targets this lane only
+"Lane $Lane`: $Avd on $serial"
 $sdk = "$env:LOCALAPPDATA\Android\Sdk"
 $adb = "$sdk\platform-tools\adb.exe"
 
@@ -19,7 +26,7 @@ public class EmuWin {
 
 function Get-EmuWindow {
     Get-Process qemu-system-x86_64 -ErrorAction SilentlyContinue |
-        Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -like "Android Emulator*" } |
+        Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -like "Android Emulator*:$Port*" } |
         Select-Object -First 1
 }
 
@@ -31,7 +38,7 @@ function Get-EmuWindow {
 #    emulator stuck "offline" (hung adb, bad snapshot) would hang it forever.
 function Invoke-Adb([string[]]$a, [int]$sec = 8) {
     # Runs adb with a hard timeout; returns its output, or $null if it hung or failed.
-    $job = Start-Job -ScriptBlock { param($adb, $a) & $adb @a 2>$null } -ArgumentList $adb, $a
+    $job = Start-Job -ScriptBlock { param($adb, $s, $a) & $adb -s $s @a 2>$null } -ArgumentList $adb, $serial, $a
     if (Wait-Job $job -Timeout $sec) { $o = Receive-Job $job; Remove-Job $job -Force; return ($o -join "`n") }
     Stop-Job $job; Remove-Job $job -Force; return $null
 }
@@ -42,16 +49,22 @@ function Test-EmuReady {
 }
 # The emulator's console spews host-GL chatter (context preempted, ColorBuffer...) all session, so
 # it starts hidden with its output in a log file; the phone screen is a separate window and still shows.
-$emuLog = Join-Path $env:TEMP "wgbg-emulator.log"
+$emuLog = Join-Path $env:TEMP "wgbg-emulator-$Port.log"
 function Start-Emu([string[]]$extra) {
-    Start-Process "$sdk\emulator\emulator.exe" -ArgumentList (@("-avd", $Avd) + $extra) -WindowStyle Hidden `
+    Start-Process "$sdk\emulator\emulator.exe" -ArgumentList (@("-avd", $Avd, "-port", $Port) + $extra) -WindowStyle Hidden `
         -RedirectStandardOutput $emuLog -RedirectStandardError "$emuLog.err"
     "Emulator console output: $emuLog"
 }
 function Restart-Emulator {
     "Emulator not healthy: killing it and cold-booting"
-    Get-Process qemu-system-x86_64, emulator -ErrorAction SilentlyContinue | Stop-Process -Force
-    Get-Process adb -ErrorAction SilentlyContinue | Stop-Process -Force
+    # Only this lane's emulator: the other lane may be mid-test. Ask it to quit, then kill by command line.
+    Invoke-Adb @("emu", "kill") 5 | Out-Null
+    Start-Sleep -Seconds 2
+    Get-CimInstance Win32_Process -Filter "Name='qemu-system-x86_64.exe' OR Name='emulator.exe'" |
+        Where-Object { $_.CommandLine -match "-avd $Avd\b" -or $_.CommandLine -match "-port $Port\b" } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    # A wedged connection is reset without killing the adb server the other lane shares.
+    Invoke-Adb @("reconnect", "offline") 5 | Out-Null
     Start-Sleep -Seconds 2
     Start-Emu @("-no-snapshot-load", "-no-snapshot-save")
 }
@@ -112,4 +125,5 @@ $rot = (& $adb shell dumpsys window displays) | Select-String -Pattern "mCurrent
 "Display: $($rot.Matches[0].Groups[1].Value)  (want ROTATION_90 or ROTATION_270)"
 
 # 5. Last: center the window and bring it to the front (rotation may have moved it).
-& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "center_emulator.ps1")
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "center_emulator.ps1") -Port $Port
+"Use this lane from bash with: export ANDROID_SERIAL=$serial"

@@ -13,6 +13,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -25,46 +27,68 @@ import kotlin.math.abs
 import kotlin.math.cos
 
 /**
- * Two dice (Mauro's models, pre-rendered by tools/art/render_dice.py) roll across the turn HUD and come
- * to rest on its top-right corner showing the roll. Sheets: 16 tumble frames, then faces 1..6, 128 px each.
+ * Two hand-made dice (Codex art via mauro-7a, Normal or Pirate set) are thrown across the screen and land
+ * square on the turn panel's dice icons. In the air they cycle through 4 tumbling renders while spinning;
+ * at the first touch-down they turn into the panel's resting face for the roll, so the hand-over is seamless.
  */
 object DiceSprites {
-    const val FRAME = 256
-    const val TUMBLE = 16
+    const val TUMBLE = 4
     /** Seconds from release to rest. */
     const val FALL_S = 1.6f
-    /** Die size at rest, dp. */
+    /** Die size at rest when the panel's slots aren't known yet, dp. */
     const val SIDE_DP = 55
-    /** Share of a sprite frame the cube's visible face fills; a die of size d draws its frame at d / CUBE_SHARE. */
-    const val CUBE_SHARE = 0.42f // the resting (square) cube is 42% of its frame wide
+    /** Share of a tumbling render's width the cube fills (the resting faces fill their whole image). */
+    const val TUMBLE_SHARE = 0.70f
+    /** Animation time of the first touch-down: from here on the die shows its rolled face, square. */
+    const val LAND = 0.62f
+    /** Animation time when both dice have settled and the panel's own dice take over. */
+    const val HANDOVER = 0.97f
 
-    /** Sheet frame for a die at animation time [t] (0..1) that lands on [face]; [spin] offsets the tumble. */
-    fun frame(t: Float, face: Int, spin: Int): Int =
-        if (t >= 0.86f) TUMBLE + (face - 1).coerceIn(0, 5)
-        else (spin + (t * 30).toInt()) % TUMBLE
+    /** Tumbling render (0 until TUMBLE) for a die at animation time [t], or -1 once it shows its face. */
+    fun frame(t: Float, spin: Int): Int = if (t >= LAND) -1 else (spin + (t * 22).toInt()) % TUMBLE
 
-    /** Height as a share of the fall (0 at the top, 1 at rest), with two small bounces at the end. */
-    fun fall(t: Float): Float {
-        if (t < 0.62f) { val u = t / 0.62f; return u * u }
-        val u = (t - 0.62f) / 0.38f
-        return 1f - abs(cos(u * 2.5f * Math.PI.toFloat())) * 0.12f * (1f - u) * (1f - u)
+    /** Spin in degrees: fast in the air, slowing to exactly 0 (square on the pad) at the first touch-down. */
+    fun spin(t: Float, turns: Float): Float = if (t >= LAND) 0f else (1f - t / LAND).let { it * it } * turns * 360f
+
+    /** Share of the way from the throw to the pad: arrives exactly at the first touch-down and stays there. */
+    fun fall(t: Float): Float = if (t >= LAND) 1f else (t / LAND).let { it * it }
+
+    /** Height of the in-place bounces after touch-down, as a share of the die's size (0 = on the pad). */
+    fun bounce(t: Float): Float {
+        if (t <= LAND) return 0f
+        val u = (t - LAND) / (1f - LAND)
+        return abs(kotlin.math.sin(u * 2f * Math.PI.toFloat())) * 0.22f * (1f - u) * (1f - u)
     }
+}
+
+private val TUMBLE_NR = listOf(R.drawable.dice_tumble_nr_1, R.drawable.dice_tumble_nr_2, R.drawable.dice_tumble_nr_3, R.drawable.dice_tumble_nr_4)
+private val TUMBLE_NI = listOf(R.drawable.dice_tumble_ni_1, R.drawable.dice_tumble_ni_2, R.drawable.dice_tumble_ni_3, R.drawable.dice_tumble_ni_4)
+private val TUMBLE_PR = listOf(R.drawable.dice_tumble_pr_1, R.drawable.dice_tumble_pr_2, R.drawable.dice_tumble_pr_3, R.drawable.dice_tumble_pr_4)
+private val TUMBLE_PB = listOf(R.drawable.dice_tumble_pb_1, R.drawable.dice_tumble_pb_2, R.drawable.dice_tumble_pb_3, R.drawable.dice_tumble_pb_4)
+
+/** The 4 tumbling renders of one die in a theme (paired like [diceFace]: red + ivory, or red timber + bone). */
+fun diceTumble(red: Boolean, pirate: Boolean): List<Int> = when {
+    pirate && red -> TUMBLE_PR; pirate -> TUMBLE_PB; red -> TUMBLE_NR; else -> TUMBLE_NI
 }
 
 /**
  * Full-screen dice throw: each roll comes in from a random direction around the board, from more than
- * halfway out (often off screen), tumbles in and settles face-up at [rest] (the HUD's top-right corner,
- * in this canvas's coordinates). Pure decoration, no physics with anything else.
+ * halfway out (often off screen), tumbles in and settles square on the panel's dice icons ([slots]), or
+ * beside [rest] (the HUD's top-right corner) before those are measured. Pure decoration.
  */
 @Composable
 fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Modifier = Modifier,
                 /** The panel's dice icons (root coordinates): each die lands exactly on its icon, at its size. */
-                slots: Pair<androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect>? = null,
+                slots: Pair<Rect, Rect>? = null,
+                /** Settings > Theme: the Pirate dice instead of the Normal ones. */
+                pirate: Boolean = false,
                 /** True while the dice are in the air; the panel hides its resting dice until they land. */
                 onFlying: (Boolean) -> Unit = {}) {
     var origin by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(Offset.Zero) }
-    val ivory = ImageBitmap.imageResource(R.drawable.dice_ivory)
-    val red = ImageBitmap.imageResource(R.drawable.dice_red)
+    val redTumble = diceTumble(red = true, pirate).map { ImageBitmap.imageResource(it) }
+    val ivoryTumble = diceTumble(red = false, pirate).map { ImageBitmap.imageResource(it) }
+    val redFace = ImageBitmap.imageResource(diceFace(red = true, pirate, die1.coerceIn(1, 6)))
+    val ivoryFace = ImageBitmap.imageResource(diceFace(red = false, pirate, die2.coerceIn(1, 6)))
     val t = remember { Animatable(1f) }
     LaunchedEffect(rollKey) {
         if (rollKey == null || die1 <= 0) return@LaunchedEffect
@@ -73,8 +97,8 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
         var landed = false
         try {
             t.animateTo(1f, tween((DiceSprites.FALL_S * 1000).toInt(), easing = LinearEasing)) {
-                // Hand over to the panel's resting dice the moment both dice settle.
-                if (!landed && value >= 0.93f) { landed = true; onFlying(false) }
+                // Hand over to the panel's resting dice once both have settled (the second die lags 7%).
+                if (!landed && value >= DiceSprites.HANDOVER) { landed = true; onFlying(false) }
             }
         } finally { onFlying(false) }
     }
@@ -84,49 +108,37 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
     val angle = remember(rollKey) { rnd.nextFloat() * 2 * Math.PI.toFloat() }
     val reach = remember(rollKey) { 0.55f + rnd.nextFloat() * 0.5f }
     Canvas(modifier.onGloballyPositioned { origin = it.positionInRoot() }) {
-        val side = DiceSprites.SIDE_DP.dp.toPx()
+        val p = t.value
+        if (p >= DiceSprites.HANDOVER) return@Canvas        // settled: the panel's own dice are showing
+        val q = ((p - 0.07f) / 0.93f).coerceIn(0f, 1f)
         val center = Offset(size.width / 2, size.height / 2)
         val half = kotlin.math.hypot(size.width / 2, size.height / 2)
-        val start = center + Offset(kotlin.math.cos(angle), kotlin.math.sin(angle)) * (half * reach)
-        val land = rest + Offset(-side * 2.25f, -side * 0.8f)
-        val dir = (land - start).let { it / it.getDistance().coerceAtLeast(1f) }
+        val start = center + Offset(cos(angle), kotlin.math.sin(angle)) * (half * reach)
+        // Each die's resting square: its panel icon, or beside the HUD's corner until the icons are measured.
+        val side = DiceSprites.SIDE_DP.dp.toPx()
+        val rest1 = slots?.first?.translate(-origin) ?: Rect(rest + Offset(-side * 2.25f, -side * 0.8f), Size(side, side))
+        val rest2 = slots?.second?.translate(-origin) ?: rest1.translate(Offset(side * 1.12f, 0f))
+        val dir = (rest1.center - start).let { it / it.getDistance().coerceAtLeast(1f) }
         val perp = Offset(-dir.y, dir.x)
-        fun at(p: Float, lead: Float): Pair<Offset, Float> {
-            val u = DiceSprites.fall(p)                                  // flies in, then settles with small bounces
-            val hop = kotlin.math.sin(p.coerceAtMost(0.62f) / 0.62f * Math.PI.toFloat())
-            val pos = start + (land + Offset(lead, 0f) - start) * u + perp * (hop * side * 0.6f)
-            return pos to (1f + 0.35f * hop)                             // a little bigger mid-air: it's up off the table
-        }
-        val p = t.value
-        val q = ((p - 0.07f) / 0.93f).coerceIn(0f, 1f)
-        if (slots != null) {
-            if (p >= 0.86f && q >= 0.86f) return@Canvas   // settling: the panel's own (themed) dice take over
-            // Land each die exactly on its icon: the cube fills ~60% of a sprite frame, so scale to match.
-            fun settle(r: androidx.compose.ui.geometry.Rect, u: Float, frame: Int, sheet: ImageBitmap, spin: Float) {
-                val restSide = r.width * 0.86f / DiceSprites.CUBE_SHARE
-                val target = r.center - origin
-                val from = start
-                val e = DiceSprites.fall(u)
-                val hop = kotlin.math.sin(u.coerceAtMost(0.62f) / 0.62f * Math.PI.toFloat())
-                val c = from + (target - from) * e + perp * (hop * restSide * 0.6f)
-                val sideNow = restSide * (1f + 0.35f * hop)
-                drawDie(sheet, frame, c - Offset(sideNow / 2, sideNow / 2), sideNow, spin)
-            }
-            settle(slots.first, p, DiceSprites.frame(p, die1, 3), red, (1 - p) * 420f)
-            settle(slots.second, q, DiceSprites.frame(q, die2, 9), ivory, (1 - q) * -480f)
-            return@Canvas
-        }
-        val (a, ka) = at(p, 0f)
-        drawDie(red, DiceSprites.frame(p, die1, 3), a, side * ka, (1 - p) * 420f)
-        val (b, kb) = at(q, side * 1.12f)
-        drawDie(ivory, DiceSprites.frame(q, die2, 9), b, side * kb, (1 - q) * -480f)
+        drawDie(rest1, p, start, perp, redTumble, redFace, spin = 1, turns = 1.4f)
+        drawDie(rest2, q, start, perp, ivoryTumble, ivoryFace, spin = 3, turns = -1.6f)
     }
 }
 
-private fun DrawScope.drawDie(sheet: ImageBitmap, frame: Int, topLeft: Offset, side: Float, spinDeg: Float) {
-    val f = DiceSprites.FRAME
-    rotate(spinDeg, pivot = topLeft + Offset(side / 2, side / 2)) {
-        drawImage(sheet, IntOffset(frame * f, 0), IntSize(f, f), IntOffset(topLeft.x.toInt(), topLeft.y.toInt()),
-            IntSize(side.toInt(), side.toInt()), filterQuality = FilterQuality.Medium)
+/** One die at animation time [u], flying from [start] to its resting square [r] (drawn as the panel draws it). */
+private fun DrawScope.drawDie(r: Rect, u: Float, start: Offset, perp: Offset, tumble: List<ImageBitmap>, face: ImageBitmap,
+                              spin: Int, turns: Float) {
+    val cube = r.width * 0.9f                                            // Die3d draws the face at 90% of its icon
+    val hop = kotlin.math.sin(u.coerceAtMost(DiceSprites.LAND) / DiceSprites.LAND * Math.PI.toFloat())
+    val b = DiceSprites.bounce(u)
+    val c = start + (r.center - start) * DiceSprites.fall(u) + perp * (hop * cube * 0.6f) - Offset(0f, b * cube)
+    val lift = 1f + 0.35f * hop + 0.3f * b                               // a little bigger in the air: it's up off the table
+    val f = DiceSprites.frame(u, spin)
+    val img = if (f < 0) face else tumble[f]
+    val drawn = cube * lift / (if (f < 0) 1f else DiceSprites.TUMBLE_SHARE)
+    rotate(DiceSprites.spin(u, turns), pivot = c) {
+        drawImage(img, IntOffset.Zero, IntSize(img.width, img.height),
+            IntOffset((c.x - drawn / 2).toInt(), (c.y - drawn / 2).toInt()), IntSize(drawn.toInt(), drawn.toInt()),
+            filterQuality = FilterQuality.Medium)
     }
 }

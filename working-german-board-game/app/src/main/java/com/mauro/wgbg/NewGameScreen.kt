@@ -76,6 +76,8 @@ fun NewGameScreen(
     modifier: Modifier = Modifier,
     initial: GameSetup = GameSetup(),
     onOpenLobby: ((GameSetup) -> Unit)? = null,
+    /** When given, shows "Join a room" (by code); gets these settings for your name. */
+    onJoinRoom: ((GameSetup) -> Unit)? = null,
 ) {
     var setup by remember { mutableStateOf(initial) }
     // The deck size to come back to when switching Random -> Card deck (72 by default, as drawn).
@@ -142,8 +144,14 @@ fun NewGameScreen(
                 Text(it, style = Wood.sans(13.sp, FontWeight.Bold, Wood.WAITING), modifier = Modifier.testTag("setup-problem"))
             }
             GoButton("Play", "play", setup.canStart, Modifier.fillMaxWidth().height(48.dp)) { onStart(setup) }
-            if (onOpenLobby != null) Choice("Play online (open lobby)", false, "open-lobby", Modifier.fillMaxWidth().height(36.dp),
-                radius = 10.dp, enabled = setup.name.isNotBlank()) { onOpenLobby(setup) }
+            if ((onOpenLobby != null || onJoinRoom != null) && !onlineName(setup.name))
+                Text("Type your name to play online", style = Wood.sans(12.sp, color = Wood.INK_SOFT), modifier = Modifier.testTag("online-name-hint"))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (onOpenLobby != null) Choice("Host online room", false, "open-lobby", Modifier.weight(1f).height(36.dp),
+                    radius = 10.dp, enabled = onlineName(setup.name)) { onOpenLobby(setup) }
+                if (onJoinRoom != null) Choice("Join a room", false, "join-room", Modifier.weight(1f).height(36.dp),
+                    radius = 10.dp, enabled = onlineName(setup.name)) { onJoinRoom(setup) }
+            }
         }
     }
 }
@@ -204,15 +212,20 @@ private fun DiceChoice(title: String, note: String, selected: Boolean, tag: Stri
 }
 
 @Composable
-private fun NameField(name: String, onChange: (String) -> Unit) {
+private fun NameField(name: String, onChange: (String) -> Unit) = ParchmentField(name, onChange, "name")
+
+/** A one-line parchment text box with a brass edge (name, room code). */
+@Composable
+internal fun ParchmentField(value: String, onChange: (String) -> Unit, tag: String,
+                            caps: KeyboardCapitalization = KeyboardCapitalization.Words) {
     BasicTextField(
-        value = name,
+        value = value,
         onValueChange = onChange,
         singleLine = true,
         textStyle = Wood.sans(15.sp, FontWeight.SemiBold, Wood.PARCHMENT_INK),
         cursorBrush = SolidColor(Wood.PARCHMENT_INK),
-        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
-        modifier = Modifier.fillMaxWidth().height(32.dp).testTag("name"),
+        keyboardOptions = KeyboardOptions(capitalization = caps, imeAction = ImeAction.Done),
+        modifier = Modifier.fillMaxWidth().height(32.dp).testTag(tag),
         decorationBox = { inner ->
             Box(
                 Modifier.fillMaxSize().background(Wood.PARCHMENT, RoundedCornerShape(8.dp))
@@ -264,3 +277,6 @@ private fun decodeSmall(context: Context, uri: Uri, target: Int): ImageBitmap? =
 private fun keepAccess(context: Context, uri: Uri) {
     runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
 }
+
+/** Online, other players see your name: it must be a real one, not the default "You". */
+fun onlineName(name: String) = name.isNotBlank() && !name.trim().equals("You", ignoreCase = true)

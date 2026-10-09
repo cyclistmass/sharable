@@ -92,7 +92,8 @@ private val PANEL = Color(0xE6141210)
 private val INK_LIGHT = Color(0xFFEDE6D8)
 
 /** One-line instruction for what the human should do now. */
-fun prompt(s: GameState, legal: List<Action>, names: List<String>): String = ckPrompt(s, legal) ?: when {
+fun prompt(s: GameState, legal: List<Action>, names: List<String>): String =
+    if (legal.isEmpty() && !s.isOver) "Waiting for ${names[s.actingPlayer]}…" else ckPrompt(s, legal) ?: when {
     s.phase == Phase.BUILD_INITIAL_SETTLEMENT -> "Tap a glowing corner to place a homestead"
     s.phase == Phase.BUILD_INITIAL_ROAD -> "Tap a glowing edge to place a road"
     s.phase == Phase.MOVE_ROBBER -> "Tap a tile to move the bandit"
@@ -108,6 +109,15 @@ fun prompt(s: GameState, legal: List<Action>, names: List<String>): String = ckP
 }
 
 private fun cards(n: (Int) -> Int) = (0 until CARD_TYPES).filter { n(it) > 0 }.joinToString(", ") { "${n(it)} ${RES[it]}" }.ifEmpty { "nothing" }
+
+/**
+ * Why a tap on the board did nothing, when that's worth saying: moving the bandit onto the tile it
+ * already stands on (it has to move). Null otherwise.
+ */
+fun boardTapHint(b: Board, legal: List<Action>, robberHex: Int, p: Offset): String? {
+    if (robberHex < 0 || legal.none { it.type == ActionType.MOVE_ROBBER }) return null
+    return if ((hexLattice(b, robberHex) - p).getDistance() < 0.75f) "The bandit is already here: pick another tile" else null
+}
 
 /**
  * Buttons for everything that isn't a tap on the board: roll, end turn, Fortune cards, bank and

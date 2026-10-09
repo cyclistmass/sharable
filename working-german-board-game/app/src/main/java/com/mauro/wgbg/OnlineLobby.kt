@@ -3,6 +3,13 @@ package com.mauro.wgbg
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import wgbg.net.*
 import java.util.concurrent.CompletableFuture
 
@@ -53,5 +60,77 @@ fun OnlineLobbyScreen(session: LobbySession, onPlaying: (ClientView) -> Unit, on
 /** Place beside the game HUD; never disables gameplay or opens a blocking dialog. */
 @Composable
 fun OnlineConnectionStatus(view: ClientView, modifier: Modifier = Modifier) {
-    if (view.reconnecting) androidx.compose.material3.Text("Reconnecting…", style = Wood.sans(12.sp, color = Wood.INK_MUTED), modifier = modifier)
+    // Your own moves normally confirm in milliseconds; if some stay unconfirmed for 2 s the server is
+    // probably out of reach (Firestore can take a while to notice), so say so instead of looking normal.
+    var stuck by remember { mutableStateOf(false) }
+    val waiting = view.pendingCount > 0
+    LaunchedEffect(waiting) { stuck = false; if (waiting) { kotlinx.coroutines.delay(2000); stuck = true } }
+    connectionLabel(view.reconnecting, view.pendingCount, stuck)?.let {
+        Text(it, style = Wood.sans(13.sp, androidx.compose.ui.text.font.FontWeight.Bold, Wood.WAITING),
+            modifier = modifier.brassEdgedWood().padding(horizontal = 10.dp, vertical = 3.dp).testTag("connection"))
+    }
+}
+
+/** The connection note, or null when all is well. */
+internal fun connectionLabel(reconnecting: Boolean, pending: Int, stuck: Boolean): String? = when {
+    pending > 0 && stuck -> "Not synced: $pending move${if (pending > 1) "s" else ""} waiting for the server"
+    reconnecting -> "Reconnecting…"
+    else -> null
+}
+
+/**
+ * Who plays which engine player in an online room (seats are frozen once it starts). Active seats map to
+ * engine players in seat order; this phone is [me] (-1 if not seated); the host's phone moves for [bot] seats.
+ */
+class OnlineSeats(room: Room, uid: String) {
+    val players: List<Int> = room.players
+    val me: Int = players.indexOfFirst { room.seats[it].uid == uid }
+    val isHost: Boolean = room.host == uid
+    val config: wgbg.engine.GameConfig = room.config.copy(numPlayers = players.size)
+    val seed: Long = room.seed
+    /** Names by engine player; this phone's own seat reads "You" (so the panel says "Your turn"). */
+    val names: List<String> = players.mapIndexed { i, s ->
+        val seat = room.seats[s]
+        when {
+            i == me -> "You"
+            seat.uid != null -> seat.name.ifBlank { PLAYER_NAMES[i] }
+            else -> "${PLAYER_NAMES[i]} (${seat.bot?.let { b -> BotLevel.valueOf(b).label } ?: "bot"})"
+        }
+    }
+    private val bots: List<BotLevel?> = players.map { s -> room.seats[s].takeIf { it.uid == null }?.bot?.let(BotLevel::valueOf) }
+    /** The bot level playing engine player [i], or null when a person plays it. */
+    fun bot(i: Int): BotLevel? = bots.getOrNull(i)
+    /** The room seat of engine player [i] (what GameClient.act takes). */
+    fun seatOf(i: Int): Int = players[i]
+}
+
+/** Join a room by its code (ROVER-42; any case, spaces or no dash). Takes the first open seat. */
+@Composable
+fun JoinRoomScreen(name: String, busy: Boolean, onJoin: (code: String, name: String) -> Unit, onBack: () -> Unit,
+                   modifier: Modifier = Modifier) {
+    var typed by remember { mutableStateOf("") }
+    var me by remember { mutableStateOf(if (onlineName(name)) name else "") }
+    val code = Lobby.normalizeCode(typed)
+    androidx.compose.foundation.layout.Box(modifier.fillMaxSize().tableTop().testTag("join"), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        androidx.compose.foundation.layout.Column(
+            Modifier.width(380.dp).brassEdgedWood().padding(18.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Join a room", style = Wood.title(26.sp, Wood.BRASS_INK))
+            Text("Your name", style = Wood.sans(13.sp, color = Wood.INK_MUTED))
+            ParchmentField(me, { me = it.take(16) }, "join-name")
+            Text("Room code", style = Wood.sans(13.sp, color = Wood.INK_MUTED))
+            ParchmentField(typed, { typed = it.take(12) }, "join-code", androidx.compose.ui.text.input.KeyboardCapitalization.Characters)
+            Text(when {
+                typed.isBlank() -> "The host reads it out or shares the link: like ROVER-42"
+                code == null -> "That doesn't look like a room code"
+                else -> "Room $code"
+            }, style = Wood.sans(13.sp, color = if (typed.isNotBlank() && code == null) Wood.WAITING else Wood.INK_MUTED), modifier = Modifier.testTag("join-hint"))
+            androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                BrassButton("Back", "join-back", Modifier.height(44.dp)) { onBack() }
+                GoButton(if (busy) "Joining…" else "Join", "join-go", code != null && onlineName(me) && !busy,
+                    Modifier.weight(1f).height(44.dp)) { onJoin(code!!, me.trim()) }
+            }
+        }
+    }
 }

@@ -67,7 +67,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
         for (line in report.events.takeLast(4)) Text(line, color = HUD_TEXT.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 1)
         if (previous != null && previous.rolled) {
             Text(
-                "Last turn: ${PLAYER_NAMES[previous.player]} rolled ${previous.die1 + previous.die2}. " +
+                "Last turn: ${names[previous.player]} rolled ${previous.die1 + previous.die2}. " +
                     previous.production.joinToString("; "),
                 color = HUD_TEXT.copy(alpha = 0.6f), fontSize = 11.sp, maxLines = 2,
             )
@@ -97,11 +97,13 @@ private fun Die(value: Int, edge: Color, modifier: Modifier = Modifier) {
 
 /** A player's hand as mini cards: one per resource they hold with a count, plus face-down Fortune cards. */
 @Composable
-fun MiniHand(hand: List<Int>, fortune: Int, modifier: Modifier = Modifier) {
+fun MiniHand(hand: List<Int>, fortune: Int, modifier: Modifier = Modifier, facedown: Int = 0) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
         hand.forEachIndexed { r, n -> if (n > 0) MiniCard(CARD_COLORS[r], RESOURCE_NAMES[r].take(2), n, face = CARD_FACE) }
+        // Someone else's hand while you play: just how many cards, face down.
+        if (facedown > 0) MiniCard(Color(0xFF8A6A2A), "?", facedown, face = Color(0xFF5A4030))
         if (fortune > 0) MiniCard(FORTUNE_COLOR, "F", fortune, face = Color(0xFF8E6BA3))
-        if (hand.all { it == 0 } && fortune == 0) Text("no cards", color = HUD_TEXT.copy(alpha = 0.5f), fontSize = 11.sp)
+        if (hand.all { it == 0 } && facedown == 0 && fortune == 0) Text("no cards", color = HUD_TEXT.copy(alpha = 0.5f), fontSize = 11.sp)
     }
 }
 

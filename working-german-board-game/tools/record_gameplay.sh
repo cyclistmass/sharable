@@ -6,6 +6,10 @@ set -euo pipefail
 SECS="${1:-20}"
 A="$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe"
 export MSYS_NO_PATHCONV=1
+# With two emulator lanes running, adb needs a target: default to lane 1 (tools/emulator.ps1 -Lane 1).
+export ANDROID_SERIAL="${ANDROID_SERIAL:-emulator-5554}"
+# With two emulator lanes running, adb needs a target: default to lane 1 (tools/emulator.ps1 -Lane 1).
+export ANDROID_SERIAL="${ANDROID_SERIAL:-emulator-5554}"
 
 "$A" shell am force-stop com.mauro.wgbg
 "$A" shell am start -n com.mauro.wgbg/.MainActivity >/dev/null
