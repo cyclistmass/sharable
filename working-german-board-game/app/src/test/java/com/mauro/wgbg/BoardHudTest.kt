@@ -21,4 +21,15 @@ class BoardHudTest {
         assertEquals(0, raidersStepsLeft(wgbg.engine.CkPiece.BARBARIAN_TRACK))
         assertEquals(0, raidersStepsLeft(99))
     }
+
+    @Test
+    fun `card count reads 8 in base and 8 slash progress in Age of Chivalry`() {
+        val base = wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(), 1)
+        base.hands[0] += 3
+        assertEquals("3", cardsLabel(base, 0))
+        val ck = wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS), 1)
+        ck.hands[0] += 2
+        ck.ck!!.progressHand[0] += 1
+        assertEquals("2/1", cardsLabel(ck, 0))
+    }
 }
