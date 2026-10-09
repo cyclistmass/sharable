@@ -175,3 +175,31 @@ domain/App Link, host cancellation/transfer and disconnect UX separately.
 - On-device/monkey and live Firebase smoke tests were not run, as requested.
   No rules deployment was performed. These are workstation/emulator timings, not
   production network or Android rendering measurements.
+
+## In the app (wired 2026-10-09)
+
+Start screen: **Host online room** (opens a room, shows its code, link and QR) or **Join a room** (type
+the code; any case, spaces or no dash; takes the first open seat). Online needs a real name, not the
+default "You". Everyone marks ready, the host starts, and every phone plays the same game: your moves go
+through `GameClient.act`, dice through `nextRoll()`, and the host's phone plays the room's bots.
+`ClientView.actions` lets the game screen replay each new move for its turn panel and dice; a changed
+history (a rejected prediction) rebuilds the screen from the room.
+
+### Two phones against the Firebase emulators (no deploy needed)
+
+```
+firebase emulators:start --only firestore,auth --project workinggermangame   # Java 21+ on PATH
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/emulator.ps1 -Lane 1   # and -Lane 2
+ANDROID_SERIAL=emulator-5554 ./gradlew :app:installDebug   # and 5556
+tools/online_sim.sh base        # or chivalry
+```
+
+Debug extras: `--es firebase emu` (talk to the emulators at 10.0.2.2:8080/9099; a debug-only network
+config allows plain HTTP to that address) and `--ez autoplay true` (a bot plays your seat). The script
+hosts on lane 1, joins on lane 2, plays a whole game and fails unless both phones log the same
+end-of-game fingerprint (`WGBG-ONLINE` in logcat). First pass: room RAVEN-60, 489 moves, same winner
+and state hash on both phones, no crash. CI for this is #35.
+
+Found on the first live run: creating a room was always denied, because its transaction reads the
+not-yet-existing room and the read rule needed `resource.data`. Fixed (`resource == null ||`), with a
+rules test.

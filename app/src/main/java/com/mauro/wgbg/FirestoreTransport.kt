@@ -22,14 +22,23 @@ private fun <T> Task<T>.future(): CompletableFuture<T> = CompletableFuture<T>().
 object LobbyRepository {
     private val localStore = MemoryStore()
     private var transport: GameTransport? = null
-    @Synchronized fun create(context: Context): GameTransport {
+    /**
+     * [emulatorHost]: debug builds only (`--es firebase emu`): talk to the Firebase emulators on the dev PC
+     * (10.0.2.2 from an Android emulator) instead of the live project, so two emulators can play online
+     * against our real firestore.rules without deploying anything.
+     */
+    @Synchronized fun create(context: Context, emulatorHost: String? = null): GameTransport {
         transport?.let { return it }
         val app = FirebaseApp.getApps(context).firstOrNull() ?: FirebaseApp.initializeApp(context)
         val result = if (app == null) InMemoryTransport("local-host", localStore) else {
             val db = FirebaseFirestore.getInstance(app)
-            db.firestoreSettings = FirebaseFirestoreSettings.Builder()
+            val auth = FirebaseAuth.getInstance(app)
+            if (emulatorHost != null) {
+                db.useEmulator(emulatorHost, 8080)
+                auth.useEmulator(emulatorHost, 9099)
+            } else db.firestoreSettings = FirebaseFirestoreSettings.Builder()
                 .setLocalCacheSettings(PersistentCacheSettings.newBuilder().build()).build()
-            FirestoreTransport(FirebaseAuth.getInstance(app), db)
+            FirestoreTransport(auth, db)
         }
         transport = result
         result.signIn() // warm anonymous authentication at entry, before a room is selected

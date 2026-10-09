@@ -37,6 +37,15 @@ class GameClientTest {
         t.commit();assertTrue(result.isDone);assertEquals(predicted,c.view().state!!.stateHash());assertEquals(0,c.view().pendingCount)
         t.metadata(false);assertEquals(predicted,c.view().state!!.stateHash());c.close()
     }
+    @Test fun `view actions replay to the shown state, and a rollback drops the predictions`() {
+        val (_,t,c)=setup()
+        fun replay(v: ClientView) = Rules.newGame(r.config.copy(numPlayers = 2), r.seed).also { s -> v.actions.forEach { Rules.applyChecked(s, it) } }.stateHash()
+        val a1=Rules.legalActions(c.view().state!!).first(); c.act(0,a1); t.commit()
+        val a2=Rules.legalActions(c.view().state!!).first(); c.act(c.view().room!!.players[c.view().state!!.actingPlayer],a2)
+        val v=c.view(); assertEquals(listOf(a1,a2),v.actions); assertEquals(v.state!!.stateHash(),replay(v))
+        t.reject()
+        val back=c.view(); assertEquals(listOf(a1),back.actions); assertEquals(back.state!!.stateHash(),replay(back)); c.close()
+    }
     @Test fun `denial rolls back to confirmed state and restarts from last applied sequence`() {
         val (_,t,c)=setup();val before=c.view().state!!.stateHash()
         val result=c.act(0,Rules.legalActions(c.view().state!!).first());t.reject()

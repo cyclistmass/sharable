@@ -92,7 +92,8 @@ private val PANEL = Color(0xE6141210)
 private val INK_LIGHT = Color(0xFFEDE6D8)
 
 /** One-line instruction for what the human should do now. */
-fun prompt(s: GameState, legal: List<Action>, names: List<String>): String = ckPrompt(s, legal) ?: when {
+fun prompt(s: GameState, legal: List<Action>, names: List<String>): String =
+    if (legal.isEmpty() && !s.isOver) "Waiting for ${names[s.actingPlayer]}…" else ckPrompt(s, legal) ?: when {
     s.phase == Phase.BUILD_INITIAL_SETTLEMENT -> "Tap a glowing corner to place a homestead"
     s.phase == Phase.BUILD_INITIAL_ROAD -> "Tap a glowing edge to place a road"
     s.phase == Phase.MOVE_ROBBER -> "Tap a tile to move the bandit"

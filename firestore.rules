@@ -18,7 +18,8 @@ service cloud.firestore {
       return changed.size() == 1 && !changed.hasAny(['0']) && selfSeat(k);
     }
     match /games/{game} {
-      allow read: if signed() && (resource.data.status == 'lobby' || seated(resource.data));
+      // A missing room is readable (it only says the code is free): creating a room checks that in a transaction.
+      allow read: if signed() && (resource == null || resource.data.status == 'lobby' || seated(resource.data));
       allow create: if signed() && valid(request.resource.data) && request.resource.data.host == request.auth.uid && request.resource.data.status == 'lobby' && request.resource.data.nextSeq == 0 && request.resource.data.createdAt == request.time && request.resource.data.seats['1'].uid == null && request.resource.data.seats['2'].uid == null && request.resource.data.seats['3'].uid == null;
       allow update: if signed() && valid(request.resource.data) && (
         (resource.data.status == 'lobby' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seats','status','options']) &&
