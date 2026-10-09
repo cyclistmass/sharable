@@ -745,7 +745,7 @@ fun WatchGameScreen(
                 }
                 drawLayer(boardLayer)
                 drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER)
-                if (!targets.isEmpty) drawTargets(state.board, targets, camera, (kotlin.math.sin(seaTick / 9f) + 1f) / 2f)
+                if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me))
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
         }
@@ -886,36 +886,54 @@ fun WatchGameScreen(
 }
 
 /** Glowing rings where the human can build or move the bandit; [pulse] 0..1 breathes the glow. */
+/**
+ * Where you can build or move the bandit (Mauro: "larger, brighter, in the player's colour but a little lighter,
+ * blinking in a non-annoying way"). [glow] is the lightened player colour; [pulse] 0..1 is a slow breath: the
+ * marks never fade below 60% and swell a little, rather than flash. A thin dark outline keeps them readable on
+ * light tiles (and for White).
+ */
 private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, pulse: Float, glow: Color = Color(0xFFFFE08A)) {
     if (size.minDimension < 2f) return
     val l = Layout.fit(board, size.width, size.height, camera)
     if (!l.scale.isFinite() || l.scale <= 0f) return
-    val a = 0.55f + 0.4f * pulse
+    val a = 0.6f + 0.4f * pulse
+    val swell = 1f + 0.1f * pulse
+    val ink = Color(0xFF1A120B)
     for (v in t.vertices) {
         val p = vertexLattice(board, v)
         val c = l.project(p.x, p.y)
-        val r = 0.17f * l.scale * l.kAt(p.y)
-        drawCircle(glow.copy(alpha = 0.3f * a), r * 1.5f, c)
-        drawCircle(glow.copy(alpha = a), r, c, style = Stroke(r * 0.3f))
+        val r = 0.26f * l.scale * l.kAt(p.y) * swell
+        drawCircle(glow.copy(alpha = 0.32f * a), r * 1.6f, c)                       // soft halo
+        drawCircle(glow.copy(alpha = 0.55f + 0.35f * a), r, c)                       // lit centre
+        drawCircle(ink.copy(alpha = 0.55f), r, c, style = Stroke(r * 0.12f))         // outline
+        drawCircle(Color.White.copy(alpha = 0.7f * a), r * 0.82f, c, style = Stroke(r * 0.1f))
     }
     for (e in t.edges) {
         val ends = board.topology.edgeVertices[e]
         val p0 = vertexLattice(board, ends[0])
         val p1 = vertexLattice(board, ends[1])
-        val a0 = l.project(p0.x + (p1.x - p0.x) * 0.22f, p0.y + (p1.y - p0.y) * 0.22f)
-        val a1 = l.project(p1.x + (p0.x - p1.x) * 0.22f, p1.y + (p0.y - p1.y) * 0.22f)
-        val w = 0.11f * l.scale * l.kAt((p0.y + p1.y) / 2)
-        drawLine(glow.copy(alpha = 0.45f * a), a0, a1, w * 2.6f, StrokeCap.Round)
-        drawLine(glow.copy(alpha = 0.6f + 0.4f * a), a0, a1, w * 1.1f, StrokeCap.Round)
+        val a0 = l.project(p0.x + (p1.x - p0.x) * 0.2f, p0.y + (p1.y - p0.y) * 0.2f)
+        val a1 = l.project(p1.x + (p0.x - p1.x) * 0.2f, p1.y + (p0.y - p1.y) * 0.2f)
+        val w = 0.15f * l.scale * l.kAt((p0.y + p1.y) / 2) * swell
+        drawLine(glow.copy(alpha = 0.35f * a), a0, a1, w * 2.8f, StrokeCap.Round)    // soft halo
+        drawLine(ink.copy(alpha = 0.55f), a0, a1, w * 1.35f, StrokeCap.Round)        // outline
+        drawLine(glow.copy(alpha = 0.65f + 0.35f * a), a0, a1, w * 1.05f, StrokeCap.Round)
     }
     for (h in t.hexes) {
         val p = hexLattice(board, h)
         val c = l.project(p.x, p.y)
-        val r = 0.62f * l.scale * l.kAt(p.y)
-        drawCircle(glow.copy(alpha = 0.18f * a), r, c)
+        val r = 0.62f * l.scale * l.kAt(p.y) * swell
+        drawCircle(glow.copy(alpha = 0.22f * a), r, c)
+        drawCircle(ink.copy(alpha = 0.5f), r, c, style = Stroke(r * 0.1f))
         drawCircle(glow.copy(alpha = a), r, c, style = Stroke(r * 0.07f))
     }
 }
+
+/** Your build marks' colour: your player colour, lightened toward white. */
+internal fun targetGlow(player: Int): Color = PLAYER_COLORS[player.coerceIn(0, PLAYER_COLORS.size - 1)].let { lerp(it, Color.White, 0.45f) }
+
+/** The marks' slow breath, 0..1, one cycle every [period] seconds. */
+internal fun targetPulse(seconds: Float, period: Float = 1.8f): Float = (kotlin.math.sin(seconds * 2f * Math.PI.toFloat() / period) + 1f) / 2f
 
 /**
  * Board gestures: one finger pans, pinch zooms, and two fingers dragged up or down together
