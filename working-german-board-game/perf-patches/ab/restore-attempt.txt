@@ -1,0 +1,7 @@
+﻿adb : 10-09 09:23:16.683 31008 33484 F adb.exe : adb_utils.cpp:315 Cannot mkdir '\.android': Permission denied
+At line:2 char:588
++ ... ator-5556'; adb -s emulator-5556 install -r ../catan-android-perfA/ap ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (10-09 09:23:16....rmission denied:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

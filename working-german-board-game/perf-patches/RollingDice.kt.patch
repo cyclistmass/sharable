@@ -1,0 +1,54 @@
+# Slow: sprite sheet decode before any roll; Pair<Offset, Float> per die/frame in non-slot path.
+# Why: cached imageResource runs before the early return; at() boxes its return values.
+# Expected win: defer two sheets; remove two result pairs and boxed values per fallback frame.
+# Risk: first throw still decodes synchronously; async prewarm remains an owner integration task.
+# Animatable reads already occur in Canvas draw: no parent 60 Hz recomposition fix needed.
+diff --git a/app/src/main/java/com/mauro/wgbg/RollingDice.kt b/app/src/main/java/com/mauro/wgbg/RollingDice.kt
+index 1d64372..ebc6082 100644
+--- a/app/src/main/java/com/mauro/wgbg/RollingDice.kt
++++ b/app/src/main/java/com/mauro/wgbg/RollingDice.kt
+@@ -63,8 +63,6 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
+                 /** True while the dice are in the air; the panel hides its resting dice until they land. */
+                 onFlying: (Boolean) -> Unit = {}) {
+     var origin by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(Offset.Zero) }
+-    val ivory = ImageBitmap.imageResource(R.drawable.dice_ivory)
+-    val red = ImageBitmap.imageResource(R.drawable.dice_red)
+     val t = remember { Animatable(1f) }
+     LaunchedEffect(rollKey) {
+         if (rollKey == null || die1 <= 0) return@LaunchedEffect
+@@ -79,6 +77,8 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
+         } finally { onFlying(false) }
+     }
+     if (die1 <= 0 || rest == null) return
++    val ivory = ImageBitmap.imageResource(R.drawable.dice_ivory)
++    val red = ImageBitmap.imageResource(R.drawable.dice_red)
+     // Where this roll is thrown from: a direction and distance picked from the roll itself (same roll, same throw).
+     val rnd = remember(rollKey) { java.util.Random(rollKey.hashCode().toLong() * 7919L + 17) }
+     val angle = remember(rollKey) { rnd.nextFloat() * 2 * Math.PI.toFloat() }
+@@ -91,11 +91,11 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
+         val land = rest + Offset(-side * 2.25f, -side * 0.8f)
+         val dir = (land - start).let { it / it.getDistance().coerceAtLeast(1f) }
+         val perp = Offset(-dir.y, dir.x)
+-        fun at(p: Float, lead: Float): Pair<Offset, Float> {
++        fun drawAt(sheet: ImageBitmap, face: Int, p: Float, lead: Float, frameSpin: Int, spin: Float) {
+             val u = DiceSprites.fall(p)                                  // flies in, then settles with small bounces
+             val hop = kotlin.math.sin(p.coerceAtMost(0.62f) / 0.62f * Math.PI.toFloat())
+             val pos = start + (land + Offset(lead, 0f) - start) * u + perp * (hop * side * 0.6f)
+-            return pos to (1f + 0.35f * hop)                             // a little bigger mid-air: it's up off the table
++            drawDie(sheet, DiceSprites.frame(p, face, frameSpin), pos, side * (1f + 0.35f * hop), spin)                             // a little bigger mid-air: it's up off the table
+         }
+         val p = t.value
+         val q = ((p - 0.07f) / 0.93f).coerceIn(0f, 1f)
+@@ -116,10 +116,8 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
+             settle(slots.second, q, DiceSprites.frame(q, die2, 9), ivory, (1 - q) * -480f)
+             return@Canvas
+         }
+-        val (a, ka) = at(p, 0f)
+-        drawDie(red, DiceSprites.frame(p, die1, 3), a, side * ka, (1 - p) * 420f)
+-        val (b, kb) = at(q, side * 1.12f)
+-        drawDie(ivory, DiceSprites.frame(q, die2, 9), b, side * kb, (1 - q) * -480f)
++        drawAt(red, die1, p, 0f, 3, (1 - p) * 420f)
++        drawAt(ivory, die2, q, side * 1.12f, 9, (1 - q) * -480f)
+     }
+ }
+ 

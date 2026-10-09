@@ -21,6 +21,13 @@ reliable signal), locks the display to landscape (`accelerometer_rotation 0`, `u
 fits the window at the top-left of the screen in physical pixels, brings it to the front, and
 (with `-Launch`) restarts the app. Check the last line says `ROTATION_90` or `ROTATION_270`.
 
+**Two lanes.** Two sessions can test at once: `-Lane 1` (default) is Pixel8_API36 on
+`emulator-5554`; `-Lane 2` is Pixel6_API34 (Android 14) on `emulator-5556`. Each lane only checks,
+restarts and moves its own emulator and never kills the shared adb server. With both running, plain
+`adb` fails ("more than one device") and `installDebug` installs on BOTH, so in bash always
+`export ANDROID_SERIAL=emulator-5554` (or 5556) first. Never kill adb or qemu globally.
+The home screen stays portrait; the app turns the display landscape when it starts.
+
 Never start the emulator with a bare `emulator -avd ...` or move its window by hand.
 The script health-checks first: if the emulator is "offline" or hung it kills and cold-boots it
 (no blind `adb wait-for-device`), and fails loudly after 3 minutes. A healthy start takes ~10 s,
