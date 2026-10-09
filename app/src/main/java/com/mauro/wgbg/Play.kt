@@ -111,6 +111,15 @@ fun prompt(s: GameState, legal: List<Action>, names: List<String>): String =
 private fun cards(n: (Int) -> Int) = (0 until CARD_TYPES).filter { n(it) > 0 }.joinToString(", ") { "${n(it)} ${RES[it]}" }.ifEmpty { "nothing" }
 
 /**
+ * Why a tap on the board did nothing, when that's worth saying: moving the bandit onto the tile it
+ * already stands on (it has to move). Null otherwise.
+ */
+fun boardTapHint(b: Board, legal: List<Action>, robberHex: Int, p: Offset): String? {
+    if (robberHex < 0 || legal.none { it.type == ActionType.MOVE_ROBBER }) return null
+    return if ((hexLattice(b, robberHex) - p).getDistance() < 0.75f) "The bandit is already here: pick another tile" else null
+}
+
+/**
  * Buttons for everything that isn't a tap on the board: roll, end turn, Fortune cards, bank and
  * discarding (trades live in [TradePanel]). Every button sends a move from [legal] (or a trade
  * offer the engine validates), so nothing here can bypass the rules.

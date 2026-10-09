@@ -423,6 +423,10 @@ fun WatchGameScreen(
     // read the current game's sea and board through these.
     val seaNow by rememberUpdatedState(sea)
     val boardNow by rememberUpdatedState(state.board)
+    val stateNow by rememberUpdatedState(state)
+    // A short note when a board tap did nothing for a reason worth saying (shown in place of the prompt).
+    var tapHint by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(tapHint) { if (tapHint != null) { delay(2500); tapHint = null } }
     var seaTick by remember { mutableIntStateOf(0) }
     LaunchedEffect(sea) { // the sea keeps moving even when the game is paused
         var last = 0L
@@ -559,7 +563,7 @@ fun WatchGameScreen(
     }
 
     // The board fills the screen; controls live in an overlay panel toggled from the corner.
-    val players = tick.let { (0 until state.numPlayers).map { PlayerInfo.of(state, it) } }
+    val players = tick.let { (0 until state.numPlayers).map { PlayerInfo.of(state, it, me) } }
     var camera by remember { mutableStateOf(initialCamera) }
     var lastTouch by remember { mutableLongStateOf(0L) }
     // Self-healing view: if the board is left zoomed, panned or tilted with nobody touching it
@@ -661,6 +665,7 @@ fun WatchGameScreen(
                             moves.isNotEmpty() && moves == pending && moves.size == 1 -> { pending = emptyList(); humanMoves.trySend(moves[0]) }
                             moves.isNotEmpty() -> pending = moves
                             pending.isNotEmpty() -> pending = emptyList() // tapping elsewhere cancels
+                            !inventory && boardTapHint(boardNow, legalNow, stateNow.robberHex, p) != null -> tapHint = boardTapHint(boardNow, legalNow, stateNow.robberHex, p)
                             !inventory && seaNow.isWater(p) -> seaNow.splash(p)
                         }
                     }, onDoubleTap = { at ->
@@ -728,7 +733,7 @@ fun WatchGameScreen(
             }
         }
         if (me >= 0 && !inventory) tick.let {
-            TurnPrompt(prompt(state, legal, names), Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+            TurnPrompt(tapHint ?: prompt(state, legal, names), Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
             if (!tradeOpen && !tradeNeedsMe(state, me)) HandRow(state, me, tick, Modifier.align(Alignment.BottomCenter).offset(x = 60.dp).padding(bottom = 6.dp))
         }
         if (me >= 0 && !inventory) {
@@ -945,17 +950,25 @@ internal fun describe(t: ActionKind) = when (t) {
 }
 
 /** Immutable per-player snapshot so the score panel recomposes when anything changes. */
-private data class PlayerInfo(
+internal data class PlayerInfo(
     val seat: Int, val turn: Int, val active: Boolean, val vp: Int, val cards: Int, val dev: Int,
     val road: Boolean, val army: Boolean, val winner: Boolean, val hand: List<Int>,
 ) {
     companion object {
-        fun of(s: GameState, p: Int) = PlayerInfo(
-            seat = p, turn = s.turn, active = !s.isOver && p == s.currentPlayer,
-            vp = s.victoryPoints(p), cards = s.handSize(p), dev = s.devCount(p),
-            road = s.longestRoadOwner == p, army = s.largestArmyOwner == p, winner = s.winner == p,
-            hand = List(RESOURCE_NAMES.size) { s.hand(p, it) },
-        )
+        /**
+         * Player [p] as [me] may see them: another player's hidden Landmark points and the kinds of cards in
+         * their hand stay secret while you play (hand = empty, only the count shows). Watching bots (me = -1)
+         * shows everything.
+         */
+        fun of(s: GameState, p: Int, me: Int = -1): PlayerInfo {
+            val secret = me >= 0 && p != me && !s.isOver
+            return PlayerInfo(
+                seat = p, turn = s.turn, active = !s.isOver && p == s.currentPlayer,
+                vp = if (secret) s.publicVictoryPoints(p) else s.victoryPoints(p), cards = s.handSize(p), dev = s.devCount(p),
+                road = s.longestRoadOwner == p, army = s.largestArmyOwner == p, winner = s.winner == p,
+                hand = if (secret) emptyList() else List(RESOURCE_NAMES.size) { s.hand(p, it) },
+            )
+        }
     }
 }
 
@@ -975,7 +988,7 @@ private fun PlayerPanel(players: List<PlayerInfo>, names: List<String>) {
                 Spacer(Modifier.width(6.dp))
                 Text(names[pl.seat], Modifier.width(58.dp), maxLines = 1, fontWeight = if (pl.active) FontWeight.Bold else FontWeight.Normal)
                 Text("${pl.vp} VP", Modifier.width(54.dp), maxLines = 1, fontWeight = FontWeight.Bold)
-                MiniHand(pl.hand, pl.dev, Modifier.weight(1f))
+                MiniHand(pl.hand, pl.dev, Modifier.weight(1f), facedown = if (pl.hand.isEmpty()) pl.cards else 0)
                 val badges = listOfNotNull("Hwy".takeIf { pl.road }, "Watch".takeIf { pl.army }, "WIN".takeIf { pl.winner })
                 Text(badges.joinToString(" "), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
             }

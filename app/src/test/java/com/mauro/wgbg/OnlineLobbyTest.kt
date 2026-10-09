@@ -77,4 +77,12 @@ class OnlineLobbyTest {
         assertEquals("The server said no (permission denied)", onlineProblem(RuntimeException("PERMISSION_DENIED: Missing or insufficient permissions.")))
         assertEquals("Can't reach the server. Check the connection.", onlineProblem(java.io.IOException("x")))
     }
+
+    @Test
+    fun `the game says so when the server is out of reach`() {
+        assertNull(connectionLabel(reconnecting = false, pending = 0, stuck = false))
+        assertNull(connectionLabel(reconnecting = false, pending = 1, stuck = false))   // a normal, quick confirm
+        assertEquals("Not synced: 2 moves waiting for the server", connectionLabel(false, 2, stuck = true))
+        assertEquals("Reconnecting…", connectionLabel(reconnecting = true, pending = 0, stuck = false))
+    }
 }

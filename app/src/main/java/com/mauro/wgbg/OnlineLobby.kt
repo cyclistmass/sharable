@@ -60,7 +60,22 @@ fun OnlineLobbyScreen(session: LobbySession, onPlaying: (ClientView) -> Unit, on
 /** Place beside the game HUD; never disables gameplay or opens a blocking dialog. */
 @Composable
 fun OnlineConnectionStatus(view: ClientView, modifier: Modifier = Modifier) {
-    if (view.reconnecting) androidx.compose.material3.Text("Reconnecting…", style = Wood.sans(12.sp, color = Wood.INK_MUTED), modifier = modifier)
+    // Your own moves normally confirm in milliseconds; if some stay unconfirmed for 2 s the server is
+    // probably out of reach (Firestore can take a while to notice), so say so instead of looking normal.
+    var stuck by remember { mutableStateOf(false) }
+    val waiting = view.pendingCount > 0
+    LaunchedEffect(waiting) { stuck = false; if (waiting) { kotlinx.coroutines.delay(2000); stuck = true } }
+    connectionLabel(view.reconnecting, view.pendingCount, stuck)?.let {
+        Text(it, style = Wood.sans(13.sp, androidx.compose.ui.text.font.FontWeight.Bold, Wood.WAITING),
+            modifier = modifier.brassEdgedWood().padding(horizontal = 10.dp, vertical = 3.dp).testTag("connection"))
+    }
+}
+
+/** The connection note, or null when all is well. */
+internal fun connectionLabel(reconnecting: Boolean, pending: Int, stuck: Boolean): String? = when {
+    pending > 0 && stuck -> "Not synced: $pending move${if (pending > 1) "s" else ""} waiting for the server"
+    reconnecting -> "Reconnecting…"
+    else -> null
 }
 
 /**
