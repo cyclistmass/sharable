@@ -67,4 +67,15 @@ class EnvSettingsTest {
         again.reset()
         assertEquals(false, EnvSettings(store).pirateTheme)
     }
+
+    @Test
+    fun `tile edges default to a thin line, are saved and reset`() {
+        val store = MapStore()
+        assertEquals(EnvSettings.TileEdge.THIN, EnvSettings(store).tileEdge)
+        EnvSettings(store).tileEdge = EnvSettings.TileEdge.NONE
+        val again = EnvSettings(store)
+        assertEquals(EnvSettings.TileEdge.NONE, again.tileEdge)
+        again.reset()
+        assertEquals(EnvSettings.TileEdge.THIN, EnvSettings(store).tileEdge)
+    }
 }

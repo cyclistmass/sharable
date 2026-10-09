@@ -72,8 +72,16 @@ class EnvSettings(private val store: FloatStore) {
         get() = pirate.floatValue > 0.5f
         set(v) { pirate.floatValue = if (v) 1f else 0f; store.put(THEME, pirate.floatValue) }
 
+    enum class TileEdge(val label: String) { NONE("None"), THIN("Thin line"), CLASSIC("Classic frame") }
+    private val edge = mutableFloatStateOf(store.get(EDGE, TileEdge.THIN.ordinal.toFloat()))
+
+    /** How tile borders look: none, a thin dark line, or the original painted frame. Saved. */
+    var tileEdge: TileEdge
+        get() = TileEdge.entries.getOrElse(edge.floatValue.toInt()) { TileEdge.THIN }
+        set(v) { edge.floatValue = v.ordinal.toFloat(); store.put(EDGE, edge.floatValue) }
+
     /** Back to the defaults (saved). */
-    fun reset() { for (i in Item.entries) this[i] = DEFAULT; pirateTheme = false }
+    fun reset() { for (i in Item.entries) this[i] = DEFAULT; pirateTheme = false; tileEdge = TileEdge.THIN }
 
     val clouds get() = this[Item.CLOUDS]
     val birds get() = this[Item.BIRDS]
@@ -83,6 +91,7 @@ class EnvSettings(private val store: FloatStore) {
     companion object {
         const val DEFAULT = 0.5f
         const val THEME = "theme-pirate"
+        const val EDGE = "tile-edge"
     }
 }
 
@@ -105,6 +114,11 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("Normal", selected = !env.pirateTheme, tag = "theme-normal", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.pirateTheme = false }
             Choice("Pirate themed", selected = env.pirateTheme, tag = "theme-pirate", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.pirateTheme = true }
+        }
+        Text("Tile edges", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (e in EnvSettings.TileEdge.entries)
+                Choice(e.label, selected = env.tileEdge == e, tag = "edge-${e.name.lowercase()}", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.tileEdge = e }
         }
         Text("Sound", fontSize = 13.sp, color = Color(0xFFD9B865))
         SliderRow("Music", sound.musicVolume, "vol-music") { sound.musicVolume = it }

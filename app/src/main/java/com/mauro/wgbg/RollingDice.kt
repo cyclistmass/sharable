@@ -25,7 +25,7 @@ import kotlin.math.cos
  * to rest on its top-right corner showing the roll. Sheets: 16 tumble frames, then faces 1..6, 128 px each.
  */
 object DiceSprites {
-    const val FRAME = 128
+    const val FRAME = 256
     const val TUMBLE = 16
     /** Seconds from release to rest. */
     const val FALL_S = 1.6f

@@ -5,7 +5,7 @@ import numpy as np, trimesh
 from PIL import Image, ImageDraw
 
 D = (os.environ.get("DICE_DIR") or ".") + "/"   # folder with the dice GLBs (Mauro's dice_ship_models_v2.zip)
-SIZE, SS = 128, 3                       # output px, supersampling
+SIZE, SS = 256, 3                       # output px, supersampling
 LIGHT = np.array([-0.45, 0.55, 0.70]); LIGHT /= np.linalg.norm(LIGHT)
 
 FACES = [('z', 1, 1), ('z', -1, 6), ('x', 1, 3), ('x', -1, 4), ('y', 1, 2), ('y', -1, 5)]
