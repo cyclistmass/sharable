@@ -40,12 +40,20 @@ function Test-EmuReady {
     if ($state -notmatch "device") { return $false }
     return (Invoke-Adb @("shell", "getprop", "sys.boot_completed") 5) -match "1"
 }
+# The emulator's console spews host-GL chatter (context preempted, ColorBuffer...) all session, so
+# it starts hidden with its output in a log file; the phone screen is a separate window and still shows.
+$emuLog = Join-Path $env:TEMP "wgbg-emulator.log"
+function Start-Emu([string[]]$extra) {
+    Start-Process "$sdk\emulator\emulator.exe" -ArgumentList (@("-avd", $Avd) + $extra) -WindowStyle Hidden `
+        -RedirectStandardOutput $emuLog -RedirectStandardError "$emuLog.err"
+    "Emulator console output: $emuLog"
+}
 function Restart-Emulator {
     "Emulator not healthy: killing it and cold-booting"
     Get-Process qemu-system-x86_64, emulator -ErrorAction SilentlyContinue | Stop-Process -Force
     Get-Process adb -ErrorAction SilentlyContinue | Stop-Process -Force
     Start-Sleep -Seconds 2
-    Start-Process "$sdk\emulator\emulator.exe" -ArgumentList "-avd", $Avd, "-no-snapshot-load", "-no-snapshot-save" -WindowStyle Normal
+    Start-Emu @("-no-snapshot-load", "-no-snapshot-save")
 }
 function Wait-EmuReady([int]$sec) {
     $t0 = Get-Date
@@ -55,7 +63,7 @@ function Wait-EmuReady([int]$sec) {
 
 $t0 = Get-Date
 if (-not (Get-EmuWindow)) {
-    Start-Process "$sdk\emulator\emulator.exe" -ArgumentList "-avd", $Avd, "-no-snapshot-save" -WindowStyle Normal
+    Start-Emu @("-no-snapshot-save")
     if (-not (Wait-EmuReady 90)) { Restart-Emulator; if (-not (Wait-EmuReady 90)) { throw "Emulator did not boot in 3 minutes" } }
 } elseif (-not (Wait-EmuReady 15)) {
     # Running but offline or hung: don't wait it out, restart it.
