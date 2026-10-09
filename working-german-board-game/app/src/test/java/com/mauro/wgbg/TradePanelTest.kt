@@ -156,4 +156,23 @@ class TradePanelTest {
         assertEquals(0, g[3]); assertEquals(1, g[2])
         assertEquals(0, askOffer(g, z, 0, CardTap.OFFER, have = 3, bankRate = 4).second[0])           // can't pay 4 with 3
     }
+
+    @Test
+    fun `an offer chimes when you can pay it and counts down to No when you can't`() {
+        val s = wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(numPlayers = 3), 4)
+        val buf = wgbg.engine.ActionBuffer()
+        val bots = List(3) { wgbg.ai.GreedyBot(it.toLong()) }
+        while (s.phase != wgbg.engine.Phase.PLAY_TURN) { wgbg.engine.Rules.legalActions(s, buf); wgbg.engine.Rules.apply(s, bots[s.actingPlayer].choose(s, buf)) }
+        wgbg.engine.Rules.apply(s, wgbg.engine.Action.roll(2, 2))
+        val from = s.currentPlayer; val to = (from + 1) % 3
+        for (r in 0 until 5) { s.hands[from * wgbg.engine.CARD_TYPES + r] = 2; s.hands[to * wgbg.engine.CARD_TYPES + r] = 0 }
+        s.hands[to * wgbg.engine.CARD_TYPES + 4] = 1                      // the other player holds 1 Stone only
+        val offer = offerFor(s, IntArray(5).also { it[0] = 1 }, IntArray(5).also { it[4] = 1 })!!   // 1 Timber for their 1 Stone
+        wgbg.engine.Rules.apply(s, offer)
+        while (s.actingPlayer != to) { wgbg.engine.Rules.apply(s, wgbg.engine.Action.REJECT_TRADE) }
+        assertEquals(TradeMode.RESPOND, tradeMode(s, to))
+        assertTrue(canPayOffer(s, to))
+        s.hands[to * wgbg.engine.CARD_TYPES + 4] = 0
+        assertFalse(canPayOffer(s, to))
+    }
 }

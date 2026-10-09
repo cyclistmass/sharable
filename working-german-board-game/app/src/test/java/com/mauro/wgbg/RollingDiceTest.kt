@@ -74,4 +74,13 @@ class RollingDiceTest {
         }
         assertTrue(pauseAfter(wgbg.engine.ActionType.BUILD_ROAD, 1) > pauseAfter(wgbg.engine.ActionType.BUILD_ROAD, 4))
     }
+
+    @Test
+    fun `ten tumble frames all show and the die still lands on its face`() {
+        val seen = mutableSetOf<Int>()
+        var t = 0f
+        while (t < DiceSprites.LAND) { seen += DiceSprites.frame(t, spin = 2, frames = 10); t += 0.002f }
+        assertEquals((0 until 10).toSet(), seen)
+        assertEquals(-1, DiceSprites.frame(DiceSprites.LAND, spin = 2, frames = 10))
+    }
 }
