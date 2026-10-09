@@ -44,8 +44,12 @@ object DiceSprites {
     /** Animation time when both dice have settled and the panel's own dice take over. */
     const val HANDOVER = 0.97f
 
-    /** Tumbling render (0 until TUMBLE) for a die at animation time [t], or -1 once it shows its face. */
-    fun frame(t: Float, spin: Int): Int = if (t >= LAND) -1 else (spin + (t * 22).toInt()) % TUMBLE
+    /**
+     * Tumbling render (0 until [frames]) for a die at animation time [t], or -1 once it shows its face. The art's
+     * frames are ordered so cycling them reads as one spin; more frames cycle faster to keep the same spin speed.
+     */
+    fun frame(t: Float, spin: Int, frames: Int = TUMBLE): Int =
+        if (t >= LAND) -1 else (spin + (t * 22f * frames / TUMBLE).toInt()) % frames
 
     /** Spin in degrees: fast in the air, slowing to exactly 0 (square on the pad) at the first touch-down. */
     fun spin(t: Float, turns: Float): Float = if (t >= LAND) 0f else (1f - t / LAND).let { it * it } * turns * 360f
@@ -144,7 +148,7 @@ private fun DrawScope.drawDie(r: Rect, u: Float, start: Offset, perp: Offset, tu
     val b = DiceSprites.bounce(u)
     val c = start + (r.center - start) * DiceSprites.fall(u) + perp * (hop * cube * 0.6f) - Offset(0f, b * cube)
     val lift = 1f + 0.35f * hop + 0.3f * b                               // a little bigger in the air: it's up off the table
-    val f = DiceSprites.frame(u, spin)
+    val f = DiceSprites.frame(u, spin, tumble.size)
     val img = if (f < 0) face else tumble[f]
     val drawn = cube * lift / (if (f < 0) 1f else DiceSprites.TUMBLE_SHARE)
     rotate(DiceSprites.spin(u, turns), pivot = c) {
