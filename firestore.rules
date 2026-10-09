@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null; }
+    function seated(g) { return signed() && (g.seats['0'].uid == request.auth.uid || g.seats['1'].uid == request.auth.uid || g.seats['2'].uid == request.auth.uid || g.seats['3'].uid == request.auth.uid); }
+    function seat(s) { return s.keys().hasOnly(['uid','name','bot','open','ready']) && (s.uid == null || s.uid is string) && s.name is string && s.name.size() <= 80 && (s.bot == null || s.bot in ['EASY','GREEDY','STRONG']) && s.open is bool && s.ready is bool; }
+    function valid(g) { return g.keys().hasOnly(['host','status','seed','nextSeq','decks','seats','options','version','createdAt','lastMove']) && g.host is string && g.status in ['lobby','playing','done'] && g.seed is string && g.version == 1 && g.nextSeq is int && g.nextSeq >= 0 && g.decks is int && g.decks >= 0 && g.decks <= 4 && g.options is map && g.createdAt is timestamp && g.seats.keys().hasAll(['0','1','2','3']) && g.seats.size() == 4 && seat(g.seats['0']) && seat(g.seats['1']) && seat(g.seats['2']) && seat(g.seats['3']) && g.seats['0'].uid == g.host; }
+    function selfSeat(k) {
+      let a = resource.data.seats[k]; let b = request.resource.data.seats[k];
+      return resource.data.seats.diff(request.resource.data.seats).affectedKeys().hasOnly([k]) &&
+        ((a.uid == request.auth.uid && b.diff(a).affectedKeys().hasOnly(['ready'])) ||
+         (k != '0' && a.uid == null && a.open && !seated(resource.data) && b.uid == request.auth.uid && b.bot == a.bot && b.open == false && b.ready == false) ||
+         (k != '0' && a.uid == request.auth.uid && b.uid == null && b.name == '' && b.bot == a.bot && b.open && !b.ready));
+    }
+    function selfChange() {
+      let changed = resource.data.seats.diff(request.resource.data.seats).affectedKeys();
+      let k = changed.hasAny(['1']) ? '1' : (changed.hasAny(['2']) ? '2' : '3');
+      return changed.size() == 1 && !changed.hasAny(['0']) && selfSeat(k);
+    }
+    match /games/{game} {
+      allow read: if signed() && (resource.data.status == 'lobby' || seated(resource.data));
+      allow create: if signed() && valid(request.resource.data) && request.resource.data.host == request.auth.uid && request.resource.data.status == 'lobby' && request.resource.data.nextSeq == 0 && request.resource.data.createdAt == request.time && request.resource.data.seats['1'].uid == null && request.resource.data.seats['2'].uid == null && request.resource.data.seats['3'].uid == null;
+      allow update: if signed() && valid(request.resource.data) && (
+        (resource.data.status == 'lobby' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seats','status','options']) &&
+          ((resource.data.host == request.auth.uid && request.resource.data.status in ['lobby','playing']) ||
+           (request.resource.data.status == 'lobby' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seats']) && selfChange()))) ||
+        (resource.data.status == 'playing' && resource.data.host == request.auth.uid && request.resource.data.status == 'done' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+      );
+      match /moves/{move} {
+        function parent() { return get(/databases/$(database)/documents/games/$(game)).data; }
+        function predecessor() {
+          let m = request.resource.data;
+          return (m.seq == 0 && m.prev == '') ||
+            (m.seq > 0 && m.prev is string && m.prev.size() == 10 && m.prev.matches('0*' + string(m.seq - 1)) &&
+             get(/databases/$(database)/documents/games/$(game)/moves/$(m.prev)).data.seq == m.seq - 1);
+        }
+        allow read: if signed() && (parent().status == 'lobby' || seated(parent()));
+        allow create: if signed() && parent().status == 'playing' && seated(parent()) &&
+          request.resource.data.keys().hasOnly(['seq','seat','uid','action','prev']) && request.resource.data.seq >= 0 && request.resource.data.seq <= 9999999999 &&
+          request.resource.data.seq is int && request.resource.data.seat in ['0','1','2','3'] && request.resource.data.uid == request.auth.uid &&
+          (parent().seats[request.resource.data.seat].uid == request.auth.uid || (parent().host == request.auth.uid && parent().seats[request.resource.data.seat].uid == null && parent().seats[request.resource.data.seat].bot != null)) &&
+          request.resource.data.action is string && request.resource.data.action.size() <= 100 && request.resource.data.action.matches('1:[A-Z_]+:[0-9]+') &&
+          move.size() == 10 && move.matches('0*' + string(request.resource.data.seq)) && predecessor();
+      }
+    }
+  }
+}
+
+
+

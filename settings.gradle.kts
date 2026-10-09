@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "WorkingGermanBoardGame"
 
 include(":engine", ":ai", ":app", ":cli")
+include(":net")

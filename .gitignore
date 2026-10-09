@@ -32,3 +32,8 @@ __pycache__/
 # Claude Code agent worktrees and local settings
 .claude/worktrees/
 .claude/settings.local.json
+
+# Firebase emulator/test output
+node_modules/
+*-debug.log
+.firebase/
