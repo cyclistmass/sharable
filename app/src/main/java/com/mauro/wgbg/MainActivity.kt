@@ -363,9 +363,11 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
         if (human && !inventory) {
             val send: (Action) -> Unit = { a -> victims = emptyList(); humanMoves.trySend(a) }
             val needsMe = tradeNeedsMe(state, 0)
-            if (legal.isNotEmpty() && !needsMe) HumanControls(state, 0, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp))
-            if (tradeOpen || needsMe || (tradeMode(state, 0) == TradeMode.WAITING && state.currentPlayer == 0))
-                TradePanel(state, 0, legal, names, send, onClose = { tradeOpen = false }, responses = responses, modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+            // The trade chest docks where the move buttons sit and takes their place while it is open.
+            val chest = tradeOpen || needsMe || (tradeMode(state, 0) == TradeMode.WAITING && state.currentPlayer == 0)
+            if (chest) TradePanel(state, 0, legal, names, send, onClose = { tradeOpen = false }, responses = responses,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp))
+            else if (legal.isNotEmpty()) HumanControls(state, 0, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp))
             if (victims.isNotEmpty()) Column(
                 Modifier.align(Alignment.Center).chest(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),

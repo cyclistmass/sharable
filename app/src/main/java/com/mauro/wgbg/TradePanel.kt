@@ -124,7 +124,7 @@ fun Modifier.chest(): Modifier = this
             drawCircle(BRASS_DARK, 2.5.dp.toPx(), Offset(x + c / 2, y + c / 2))
         }
     }
-    .padding(horizontal = 18.dp, vertical = 12.dp)
+    .padding(horizontal = 14.dp, vertical = 8.dp)
 
 // ------------------------------------------------------------------ the panel
 
@@ -158,14 +158,19 @@ fun TradePanel(
     val showGive = if (editing) give else termGive
     val bankTab = maritime && mode == TradeMode.COMPOSE
 
+    if (mode == TradeMode.CLOSED) {
+        Text(status(s, me, mode, names, false, false), color = INK, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            modifier = modifier.chest().testTag("trade-panel"))
+        return
+    }
     Row(modifier.chest().testTag("trade-panel"), verticalAlignment = Alignment.CenterVertically) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Tab("Players", !bankTab) { maritime = false }
                 if (mode == TradeMode.COMPOSE) Tab("Maritime", bankTab) { maritime = true; get = IntArray(CARD_TYPES); give = IntArray(CARD_TYPES) }
-                Spacer(Modifier.width(6.dp))
-                Text(status(s, me, mode, names, countering, bankTab), color = INK, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
+            Text(status(s, me, mode, names, countering, bankTab), color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                maxLines = 1, modifier = Modifier.width(214.dp))
             Text(if (bankTab) "You get 1" else "You get", color = INK.copy(alpha = 0.7f), fontSize = 11.sp)
             CardRow(showGet, editing, single = bankTab, badge = { null }) { r, d ->
                 get = if (bankTab) IntArray(CARD_TYPES).also { it[r] = 1 } else get.copyOf().also { it[r] = (it[r] + d).coerceIn(0, 9) }
@@ -187,7 +192,7 @@ fun TradePanel(
                     Pill("Trade with ${names[a.payload.toInt()]}", YES, tag = "partner-${a.payload}") { onMove(a) }
             }
         }
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(10.dp))
         // Yes / No / Counter.
         val yes: Action? = when {
             bankTab -> {
@@ -247,19 +252,19 @@ private fun CardRow(counts: IntArray, editable: Boolean, single: Boolean, badge:
             val n = counts[r]
             val lit = n > 0
             Box(
-                Modifier.size(width = 42.dp, height = 56.dp)
+                Modifier.size(width = 38.dp, height = 50.dp)
                     .background(if (lit) CARD_FACE else Color(0xFF8C7F6E), RoundedCornerShape(6.dp))
                     .border(if (lit) 3.dp else 2.dp, if (lit) BRASS_LIGHT else CARD_COLORS[r], RoundedCornerShape(6.dp))
                     .then(if (editable) Modifier.clickable { change(r, 1) } else Modifier),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.size(18.dp).background(CARD_COLORS[r], CircleShape))
-                    Text(RESOURCE_NAMES[r], color = Color(0xFF2B2118), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Box(Modifier.size(14.dp).background(CARD_COLORS[r], CircleShape))
+                    Text(RESOURCE_NAMES[r], color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold)
                     Text(if (lit) "$n" else "", color = Color(0xFF2B2118), fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            Box(Modifier.height(18.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.height(15.dp), contentAlignment = Alignment.Center) {
                 if (editable && lit && !single) Text("−", color = INK, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.clickable { change(r, -1) }.padding(horizontal = 10.dp))
                 else badge(r)?.let { Text(it, color = INK.copy(alpha = 0.6f), fontSize = 9.sp) }
@@ -272,7 +277,7 @@ private fun CardRow(counts: IntArray, editable: Boolean, single: Boolean, badge:
 private fun BigButton(label: String, color: Color, tag: String, onClick: (() -> Unit)?) {
     val on = onClick != null
     Box(
-        Modifier.size(width = 86.dp, height = 42.dp)
+        Modifier.size(width = 78.dp, height = 38.dp)
             .background(if (on) color else color.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
             .border(2.dp, if (on) BRASS_LIGHT else BRASS_DARK, RoundedCornerShape(10.dp))
             .then(if (on) Modifier.clickable { onClick!!() } else Modifier).testTag(tag),
