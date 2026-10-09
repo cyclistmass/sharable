@@ -174,35 +174,34 @@ fun WoodButton(label: String, tag: String, modifier: Modifier = Modifier, size: 
 /** A coloured action button (green Yes/Confirm, red No/Cancel/Exit) with the brass edge. */
 @Composable
 fun ColorButton(label: String, color: Color, tag: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(8.dp)
-    Box(
-        modifier.heightIn(min = 40.dp).shadow(3.dp, shape).clip(shape).background(color).border(2.dp, Wood.BRASS_EDGE, shape)
-            .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 14.dp).testTag(tag),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, style = Wood.sans(15.sp, FontWeight.Bold, Color.White), maxLines = 1) }
+    // Green and red map to the go / stop plates; anything else keeps the brass plate.
+    val plate = when { color.green > color.red -> Plate.GO; color.red > 0.6f && color.green < 0.4f -> Plate.STOP; else -> Plate.BRASS }
+    PlateBox(plate, enabled = true, onClick = onClick, modifier = modifier.heightIn(min = 40.dp).testTag(tag)) {
+        Text(label, style = Wood.sans(15.sp, FontWeight.Bold, Color.White), maxLines = 1)
+    }
 }
 
 /** A brass-plate action button with dark ink. */
 @Composable
 fun BrassButton(label: String, tag: String, modifier: Modifier = Modifier, size: TextUnit = 14.sp, onClick: () -> Unit) {
-    Box(
-        modifier.brassPlate().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 14.dp).testTag(tag),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, style = Wood.sans(size, FontWeight.Bold, Wood.BRASS_INK), maxLines = 1) }
+    // Raised burnished-brass plate (9-slice art); light ink reads on the brass.
+    PlateBox(Plate.BRASS, enabled = true, onClick = onClick, modifier = modifier.testTag(tag)) {
+        Text(label, style = Wood.sans(size, FontWeight.Bold, Color(0xFFFFF4D8)), maxLines = 1)
+    }
 }
 
 /** The big green go button (Play / Start game); greyed and inert when [enabled] is false. */
 @Composable
 fun GoButton(label: String, tag: String, enabled: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(10.dp)
-    Box(
-        modifier
-            .shadow(if (enabled) 4.dp else 0.dp, shape)
-            .clip(shape)
-            .background(if (enabled) Wood.GO else Wood.GO.copy(alpha = 0.3f))
-            .border(2.dp, if (enabled) Wood.BRASS_EDGE else Wood.BRASS_DIM, shape)
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, style = Wood.sans(17.sp, FontWeight.Bold, if (enabled) Color.White else Wood.INK.copy(alpha = 0.45f))) }
+    PlateBox(Plate.GO, enabled = enabled, onClick = onClick, modifier = modifier.testTag(tag)) {
+        Text(label, style = Wood.sans(17.sp, FontWeight.Bold, if (enabled) Color.White else Wood.INK.copy(alpha = 0.45f)))
+    }
+}
+
+/** A red stop plate (Cancel, Leave, No). */
+@Composable
+fun StopButton(label: String, tag: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    PlateBox(Plate.STOP, enabled = true, onClick = onClick, modifier = modifier.heightIn(min = 40.dp).testTag(tag)) {
+        Text(label, style = Wood.sans(15.sp, FontWeight.Bold, Color.White), maxLines = 1)
+    }
 }

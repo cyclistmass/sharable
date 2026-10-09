@@ -15,6 +15,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.res.imageResource
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -30,20 +37,27 @@ private val HUD_TEXT = Color(0xFFEDE6D8)
 
 /** The roll and what came of it, pinned to a corner of the board. */
 @Composable
-fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PLAYER_NAMES, modifier: Modifier = Modifier) {
+fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PLAYER_NAMES, modifier: Modifier = Modifier,
+            /** Reports where the two dice are (root coordinates), so thrown dice can fly to them. */
+            onDiceSlots: ((androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect) -> Unit)? = null,
+            /** False while thrown dice are still in the air (the resting dice appear when they land). */
+            showDice: Boolean = true) {
     if (report == null) return
+    // Fixed size, so the dice always sit in the same spot; longer turns scroll inside.
     Column(
-        modifier.widthIn(max = 360.dp)
+        modifier.size(width = 360.dp, height = 210.dp)
             .brassEdgedWood()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .verticalScroll(androidx.compose.foundation.rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             val color = PLAYER_COLORS[report.player]
-            if (report.rolled) {
-                Die(report.die1, color)
-                Die(report.die2, color)
-                Text("= ${report.die1 + report.die2}", color = HUD_TEXT, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            run {
+                var r1 by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+                Die3d(report.die1, red = true, pad = color, visible = showDice && report.rolled, modifier = Modifier.onGloballyPositioned { r1 = it.boundsInRoot() })
+                Die3d(report.die2, red = false, pad = color, visible = showDice && report.rolled, modifier = Modifier.onGloballyPositioned { c -> r1?.let { a -> onDiceSlots?.invoke(a, c.boundsInRoot()) } })
+                if (report.rolled && showDice) Text("= ${report.die1 + report.die2}", color = HUD_TEXT, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
             Text(if (names[report.player] == "You") "Your turn" else "${names[report.player]}'s turn", color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
@@ -61,8 +75,8 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
 
 /** A small ivory die with pips, edged in the roller's color. */
 @Composable
-private fun Die(value: Int, edge: Color) {
-    Canvas(Modifier.size(24.dp)) {
+private fun Die(value: Int, edge: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(34.dp)) {
         val r = size.minDimension * 0.18f
         drawRoundRect(Color(0xFFFBF5E8), cornerRadius = CornerRadius(r))
         drawRoundRect(edge, cornerRadius = CornerRadius(r), style = androidx.compose.ui.graphics.drawscope.Stroke(width = size.minDimension * 0.1f))
@@ -103,3 +117,26 @@ private fun MiniCard(edge: Color, label: String, count: Int, face: Color) {
         }
     }
 }
+
+/** A resting 3D die (the same sprites the throw uses) at the panel's dice size, showing [value] on top. */
+@Composable
+private fun Die3d(value: Int, red: Boolean, pad: Color, visible: Boolean, modifier: Modifier = Modifier) {
+    val sheet = androidx.compose.ui.graphics.ImageBitmap.imageResource(if (red) R.drawable.dice_red else R.drawable.dice_ivory)
+    Canvas(modifier.size(DIE_DP.dp)) {
+        // A pad in the roller's colour the die sits on (shown even while the dice are in the air).
+        val r = CornerRadius(size.minDimension * 0.22f)
+        drawRoundRect(pad.copy(alpha = 0.85f), topLeft = Offset(-size.width * 0.06f, size.height * 0.08f), size = Size(size.width * 1.12f, size.height * 0.98f), cornerRadius = r)
+        drawRoundRect(Color.Black.copy(alpha = 0.35f), topLeft = Offset(-size.width * 0.06f, size.height * 0.08f), size = Size(size.width * 1.12f, size.height * 0.98f), cornerRadius = r,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f))
+        if (!visible) return@Canvas
+        val f = DiceSprites.FRAME
+        val side = size.width * 0.86f / DiceSprites.CUBE_SHARE   // the cube fills ~86% of its pad
+        val frame = DiceSprites.TUMBLE + (value - 1).coerceIn(0, 5)
+        drawImage(sheet, androidx.compose.ui.unit.IntOffset(frame * f, 0), androidx.compose.ui.unit.IntSize(f, f),
+            androidx.compose.ui.unit.IntOffset((size.width / 2 - side / 2).toInt(), (size.height * 0.58f - side / 2).toInt()),
+            androidx.compose.ui.unit.IntSize(side.toInt(), side.toInt()), filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium)
+    }
+}
+
+/** Size of the panel's dice; thrown dice land at exactly this size. */
+const val DIE_DP = 36

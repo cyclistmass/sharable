@@ -5,7 +5,7 @@ import numpy as np, trimesh
 from PIL import Image, ImageDraw
 
 D = (os.environ.get("DICE_DIR") or ".") + "/"   # folder with the dice GLBs (Mauro's dice_ship_models_v2.zip)
-SIZE, SS = 128, 3                       # output px, supersampling
+SIZE, SS = 256, 3                       # output px, supersampling
 LIGHT = np.array([-0.45, 0.55, 0.70]); LIGHT /= np.linalg.norm(LIGHT)
 
 FACES = [('z', 1, 1), ('z', -1, 6), ('x', 1, 3), ('x', -1, 4), ('y', 1, 2), ('y', -1, 5)]
@@ -72,6 +72,8 @@ FACE_UP = {2: np.eye(3), 5: rot([1, 0, 0], math.pi), 1: rot([1, 0, 0], -math.pi 
            3: rot([0, 0, 1], math.pi / 2), 4: rot([0, 0, 1], -math.pi / 2)}
 # Looking down on the table at a steep angle, turned a little: the top face (the roll) dominates, two sides show.
 VIEW = rot([1, 0, 0], 0.95) @ rot([0, 1, 0], -0.55)
+# Resting dice sit SQUARE on their pad: top face (the roll) squared up, a little of the front face below it.
+REST_VIEW = rot([1, 0, 0], 1.18)
 
 def sheet(name, tumble=16):
     tris, cols, body = load(name)
@@ -80,7 +82,7 @@ def sheet(name, tumble=16):
     for k in range(tumble):                         # one full tumble around a skewed axis
         frames.append(render(tris, cols, body, VIEW @ rot(axis, 2 * math.pi * k / tumble) @ rot([0, 0, 1], 0.6 * k)))
     for face in range(1, 7):                        # resting poses 1..6
-        frames.append(render(tris, cols, body, VIEW @ FACE_UP[face]))
+        frames.append(render(tris, cols, body, REST_VIEW @ FACE_UP[face]))
     out = Image.new("RGBA", (SIZE * len(frames), SIZE))
     for i, f in enumerate(frames): out.paste(f, (i * SIZE, 0))
     out.save(D + f"sheet_{name}.png")

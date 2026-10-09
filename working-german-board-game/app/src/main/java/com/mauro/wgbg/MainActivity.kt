@@ -153,6 +153,9 @@ class MainActivity : ComponentActivity() {
 /** Painted tile faces (Mauro's ChatGPT art) by resource; the desert last. */
 private val TILE_FACES = listOf(R.drawable.tile_timber, R.drawable.tile_clay, R.drawable.tile_fleece, R.drawable.tile_grain, R.drawable.tile_stone)
 private val TILE_DESERT = R.drawable.tile_desert
+/** The original painted faces with their coloured frame (Tile edges: Classic frame). */
+private val TILE_FACES_FRAMED = listOf(R.drawable.tile_timber_framed, R.drawable.tile_clay_framed, R.drawable.tile_fleece_framed, R.drawable.tile_grain_framed, R.drawable.tile_stone_framed)
+private val TILE_DESERT_FRAMED = R.drawable.tile_desert_framed
 
 private val KNIGHTS_PIRATE = listOf(
     R.drawable.knight_pirate_l1_inactive, R.drawable.knight_pirate_l1_active, R.drawable.knight_pirate_l2_inactive,
@@ -280,12 +283,15 @@ fun WatchGameScreen(
     // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
     // game starts several times a second, which would otherwise wipe splashes and clouds.
     val oceanRes = LocalContext.current.resources
-    val cliff = ImageBitmap.imageResource(R.drawable.cliff_straight)
+    val cliff = listOf(R.drawable.cliff_top_1, R.drawable.cliff_top_2, R.drawable.cliff_top_3).map { ImageBitmap.imageResource(it) }
     val raiders = ImageBitmap.imageResource(R.drawable.raiders_ship)
     // Knight art per theme: index (level - 1) * 2 + (active ? 1 : 0).
     val knightsPirate = KNIGHTS_PIRATE.map { ImageBitmap.imageResource(it) }
     val knightsNormal = KNIGHTS_NORMAL.map { ImageBitmap.imageResource(it) }
-    val tileFaces = TILE_FACES.withIndex().associate { (r, id) -> r to ImageBitmap.imageResource(id) } + (Resource.NONE to ImageBitmap.imageResource(TILE_DESERT))
+    val plainFaces = TILE_FACES.withIndex().associate { (r, id) -> r to ImageBitmap.imageResource(id) } + (Resource.NONE to ImageBitmap.imageResource(TILE_DESERT))
+    val framedFaces = TILE_FACES_FRAMED.withIndex().associate { (r, id) -> r to ImageBitmap.imageResource(id) } + (Resource.NONE to ImageBitmap.imageResource(TILE_DESERT_FRAMED))
+    val tileFaces = if (env.tileEdge == EnvSettings.TileEdge.CLASSIC) framedFaces else plainFaces
+    val tileLine = env.tileEdge == EnvSettings.TileEdge.THIN
     val gullFlap = ImageBitmap.imageResource(R.drawable.gull_flap)
     val gullGlide = ImageBitmap.imageResource(R.drawable.gull_glide)
     val gullShadow = ImageBitmap.imageResource(R.drawable.gull_shadow)
@@ -398,6 +404,8 @@ fun WatchGameScreen(
     var confirmExit by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
     var hudTopRight by remember { mutableStateOf<Offset?>(null) }
+    var diceFlying by remember { mutableStateOf(false) }
+    var diceSlots by remember { mutableStateOf<Pair<androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect>?>(null) }
     BackHandler { confirmExit = !confirmExit }
     // What the human may do right now (empty while bots move or in Watch mode).
     val legal = tick.let { if (human && !inventory && !state.isOver && state.actingPlayer == 0) Rules.legalActions(state) else emptyList() }
@@ -480,7 +488,7 @@ fun WatchGameScreen(
             tick // redraw on every move
             seaTick // and on every sea frame
             if (inventory) drawInventory(measurer, wood) else {
-                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, if (env.pirateTheme) knightsPirate else knightsNormal, raiders)
+                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, if (env.pirateTheme) knightsPirate else knightsNormal, raiders)
                 if (!targets.isEmpty) drawTargets(state.board, targets, camera, (kotlin.math.sin(seaTick / 9f) + 1f) / 2f)
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
@@ -500,9 +508,9 @@ fun WatchGameScreen(
             // The roll's dice roll across the turn HUD and rest on its top-right corner until the next roll.
             val rolled = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
             Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
-                TurnHud(report, previous, names)
+                TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying)
             }
-            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight,
+            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
@@ -886,7 +894,7 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
     }
 }
 
-private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: ImageBitmap? = null, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null) {
+private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null) {
     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
@@ -899,6 +907,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     val toScreen = { x: Float, y: Float -> l.project(x, y) }
     sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX))
 
+    drawTrough(board, l, scale, wood)
     if (cliff != null) drawCliffs(board, l, cliff)
     // Age of Chivalry: the Raiders' ship sails its arc toward the island as the track advances (#2).
     val ckState = s.ck
@@ -915,7 +924,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         // Zoomed in, skip tiles that are entirely off screen.
         val m = 1.2f * scale
         if (c.x < -m || c.y < -m || c.x > size.width + m || c.y > size.height + m) continue
-        drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]))
+        drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]), tileLine)
     }
 
     // Ports: water patch and wooden piers first, then the raised trade-rate tokens.
@@ -975,7 +984,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
 /** One raised terrain tile (hex side = [scale] px) with its number token. */
 private fun DrawScope.drawTile(
     resource: Int, number: Int, variant: Int, c: Offset, scale: Float, measurer: TextMeasurer, wood: WoodPieces,
-    squash: Float = 1f, lift: Float = 1f, face: ImageBitmap? = null,
+    squash: Float = 1f, lift: Float = 1f, face: ImageBitmap? = null, line: Boolean = false,
 ) {
     // Inset corners so each tile reads as a separate piece. Corner order: clockwise from top.
     // The top face lies on the table, so tilting squashes it; the side walls are upright.
@@ -1000,6 +1009,8 @@ private fun DrawScope.drawTile(
         val hgt = 2 * r * squash
         drawImage(face, dstOffset = IntOffset((c.x - w / 2).toInt(), (c.y - hgt / 2).toInt()), dstSize = IntSize(w.toInt(), hgt.toInt()),
             filterQuality = FilterQuality.Medium)
+        // Tile edges: Thin line = a fine dark outline in a deeper shade of the terrain.
+        if (line) drawPath(polygon(top), base.shade(0.55f).copy(alpha = 0.75f), style = Stroke(0.025f * scale))
         if (number != 0) drawNumberToken(number, c + Offset(-0.36f * scale, -0.3f * scale * squash), scale, measurer, wood)
         return
     }
@@ -1215,28 +1226,38 @@ private class GrabEnd(val start: Offset, val at: Offset, val travel: Float, val 
  * Cliffs around the island (Mauro's ChatGPT art): the straight cliff strip laid along every coastline
  * edge, grass lip tucked under the tile, rock face and surf hanging out over the sea.
  */
-private fun DrawScope.drawCliffs(board: Board, l: Layout, cliff: ImageBitmap) {
+private fun DrawScope.drawCliffs(board: Board, l: Layout, cliffs: List<ImageBitmap>) {
+    // Top-down cliff strips (Codex art via Pip) lie flat on the table: each is mapped through the
+    // board projection, so it tilts and foreshortens exactly like the tiles.
     val topo = board.topology
+    val xs = { v: Int -> topo.vertexPos[v].x * sqrt(3f) / 2f }
+    val ys = { v: Int -> topo.vertexPos[v].y / 2f }
+    val mtx = androidx.compose.ui.graphics.Matrix()
+    var k = 0
     for ((v1, v2) in topo.edgeVertices) {
         val shared = topo.vertexHexes[v1].filter { it in topo.vertexHexes[v2] }
         if (shared.size != 1) continue                       // a coastline edge has land on one side only
-        var a = l.at(v1); var b = l.at(v2)
-        val c = l.hexCenter(shared[0])
-        val mid = (a + b) / 2f
-        val n = (mid - c).let { it / it.getDistance().coerceAtLeast(1e-3f) }
-        // Order the ends so the strip's "down" (its rock face and surf) points out to sea.
-        val d0 = b - a
-        if (-d0.y * n.x + d0.x * n.y < 0) { val t = a; a = b; b = t }
-        val d = b - a
-        val len = d.getDistance()
-        if (len < 2f) continue
-        val angle = Math.toDegrees(kotlin.math.atan2(d.y, d.x).toDouble()).toFloat()
-        val h = len * cliff.height / cliff.width * 1.8f   // taller than the art's ratio so the rock face reads at board size
-        withTransform({ translate(a.x, a.y); rotate(angle, pivot = Offset.Zero) }) {
-            // Slightly longer than the edge so neighbours overlap at the corners; the lip starts under the tile.
-            drawImage(cliff, dstOffset = IntOffset((-0.06f * len).toInt(), (-0.18f * h).toInt()),
-                dstSize = IntSize((1.12f * len).toInt(), h.toInt()), filterQuality = FilterQuality.Medium)
-        }
+        val h = shared[0]
+        val hc = topo.hexVertices[h].let { vs -> Offset(vs.map(xs).average().toFloat(), vs.map(ys).average().toFloat()) }
+        var ax = xs(v1); var ay = ys(v1); var bx = xs(v2); var by = ys(v2)
+        val mx = (ax + bx) / 2 - hc.x; val my = (ay + by) / 2 - hc.y
+        // Order the ends so the strip's bottom (surf) faces out to sea.
+        if (-(by - ay) * mx + (bx - ax) * my < 0) { val tx = ax; val ty = ay; ax = bx; ay = by; bx = tx; by = ty }
+        val img = cliffs[k++ % cliffs.size]
+        // Lattice frame: along the edge (1.16x, overlapping neighbours) and outward (strip depth).
+        val len = 1.16f
+        val depth = 0.55f
+        val nl = kotlin.math.hypot(mx, my); val nx = mx / nl; val ny = my / nl
+        val ox = ax + (ax - bx) * 0.08f - nx * depth * 0.12f
+        val oy = ay + (ay - by) * 0.08f - ny * depth * 0.12f
+        val o = l.project(ox, oy)
+        val ue = l.project(ox + (bx - ax) * len, oy + (by - ay) * len) - o
+        val un = l.project(ox + nx * depth, oy + ny * depth) - o
+        mtx.reset()
+        mtx.values[0] = ue.x / img.width; mtx.values[1] = ue.y / img.width
+        mtx.values[4] = un.x / img.height; mtx.values[5] = un.y / img.height
+        mtx.values[12] = o.x; mtx.values[13] = o.y
+        withTransform({ transform(mtx) }) { drawImage(img, filterQuality = FilterQuality.Medium) }
     }
 }
 
@@ -1261,4 +1282,22 @@ internal fun turnHeader(tracker: TurnTracker, s: GameState): TurnReport? {
     val cur = tracker.current
     if (s.phase == wgbg.engine.Phase.BUILD_INITIAL_SETTLEMENT || s.phase == wgbg.engine.Phase.BUILD_INITIAL_ROAD || s.isOver) return cur ?: tracker.last
     return if (cur != null && cur.player == s.currentPlayer && cur.turn == s.turn) cur else TurnReport(s.currentPlayer, s.turn)
+}
+
+/**
+ * The road trough: a sunken dark-wood channel between the tiles (Mauro), where the roads sit.
+ * Drawn under the tiles; their 0.93 inset leaves the channel showing between neighbours.
+ */
+private fun DrawScope.drawTrough(board: Board, l: Layout, scale: Float, wood: WoodPieces) {
+    val troughWood = Color(0xFF3A2414)
+    for (h in 0 until board.hexCount) {
+        val c = l.hexCenter(h)
+        val r = scale * l.hexK(h)
+        val hex = List(6) { i ->
+            val a = Math.toRadians(-90.0 + 60 * i)
+            c + Offset((kotlin.math.cos(a) * r * 1.04f).toFloat(), (kotlin.math.sin(a) * r * 1.04f * l.squash).toFloat())
+        }
+        drawPath(polygon(hex), wood.brush(TOKEN_WOOD_INDEX))
+        drawPath(polygon(hex), troughWood.copy(alpha = 0.82f))
+    }
 }

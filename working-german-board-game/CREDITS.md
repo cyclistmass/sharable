@@ -36,3 +36,5 @@ All other graphics are drawn procedurally in code.
 - Knight tokens, Normal (`knight_normal_*`): generated with OpenAI Codex image generation for Mauro, matched to the pirate set.
 - Raiders ship (`raiders_ship.webp`) and knight cards (`card_knight_*`): generated with OpenAI Codex image generation for Mauro.
 - Gulls and player sloops (`gull_*`, `boat_*`): generated with OpenAI Codex image generation for Mauro (via Pip).
+- Frameless tiles and top-down cliff strips (`tile_*`, `cliff_top_*`): generated with OpenAI Codex for Mauro (via Pip).
+- Brass button plates and road brick texture (`btn_*`, `road_bricks.png`): generated with OpenAI Codex for Mauro.
