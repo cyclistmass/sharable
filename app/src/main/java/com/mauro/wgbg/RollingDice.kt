@@ -28,12 +28,12 @@ object DiceSprites {
     const val FRAME = 128
     const val TUMBLE = 16
     /** Seconds from release to rest. */
-    const val FALL_S = 1.15f
+    const val FALL_S = 1.6f
 
     /** Sheet frame for a die at animation time [t] (0..1) that lands on [face]; [spin] offsets the tumble. */
     fun frame(t: Float, face: Int, spin: Int): Int =
         if (t >= 0.86f) TUMBLE + (face - 1).coerceIn(0, 5)
-        else (spin + (t * 26).toInt()) % TUMBLE
+        else (spin + (t * 30).toInt()) % TUMBLE
 
     /** Height as a share of the fall (0 at the top, 1 at rest), with two small bounces at the end. */
     fun fall(t: Float): Float {
@@ -57,7 +57,7 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, modifier: Modifier = Modifi
     // Drawn over the turn HUD (sized to it): the dice come in from just outside its bottom-left
     // corner, roll up across it and settle on its top-right corner. Pure decoration: no physics.
     Canvas(modifier) {
-        val side = 32.dp.toPx() // about 30% smaller than the first cut
+        val side = 37.dp.toPx()
         val start = Offset(-side * 1.3f, size.height + side * 0.15f)
         val rest = Offset(size.width - side * 2.25f, -side * 0.78f)
         fun at(p: Float, lead: Float): Offset {
