@@ -58,9 +58,9 @@ class RollingDiceTest {
     }
 
     @Test
-    fun `every theme and colour has its own four tumbling renders`() {
+    fun `every theme and colour has its own ten tumbling renders`() {
         val sets = listOf(false, true).flatMap { pirate -> listOf(false, true).map { red -> diceTumble(red, pirate) } }
-        for (s in sets) assertEquals(4, s.toSet().size)
+        for (s in sets) assertEquals(10, s.toSet().size)
         assertEquals(4, sets.toSet().size)
         assertNotEquals(diceTumble(red = true, pirate = false), diceTumble(red = true, pirate = true))
     }
@@ -82,5 +82,18 @@ class RollingDiceTest {
         while (t < DiceSprites.LAND) { seen += DiceSprites.frame(t, spin = 2, frames = 10); t += 0.002f }
         assertEquals((0 until 10).toSet(), seen)
         assertEquals(-1, DiceSprites.frame(DiceSprites.LAND, spin = 2, frames = 10))
+    }
+
+    @Test
+    fun `the event die shows the right gate for each track, in both themes`() {
+        assertEquals(listOf(1, 2, 3, 4, 6, 5), (0..5).map { DiceArt.eventFile(it) })   // ship x3, Guilds, Crown, Academy
+        assertEquals(wgbg.engine.Track.TRADE, wgbg.engine.EventDie.gateTrack(3))          // engine 3 = trade = Guilds
+        assertEquals(wgbg.engine.Track.POLITICS, wgbg.engine.EventDie.gateTrack(4))       // engine 4 = politics = Crown
+        assertEquals(wgbg.engine.Track.SCIENCE, wgbg.engine.EventDie.gateTrack(5))        // engine 5 = science = Academy
+        for (pirate in listOf(false, true)) {
+            assertEquals(6, (0..5).map { DiceArt.eventFace(pirate, it) }.toSet().size)
+            assertEquals(10, DiceArt.eventTumble(pirate).toSet().size)
+        }
+        assertNotEquals(DiceArt.eventFace(false, 3), DiceArt.eventFace(true, 3))
     }
 }
