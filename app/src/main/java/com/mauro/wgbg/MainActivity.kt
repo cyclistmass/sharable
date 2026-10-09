@@ -79,6 +79,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -592,6 +593,8 @@ fun WatchGameScreen(
     Box(modifier) {
       Box(Modifier.fillMaxSize()) { // the menu floats over the board, so the ocean always fills the screen
       Box(Modifier.fillMaxSize()) {
+        // The board sits beside the player strip and turn panel (TurnHud is 360 dp wide, plus its 8 dp margins).
+        Layout.leftInset = if (inventory) 0f else with(LocalDensity.current) { 376.dp.toPx() }
         val measurer = rememberTextMeasurer()
         val resources = LocalContext.current.resources
         val wood = remember { WoodPieces(resources, PLAYER_COLORS + TOKEN_WOOD) }
@@ -794,7 +797,7 @@ fun WatchGameScreen(
                         diceSetting = (diceSetting + 1) % 5
                     }
                 }
-                PlayerPanel(players)
+                PlayerPanel(players, names)
                 Text("Wins: " + names.indices.joinToString("  ") { "${names[it]} ${wins[it]}" } + "  · draws ${wins[4]}",
                     style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                 for (line in log) Text(line, style = MaterialTheme.typography.bodySmall, maxLines = 1)
@@ -957,7 +960,7 @@ private data class PlayerInfo(
 }
 
 @Composable
-private fun PlayerPanel(players: List<PlayerInfo>) {
+private fun PlayerPanel(players: List<PlayerInfo>, names: List<String>) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         for (pl in players) {
             Row(
@@ -970,7 +973,7 @@ private fun PlayerPanel(players: List<PlayerInfo>) {
             ) {
                 Box(Modifier.size(12.dp).background(PLAYER_COLORS[pl.seat], CircleShape))
                 Spacer(Modifier.width(6.dp))
-                Text(PLAYER_NAMES[pl.seat], Modifier.width(58.dp), fontWeight = if (pl.active) FontWeight.Bold else FontWeight.Normal)
+                Text(names[pl.seat], Modifier.width(58.dp), maxLines = 1, fontWeight = if (pl.active) FontWeight.Bold else FontWeight.Normal)
                 Text("${pl.vp} VP", Modifier.width(54.dp), maxLines = 1, fontWeight = FontWeight.Bold)
                 MiniHand(pl.hand, pl.dev, Modifier.weight(1f))
                 val badges = listOfNotNull("Hwy".takeIf { pl.road }, "Watch".takeIf { pl.army }, "WIN".takeIf { pl.winner })
@@ -1038,18 +1041,25 @@ private class Layout(val board: Board, val center: Offset, val scale: Float, val
         private var lastFit: Layout? = null
         private var lastFitKey: Any? = null
 
+        /**
+         * Pixels at the canvas's left edge covered by the player strip and turn panel (set by the game screen).
+         * The board fits in the space beside them, so no tile or corner hides under a panel.
+         */
+        var leftInset = 0f
+
         fun fit(board: Board, width: Float, height: Float, camera: Camera = Camera.FIT): Layout {
-            val key = FitKey(System.identityHashCode(board), width, height, camera)
+            val key = FitKey(System.identityHashCode(board), width, height, camera, leftInset)
             lastFit?.let { if (it.board === board && key == lastFitKey) return it }
             return computeFit(board, width, height, camera).also { lastFit = it; lastFitKey = key }
         }
 
-        private data class FitKey(val board: Int, val width: Float, val height: Float, val camera: Camera)
+        private data class FitKey(val board: Int, val width: Float, val height: Float, val camera: Camera, val left: Float)
 
         private fun computeFit(board: Board, width: Float, height: Float, camera: Camera): Layout {
             val b = extent(board)
-            val scale = min((width - 2 * BORDER_PX) / b.width, (height - 2 * BORDER_PX) / b.height)
-            val mid = Offset(width / 2f, height / 2f)
+            val left = leftInset.coerceIn(0f, width / 2f)
+            val scale = min((width - left - 2 * BORDER_PX) / b.width, (height - 2 * BORDER_PX) / b.height)
+            val mid = Offset(left + (width - left) / 2f, height / 2f)
             val fitOrigin = mid - b.center * scale
             return Layout(board, camera.map(fitOrigin, mid), scale * camera.zoom, camera.tilt)
         }
@@ -1536,7 +1546,10 @@ internal fun raidersAt(pos: Int, board: Board, time: Float): Pair<Float, Float> 
  */
 internal fun turnHeader(tracker: TurnTracker, s: GameState): TurnReport? {
     val cur = tracker.current
-    if (s.phase == wgbg.engine.Phase.BUILD_INITIAL_SETTLEMENT || s.phase == wgbg.engine.Phase.BUILD_INITIAL_ROAD || s.isOver) return cur ?: tracker.last
+    if (s.isOver) return cur ?: tracker.last
+    // Setup: whoever places now, even before their first piece (the placing order snakes back).
+    if (s.phase == wgbg.engine.Phase.BUILD_INITIAL_SETTLEMENT || s.phase == wgbg.engine.Phase.BUILD_INITIAL_ROAD)
+        return if (cur != null && cur.player == s.actingPlayer) cur else TurnReport(s.actingPlayer, s.turn)
     return if (cur != null && cur.player == s.currentPlayer && cur.turn == s.turn) cur else TurnReport(s.currentPlayer, s.turn)
 }
 

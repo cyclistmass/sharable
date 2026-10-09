@@ -116,4 +116,15 @@ class TradePanelTest {
         assertEquals(1, get1[5], "the responder gets the Parchment")
         assertEquals(1, give1[0], "and gives the Timber")
     }
+
+    @Test
+    fun `trade buttons say what they do - Offer and Clear for your own offer, Yes and No only when answering`() {
+        assertEquals("Offer" to "Close", tradeButtonLabels(TradeMode.COMPOSE, countering = false, bank = false, entered = false))
+        assertEquals("Offer" to "Clear", tradeButtonLabels(TradeMode.COMPOSE, countering = false, bank = false, entered = true))
+        assertEquals("Trade" to "Clear", tradeButtonLabels(TradeMode.COMPOSE, countering = false, bank = true, entered = true))
+        assertEquals("Yes" to "No", tradeButtonLabels(TradeMode.RESPOND, countering = false, bank = false, entered = false))
+        assertEquals("Send" to "Back", tradeButtonLabels(TradeMode.RESPOND, countering = true, bank = false, entered = true))
+        assertEquals("Yes" to "No", tradeButtonLabels(TradeMode.REVIEW_COUNTER, countering = false, bank = false, entered = false))
+        assertEquals("Trade" to "Cancel", tradeButtonLabels(TradeMode.PICK_PARTNER, countering = false, bank = false, entered = false))
+    }
 }

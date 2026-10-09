@@ -29,4 +29,22 @@ class TurnHeaderTest {
         }
         assert(checked > 10)
     }
+
+    @Test
+    fun `during setup the panel names whoever places now, before their first piece`() {
+        val s = Rules.newGame(GameConfig(numPlayers = 4), 3)
+        val tracker = TurnTracker(listOf("Mauro", "Crest", "Orange", "White"))
+        val bots = List(4) { GreedyBot(it.toLong()) }
+        val buf = ActionBuffer()
+        var checked = 0
+        while (s.phase == Phase.BUILD_INITIAL_SETTLEMENT || s.phase == Phase.BUILD_INITIAL_ROAD) {
+            assertEquals(s.actingPlayer, turnHeader(tracker, s)!!.player, "placement ${checked}")
+            checked++
+            Rules.legalActions(s, buf)
+            val who = s.actingPlayer
+            val a = bots[who].choose(s, buf)
+            tracker.apply(s, who, a) { Rules.apply(s, a) }
+        }
+        assertEquals(16, checked)
+    }
 }

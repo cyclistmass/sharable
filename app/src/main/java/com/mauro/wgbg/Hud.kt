@@ -67,7 +67,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
         for (line in report.events.takeLast(4)) Text(line, color = HUD_TEXT.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 1)
         if (previous != null && previous.rolled) {
             Text(
-                "Last turn: ${PLAYER_NAMES[previous.player]} rolled ${previous.die1 + previous.die2}. " +
+                "Last turn: ${names[previous.player]} rolled ${previous.die1 + previous.die2}. " +
                     previous.production.joinToString("; "),
                 color = HUD_TEXT.copy(alpha = 0.6f), fontSize = 11.sp, maxLines = 2,
             )
