@@ -830,10 +830,14 @@ private class Layout(val board: Board, val center: Offset, val scale: Float, val
 
     fun at(v: Int) = project(xs[v], ys[v])
     fun k(v: Int) = kAt(ys[v])
-    private fun hexLattice(h: Int): Offset {
+    // Hex centres in lattice units, worked out once per layout (they were re-averaged on every call).
+    private val hexCentres = Array(board.hexCount) { h ->
         val vs = board.topology.hexVertices[h]
-        return Offset(vs.map { xs[it] }.average().toFloat(), vs.map { ys[it] }.average().toFloat())
+        var sx = 0f; var sy = 0f
+        for (v in vs) { sx += xs[v]; sy += ys[v] }
+        Offset(sx / vs.size, sy / vs.size)
     }
+    private fun hexLattice(h: Int): Offset = hexCentres[h]
     fun hexCenter(h: Int) = hexLattice(h).let { project(it.x, it.y) }
     fun hexK(h: Int) = kAt(hexLattice(h).y)
     fun rowKey(h: Int) = board.topology.hexVertices[h].sumOf { ys[it].toDouble() }
@@ -849,7 +853,20 @@ private class Layout(val board: Board, val center: Offset, val scale: Float, val
          * Fits everything that is drawn (tiles with their thickness and shadow, port water,
          * piers and tokens) inside the canvas minus [BORDER_PX], then applies the [camera].
          */
+        // The last fitted layout: the board passes ask for the same one several times a frame, and it only
+        // changes with the board, the canvas size or the camera (all drawing and gestures are on the main thread).
+        private var lastFit: Layout? = null
+        private var lastFitKey: Any? = null
+
         fun fit(board: Board, width: Float, height: Float, camera: Camera = Camera.FIT): Layout {
+            val key = FitKey(System.identityHashCode(board), width, height, camera)
+            lastFit?.let { if (it.board === board && key == lastFitKey) return it }
+            return computeFit(board, width, height, camera).also { lastFit = it; lastFitKey = key }
+        }
+
+        private data class FitKey(val board: Int, val width: Float, val height: Float, val camera: Camera)
+
+        private fun computeFit(board: Board, width: Float, height: Float, camera: Camera): Layout {
             val b = extent(board)
             val scale = min((width - 2 * BORDER_PX) / b.width, (height - 2 * BORDER_PX) / b.height)
             val mid = Offset(width / 2f, height / 2f)

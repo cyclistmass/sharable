@@ -515,7 +515,7 @@ class Sea(board: Board, seed: Int = 1) {
         val img = sprites[b.color % sprites.size]
         // Wake: two thin foam lines spreading from the stern along the path the boat actually took,
         // fading with age, plus a little churn right at the stern.
-        if (b.trailN > 1) for (side in intArrayOf(-1, 1)) {
+        if (b.trailN > 1) for (side in -1..1 step 2) {
             var px = 0f; var py = 0f
             for (i in 0 until b.trailN) {
                 val x = b.trail[2 * i]; val y = b.trail[2 * i + 1]
