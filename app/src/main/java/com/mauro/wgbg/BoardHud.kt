@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -67,7 +68,13 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                         for (i in 0 until 4) Box(Modifier.size(width = 14.dp, height = 4.dp).background(if (i < filled) color else Color(0x73000000), RoundedCornerShape(1.dp)))
                     }
                 }
-                Text("${s.cardCount(p)} cards", color = Color(0xFFCDBFA6), fontSize = 11.sp, modifier = Modifier.width(52.dp))
+                // A tiny card icon and the count; in Age of Chivalry "cards/progress", e.g. 8/3.
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.width(52.dp)) {
+                    Box(Modifier.size(width = 10.dp, height = 14.dp).background(Color(0xFFEFE3C8), RoundedCornerShape(2.dp))
+                        .border(1.dp, Color(0xFFC9A04A), RoundedCornerShape(2.dp)))
+                    Spacer(Modifier.width(4.dp))
+                    Text(cardsLabel(s, p), color = Color(0xFFEDE6D8), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
                 Text("${if (p == me) s.victoryPoints(p) else s.publicVictoryPoints(p)}", color = Color(0xFFF1D58A), fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(24.dp))
             }
         }
@@ -100,3 +107,6 @@ fun TurnPrompt(text: String, modifier: Modifier = Modifier) {
 
 /** Ship steps left before the Raiders land (attack) for track position [pos]. */
 fun raidersStepsLeft(pos: Int) = (wgbg.engine.CkPiece.BARBARIAN_TRACK - pos).coerceAtLeast(0)
+
+/** Hand size for the player list: "8", or "8/3" (cards / progress cards) in Age of Chivalry. */
+fun cardsLabel(s: GameState, p: Int): String = s.ck?.let { "${s.cardCount(p)}/${it.progressCount(p)}" } ?: "${s.cardCount(p)}"
