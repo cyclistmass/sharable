@@ -48,6 +48,9 @@ class Seabird(seed: Int, private val ringR: Float) {
     /** True while the bird is in a flapping burst (the rest of the time it glides). */
     val flapping get() = ((t + phase) % burstCycle) / burstCycle < burstLen
 
+    /** Frame of the 8-frame flap strip (10 fps) while flapping, or -1 while gliding. */
+    fun flapFrame(): Int = if (flapping) (((t + phase) * 10f).toInt() % 8 + 8) % 8 else -1
+
     /** Wing hinge angle (radians, + = up) for this moment: a full stroke while flapping, a slight flex while gliding. */
     fun hinge(): Float = if (flapping) 0.55f * sin(2 * PI.toFloat() * flapHz * (t + phase)) else 0.06f * sin(0.9f * t + phase)
 

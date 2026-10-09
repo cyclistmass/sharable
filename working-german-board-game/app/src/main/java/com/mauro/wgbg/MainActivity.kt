@@ -286,7 +286,15 @@ fun WatchGameScreen(
     val knightsPirate = KNIGHTS_PIRATE.map { ImageBitmap.imageResource(it) }
     val knightsNormal = KNIGHTS_NORMAL.map { ImageBitmap.imageResource(it) }
     val tileFaces = TILE_FACES.withIndex().associate { (r, id) -> r to ImageBitmap.imageResource(id) } + (Resource.NONE to ImageBitmap.imageResource(TILE_DESERT))
+    val gullFlap = ImageBitmap.imageResource(R.drawable.gull_flap)
+    val gullGlide = ImageBitmap.imageResource(R.drawable.gull_glide)
+    val gullShadow = ImageBitmap.imageResource(R.drawable.gull_shadow)
+    val boatWake = ImageBitmap.imageResource(R.drawable.boat_wake)
+    // Boat sails in the players' colours (Red, Blue, Orange, White), then the extra two.
+    val boatSprites = listOf(R.drawable.boat_red, R.drawable.boat_blue, R.drawable.boat_orange, R.drawable.boat_white, R.drawable.boat_green, R.drawable.boat_brown)
+        .map { ImageBitmap.imageResource(it) }
     val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile); it.boatColors = PLAYER_COLORS } }
+    sea.gullFlap = gullFlap; sea.gullGlide = gullGlide; sea.gullShadow = gullShadow; sea.boatWake = boatWake; sea.boatSprites = boatSprites
     // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
     // read the current game's sea and board through these.
     val seaNow by rememberUpdatedState(sea)

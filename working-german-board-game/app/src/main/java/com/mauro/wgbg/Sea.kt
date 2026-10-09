@@ -9,6 +9,11 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.StrokeCap
@@ -190,6 +195,12 @@ class Sea(board: Board, seed: Int = 1) {
 
     /** Painted, seamlessly tiling ocean (ocean_tile, made with Mauro's ChatGPT); null in tests, where the gradient stands in. */
     var oceanBitmap: Bitmap? = null
+    /** Painted sprites (Codex art via Pip); null in tests, where the vector fallbacks draw. */
+    var gullFlap: ImageBitmap? = null
+    var gullGlide: ImageBitmap? = null
+    var gullShadow: ImageBitmap? = null
+    var boatSprites: List<ImageBitmap>? = null
+    var boatWake: ImageBitmap? = null
     private var oceanBrushes: List<Pair<BitmapShader, ShaderBrush>>? = null
     private val oceanMatrix = Matrix()
     private val patchMatrix = Matrix()
@@ -406,7 +417,8 @@ class Sea(board: Board, seed: Int = 1) {
         for (w in wavelets) if ((w.id * 0.618f) % 1f < waves01) drawWavelet(this, at, w)
         for (b in breaks) drawBreak(this, at, s, b)
         // Tiny sailboats (Boats slider): a wooden hull with a little wake, the sail in a player's colour.
-        for (i in 0 until boatCount) drawBoat(this, at, s, boats[i])
+        val sprites = boatSprites
+        for (i in 0 until boatCount) if (sprites != null) drawBoatSprite(this, at, s, boats[i], sprites) else drawBoat(this, at, s, boats[i])
         for (r in rings) {
             val t = ((r.age - r.delay) / 1.2f).coerceIn(0f, 1f)
             if (r.age < r.delay) continue
@@ -447,6 +459,25 @@ class Sea(board: Board, seed: Int = 1) {
             0f to Color.Transparent, (SEA_R * s / far).coerceIn(0.05f, 0.95f) to Color(0x22000A1E), 1f to Color(0x99000A1E),
             center = c, radius = far,
         ), area.topLeft, area.size)
+    }
+
+    /** A painted sloop seen side-on, flipped to face the way it sails, its wake trailing behind. */
+    private fun drawBoatSprite(ds: DrawScope, at: (Float, Float) -> Offset, s: Float, b: Boat, sprites: List<ImageBitmap>) = with(ds) {
+        val p = at(b.x, b.y)
+        val size = 0.95f * s
+        val bob = sin(time * 2.2f + b.phase) * 0.02f * s
+        val right = cos(b.heading) >= 0f
+        val img = sprites[b.color % sprites.size]
+        boatWake?.let { w ->
+            val ww = size * 1.1f; val wh = ww / 2
+            withTransform({ if (!right) scale(-1f, 1f, p) }) {
+                drawImage(w, dstOffset = IntOffset((p.x - ww * 0.95f).toInt(), (p.y + size * 0.18f - wh / 2).toInt()), dstSize = IntSize(ww.toInt(), wh.toInt()), alpha = 0.7f)
+            }
+        }
+        withTransform({ if (!right) scale(-1f, 1f, p) }) {
+            drawImage(img, dstOffset = IntOffset((p.x - size / 2).toInt(), (p.y - size * 0.7f + bob).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
+                filterQuality = FilterQuality.Medium)
+        }
     }
 
     private fun drawBoat(ds: DrawScope, at: (Float, Float) -> Offset, s: Float, b: Boat) = with(ds) {
@@ -572,8 +603,26 @@ class Sea(board: Board, seed: Int = 1) {
         for (bi in 0 until birdCount) {
             val b = birds[bi]
             // A faint shadow on the water below, then the bird.
-            drawCircle(Color(0x22001020), 0.12f * s, at(b.x + 0.25f, b.y + 0.35f))
-            b.draw(this, at(b.x, b.y), 0.28f * s, birdPath)
+            val flap = gullFlap; val glide = gullGlide
+            if (flap != null && glide != null) {
+                // Painted gull: about a quarter of a hex wide, turned to its heading, shadow on the water below.
+                val size = 0.6f * s * b.scale   // the bird fills about 45% of its frame: ~1/4 hex wide
+                val p = at(b.x, b.y)
+                val deg = Math.toDegrees(b.heading.toDouble()).toFloat()
+                gullShadow?.let { sh ->
+                    val q = at(b.x + 0.3f, b.y + 0.45f)
+                    withTransform({ rotate(deg, q) }) { drawImage(sh, dstOffset = IntOffset((q.x - size / 2).toInt(), (q.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()), alpha = 0.6f) }
+                }
+                val frame = b.flapFrame()
+                withTransform({ rotate(deg, p) }) {
+                    if (frame >= 0) drawImage(flap, srcOffset = IntOffset(frame * flap.height, 0), srcSize = IntSize(flap.height, flap.height),
+                        dstOffset = IntOffset((p.x - size / 2).toInt(), (p.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()), filterQuality = FilterQuality.Medium)
+                    else drawImage(glide, dstOffset = IntOffset((p.x - size / 2).toInt(), (p.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()), filterQuality = FilterQuality.Medium)
+                }
+            } else {
+                drawCircle(Color(0x22001020), 0.12f * s, at(b.x + 0.25f, b.y + 0.35f))
+                b.draw(this, at(b.x, b.y), 0.28f * s, birdPath)
+            }
         }
         for (c in clouds) {
             val fade = if (c.poof >= 0) (1 - c.poof / 0.25f).coerceAtLeast(0f) else 1f
