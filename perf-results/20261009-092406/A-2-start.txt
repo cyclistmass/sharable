@@ -1,0 +1,7 @@
+Starting: Intent { cmp=com.mauro.wgbg/.MainActivity (has extras) }
+Status: ok
+LaunchState: COLD
+Activity: com.mauro.wgbg/.MainActivity
+TotalTime: 2353
+WaitTime: 2355
+Complete
