@@ -180,7 +180,9 @@ class MainActivity : ComponentActivity() {
                 val autoplay = debug && intent.getBooleanExtra("autoplay", false)
                 // Debug builds: `--ez autosetup true` lets a bot place your opening pieces (scripted UI tests).
                 val autoSetup = debug && intent.getBooleanExtra("autosetup", false)
-                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup)
+                // Debug builds: `--ez watch true` starts in Watch mode at Max speed (CI self-play, #46).
+                val watch = debug && intent.getBooleanExtra("watch", false)
+                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup, watch)
             }
         }
     }
@@ -260,7 +262,7 @@ private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME 
  * The in-game Exit goes back to game start (leaving the room).
  */
 @Composable
-fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseEmu: Boolean = false, autoplay: Boolean = false, autoSetup: Boolean = false) {
+fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseEmu: Boolean = false, autoplay: Boolean = false, autoSetup: Boolean = false, watch: Boolean = false) {
     var screen by rememberSaveable { mutableStateOf(if (start != null) Screen.GAME else Screen.START) }
     var setup by remember { mutableStateOf(if (start == "chivalry") GameSetup().withRuleset(Ruleset.CHIVALRY) else GameSetup()) }
     var lobby by remember { mutableStateOf<Lobby?>(null) }
@@ -346,7 +348,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             } ?: run { screen = Screen.START }
             Screen.GAME -> key(gameNo) {
                 // Back asks "Leave this game?" inside the game screen (same as Exit).
-                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup)
+                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup, startWatching = watch)
             }
         }
         problem?.let { msg ->
@@ -408,12 +410,14 @@ fun WatchGameScreen(
     autoplay: Boolean = false,
     /** Debug: a bot places your opening homesteads and roads, then you play. */
     autoSetup: Boolean = false,
+    /** Debug: start in Watch mode at Max speed (bots in every seat, games back to back). */
+    startWatching: Boolean = false,
 ) {
     var seed by remember { mutableLongStateOf(System.nanoTime() and 0xffffffL) }
     // Who sits where in an online room (frozen once it starts); null offline.
     val net = remember(online) { online?.let { s -> s.client.view().room?.let { OnlineSeats(it, s.uid) } } }
     // Play mode: you are seat 0 ("You"); Watch mode: bots in every seat at full speed. Online: your seat.
-    var human by remember { mutableStateOf(true) }
+    var human by remember { mutableStateOf(!startWatching) }
     val me = net?.me ?: if (human) 0 else -1
     val names = net?.names ?: if (human) listOf("You") + PLAYER_NAMES.drop(1) else PLAYER_NAMES
     val seats = net?.players?.size ?: setup.players.size
@@ -551,6 +555,8 @@ fun WatchGameScreen(
         }
         if (state.isOver) {
             wins[if (state.winner >= 0) state.winner else 4]++
+            // One line per finished game: CI self-play counts these and checks every game ends (#46).
+            runCatching { android.util.Log.i("WGBG-GAME", "over ruleset=${if (state.ck != null) "chivalry" else "base"} winner=${state.winner} turns=${state.turn} hash=${state.stateHash()}") }
             if (state.winner >= 0) log.add(0, "${names[state.winner]} wins!")
             tick++
             if (speed == MAX_SPEED && playing && !human) seed++ // straight into the next game
