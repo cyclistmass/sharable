@@ -30,3 +30,4 @@ All other graphics are drawn procedurally in code.
 - Settings gear icon (`res/drawable-nodpi/settings_gear*.webp`): made by Mauro DiBenedetto with ChatGPT.
 - Painted hex tiles (`res/drawable-nodpi/tile_*.webp`): made by Mauro DiBenedetto with ChatGPT, normalised to a
   standard pointy-top hex.
+- Reset arrow icon (`res/drawable-nodpi/reset_arrow*.webp`): made by Mauro DiBenedetto with ChatGPT.
