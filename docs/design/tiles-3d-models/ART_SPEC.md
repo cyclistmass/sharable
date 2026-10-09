@@ -10,5 +10,11 @@
 
 Reproduce sequentially with `tools/blender/run_token_clearings.ps1`. No application changes are part of this art pass.
 
+## Bandit
+
+The approved original V1 skeleton corsair **stands on and blocks the number plate**. Ground foot/base centre is tile **(-0.36,+0.30)** in Blender, projected screen offset (-0.36,-0.30*cos(tilt)). Sprite anchor is **(256,256)** in the padded 512px image, orthographic scale **2.65**. Own model scale **0.70** (previous off-plate prototype 0.46); full-round straw brim diameter **0.644**, above the plate diameter **0.54**. Turn the front brim upward so the skull remains readable at tilt.
+
+Bake an **opaque upright dark base seal radius 0.278** under the feet, matching the upright plate at every tilt. Draw plate first, then the complete Bandit sprite; never redraw blocked digits/pips over it. Preserve padding and use premultiplied cross-fades. Eight steps use tilt=0.96*i/7. Verify zero visible digit/pip pixels at every step, plus flat/mid/max tile and phone proofs. Reproduce with `render_bandit_v1.py --batch onplate`, then `compose_bandit_onplate.py`; earlier off-plate proofs are historical.
+
 - **Fleece means alpaca fleece:** 6?8 alpacas in small groups, long fluffy necks and upright ears, cream/white/fawn/brown coats; grazing and one or two looking up. Keep the lush pasture, wall/gate and horned, bearded goats enlarged 25% for phone readability, still visibly smaller than alpacas. Motion: gentle shifts, grazing neck bends and head turns, outside the number clearing.
 - **Clay colour:** a restrained terracotta/brick-red ground, terraces and cut faces; wet bottom darker red-brown. Keep the kiln and brick stacks distinct, and Clay clearly redder than Desert ochre.

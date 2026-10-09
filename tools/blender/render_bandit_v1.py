@@ -10,7 +10,7 @@ from render_models import setup,mesh,pebble,cone
 from render_v2_set import mat,cube,pole,camera
 OUT=Path(__file__).resolve().parents[2]/'docs/design/bandit/v1'
 
-def model():
+def model(onplate=False):
     rng=random.Random(905);bone=mat('warm ivory pirate bones',(.83,.77,.60),.10)
     dark=mat('deep skull sockets',(.028,.018,.015),0);coat=mat('ragged mulberry pirate coat',(.13,.035,.045),.16)
     lapel=mat('aged teal lapels',(.035,.105,.115),.14);hair=mat('wild charcoal afro',(.035,.025,.019),.12)
@@ -64,25 +64,26 @@ def model():
         if math.sin(a)<-.65:continue
         size=rng.uniform(.058,.086)
         pebble((r*math.cos(a),r*.74*math.sin(a)+.035,z),(size,size*.85,size*1.15),hair,True)
-    def hat_y(a,r):return r*(.30 if math.sin(a)<0 else .72)*math.sin(a)+.13
+    def hat_y(a,r):return r*math.sin(a)+.015 if onplate else r*(.30 if math.sin(a)<0 else .72)*math.sin(a)+.13
+    def brim_lift(a,r):return .24*max(0,-math.sin(a))*(r/.46)**2 if onplate else 0
     n=72;vs=[]
     for radius in [.17,.29,.46]:
         for i in range(n):
-            a=i*math.tau/n;z=1.395+.036*math.sin(a*2+.5)*(radius/.46)+.015*math.sin(7*a)
+            a=i*math.tau/n;z=1.395+.036*math.sin(a*2+.5)*(radius/.46)+.015*math.sin(7*a)+brim_lift(a,radius)
             vs.append((radius*math.cos(a),hat_y(a,radius),z))
     fs=[]
     for ring in range(2):
         for i in range(n):fs.append((ring*n+i,ring*n+(i+1)%n,(ring+1)*n+(i+1)%n,(ring+1)*n+i))
     brim=mesh('broad frayed straw brim',vs,fs,straw);solid=brim.modifiers.new('straw brim thickness','SOLIDIFY');solid.thickness=.022
-    cone('low rounded straw crown',(0,.13,1.39),.205,.14,straw,32,top=.15)
-    cone('dark weathered hatband',(0,.13,1.415),.206,.038,coat,32,top=.194)
+    cone('low rounded straw crown',(0,.015 if onplate else .13,1.39),.205,.14,straw,32,top=.15)
+    cone('dark weathered hatband',(0,.015 if onplate else .13,1.415),.206,.038,coat,32,top=.194)
     for i in range(56):
         a=i*math.tau/56;rr=.46+rng.uniform(.01,.05)
-        pole('ragged loose straw fibre',(.43*math.cos(a),hat_y(a,.43),1.393),(rr*math.cos(a),hat_y(a,rr),1.376+rng.uniform(-.018,.020)),.003,strawlit,4)
+        pole('ragged loose straw fibre',(.43*math.cos(a),hat_y(a,.43),1.393+brim_lift(a,.43)),(rr*math.cos(a),hat_y(a,rr),1.376+rng.uniform(-.018,.020)+brim_lift(a,rr)),.003,strawlit,4)
     for radius in [.23,.30,.37,.43]:
         for i in range(36):
             a=i*math.tau/36;b=(i+1)*math.tau/36
-            pole('woven straw brim ring',(radius*math.cos(a),hat_y(a,radius),1.416),(radius*math.cos(b),hat_y(b,radius),1.416),.0025,strawlit,4)
+            pole('woven straw brim ring',(radius*math.cos(a),hat_y(a,radius),1.416+brim_lift(a,radius)),(radius*math.cos(b),hat_y(b,radius),1.416+brim_lift(b,radius)),.0025,strawlit,4)
     # One arm gestures angrily; the other brandishes a curved cutlass.
     for side in [-1,1]:
         a=(side*.21,0,.91);b=(side*.32,-.02,.76);c=(side*.37,-.12,.87 if side==1 else .66)
@@ -96,21 +97,22 @@ def model():
         for side in [-1,1]:blade.append((xx-side*dz/length*width,-.12,zz+side*dx/length*width))
     o=mesh('curved broad cutlass',blade,[(i*2,i*2+1,i*2+3,i*2+2) for i in range(12)],steel);mod=o.modifiers.new('blade thickness','SOLIDIFY');mod.thickness=.018
     # Shared ground anchor and a deliberate 35% nominal hex-width silhouette.
+    scale=.70 if onplate else .46
     for obj in [o for o in bpy.context.scene.objects if o.type=='MESH']:
-        obj.location*=.46;obj.scale*=.46
-    return {'own_original_design':True,'straw_hat':True,'afro':True,'cutlass':True,'model_scale':.46,'foot_anchor':[0,0,0]}
+        obj.location*=scale;obj.scale*=scale
+    return {'own_original_design':True,'straw_hat':True,'afro':True,'cutlass':True,'model_scale':scale,'foot_anchor':[0,0,0],'tile_anchor':[-.36,.30] if onplate else [.25,-.58]}
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--batch',choices=['portrait','tiles'],required=True)
-    args=parser.parse_args(sys.argv[sys.argv.index('--')+1:]);OUT.mkdir(parents=True,exist_ok=True)
-    scene,cam=setup();scene.render.threads_mode='FIXED';scene.render.threads=2;metadata=model();records=[]
+    parser=argparse.ArgumentParser();parser.add_argument('--batch',choices=['portrait','tiles','onplate'],required=True)
+    args=parser.parse_args(sys.argv[sys.argv.index('--')+1:]);out=OUT/'onplate-raw' if args.batch=='onplate' else OUT;out.mkdir(parents=True,exist_ok=True)
+    scene,cam=setup();scene.render.threads_mode='FIXED';scene.render.threads=2;metadata=model(args.batch=='onplate');records=[]
     if args.batch=='portrait':jobs=[('front',math.radians(18),0),('threequarter',math.radians(18),math.radians(-28))]
     else:jobs=[(f'tilt_{i:02d}',.96*i/7,0) for i in range(8)]+[('flat',0,0),('mid',.48,0),('max',.96,0)]
     for name,tilt,azimuth in jobs:
         if args.batch=='portrait':
             target=Vector((.04,0,.36));cam.location=target+Vector((3*math.sin(azimuth),-3*math.cos(azimuth),1.1));cam.rotation_euler=(target-cam.location).to_track_quat('-Z','Y').to_euler();cam.data.ortho_scale=.92
         else:camera(cam,tilt)
-        path=OUT/f'bandit_v1_{name}.png';scene.render.filepath=str(path);start=time.monotonic();bpy.ops.render.render(write_still=True)
+        path=out/f'bandit_v1_{name}.png';scene.render.filepath=str(path);start=time.monotonic();bpy.ops.render.render(write_still=True)
         records.append({'file':path.name,'tilt_radians':tilt,'render_seconds':round(time.monotonic()-start,2)})
-    (OUT/f'{args.batch}-manifest.json').write_text(json.dumps({'metadata':metadata,'renders':records},indent=2))
+    (out/f'{args.batch}-manifest.json').write_text(json.dumps({'metadata':metadata,'renders':records},indent=2))
 if __name__=='__main__':main()

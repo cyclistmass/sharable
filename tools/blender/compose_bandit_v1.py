@@ -20,6 +20,8 @@ def on_tile(terrain,angle,t):
     assert ImageChops.multiply(pawn.getchannel('A'),mask).getbbox() is None,(terrain,angle,'pawn covers plate')
     return tile
 def main():
+    if (SPRITES/'onplate-raw/onplate-manifest.json').exists():
+        raise SystemExit('Off-plate composer is historical. Use compose_bandit_onplate.py for current Bandit sprites.')
     sheet=Image.new('RGBA',(1632,2180),'#4a3020');d=ImageDraw.Draw(sheet)
     d.text((25,16),'Bandit V1 | angry skeleton corsair | ONE original model',font=font(30),fill='#f1d58a')
     for i,name in enumerate(['front','threequarter']):
