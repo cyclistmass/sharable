@@ -87,7 +87,7 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
     Column(modifier.width(360.dp).brassEdgedWood().padding(16.dp).testTag("settings-panel"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Settings", fontSize = 18.sp, color = Color(0xFFF1D58A), modifier = Modifier.weight(1f))
-            WoodButton("Reset", "settings-reset") { env.reset(); sound.reset() }
+            ResetButton { env.reset(); sound.reset() }
             Spacer(Modifier.width(8.dp))
             WoodButton("Done", "settings-done", onClick = onClose)
         }
@@ -179,4 +179,15 @@ fun SoundControls(sound: SoundSettings) {
             if (SoundSettings.SONGS.isEmpty()) Text("No songs yet: the sea-shanty set is on the way (#17)", fontSize = 12.sp, color = Color(0xFFCDBFA6))
         }
     }
+}
+
+/** Reset to defaults: the brass circular-arrow icon (Mauro's art), darker while pressed. */
+@Composable
+private fun ResetButton(onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    Image(
+        painterResource(if (pressed) R.drawable.reset_arrow_pressed else R.drawable.reset_arrow), "Reset to defaults",
+        Modifier.size(44.dp).clickable(interactionSource = source, indication = null, onClick = onClick).testTag("settings-reset"),
+    )
 }

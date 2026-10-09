@@ -196,6 +196,17 @@ class Sea(board: Board, seed: Int = 1) {
 
     init { repeat(4) { clouds += newCloud() } } // 4 = the default cloud amount (0.5 of 8)
 
+    /** A tiny sailboat cruising the open sea toward a target, its sail in a player's colour. */
+    internal class Boat(var x: Float, var y: Float, var tx: Float, var ty: Float, var heading: Float, val speed: Float, val color: Int, val phase: Float)
+    /** Sail colours for the cruising boats (the players' colours). */
+    var boatColors: List<Color> = listOf(Color(0xFFD32F2F), Color(0xFF1E63C6), Color(0xFFF57C00), Color(0xFFF5F5F5))
+    internal val boats: List<Boat> = List(MAX_BOATS) { i ->
+        val (x, y) = seaPoint(0.7f); val (tx, ty) = seaPoint(0.7f)
+        Boat(x, y, tx, ty, atan2(ty - y, tx - x), 0.10f + rnd.nextFloat() * 0.08f, i % 4, rnd.nextFloat() * 6f)
+    }
+    /** Boats shown at the Boats slider's setting (none at 0, all at 1). */
+    val boatCount get() = (boats01 * MAX_BOATS).roundToInt().coerceIn(0, MAX_BOATS)
+
     /** A random point on the open sea at least [margin] from the coast and the screen edge. */
     private fun seaPoint(margin: Float): Pair<Float, Float> {
         while (true) {
@@ -223,6 +234,7 @@ class Sea(board: Board, seed: Int = 1) {
         for (r in rings) r.age += dt
         rings.removeAll { it.age - it.delay > 1.3f }
         for (g in gulls) { g.a += g.speed * pdt; g.phase += pdt * 3 }
+        for (b in boats) sail(b, pdt)
         for (c in clouds) {
             if (c.poof >= 0) { c.poof += dt; continue }
             c.wobble = (c.wobble - dt).coerceAtLeast(0f)
@@ -254,6 +266,20 @@ class Sea(board: Board, seed: Int = 1) {
         val live = clouds.count { it.poof < 0 }
         if (live > cloudTarget) clouds.lastOrNull { it.poof < 0 && !it.dragging }?.let { it.poof = 0f }
         else if (clouds.count { it.poof < 0 } < cloudTarget && clouds.size < cloudTarget + 2) clouds += newCloud()
+    }
+
+    /** Steers [b] toward its target, turning gently and going around the island; picks a new target on arrival. */
+    private fun sail(b: Boat, dt: Float) {
+        if (hypot(b.tx - b.x, b.ty - b.y) < 0.3f) { val (x, y) = seaPoint(0.7f); b.tx = x; b.ty = y }
+        var want = atan2(b.ty - b.y, b.tx - b.x)
+        // Heading into the island: sail around it instead (keep it on the port side).
+        val ahead = Offset(b.x + cos(want) * 0.8f, b.y + sin(want) * 0.8f)
+        if (hypot(ahead.x, ahead.y) < landR + 0.6f) want = atan2(b.y, b.x) + PI.toFloat() / 2
+        var turn = want - b.heading
+        while (turn > PI) turn -= 2 * PI.toFloat()
+        while (turn < -PI) turn += 2 * PI.toFloat()
+        b.heading += turn.coerceIn(-0.9f * dt, 0.9f * dt)
+        b.x += cos(b.heading) * b.speed * dt; b.y += sin(b.heading) * b.speed * dt
     }
 
     /** True if [p] (lattice) is on open water. */
@@ -378,6 +404,8 @@ class Sea(board: Board, seed: Int = 1) {
         // Waves slider: how many wavelets and whitecaps show (none at 0; the water's colour and texture stay).
         for (w in wavelets) if ((w.id * 0.618f) % 1f < waves01) drawWavelet(this, at, w)
         for (b in breaks) drawBreak(this, at, s, b)
+        // Tiny sailboats (Boats slider): a wooden hull with a little wake, the sail in a player's colour.
+        for (i in 0 until boatCount) drawBoat(this, at, s, boats[i])
         for (r in rings) {
             val t = ((r.age - r.delay) / 1.2f).coerceIn(0f, 1f)
             if (r.age < r.delay) continue
@@ -418,6 +446,26 @@ class Sea(board: Board, seed: Int = 1) {
             0f to Color.Transparent, (SEA_R * s / far).coerceIn(0.05f, 0.95f) to Color(0x22000A1E), 1f to Color(0x99000A1E),
             center = c, radius = far,
         ), area.topLeft, area.size)
+    }
+
+    private fun drawBoat(ds: DrawScope, at: (Float, Float) -> Offset, s: Float, b: Boat) = with(ds) {
+        val p = at(b.x, b.y)
+        val u = 0.07f * s                                  // the boat is about a third of a hex side long
+        val dx = cos(b.heading); val dy = sin(b.heading)
+        val bob = sin(time * 2.2f + b.phase) * 0.06f * u
+        fun pt(f: Float, side: Float) = Offset(p.x + (dx * f - dy * side) * u, p.y + (dy * f + dx * side) * u + bob)
+        // Wake.
+        drawLine(Color.White.copy(alpha = 0.35f), pt(-2.2f, 0f), pt(-5.5f, 0.9f), 0.25f * u, StrokeCap.Round)
+        drawLine(Color.White.copy(alpha = 0.35f), pt(-2.2f, 0f), pt(-5.5f, -0.9f), 0.25f * u, StrokeCap.Round)
+        // Hull (pointed bow).
+        val hull = Path().apply { moveTo(pt(2.6f, 0f).x, pt(2.6f, 0f).y); lineTo(pt(-2f, 0.8f).x, pt(-2f, 0.8f).y); lineTo(pt(-2f, -0.8f).x, pt(-2f, -0.8f).y); close() }
+        drawPath(hull, Color(0xFF6B3E1F))
+        // Sail: a coloured triangle standing up from the mast (screen-up), with a dark outline for light colours.
+        val mast = pt(0.2f, 0f)
+        val sail = Path().apply { moveTo(mast.x, mast.y - 3.4f * u); lineTo(mast.x, mast.y - 0.3f * u); lineTo(mast.x + 2.0f * u * (if (dx >= 0) 1 else -1), mast.y - 0.4f * u); close() }
+        drawPath(sail, boatColors[b.color % boatColors.size])
+        drawPath(sail, Color(0x66000000), style = Stroke(0.12f * u))
+        drawLine(Color(0xFF3B2412), mast, mast + Offset(0f, -3.6f * u), 0.18f * u)
     }
 
     /** Two translucent layers of soft tonal patches drifting slowly in different directions. */
@@ -573,6 +621,8 @@ class Sea(board: Board, seed: Int = 1) {
         private const val WOBBLE = 0.45f
         /** Share of a cloud's speed into a bound that it keeps, reversed (soft bounce). Other cloud tunables: [CloudFeel]. */
         const val BOUNCE = 0.4f
+        /** Cruising sailboats at Boats = 100%. */
+        const val MAX_BOATS = 8
         /** Speed (units/s) at which a cloud left over the island floats back out to sea. */
         const val FLOAT_OUT = 0.45f
 
