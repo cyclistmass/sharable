@@ -19,7 +19,7 @@ License: GPL-3.0 (see `LICENSE`).
 | `ai/` | Pure Kotlin bots: Catanatron-style value function + AlphaBeta, later ONNX-guided search. |
 | `app/` | Android UI (Jetpack Compose). |
 | `trainer/` *(planned)* | PC-side Python training on a Catanatron fork, exports ONNX. |
-| `net/` *(planned)* | Firebase transport. |
+| `net/` | Pure Kotlin transport API, local fake and deterministic online replay; Firebase adapter in `app/`. |
 
 ## Build
 
@@ -31,3 +31,5 @@ Requires JDK 17 and the Android SDK (`local.properties` with `sdk.dir`, not comm
 ```
 
 Secrets (`google-services.json`, keystores, `.env`) are gitignored and must never be committed.
+
+Online play data model, AppRoot wiring, test plan and rules deployment: [docs/online-play.md](docs/online-play.md).

@@ -3,7 +3,7 @@ package com.mauro.wgbg
 import kotlin.random.Random
 
 // ------------------------------------------------------------------ lobby state (UI-free, unit tested)
-// The Firebase transport (#7) will feed this; until then the lobby runs on stubbed data.
+// Online LobbySession feeds this through the same seam as the local/stub lobby.
 
 /** Where invite links point. Placeholder until #7 picks the real domain and App Link. */
 const val JOIN_BASE = "https://wgbg.example/join/"
@@ -34,6 +34,7 @@ data class Lobby(
     val me: Int = 0,
     /** People played with before, for one-tap invites (stubbed until #7). */
     val recent: List<String> = emptyList(),
+    val host: Boolean? = null,
 ) {
     init {
         require(seats.size == GameSetup.MAX_SEATS)
@@ -41,7 +42,7 @@ data class Lobby(
     }
 
     val link get() = JOIN_BASE + code
-    val isHost get() = me == 0
+    val isHost get() = host ?: (me == 0)
     /** People seated, for "3 of 4 seats taken". */
     val taken get() = seats.count { it.isPerson }
 
