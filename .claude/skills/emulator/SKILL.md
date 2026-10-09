@@ -22,6 +22,9 @@ fits the window at the top-left of the screen in physical pixels, brings it to t
 (with `-Launch`) restarts the app. Check the last line says `ROTATION_90` or `ROTATION_270`.
 
 Never start the emulator with a bare `emulator -avd ...` or move its window by hand.
+The script health-checks first: if the emulator is "offline" or hung it kills and cold-boots it
+(no blind `adb wait-for-device`), and fails loudly after 3 minutes. A healthy start takes ~10 s,
+a cold boot ~30 s; if it takes longer, check it rather than waiting.
 If the window is ever off screen or hidden behind the terminal, use the `center-emulator` skill
 (`tools/center_emulator.ps1`); the setup script runs it automatically as its last step.
 
