@@ -44,6 +44,8 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             onEventSlot: ((androidx.compose.ui.geometry.Rect) -> Unit)? = null,
             /** Age of Chivalry: the panel has a third pad for the event die. */
             eventDie: Boolean = false,
+            /** The panel's height; shorter when the player list above needs the room (Age of Chivalry). */
+            height: androidx.compose.ui.unit.Dp = 210.dp,
             /** False while thrown dice are still in the air (the resting dice appear when they land). */
             showDice: Boolean = true,
             /** Dice set: false = Normal (carved red + ivory), true = Pirate (ship-timber + bone, dark brass pips). */
@@ -51,7 +53,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
     if (report == null) return
     // Fixed size, so the dice always sit in the same spot; longer turns scroll inside.
     Column(
-        modifier.size(width = 360.dp, height = 210.dp)
+        modifier.size(width = 360.dp, height = height)
             .brassEdgedWood()
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .verticalScroll(androidx.compose.foundation.rememberScrollState()),

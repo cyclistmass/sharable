@@ -630,6 +630,12 @@ fun WatchGameScreen(
     var diceFlying by remember { mutableStateOf(false) }
     var diceSlots by remember { mutableStateOf<Pair<androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect>?>(null) }
     var eventSlot by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    // The turn panel fits under the player list (taller in Age of Chivalry), so neither hides the dice.
+    var stripBottom by remember { mutableStateOf(0f) }
+    var screenHeight by remember { mutableStateOf(0f) }
+    val turnHudHeight = with(LocalDensity.current) {
+        if (screenHeight <= 0f) 210.dp else ((screenHeight - stripBottom).toDp() - 16.dp).coerceIn(110.dp, 210.dp)
+    }
     BackHandler { confirmExit = !confirmExit }
     // What the human may do right now (empty while bots move or in Watch mode).
     val legal = tick.let { if (me >= 0 && !inventory && !state.isOver && state.actingPlayer == me) Rules.legalActions(state) else emptyList() }
@@ -640,7 +646,7 @@ fun WatchGameScreen(
     val chestOpen = me >= 0 && !inventory && tick.let {
         (tradeOpen && tradeButtonVisible(state)) || tradeNeedsMe(state, me) || (tradeMode(state, me) == TradeMode.WAITING && state.currentPlayer == me)
     }
-    Box(modifier) {
+    Box(modifier.onGloballyPositioned { screenHeight = it.size.height.toFloat() }) {
       Box(Modifier.fillMaxSize()) { // the menu floats over the board, so the ocean always fills the screen
       Box(Modifier.fillMaxSize()) {
         // The board sits beside the player strip and turn panel (TurnHud is 360 dp wide, plus its 8 dp margins).
@@ -767,14 +773,14 @@ fun WatchGameScreen(
             // While the trade chest is open it docks here, over the turn panel, so the board stays in view.
             if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
                 TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme,
-                    eventDie = state.ck != null, onEventSlot = { eventSlot = it })
+                    eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight)
             }
             if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
         // The game state is mutated in place, so these get `tick` to redraw after every move.
-        if (!inventory) PlayerStrip(state, me, names, tick, Modifier.align(Alignment.TopStart).padding(8.dp))
+        if (!inventory) PlayerStrip(state, me, names, tick, Modifier.align(Alignment.TopStart).padding(8.dp).onGloballyPositioned { stripBottom = it.boundsInParent().bottom })
         if (net != null && !inventory) onlineView?.let { v ->
             Column(Modifier.align(Alignment.TopCenter).padding(top = 52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 OnlineConnectionStatus(v)
