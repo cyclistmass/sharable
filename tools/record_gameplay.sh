@@ -21,7 +21,10 @@ tap_text() {
   sleep 0.7
 }
 
-# Open the menu, switch to Watch bots (starts at Max), Max -> 1x, close the menu.
+# The app opens on the game-start screen: Play, then open the menu, switch to Watch bots
+# (starts at Max), Max -> 1x, close the menu.
+tap_text "Play"
+sleep 3
 "$A" shell input tap 2270 84
 sleep 1
 tap_text "Watch bots"

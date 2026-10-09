@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -22,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import wgbg.engine.Action
@@ -119,45 +123,56 @@ fun HumanControls(
 ) {
     var sheet by remember { mutableStateOf<String?>(null) } // which picker is open
     val types = legal.map { it.type }.toSet()
-    Column(
-        modifier.widthIn(max = 520.dp).background(PANEL, RoundedCornerShape(14.dp)).padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(prompt(s, legal, names), color = INK_LIGHT, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("You: ${s.victoryPoints(me)} VP", color = INK_LIGHT, fontSize = 13.sp)
-            MiniHand(List(CARD_TYPES) { s.hand(me, it) }, s.devCount(me))
-        }
-        val fortune = (0 until DevCard.COUNT).filter { s.devHand[me * DevCard.COUNT + it] > 0 }
-        if (fortune.isNotEmpty()) Text("Fortune cards: " + fortune.joinToString(", ") { "${s.devHand[me * DevCard.COUNT + it]} ${FORTUNE[it]}" }, color = INK_LIGHT, fontSize = 12.sp)
-
-        when (sheet) {
-            null -> FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                @Composable fun single(t: ActionType, label: String, primary: Boolean = false) {
-                    legal.firstOrNull { it.type == t }?.let { a -> MoveButton(label, primary) { onMove(a) } }
-                }
-                single(ActionType.ROLL, "Roll", primary = true)
-                if (ActionType.DISCARD in types) for (a in legal.filter { it.type == ActionType.DISCARD })
-                    MoveButton("Discard ${RES[a.discardResource]}") { onMove(a) }
-                single(ActionType.BUY_DEVELOPMENT_CARD, "Buy Fortune card")
-                single(ActionType.PLAY_KNIGHT_CARD, "Play Sentinel")
-                single(ActionType.PLAY_ROAD_BUILDING, "Play Trailblazers")
-                if (ActionType.PLAY_YEAR_OF_PLENTY in types) MoveButton("Play Windfall…") { sheet = "yop" }
-                if (ActionType.PLAY_MONOPOLY in types) MoveButton("Play Corner the Market…") { sheet = "mono" }
-                single(ActionType.END_TURN, "End turn", primary = ActionType.ROLL !in types && legal.none { it.type == ActionType.BUILD_SETTLEMENT || it.type == ActionType.BUILD_CITY })
+    // Info on the left, the buttons in a column hugging the right edge with the main one (Roll /
+    // End turn) at the very bottom: everything within reach of a right thumb.
+    Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            Modifier.widthIn(max = 340.dp).background(PANEL, RoundedCornerShape(14.dp)).padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(prompt(s, legal, names), color = INK_LIGHT, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("You: ${s.victoryPoints(me)} VP", color = INK_LIGHT, fontSize = 13.sp)
+                MiniHand(List(CARD_TYPES) { s.hand(me, it) }, s.devCount(me))
             }
-            "yop" -> Picker("Windfall: take", legal.filter { it.type == ActionType.PLAY_YEAR_OF_PLENTY }
-                .map { a -> (RES[a.yopFirst] + if (a.yopSecond >= 0) " + ${RES[a.yopSecond]}" else "") to a }, onMove) { sheet = null }
-            "mono" -> Picker("Corner the Market: everyone hands you all their", legal.filter { it.type == ActionType.PLAY_MONOPOLY }
-                .map { a -> RES[a.payload.toInt()] to a }, onMove) { sheet = null }
+            val fortune = (0 until DevCard.COUNT).filter { s.devHand[me * DevCard.COUNT + it] > 0 }
+            if (fortune.isNotEmpty()) Text("Fortune cards: " + fortune.joinToString(", ") { "${s.devHand[me * DevCard.COUNT + it]} ${FORTUNE[it]}" }, color = INK_LIGHT, fontSize = 12.sp)
+            when (sheet) {
+                "yop" -> Picker("Windfall: take", legal.filter { it.type == ActionType.PLAY_YEAR_OF_PLENTY }
+                    .map { a -> (RES[a.yopFirst] + if (a.yopSecond >= 0) " + ${RES[a.yopSecond]}" else "") to a }, onMove) { sheet = null }
+                "mono" -> Picker("Corner the Market: everyone hands you all their", legal.filter { it.type == ActionType.PLAY_MONOPOLY }
+                    .map { a -> RES[a.payload.toInt()] to a }, onMove) { sheet = null }
+            }
+        }
+        val buttonTypes = setOf(ActionType.ROLL, ActionType.END_TURN, ActionType.DISCARD, ActionType.BUY_DEVELOPMENT_CARD,
+            ActionType.PLAY_KNIGHT_CARD, ActionType.PLAY_ROAD_BUILDING, ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY)
+        if (sheet == null && types.any { it in buttonTypes }) Column(
+            Modifier.width(176.dp).testTag("thumb-buttons"),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            @Composable fun single(t: ActionType, label: String, primary: Boolean = false) {
+                legal.firstOrNull { it.type == t }?.let { a -> MoveButton(label, primary) { onMove(a) } }
+            }
+            if (ActionType.DISCARD in types) for (a in legal.filter { it.type == ActionType.DISCARD })
+                MoveButton("Discard ${RES[a.discardResource]}") { onMove(a) }
+            single(ActionType.BUY_DEVELOPMENT_CARD, "Buy Fortune card")
+            single(ActionType.PLAY_KNIGHT_CARD, "Play Sentinel")
+            single(ActionType.PLAY_ROAD_BUILDING, "Play Trailblazers")
+            if (ActionType.PLAY_YEAR_OF_PLENTY in types) MoveButton("Play Windfall…") { sheet = "yop" }
+            if (ActionType.PLAY_MONOPOLY in types) MoveButton("Play Corner the Market…") { sheet = "mono" }
+            // The main move last, in the bottom-right corner.
+            single(ActionType.ROLL, "Roll", primary = true)
+            single(ActionType.END_TURN, "End turn", primary = ActionType.ROLL !in types && legal.none { it.type == ActionType.BUILD_SETTLEMENT || it.type == ActionType.BUILD_CITY })
         }
     }
 }
 
 @Composable
 private fun MoveButton(label: String, primary: Boolean = false, onClick: () -> Unit) {
-    if (primary) Button(onClick = onClick, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0B23A), contentColor = Color(0xFF2B2118))) { Text(label) }
-    else FilledTonalButton(onClick = onClick) { Text(label) }
+    if (primary) Button(onClick = onClick, modifier = Modifier.fillMaxWidth().height(52.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0B23A), contentColor = Color(0xFF2B2118))) { Text(label, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+    else FilledTonalButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text(label, maxLines = 1) }
 }
 
 @Composable

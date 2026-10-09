@@ -7,6 +7,9 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.activity.compose.BackHandler
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -90,6 +93,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import wgbg.ai.EasyBot
 import wgbg.ai.GreedyBot
 import wgbg.ai.Bot
 import wgbg.engine.Action
@@ -130,7 +134,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color.Black)) {
-                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), debugCamera())
+                AppRoot(debugCamera())
             }
         }
     }
@@ -171,16 +175,59 @@ private fun polygon(points: List<Offset>) = Path().apply {
 /** Pips under a number token: how many dice combinations roll it (2/12 → 1, 6/8 → 5). */
 private fun pips(n: Int) = 6 - kotlin.math.abs(7 - n)
 
-/** Play seat 0 against three bots (issue #5), or watch four bots play. */
+private enum class Screen { START, LOBBY, GAME }
+
+/** Game start (#3) -> optional lobby (#19) -> the game; the in-game Exit goes back to game start. */
 @Composable
-fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camera.FIT) {
-    var seed by remember { mutableLongStateOf(1L) }
-    // Play mode: you are seat 0 ("You"); Watch mode: four bots at full speed.
-    var human by remember { mutableStateOf(true) }
+fun AppRoot(initialCamera: Camera = Camera.FIT) {
+    var screen by rememberSaveable { mutableStateOf(Screen.START) }
+    var setup by remember { mutableStateOf(GameSetup()) }
+    var lobby by remember { mutableStateOf<Lobby?>(null) }
+    var gameNo by rememberSaveable { mutableIntStateOf(0) }
+    when (screen) {
+        Screen.START -> NewGameScreen(
+            onStart = { setup = it; gameNo++; screen = Screen.GAME },
+            initial = setup,
+            onOpenLobby = { setup = it; lobby = Lobby.host(it); screen = Screen.LOBBY },
+        )
+        Screen.LOBBY -> lobby?.let { l ->
+            BackHandler { screen = Screen.START }
+            LobbyScreen(l, onChange = { lobby = it }, onStart = { setup = it; gameNo++; screen = Screen.GAME }, onSettings = { screen = Screen.START })
+        } ?: run { screen = Screen.START }
+        Screen.GAME -> key(gameNo) {
+            BackHandler { screen = Screen.START }
+            WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START })
+        }
+    }
+}
+
+/**
+ * The game. With a [setup] you play seat 0 against bots (friends play as bots until online play
+ * lands, #7); the menu can switch to watching the bots. Age of Chivalry is watch-only until its
+ * screens exist (#4).
+ */
+@Composable
+fun WatchGameScreen(
+    modifier: Modifier = Modifier,
+    initialCamera: Camera = Camera.FIT,
+    setup: GameSetup = GameSetup(),
+    onExit: () -> Unit = {},
+) {
+    var seed by remember { mutableLongStateOf(System.nanoTime() and 0xffffffL) }
+    // Play mode: you are seat 0 ("You"); Watch mode: bots in every seat at full speed.
+    var human by remember { mutableStateOf(setup.ruleset == Ruleset.BASE) }
     val names = if (human) listOf("You") + PLAYER_NAMES.drop(1) else PLAYER_NAMES
-    var seats by remember { mutableIntStateOf(4) } // 3 or 4 players (until the new-game screen exists)
-    val state = remember(seed, seats) { Rules.newGame(GameConfig(numPlayers = seats), seed) }
-    val bots = remember(seed, seats) { List<Bot>(seats) { GreedyBot(seed * 31 + it) } }
+    val seats = setup.players.size
+    val state = remember(seed, seats) { Rules.newGame(setup.config(), seed) }
+    // Each playing seat's bot: the level picked on the game-start screen (friends play as Greedy until #7;
+    // Strong plays as Greedy until #6). In Watch mode seat 0 gets a Greedy bot too.
+    val bots = remember(seed, seats) {
+        setup.players.mapIndexed { i, seat ->
+            val s = setup.seats[seat]
+            val r = seed * 31 + i
+            if (s.kind == SeatKind.BOT && s.bot == BotLevel.EASY) EasyBot(r) else GreedyBot(r)
+        }
+    }
     val log = remember(seed, seats) { mutableStateListOf<String>() }
     val tracker = remember(seed, seats, human) { TurnTracker(names) }
     // Moves from the human's taps and buttons; the game loop checks each against the rules.
@@ -190,7 +237,7 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
     var pending by remember { mutableStateOf<List<Action>>(emptyList()) }
     val responses = remember(seed, seats) { mutableStateMapOf<Int, String>() }
     // Dice setting cycles: random, then deck stacks of 1-4 x 36 cards (asked per game once the new-game screen exists).
-    var diceSetting by remember { mutableIntStateOf(0) } // 0 = random, n = n decks
+    var diceSetting by remember { mutableIntStateOf(setup.decks) } // 0 = random, n = n decks
     val dice = remember(diceSetting) { if (diceSetting == 0) DiceDeck.of(DiceMode.RANDOM) else DiceDeck.of(DiceMode.DECK, diceSetting) }
     var tick by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf(true) }
@@ -452,11 +499,11 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     FilledTonalButton(onClick = { playing = !playing }) { Text(if (playing) "Pause" else "Play") }
                     FilledTonalButton(onClick = { speed = if (speed == MAX_SPEED) 1 else speed * 2 }) { Text(if (speed == MAX_SPEED) "Max" else "${speed}×") }
-                    FilledTonalButton(onClick = { seed++; playing = true }) { Text("New") }
+                    FilledTonalButton(onClick = onExit,
+                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFFC0392B), contentColor = Color.White)) { Text("Exit game") }
                     FilledTonalButton(onClick = { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }) {
                         Text(if (human) "Watch bots" else "Play")
                     }
-                    FilledTonalButton(onClick = { seats = if (seats == 4) 3 else 4; tradeOpen = false; playing = true }) { Text("$seats players") }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     FilledTonalButton(onClick = { inventory = !inventory }) { Text(if (inventory) "Back to game" else "Inventory") }
