@@ -663,8 +663,10 @@ fun WatchGameScreen(
     if (debuggable) {
         LaunchedEffect(tick, legal.size) { if (legal.isNotEmpty()) AgentHooks.announce(online?.id ?: "local", state, legal, prompt(state, legal, names)) }
         androidx.compose.runtime.DisposableEffect(Unit) {
-            AgentHooks.sink = { a -> humanMoves.trySend(a) }
-            onDispose { AgentHooks.sink = null }
+            val mine: (Action) -> Unit = { a -> humanMoves.trySend(a) }
+            AgentHooks.sink = mine
+            // Only clear our own: a relaunch builds the new game before the old one is disposed.
+            onDispose { if (AgentHooks.sink === mine) AgentHooks.sink = null }
         }
     }
     val targets = Targets.of(legal)
