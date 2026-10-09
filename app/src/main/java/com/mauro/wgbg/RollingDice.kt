@@ -65,15 +65,8 @@ object DiceSprites {
     }
 }
 
-private val TUMBLE_NR = listOf(R.drawable.dice_tumble_nr_1, R.drawable.dice_tumble_nr_2, R.drawable.dice_tumble_nr_3, R.drawable.dice_tumble_nr_4)
-private val TUMBLE_NI = listOf(R.drawable.dice_tumble_ni_1, R.drawable.dice_tumble_ni_2, R.drawable.dice_tumble_ni_3, R.drawable.dice_tumble_ni_4)
-private val TUMBLE_PR = listOf(R.drawable.dice_tumble_pr_1, R.drawable.dice_tumble_pr_2, R.drawable.dice_tumble_pr_3, R.drawable.dice_tumble_pr_4)
-private val TUMBLE_PB = listOf(R.drawable.dice_tumble_pb_1, R.drawable.dice_tumble_pb_2, R.drawable.dice_tumble_pb_3, R.drawable.dice_tumble_pb_4)
-
-/** The 4 tumbling renders of one die in a theme (paired like [diceFace]: red + ivory, or red timber + bone). */
-fun diceTumble(red: Boolean, pirate: Boolean): List<Int> = when {
-    pirate && red -> TUMBLE_PR; pirate -> TUMBLE_PB; red -> TUMBLE_NR; else -> TUMBLE_NI
-}
+/** The tumbling frames of one die in a theme (paired like [diceFace]: red + ivory, or red timber + bone). */
+fun diceTumble(red: Boolean, pirate: Boolean): List<Int> = DiceArt.tumble(red, pirate)
 
 /**
  * Full-screen dice throw: each roll comes in from a random direction around the board, from more than
@@ -96,6 +89,8 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
     val ivoryTumble = diceTumble(red = false, pirate).map { ImageBitmap.imageResource(it) }
     val redFace = ImageBitmap.imageResource(diceFace(red = true, pirate, die1.coerceIn(1, 6)))
     val ivoryFace = ImageBitmap.imageResource(diceFace(red = false, pirate, die2.coerceIn(1, 6)))
+    val eventTumble = DiceArt.eventTumble(pirate).map { ImageBitmap.imageResource(it) }
+    val eventFace = ImageBitmap.imageResource(DiceArt.eventFace(pirate, event.coerceAtLeast(0)))
     val t = remember { Animatable(1f) }
     LaunchedEffect(rollKey) {
         if (rollKey == null || die1 <= 0) return@LaunchedEffect
@@ -130,13 +125,8 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
         val perp = Offset(-dir.y, dir.x)
         drawDie(rest1, p, start, perp, redTumble, redFace, spin = 1, turns = 1.4f)
         drawDie(rest2, q, start, perp, ivoryTumble, ivoryFace, spin = 3, turns = -1.6f)
-        if (event >= 0 && eventSlot != null) {
-            val r = eventSlot.translate(-origin)
-            val cube = r.width * DIE_FACE_SHARE
-            val hop = kotlin.math.sin(qe.coerceAtMost(DiceSprites.LAND) / DiceSprites.LAND * Math.PI.toFloat())
-            val c = start + (r.center - start) * DiceSprites.fall(qe) - perp * (hop * cube * 0.5f) - Offset(0f, DiceSprites.bounce(qe) * cube)
-            rotate(DiceSprites.spin(qe, 1.2f), pivot = c) { drawEventFace(event, c, cube * (1f + 0.35f * hop)) }
-        }
+        if (event >= 0 && eventSlot != null)
+            drawDie(eventSlot.translate(-origin), qe, start, -perp, eventTumble, eventFace, spin = 5, turns = 1.2f)
     }
 }
 
