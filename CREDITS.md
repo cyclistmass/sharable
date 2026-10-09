@@ -13,8 +13,6 @@ All other graphics are drawn procedurally in code.
 - Illustrated resource cards (`app/src/main/res/drawable-nodpi/card_*.webp`): made by Mauro
   DiBenedetto with ChatGPT image generation, retitled with our names (Timber, Clay, Fleece,
   Grain, Stone) using Georgia Bold.
-- Dice (`res/drawable-nodpi/dice_*.png`): rendered by tools/art/render_dice.py from dice models made by Mauro
-  DiBenedetto with ChatGPT (dice_ship_models_v2.zip).
 
 ## Fonts
 
@@ -38,4 +36,4 @@ All other graphics are drawn procedurally in code.
 - Gulls and player sloops (`gull_*`, `boat_*`): generated with OpenAI Codex image generation for Mauro (via Pip).
 - Frameless tiles and top-down cliff strips (`tile_*`, `cliff_top_*`): generated with OpenAI Codex for Mauro (via Pip).
 - Brass button plates and road brick texture (`btn_*`, `road_bricks.png`): generated with OpenAI Codex for Mauro.
-- Hand-made dice, Normal and Pirate sets (`dice_n*`, `dice_p*`): generated with OpenAI Codex for Mauro (via mauro-7a).
+- Hand-made dice, Normal and Pirate sets (`dice_n*`, `dice_p*`): generated with OpenAI Codex for Mauro (via mauro-7a); the 16 tumbling renders thrown across the screen (`dice_tumble_*`) too.

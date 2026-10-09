@@ -193,7 +193,17 @@ private val TOKEN_WOOD = Color(0xFFE9CFA0)
 private val TOKEN_WOOD_INDEX = PLAYER_COLORS.size
 
 /** Speed setting meaning "no delays at all": moves run back to back, games auto-restart. */
-private const val MAX_SPEED = 16
+internal const val MAX_SPEED = 16
+
+/**
+ * Milliseconds the game waits after a move of [type] at [speed] (below Max). A roll always waits for its
+ * dice to land on the panel, at every speed: otherwise the next turn's panel showed while they were in the air.
+ */
+internal fun pauseAfter(type: wgbg.engine.ActionKind, speed: Int): Long = when (type) {
+    ActionType.END_TURN, ActionType.REJECT_TRADE -> 0L
+    ActionType.ROLL -> maxOf(500L / speed, (DiceSprites.FALL_S * 1000 * DiceSprites.HANDOVER).toLong() + 150L)
+    else -> 350L / speed
+}
 
 /** How long a zoomed/tilted board waits untouched before gliding back to the full view. */
 private const val RECOVER_AFTER_MS = 6000L
@@ -367,12 +377,7 @@ fun WatchGameScreen(
             while (playing && !state.isOver) {
                 val type = step()
                 tick++
-                val pause = when (type) {
-                    ActionType.END_TURN, ActionType.REJECT_TRADE -> 0L
-                    ActionType.ROLL -> 500L
-                    else -> 350L
-                }
-                if (pause > 0) delay(pause / speed)
+                if (pauseAfter(type, speed) > 0) delay(pauseAfter(type, speed))
             }
         }
         if (state.isOver) {
@@ -539,7 +544,7 @@ fun WatchGameScreen(
             Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
                 TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme)
             }
-            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, onFlying = { diceFlying = it },
+            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
