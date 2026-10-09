@@ -38,3 +38,4 @@ All other graphics are drawn procedurally in code.
 - Brass button plates and road brick texture (`btn_*`, `road_bricks.png`): generated with OpenAI Codex for Mauro.
 - Hand-made dice, Normal and Pirate sets (`dice_n*`, `dice_p*`): generated with OpenAI Codex for Mauro (via mauro-7a); the 16 tumbling renders thrown across the screen (`dice_tumble_*`) too.
 - Trade chime (`res/raw/trade_chime.wav`): our own, synthesised in Python (two decaying bell tones, E6 and B6), 2026-10-09.
+- Bandit V1 "skeleton corsair" (`bandit_tilt_0..7`): a 3D model rendered by OpenAI Codex in Blender for Mauro (via mauro-7a), 8 tilt steps; codex/tiles3d b01ccbb.

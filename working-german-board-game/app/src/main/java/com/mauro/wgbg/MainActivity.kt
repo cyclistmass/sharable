@@ -460,6 +460,7 @@ fun WatchGameScreen(
     val oceanRes = LocalContext.current.resources
     val cliff = listOf(R.drawable.cliff_top_1, R.drawable.cliff_top_2, R.drawable.cliff_top_3).map { ImageBitmap.imageResource(it) }
     val raiders = ImageBitmap.imageResource(R.drawable.raiders_ship)
+    val banditSprites = BANDIT_SPRITES.map { ImageBitmap.imageResource(it) }
     // Knight art per theme: index (level - 1) * 2 + (active ? 1 : 0).
     val knightsPirate = KNIGHTS_PIRATE.map { ImageBitmap.imageResource(it) }
     val knightsNormal = KNIGHTS_NORMAL.map { ImageBitmap.imageResource(it) }
@@ -783,28 +784,28 @@ fun WatchGameScreen(
         ) {
             tick // redraw on every move
             if (!inventory) seaTick // and on every sea frame (the Inventory screen holds still)
-            if (inventory) drawInventory(measurer, wood) else {
+            if (inventory) drawInventory(measurer, wood, banditSprites) else {
                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
                 val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
                 val layerSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt())
                 val waterKey = WaterLayerKey(camera, size, (sea.time * 6f).toInt())
                 if (waterLayerKey[0] != waterKey) {
-                    waterLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.WATER) }
+                    waterLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.WATER, banditSprites) }
                     waterLayerKey[0] = waterKey
                 }
                 drawLayer(waterLayer)
-                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.UNDER)
+                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.UNDER, banditSprites)
                 // Re-record the still board only when something on it can have changed: a move, the
                 // camera, the canvas size or a look setting. Otherwise the last recording is replayed.
                 val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff)
                 if (boardLayerKey[0] != key) {
                     // The explicit-density overload gives the layer its own draw scope; recording through
                     // this Canvas's scope makes the two scopes ask each other for density forever.
-                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL) }
+                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL, banditSprites) }
                     boardLayerKey[0] = key
                 }
                 drawLayer(boardLayer)
-                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER)
+                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER, banditSprites)
                 if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me))
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
@@ -1291,7 +1292,7 @@ private data class BoardLayerKey(
     val knights: List<ImageBitmap>?, val faces: Map<Int, ImageBitmap>?, val cliff: List<ImageBitmap>?,
 )
 
-private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null, part: BoardPart = BoardPart.ALL) {
+private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null, part: BoardPart = BoardPart.ALL, bandit: List<ImageBitmap>? = null) {
     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
@@ -1387,8 +1388,14 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             filterQuality = FilterQuality.Medium)
     }
     if (s.robberHex >= 0) {
-        val rs = scale * l.hexK(s.robberHex) * stand
-        drawRobber(l.hexCenter(s.robberHex) + Offset(0.15f * rs, 0.15f * rs * l.squash), rs)
+        if (bandit != null) {
+            // Mauro: the bandit stands ON the number plate and hides it (drawn after the tiles and their tokens).
+            val hs = scale * l.hexK(s.robberHex)
+            drawBandit(bandit, l.hexCenter(s.robberHex) + Offset(-0.36f * hs, -0.3f * hs * l.squash), hs, l.tilt)
+        } else {
+            val rs = scale * l.hexK(s.robberHex) * stand
+            drawRobber(l.hexCenter(s.robberHex) + Offset(0.15f * rs, 0.15f * rs * l.squash), rs)
+        }
     }
 
     // Settlements and cities.
@@ -1461,6 +1468,31 @@ private fun DrawScope.drawTile(
     if (number != 0) drawNumberToken(number, c + Offset(-0.36f * scale, -0.3f * scale * squash), scale, measurer, wood)
 }
 
+/** Bandit V1 "skeleton corsair" (Codex 3D model via mauro-7a, #32): one sprite per tilt step 0.96*i/7. */
+internal val BANDIT_SPRITES = List(8) { i -> listOf(R.drawable.bandit_tilt_0, R.drawable.bandit_tilt_1, R.drawable.bandit_tilt_2, R.drawable.bandit_tilt_3,
+    R.drawable.bandit_tilt_4, R.drawable.bandit_tilt_5, R.drawable.bandit_tilt_6, R.drawable.bandit_tilt_7)[i] }
+
+/** Which two tilt sprites to show for board [tilt], and how much of the second (0..1). */
+internal fun banditSteps(tilt: Float): Triple<Int, Int, Float> {
+    val pos = (tilt / Camera.MAX_TILT * 7f).coerceIn(0f, 7f)
+    val i = pos.toInt().coerceAtMost(6)
+    return Triple(i, i + 1, pos - i)
+}
+
+/**
+ * The bandit standing on the number plate centred at [at]: its sprite is 2.65 hex sides across with the plate
+ * centre at the image centre (ART_SPEC "Bandit"); neighbouring tilt steps cross-fade as the board tilts.
+ */
+private fun DrawScope.drawBandit(sprites: List<ImageBitmap>, at: Offset, hexScale: Float, tilt: Float) {
+    val side = 2.65f * hexScale
+    val dst = IntOffset((at.x - side / 2).toInt(), (at.y - side / 2).toInt())
+    val (a, b, f) = banditSteps(tilt)
+    fun draw(img: ImageBitmap, alpha: Float) = drawImage(img, IntOffset.Zero, IntSize(img.width, img.height), dst,
+        IntSize(side.toInt(), side.toInt()), alpha = alpha, filterQuality = FilterQuality.Medium)
+    draw(sprites[a], 1f)
+    if (f > 0.02f) draw(sprites[b], f)
+}
+
 private fun DrawScope.drawRobber(c: Offset, scale: Float) {
     val r = 0.13f * scale
     drawOval(Color.Black.copy(alpha = 0.3f), c + Offset(-1.3f * r, 1.6f * r), androidx.compose.ui.geometry.Size(2.6f * r, 0.9f * r))
@@ -1469,7 +1501,7 @@ private fun DrawScope.drawRobber(c: Offset, scale: Float) {
 }
 
 /** Every game object side by side, for eyeballing the art. */
-private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces) {
+private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, bandit: List<ImageBitmap>? = null) {
     if (size.minDimension < 2f) return
     val scale = min(size.width / 13.5f, size.height / 9.6f)
     fun label(text: String, at: Offset) {
@@ -1504,7 +1536,7 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces) {
         label(PLAYER_NAMES[p], Offset(x + 0.3f * scale, y + 0.65f * scale))
     }
     val robberAt = Offset(left + 5 * 2.05f * scale + 0.9f * scale, 6.4f * scale)
-    drawRobber(robberAt, scale * 1.5f)
+    if (bandit != null) drawBandit(bandit, robberAt - Offset(0f, 0.6f * scale), scale * 1.8f, 0.55f) else drawRobber(robberAt, scale * 1.5f)
     // Row 4: what doesn't exist yet.
     label("Cards (resource, development, progress, commodities): not designed yet", Offset(size.width / 2f, 8.4f * scale))
 }
