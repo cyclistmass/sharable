@@ -96,4 +96,24 @@ class TradePanelTest {
         val s = Rules.newGame(GameConfig(numPlayers = 4), 1)
         assertEquals(4, bankRate(s, 0, Resource.WOOD))
     }
+
+    @Test
+    fun `Age of Chivalry trades cover the commodities, mirror terms, and send the C&K offer`() {
+        val s = Rules.newGame(GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS, numPlayers = 4), 3)
+        assertEquals(8, tradeCards(s))
+        // Give seat 0 a Parchment (card 5) and seat 1 a Timber, then offer one for the other.
+        s.ck!!.commodities[0 * wgbg.engine.Commodity.COUNT + 0] += 1   // seat 0: a Parchment (card 5)
+        s.hands[1 * wgbg.engine.CARD_TYPES + 0] += 1                    // seat 1: a Timber
+        val give = IntArray(8).also { it[5] = 1 }
+        val get = IntArray(8).also { it[0] = 1 }
+        val offer = offerFor(s, give, get)!!
+        assertEquals(wgbg.engine.CkActionType.OFFER_TRADE_CK, offer.type)
+        assertEquals(1, holding(s, 0, 5))
+        // Pretend it's our turn after rolling, so the offer applies.
+        s.phase = Phase.PLAY_TURN; s.hasRolled = true; s.currentPlayer = 0; s.actingPlayer = 0
+        Rules.apply(s, offer)
+        val (get1, give1) = termsFor(s, 1)
+        assertEquals(1, get1[5], "the responder gets the Parchment")
+        assertEquals(1, give1[0], "and gives the Timber")
+    }
 }

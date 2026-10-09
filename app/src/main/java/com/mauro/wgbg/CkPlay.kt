@@ -77,9 +77,7 @@ fun ckButtonGroups(s: GameState, legal: List<Action>, names: List<String>): List
     val groups = legal.filter { it.type is CkActionType && it.type !in CK_VERTEX_KINDS && it.type != CkActionType.OFFER_TRADE_CK }
         .groupBy { if (it.type == CkActionType.PLAY_PROGRESS) "Play ${progress(it.a)}" else ckLabel(s, it, names) ?: it.toString() }
         .map { (label, actions) -> label to actions }
-    // The trade chest is base-game only for now, so in Age of Chivalry bank trades get a button here.
-    val bank = if (s.ck != null) legal.filter { it.type == wgbg.engine.ActionType.MARITIME_TRADE } else emptyList()
-    return if (bank.isEmpty()) groups else groups + ("Bank trade" to bank)
+    return groups // bank and player trades go through the trade chest
 }
 
 /** Label for one bank trade choice (card indices may be commodities). */
