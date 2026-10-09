@@ -7,6 +7,11 @@
   Converted to grayscale and stained per player at runtime.
 
 All other graphics are drawn procedurally in code.
+- Modelled Timber and Stone palette (`docs/design/tiles-3d-models/`): original procedural
+  Blender meshes and materials authored by Codex for Mauro. Trees, crags, thick hex bases,
+  logs and stones are built from scratch in `tools/blender/render_models.py`; contact sheet
+  and sprite neighbour mocks in `tools/blender/compose_palette.py`. No downloaded models,
+  third-party textures or generated-image assets. Palette only; not installed in the app.
 - Tile relief faces (`relief_*.webp`) and comparison palette (`docs/design/tiles-3d/`):
   authored by Codex for Mauro from Mauro's existing owned tile paintings. The original
   procedural color-height brush relief bake is reproducible with `tools/art/tiles-3d.cjs`.
