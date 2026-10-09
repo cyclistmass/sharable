@@ -16,13 +16,13 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.min
 
 /**
- * Two dice (Mauro's models, pre-rendered by tools/art/render_dice.py) tumble down the right side of
- * the board and come to rest showing the roll. Sheets: 16 tumble frames, then faces 1..6, 128 px each.
+ * Two dice (Mauro's models, pre-rendered by tools/art/render_dice.py) roll across the turn HUD and come
+ * to rest on its top-right corner showing the roll. Sheets: 16 tumble frames, then faces 1..6, 128 px each.
  */
 object DiceSprites {
     const val FRAME = 128
@@ -54,16 +54,21 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, modifier: Modifier = Modifi
         t.animateTo(1f, tween((DiceSprites.FALL_S * 1000).toInt(), easing = LinearEasing))
     }
     if (die1 <= 0) return
+    // Drawn over the turn HUD (sized to it): the dice come in from just outside its bottom-left
+    // corner, roll up across it and settle on its top-right corner. Pure decoration: no physics.
     Canvas(modifier) {
+        val side = 32.dp.toPx() // about 30% smaller than the first cut
+        val start = Offset(-side * 1.3f, size.height + side * 0.15f)
+        val rest = Offset(size.width - side * 2.25f, -side * 0.78f)
+        fun at(p: Float, lead: Float): Offset {
+            val u = DiceSprites.fall(p)                        // eases in and settles with small bounces
+            val hop = kotlin.math.sin(p.coerceAtMost(0.62f) / 0.62f * Math.PI.toFloat()) * side * 0.9f
+            return Offset(start.x + (rest.x + lead - start.x) * u, start.y + (rest.y - start.y) * u - hop)
+        }
         val p = t.value
-        val side = min(size.width * 0.9f, size.height * 0.16f)
-        val drop = DiceSprites.fall(p)
-        val restY = size.height * 0.55f
-        val y0 = -side
-        // The red die lands a little higher and leads; the ivory one trails.
-        drawDie(red, DiceSprites.frame(p, die1, 3), Offset(size.width / 2 - side * 0.55f, y0 + (restY - y0) * drop), side, (1 - p) * 220f)
-        val q = ((p - 0.06f) / 0.94f).coerceIn(0f, 1f)
-        drawDie(ivory, DiceSprites.frame(q, die2, 9), Offset(size.width / 2 - side * 0.45f, y0 + (restY + side * 1.05f - y0) * DiceSprites.fall(q)), side, (1 - q) * -260f)
+        drawDie(red, DiceSprites.frame(p, die1, 3), at(p, 0f), side, (1 - p) * 300f)
+        val q = ((p - 0.07f) / 0.93f).coerceIn(0f, 1f)
+        drawDie(ivory, DiceSprites.frame(q, die2, 9), at(q, side * 1.12f), side, (1 - q) * -340f)
     }
 }
 

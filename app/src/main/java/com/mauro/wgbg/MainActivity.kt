@@ -396,11 +396,12 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
         if (!inventory) {
             val report = tick.let { if (speed == MAX_SPEED) tracker.last else tracker.current ?: tracker.last }
             val previous = tick.let { if (speed == MAX_SPEED) null else tracker.last.takeIf { it !== report } }
-            TurnHud(report, previous, names, Modifier.align(Alignment.BottomStart).padding(8.dp))
-            // The roll's dice tumble down the right side of the board and stay there until the next roll.
+            // The roll's dice roll across the turn HUD and rest on its top-right corner until the next roll.
             val rolled = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
-            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player,
-                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(92.dp).padding(end = 0.dp).offset(x = (-150).dp))
+            Box(Modifier.align(Alignment.BottomStart).padding(8.dp)) {
+                TurnHud(report, previous, names)
+                if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, modifier = Modifier.matchParentSize())
+            }
         }
         if (human && !inventory) {
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
