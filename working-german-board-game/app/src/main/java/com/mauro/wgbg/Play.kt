@@ -1,6 +1,14 @@
 package com.mauro.wgbg
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -157,7 +165,10 @@ fun HumanControls(
                 }
             }
         }
-        val buttonTypes = setOf(ActionType.ROLL, ActionType.END_TURN, ActionType.DISCARD, ActionType.BUY_DEVELOPMENT_CARD,
+        // On a 7: pick all the cards first, then discard them with one press (playtest: a tap per card,
+        // on buttons that moved as card types ran out, lost the wrong card with no undo).
+        if (ActionType.DISCARD in types) { DiscardSheet(s, me, legal, onMove); return@Row }
+        val buttonTypes = setOf(ActionType.ROLL, ActionType.END_TURN, ActionType.BUY_DEVELOPMENT_CARD,
             ActionType.PLAY_KNIGHT_CARD, ActionType.PLAY_ROAD_BUILDING, ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY)
         if (sheet == null && (types.any { it in buttonTypes } || ckButtonGroups(s, legal, names).isNotEmpty())) Column(
             Modifier.width(176.dp).testTag("thumb-buttons"),
@@ -167,8 +178,6 @@ fun HumanControls(
             @Composable fun single(t: ActionType, label: String, primary: Boolean = false) {
                 legal.firstOrNull { it.type == t }?.let { a -> MoveButton(label, primary) { onMove(a) } }
             }
-            if (ActionType.DISCARD in types) for (a in legal.filter { it.type == ActionType.DISCARD })
-                MoveButton(if (a.discardResource < 0) "Discard at random" else "Discard ${ALL_CARD_NAMES[a.discardResource]}") { onMove(a) }
             single(ActionType.BUY_DEVELOPMENT_CARD, "Buy Fortune card")
             single(ActionType.PLAY_KNIGHT_CARD, "Play Sentinel")
             single(ActionType.PLAY_ROAD_BUILDING, "Play Trailblazers")
@@ -182,6 +191,67 @@ fun HumanControls(
             // The main move last, in the bottom-right corner.
             single(ActionType.ROLL, "Roll", primary = true)
             single(ActionType.END_TURN, "End turn", primary = ActionType.ROLL !in types && legal.none { it.type == ActionType.BUILD_SETTLEMENT || it.type == ActionType.BUILD_CITY })
+        }
+    }
+}
+
+/**
+ * The discard pile after tapping card [r] ([add] = tap, else hold to take one back): never more of a card
+ * than you hold, never more cards in all than you owe.
+ */
+fun discardPick(pile: IntArray, r: Int, add: Boolean, have: Int, owed: Int): IntArray {
+    val next = pile.copyOf()
+    if (add) { if (next[r] < have && next.sum() < owed) next[r]++ } else if (next[r] > 0) next[r]--
+    return next
+}
+
+/** The discard moves for a full [pile], one card per move, in card order. */
+fun discardMoves(pile: IntArray): List<Action> = pile.indices.flatMap { r -> List(pile[r]) { Action.discard(r) } }
+
+@Composable
+private fun DiscardSheet(s: GameState, me: Int, legal: List<Action>, onMove: (Action) -> Unit) {
+    val owed = s.discardOwed[me]
+    var pile by remember(s.turn, owed) { mutableStateOf(IntArray(tradeCards(s))) }
+    Column(
+        Modifier.brassEdgedWood().padding(12.dp).testTag("discard-sheet"),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Too many cards on a 7: choose $owed to discard (${pile.sum()} chosen)", color = INK_LIGHT, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text("Tap a card to add it · hold to take it back", color = INK_LIGHT.copy(alpha = 0.7f), fontSize = 11.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (r in pile.indices) {
+                val have = holding(s, me, r)
+                if (have == 0) continue
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        Modifier.size(width = 42.dp, height = 60.dp)
+                            .pointerInput(r, have, owed) {
+                                detectTapGestures(onTap = { pile = discardPick(pile, r, true, have, owed) },
+                                    onLongPress = { pile = discardPick(pile, r, false, have, owed) })
+                            }.testTag("discard-card-$r"),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (r < CARD_ART.size) Image(painterResource(CARD_ART[r]), ALL_CARD_NAMES[r], Modifier.fillMaxSize(), alpha = if (pile[r] > 0) 1f else 0.8f)
+                        else Box(Modifier.fillMaxSize().background(Color(0xFFEFE3C8), RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
+                            Text(ALL_CARD_NAMES[r], color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        }
+                        if (pile[r] > 0) Text("−${pile[r]}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.BottomCenter).background(Color(0xE0C0392B), CircleShape).padding(horizontal = 6.dp))
+                    }
+                    Text("have $have", color = INK_LIGHT.copy(alpha = 0.7f), fontSize = 9.sp)
+                }
+            }
+        }
+        // The buttons are always there at a fixed height: the cards must never move while you pick them.
+        Row(Modifier.height(44.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            val full = pile.sum() == owed
+            PlateBox(Plate.STOP, enabled = full, onClick = {
+                val moves = discardMoves(pile); pile = IntArray(pile.size); moves.forEach(onMove)
+            }, modifier = Modifier.height(40.dp).testTag("discard-go")) {
+                Text("Discard $owed", color = if (full) Color.White else Color.White.copy(alpha = 0.5f), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+            if (pile.sum() > 0) WoodButton("Clear", "discard-clear") { pile = IntArray(pile.size) }
+            legal.firstOrNull { it.type == ActionType.DISCARD && it.discardResource < 0 }?.let { a -> WoodButton("At random", "discard-random") { onMove(a) } }
         }
     }
 }
