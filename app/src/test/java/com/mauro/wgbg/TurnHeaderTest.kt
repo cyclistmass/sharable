@@ -47,4 +47,28 @@ class TurnHeaderTest {
         }
         assertEquals(16, checked)
     }
+
+    @Test
+    fun `an Age of Chivalry roll records the event die, a base roll has none`() {
+        val ck = Rules.newGame(GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS, numPlayers = 3), 5)
+        val tracker = TurnTracker(listOf("Mauro", "Crest", "Orange"))
+        val bots = List(3) { GreedyBot(it.toLong()) }
+        val buf = ActionBuffer()
+        var seen = 0
+        while (seen < 20 && !ck.isOver) {
+            Rules.legalActions(ck, buf)
+            val who = ck.actingPlayer
+            var a = bots[who].choose(ck, buf)
+            if (a.type == ActionType.ROLL) a = wgbg.engine.Action.roll(3, 4, seen % 6)
+            tracker.apply(ck, who, a) { Rules.apply(ck, a) }
+            if (a.type == ActionType.ROLL) { assertEquals(seen % 6, tracker.current!!.event); seen++ }
+        }
+        assert(seen == 20)
+        val base = Rules.newGame(GameConfig(numPlayers = 3), 5)
+        val t2 = TurnTracker(listOf("A", "B", "C"))
+        while (base.phase != Phase.PLAY_TURN) { Rules.legalActions(base, buf); val w = base.actingPlayer; val a = bots[w].choose(base, buf); t2.apply(base, w, a) { Rules.apply(base, a) } }
+        val roll = wgbg.engine.Action.roll(2, 5)
+        t2.apply(base, base.actingPlayer, roll) { Rules.apply(base, roll) }
+        assertEquals(-1, t2.current!!.event)
+    }
 }

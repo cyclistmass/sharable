@@ -18,6 +18,8 @@ data class TurnReport(
     val turn: Int,
     val die1: Int = 0,
     val die2: Int = 0,
+    /** Age of Chivalry event die face 0..5 (0-2 the Raiders' ship, 3-5 a gate: trade, politics, science), -1 if none. */
+    val event: Int = -1,
     /** Per-player resource changes from the roll (production), or empty on a 7. */
     val production: List<String> = emptyList(),
     val events: List<String> = emptyList(),
@@ -45,13 +47,16 @@ class TurnTracker(private val names: List<String>) {
         val counterer = s.counterFrom
         var d1 = 0
         var d2 = 0
+        var ev = -1
         if (action.type == ActionType.ROLL && action.payload != 0L) {
             d1 = action.a; d2 = action.b // dice thrown outside the engine travel in the action
+            ev = ((action.payload ushr 16) and 0xff).toInt() - 1
         } else if (action.type == ActionType.ROLL) {
             // The roll is the first thing that uses the RNG, so a copy shows the dice it will draw.
             val peek = s.rng.copy()
             d1 = peek.nextInt(6) + 1
             d2 = peek.nextInt(6) + 1
+            if (s.ck != null) ev = peek.nextInt(6)
         }
         applyFn()
         val gained = Array(s.numPlayers) { p -> IntArray(CARD_TYPES) { r -> s.hands[p * CARD_TYPES + r] - before[p * CARD_TYPES + r] } }
@@ -59,7 +64,7 @@ class TurnTracker(private val names: List<String>) {
         val n = names[who]
         current = when (action.type) {
             ActionType.ROLL -> r.copy(
-                die1 = d1, die2 = d2,
+                die1 = d1, die2 = d2, event = ev,
                 production = if (d1 + d2 == 7) listOf("Bandit! Players over the limit must discard.")
                 else (0 until s.numPlayers).mapNotNull { p -> changes(gained[p])?.let { "${names[p]} $it" } }
                     .ifEmpty { listOf("Nobody produced anything.") },
