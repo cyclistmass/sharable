@@ -9,7 +9,7 @@ that name and address. Update this table when a folder or repo is added, moved o
 | `sharable\` | [cyclistmass/sharable](https://github.com/cyclistmass/sharable) (root) | The published repo: README, this map, issues, CI (`.github/workflows/wgbg-ci.yml`) | `git push` from here |
 | `catan-android\` (branch `main`) | cyclistmass/sharable → `working-german-board-game/` | The game: engine, AI, CLI, Android app, tools, docs, `firestore.rules` | commit in `catan-android`, then in `sharable`: `git subtree pull --prefix=working-german-board-game ../catan-android main` and push |
 | `catan-android-pip\` (`pip/render-layers`) | same, via `catan-android` `main` | Pip's worktree (render performance) | merged into `main` by Bosun, then subtree pull |
-| `catan-android-perfA\`, `catan-android-perfB\` (`codex/perf`) | same, via `main` | Codex render-speed worktrees | merge `codex/perf` into `main` when reviewed |
+| `catan-android-perfA\`, `catan-android-perfB\` (`codex/perf`) | same, via `main`; on GitHub as branch **`wgbg/codex-perf`** (a2b4a0a) | Codex render-speed pass (#33), review only | the branch is based on cf4f5ac (= catan-android fdb55cf), so rebase onto main before merging (it conflicts in RollingDice) |
 | `catan-android-tiles\` (`codex/tiles`), `catan-android-tiles3d\` (`codex/tiles3d`) | same, via `main` | Codex 3D-tile experiments (#32) | merge into `main` when approved |
 | `catan-android-net\` | same, via `main` | Online-play (Firebase, #7) work; already merged | retire once nothing is left unmerged |
 | `wgbg-art\` | **not in git yet** | Source art: Codex/ChatGPT batches, prompts, logs, palettes, inventory page | finished art is copied into `catan-android\app\src\main\res\drawable-nodpi\`; the sources need a home (see below) |
