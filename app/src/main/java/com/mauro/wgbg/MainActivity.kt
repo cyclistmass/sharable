@@ -404,6 +404,8 @@ fun WatchGameScreen(
     var confirmExit by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
     var hudTopRight by remember { mutableStateOf<Offset?>(null) }
+    var diceFlying by remember { mutableStateOf(false) }
+    var diceSlots by remember { mutableStateOf<Pair<androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect>?>(null) }
     BackHandler { confirmExit = !confirmExit }
     // What the human may do right now (empty while bots move or in Watch mode).
     val legal = tick.let { if (human && !inventory && !state.isOver && state.actingPlayer == 0) Rules.legalActions(state) else emptyList() }
@@ -506,9 +508,9 @@ fun WatchGameScreen(
             // The roll's dice roll across the turn HUD and rest on its top-right corner until the next roll.
             val rolled = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
             Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
-                TurnHud(report, previous, names)
+                TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying)
             }
-            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight,
+            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
