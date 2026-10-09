@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -80,9 +81,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import wgbg.ai.GreedyBot
 import wgbg.ai.Bot
+import wgbg.engine.Action
 import wgbg.engine.ActionBuffer
 import wgbg.engine.ActionKind
 import wgbg.engine.ActionType
@@ -91,6 +94,7 @@ import wgbg.engine.DiceDeck
 import wgbg.engine.DiceMode
 import wgbg.engine.GameConfig
 import wgbg.engine.GameState
+import wgbg.engine.Phase
 import wgbg.engine.Piece
 import wgbg.engine.Port
 import wgbg.engine.Resource
@@ -160,20 +164,28 @@ private fun polygon(points: List<Offset>) = Path().apply {
 /** Pips under a number token: how many dice combinations roll it (2/12 → 1, 6/8 → 5). */
 private fun pips(n: Int) = 6 - kotlin.math.abs(7 - n)
 
-/** Four bots play a full game while you watch. */
+/** Play seat 0 against three bots (issue #5), or watch four bots play. */
 @Composable
 fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camera.FIT) {
     var seed by remember { mutableLongStateOf(1L) }
+    // Play mode: you are seat 0 ("You"); Watch mode: four bots at full speed.
+    var human by remember { mutableStateOf(true) }
+    val names = if (human) listOf("You") + PLAYER_NAMES.drop(1) else PLAYER_NAMES
     val state = remember(seed) { Rules.newGame(GameConfig(numPlayers = 4), seed) }
     val bots = remember(seed) { List<Bot>(4) { GreedyBot(seed * 31 + it) } }
     val log = remember(seed) { mutableStateListOf<String>() }
-    val tracker = remember(seed) { TurnTracker(PLAYER_NAMES) }
+    val tracker = remember(seed, human) { TurnTracker(names) }
+    // Moves from the human's taps and buttons; the game loop checks each against the rules.
+    val humanMoves = remember { Channel<Action>(Channel.UNLIMITED) }
+    var tradeOpen by remember { mutableStateOf(false) }
+    var victims by remember { mutableStateOf<List<Action>>(emptyList()) }
+    val responses = remember(seed) { mutableStateMapOf<Int, String>() }
     // Dice setting cycles: random, then deck stacks of 1-4 x 36 cards (asked per game once the new-game screen exists).
     var diceSetting by remember { mutableIntStateOf(0) } // 0 = random, n = n decks
     val dice = remember(diceSetting) { if (diceSetting == 0) DiceDeck.of(DiceMode.RANDOM) else DiceDeck.of(DiceMode.DECK, diceSetting) }
     var tick by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf(true) }
-    var speed by remember { mutableIntStateOf(MAX_SPEED) }
+    var speed by remember { mutableIntStateOf(if (human) 2 else MAX_SPEED) }
     val wins = remember { mutableStateListOf(0, 0, 0, 0, 0) } // per seat, last slot = draws
     var inventory by remember { mutableStateOf(false) }
     // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
@@ -193,20 +205,38 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
         }
     }
 
-    LaunchedEffect(seed, playing, speed) {
+    LaunchedEffect(seed, playing, speed, human) {
         val buf = ActionBuffer()
-        fun step(): ActionKind {
+        while (humanMoves.tryReceive().isSuccess) { } // drop taps left over from another game
+        suspend fun step(): ActionKind {
             Rules.legalActions(state, buf)
             val who = state.actingPlayer
-            var action = bots[who].choose(state, buf)
+            var action = if (human && who == 0) {
+                tick++ // show the human what they can do
+                var a: Action
+                do a = humanMoves.receive() while (!Rules.isLegal(state, a))
+                a
+            } else bots[who].choose(state, buf)
             // Real dice: thrown by the OS's secure generator (or dealt from the deck) and recorded in the log.
             if (action.type == ActionType.ROLL) action = dice.next(withEvent = state.ck != null).toAction()
+            // Answers to the human's offers, shown as marks by each name in the trade panel.
+            if (human && state.currentPlayer == 0) when {
+                action.type == ActionType.OFFER_TRADE || action.type == ActionType.END_TURN -> responses.clear()
+                who != 0 && state.phase == Phase.DECIDE_TRADE -> when (action.type) {
+                    ActionType.ACCEPT_TRADE -> responses[who] = "✓"
+                    ActionType.REJECT_TRADE -> responses[who] = "✗"
+                    ActionType.COUNTER_TRADE -> responses[who] = "⇄"
+                    else -> {}
+                }
+                state.phase == Phase.DECIDE_COUNTER && action.type == ActionType.REJECT_TRADE -> responses[state.counterFrom] = "✗"
+            }
             tracker.apply(state, who, action) { Rules.apply(state, action) }
             when (action.type) {
-                ActionType.END_TURN, ActionType.REJECT_TRADE -> {}
-                ActionType.ROLL -> log.add(0, "${PLAYER_NAMES[who]} rolled ${state.lastRoll}")
-                ActionType.OFFER_TRADE, ActionType.ACCEPT_TRADE -> {}
-                else -> log.add(0, "${PLAYER_NAMES[who]}: ${describe(action.type)}")
+                ActionType.REJECT_TRADE, ActionType.ACCEPT_TRADE, ActionType.COUNTER_TRADE -> {}
+                ActionType.END_TURN -> {}
+                ActionType.ROLL -> log.add(0, "${names[who]} rolled ${state.lastRoll}")
+                ActionType.OFFER_TRADE -> {}
+                else -> log.add(0, "${names[who]}: ${describe(action.type)}")
             }
             if (log.size > 4) log.removeRange(4, log.size)
             return action.type
@@ -233,8 +263,9 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
         }
         if (state.isOver) {
             wins[if (state.winner >= 0) state.winner else 4]++
-            if (state.winner >= 0) log.add(0, "${PLAYER_NAMES[state.winner]} wins!")
-            if (speed == MAX_SPEED && playing) seed++ // straight into the next game
+            if (state.winner >= 0) log.add(0, "${names[state.winner]} wins!")
+            tick++
+            if (speed == MAX_SPEED && playing && !human) seed++ // straight into the next game
         }
     }
 
@@ -259,6 +290,10 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
         camera = Camera.FIT
     }
     var panelOpen by remember { mutableStateOf(false) }
+    // What the human may do right now (empty while bots move or in Watch mode).
+    val legal = tick.let { if (human && !inventory && !state.isOver && state.actingPlayer == 0) Rules.legalActions(state) else emptyList() }
+    val legalNow by rememberUpdatedState(legal)
+    val targets = Targets.of(legal)
     Box(modifier) {
       Row(Modifier.fillMaxSize()) {
       Box(Modifier.weight(1f).fillMaxHeight()) {
@@ -285,7 +320,12 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { at ->
                         val p = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(at)
-                        if (!inventory && seaNow.isWater(p)) seaNow.splash(p)
+                        val moves = if (inventory) emptyList() else movesAt(boardNow, legalNow, p)
+                        when {
+                            moves.size == 1 -> humanMoves.trySend(moves[0])
+                            moves.size > 1 -> victims = moves // the bandit can rob more than one player there
+                            !inventory && seaNow.isWater(p) -> seaNow.splash(p)
+                        }
                     }, onDoubleTap = { at ->
                         lastTouch = System.nanoTime()
                         val sz = Size(size.width.toFloat(), size.height.toFloat())
@@ -296,12 +336,44 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
         ) {
             tick // redraw on every move
             seaTick // and on every sea frame
-            if (inventory) drawInventory(measurer, wood) else drawGame(state, measurer, wood, camera, sea)
+            if (inventory) drawInventory(measurer, wood) else {
+                drawGame(state, measurer, wood, camera, sea)
+                if (!targets.isEmpty) drawTargets(state.board, targets, camera, (kotlin.math.sin(seaTick / 9f) + 1f) / 2f)
+            }
         }
         if (!inventory) {
             val report = tick.let { if (speed == MAX_SPEED) tracker.last else tracker.current ?: tracker.last }
             val previous = tick.let { if (speed == MAX_SPEED) null else tracker.last.takeIf { it !== report } }
-            TurnHud(report, previous, Modifier.align(Alignment.BottomStart).padding(8.dp))
+            TurnHud(report, previous, names, Modifier.align(Alignment.BottomStart).padding(8.dp))
+        }
+        if (human && !inventory) {
+            val send: (Action) -> Unit = { a -> victims = emptyList(); humanMoves.trySend(a) }
+            val needsMe = tradeNeedsMe(state, 0)
+            if (legal.isNotEmpty() && !needsMe) HumanControls(state, 0, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp))
+            if (tradeOpen || needsMe || (tradeMode(state, 0) == TradeMode.WAITING && state.currentPlayer == 0))
+                TradePanel(state, 0, legal, names, send, onClose = { tradeOpen = false }, responses = responses, modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+            if (victims.isNotEmpty()) Column(
+                Modifier.align(Alignment.Center).chest(),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("Rob whom?", color = Color(0xFFEDE6D8), fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (a in victims) FilledTonalButton(onClick = { send(a) }) {
+                        Text(if (a.robberVictim < 0) "No one" else "${names[a.robberVictim]} (${state.cardCount(a.robberVictim)} cards)")
+                    }
+                    FilledTonalButton(onClick = { victims = emptyList() }) { Text("Back") }
+                }
+            }
+            if (tick.let { state.isOver }) Column(
+                Modifier.align(Alignment.Center).chest(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(when (state.winner) { -1 -> "Draw"; 0 -> "You win!"; else -> "${names[state.winner]} wins" },
+                    color = Color(0xFFF1D58A), fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                FilledTonalButton(onClick = { seed++; playing = true }) { Text("New game") }
+            }
         }
       }
         if (panelOpen) CompositionLocalProvider(LocalContentColor provides Color(0xFFEDE6D8)) {
@@ -318,6 +390,9 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                     FilledTonalButton(onClick = { playing = !playing }) { Text(if (playing) "Pause" else "Play") }
                     FilledTonalButton(onClick = { speed = if (speed == MAX_SPEED) 1 else speed * 2 }) { Text(if (speed == MAX_SPEED) "Max" else "${speed}×") }
                     FilledTonalButton(onClick = { seed++; playing = true }) { Text("New") }
+                    FilledTonalButton(onClick = { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }) {
+                        Text(if (human) "Watch bots" else "Play")
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilledTonalButton(onClick = { inventory = !inventory }) { Text(if (inventory) "Back to game" else "Inventory") }
@@ -327,7 +402,7 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                     }
                 }
                 PlayerPanel(players)
-                Text("Wins: " + PLAYER_NAMES.indices.joinToString("  ") { "${PLAYER_NAMES[it]} ${wins[it]}" } + "  · draws ${wins[4]}",
+                Text("Wins: " + names.indices.joinToString("  ") { "${names[it]} ${wins[it]}" } + "  · draws ${wins[4]}",
                     style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                 for (line in log) Text(line, style = MaterialTheme.typography.bodySmall, maxLines = 1)
             }
@@ -338,6 +413,46 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
             modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
             colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0x99303036), contentColor = Color.White),
         ) { Text(if (panelOpen) "Hide" else "Menu") }
+        // The Trade button is always there in Play mode; it lights up when a trade waits on you.
+        if (human && !inventory) TradeToggle(
+            open = tradeOpen || tradeNeedsMe(state, 0),
+            attention = tick.let { tradeNeedsMe(state, 0) },
+            onClick = { tradeOpen = !tradeOpen },
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (panelOpen) 356.dp else 8.dp),
+        )
+    }
+}
+
+/** Glowing rings where the human can build or move the bandit; [pulse] 0..1 breathes the glow. */
+private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, pulse: Float) {
+    if (size.minDimension < 2f) return
+    val l = Layout.fit(board, size.width, size.height, camera)
+    if (!l.scale.isFinite() || l.scale <= 0f) return
+    val glow = Color(0xFFFFE08A)
+    val a = 0.55f + 0.4f * pulse
+    for (v in t.vertices) {
+        val p = vertexLattice(board, v)
+        val c = l.project(p.x, p.y)
+        val r = 0.17f * l.scale * l.kAt(p.y)
+        drawCircle(glow.copy(alpha = 0.3f * a), r * 1.5f, c)
+        drawCircle(glow.copy(alpha = a), r, c, style = Stroke(r * 0.3f))
+    }
+    for (e in t.edges) {
+        val ends = board.topology.edgeVertices[e]
+        val p0 = vertexLattice(board, ends[0])
+        val p1 = vertexLattice(board, ends[1])
+        val a0 = l.project(p0.x + (p1.x - p0.x) * 0.22f, p0.y + (p1.y - p0.y) * 0.22f)
+        val a1 = l.project(p1.x + (p0.x - p1.x) * 0.22f, p1.y + (p0.y - p1.y) * 0.22f)
+        val w = 0.11f * l.scale * l.kAt((p0.y + p1.y) / 2)
+        drawLine(glow.copy(alpha = 0.45f * a), a0, a1, w * 2.6f, StrokeCap.Round)
+        drawLine(glow.copy(alpha = 0.6f + 0.4f * a), a0, a1, w * 1.1f, StrokeCap.Round)
+    }
+    for (h in t.hexes) {
+        val p = hexLattice(board, h)
+        val c = l.project(p.x, p.y)
+        val r = 0.62f * l.scale * l.kAt(p.y)
+        drawCircle(glow.copy(alpha = 0.18f * a), r, c)
+        drawCircle(glow.copy(alpha = a), r, c, style = Stroke(r * 0.07f))
     }
 }
 
@@ -410,6 +525,8 @@ internal fun describe(t: ActionKind) = when (t) {
     ActionType.MARITIME_TRADE -> "traded with the bank"
     ActionType.MOVE_ROBBER -> "moved the bandit"
     ActionType.DISCARD -> "discarded"
+    ActionType.CONFIRM_TRADE -> "traded"
+    ActionType.COUNTER_TRADE -> "made a counter-offer"
     else -> t.toString().lowercase().replace('_', ' ')
 }
 
