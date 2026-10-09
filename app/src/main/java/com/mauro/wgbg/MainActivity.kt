@@ -1589,10 +1589,17 @@ private fun DrawScope.drawPortToken(type: Int, t: Offset, scale: Float, measurer
     if (generic) TerrainArt.drawIcon(this, Resource.NONE, t + Offset(0f, 0.38f * r), 0.54f * r)
 }
 
+/**
+ * Number token radius in hex sides. Mauro (2026-10-09): "both a little": 10% smaller than the first 0.30, so the
+ * tile scenery shows round it; Codex's tile art clears a matching 0.31 circle at the same centre.
+ */
+internal const val NUMBER_TOKEN_R = 0.27f
+
 private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer: TextMeasurer, wood: WoodPieces) {
-    val r = 0.3f * scale
-    drawCircle(Color.Black.copy(alpha = 0.3f), r, t + Offset(0.05f * scale, 0.07f * scale))
-    drawCircle(TOKEN_WOOD.shade(0.35f), r, t + Offset(0f, 0.04f * scale)) // token edge
+    val r = NUMBER_TOKEN_R * scale
+    val k = NUMBER_TOKEN_R / 0.3f          // everything on the token shrinks with it
+    drawCircle(Color.Black.copy(alpha = 0.3f), r, t + Offset(0.05f * k * scale, 0.07f * k * scale))
+    drawCircle(TOKEN_WOOD.shade(0.35f), r, t + Offset(0f, 0.04f * k * scale)) // token edge
     drawCircle(wood.brush(TOKEN_WOOD_INDEX), r, t)
     drawCircle(
         Brush.radialGradient(
@@ -1602,11 +1609,11 @@ private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer:
         ),
         r, t,
     )
-    drawCircle(TOKEN_WOOD.shade(0.45f), r, t, style = Stroke(0.02f * scale))
+    drawCircle(TOKEN_WOOD.shade(0.45f), r, t, style = Stroke(0.02f * k * scale))
     val ink = if (n == 6 || n == 8) Color(0xFFC62828) else INK
     val text = measurer.measure(
         n.toString(),
-        TextStyle(fontSize = (0.264f * scale / density).sp, fontWeight = FontWeight.Bold, color = ink),
+        TextStyle(fontSize = (0.264f * k * scale / density).sp, fontWeight = FontWeight.Bold, color = ink),
     )
     drawText(text, topLeft = t - Offset(text.size.width / 2f, text.size.height * 0.6f))
     val dots = pips(n)
