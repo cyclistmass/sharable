@@ -163,6 +163,9 @@ private val KNIGHTS_NORMAL = listOf(
 private val KNIGHT_CARDS_NORMAL = listOf(R.drawable.card_knight_normal_1, R.drawable.card_knight_normal_2, R.drawable.card_knight_normal_3)
 private val KNIGHT_CARDS_PIRATE = listOf(R.drawable.card_knight_pirate_1, R.drawable.card_knight_pirate_2, R.drawable.card_knight_pirate_3)
 
+/** How thick a tile stands, in hex sides (frame option B). */
+private const val TILE_THICKNESS = 0.26f
+
 private val TERRAIN_COLORS = mapOf(
     Resource.WOOD to Color(0xFF2E7D32),
     Resource.BRICK to Color(0xFFBF5B30),
@@ -813,7 +816,7 @@ private class Layout(val board: Board, val center: Offset, val scale: Float, val
             var minX = xs.min()
             var maxX = xs.max()
             var minY = ys.min()
-            var maxY = ys.max() + 0.14f * 1.6f // tile thickness and drop shadow
+            var maxY = ys.max() + TILE_THICKNESS * 1.6f // tile thickness and drop shadow
             for (p in board.ports) {
                 val mid = Offset((xs[p.v1] + xs[p.v2]) / 2, (ys[p.v1] + ys[p.v2]) / 2)
                 val n = mid / mid.getDistance()
@@ -969,7 +972,7 @@ private fun DrawScope.drawTile(
         val a = Math.toRadians(-90.0 + 60 * i)
         c + Offset((kotlin.math.cos(a) * scale * 0.93f).toFloat(), (kotlin.math.sin(a) * scale * 0.93f * squash).toFloat())
     }
-    val down = Offset(0f, 0.14f * scale * lift) // visible tile thickness
+    val down = Offset(0f, TILE_THICKNESS * scale * lift) // visible tile thickness (frame option B: about twice the original)
     val base = TERRAIN_COLORS.getValue(resource)
 
     drawPath(polygon(top.map { it + down * 1.6f }), Color.Black.copy(alpha = 0.18f)) // soft drop shadow
@@ -1116,6 +1119,16 @@ private fun DrawScope.drawPortPiersAndToken(pg: PortGeom, scale: Float, measurer
             t += 0.05f * scale
         }
         drawPath(planks, Color(0xFF6E4520).copy(alpha = 0.75f), style = Stroke(0.01f * scale))
+        // Dark pilings under the walkway, with a ring of foam where each meets the water.
+        var k = 0.16f * scale
+        while (k < len - 0.05f * scale) {
+            for (sgn in listOf(1f, -1f)) {
+                val p = from + dir * k + across * (half * 0.85f * sgn) + Offset(0f, 0.05f * scale)
+                drawOval(Color.White.copy(alpha = 0.35f), p + Offset(-0.03f * scale, 0.02f * scale), Size(0.06f * scale, 0.025f * scale))
+                drawRect(Color(0xFF2E1B0C), p + Offset(-0.012f * scale, -0.01f * scale), Size(0.024f * scale, 0.04f * scale))
+            }
+            k += 0.22f * scale
+        }
     }
     drawPortToken(pg.type, pg.token, scale, measurer, wood)
 }
