@@ -34,7 +34,9 @@ Check which account Claude Code is logged in as before publishing; the PC also l
 | Cards and names canvas https://claude.ai/artifact/JQGQiUm4tAjHQcR9ZLstn9 | Mauro | palette for cards and the names table |
 | Art inventory https://claude.ai/artifact/EPCzewYHf6xvRnF8sQQ8pY | Mauro | every image and its status; source `wgbg-art\inventory\` |
 | Hexhold (early web prototype, 2026-10-01) https://claude.ai/artifact/CvWUT69SZnGeKhZ4bcYcUt | **Erin (wrong account)** | copy saved at `wgbg-art\claude-artifacts\hexhold-2026-10-01.html`; republish under Mauro's account or share it to him |
-| Game Start & Lobby https://claude.ai/artifact/QpUuSrw6XhxKvrfYWwrnps | **Erin (wrong account)** | empty canvas, created by mistake; safe to delete |
+| Game Start & Lobby https://claude.ai/artifact/QpUuSrw6XhxKvrfYWwrnps | **Erin (wrong account)** | empty canvas, created by mistake; safe to delete (note in `wgbg-artaude-artifactsgame-start-and-lobby`) |
 | Lobby/board layout canvas https://claude.ai/artifact/3325unbrfXKARLrn8MbcAC | unknown, unreadable since a login switch | designs were copied to `working-german-board-game/docs/design/` |
+
+Saved copies of every claude.ai page (HTML plus files) live in `wgbg-artaude-artifacts<page>`, so a login switch never loses them.
 
 Other projects on this PC (`quailhollow-cookies-2026\`, `whisper\`, …) are not part of the game and are not in cyclistmass/sharable.
