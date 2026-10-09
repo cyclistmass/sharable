@@ -257,7 +257,7 @@ fun WatchGameScreen(
     // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
     // game starts several times a second, which would otherwise wipe splashes and clouds.
     val oceanRes = LocalContext.current.resources
-    val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile) } }
+    val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile); it.boatColors = PLAYER_COLORS } }
     // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
     // read the current game's sea and board through these.
     val seaNow by rememberUpdatedState(sea)
@@ -868,8 +868,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         val ps = scale * (l.k(p.v1) + l.k(p.v2)) / 2f
         PortGeom(p.type, a, b, mid, n, mid + Offset(n.x, n.y * l.squash) * (0.58f * ps), ps)
     }
-    // Boats slider: a share of the harbours get their little sailboat.
-    for ((i, pg) in ports.withIndex()) drawPortWater(pg, pg.scale, l.squash, showBoat = (i * 0.618f) % 1f < (sea?.boats01 ?: 1f))
+    for (pg in ports) drawPortWater(pg, pg.scale, l.squash)
     for (pg in ports) drawPortPiersAndToken(pg, pg.scale, measurer, wood)
 
     // Roads.

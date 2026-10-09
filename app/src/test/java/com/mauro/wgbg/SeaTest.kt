@@ -329,4 +329,20 @@ class SeaTest {
         repeat(30) { sea.update(dt) }
         assertEquals(-(sea.landR + 0.6f), c.y, 0.02f, "no curve while it flies")
     }
+
+    @Test
+    fun `boats cruise the open sea, never onto the island or off the screen`() {
+        val sea = Sea(board)
+        sea.boats01 = 1f
+        assertEquals(Sea.MAX_BOATS, sea.boatCount)
+        repeat(60 * 120) { // two minutes
+            sea.update(dt)
+            for (b in sea.boats) {
+                assertTrue(hypot(b.x, b.y) > sea.landR - 0.2f, "boat on the island at ${b.x},${b.y}")
+                assertTrue(sea.inOpenSea(b.x, b.y, -0.3f), "boat off the screen at ${b.x},${b.y}")
+            }
+        }
+        sea.boats01 = 0f
+        assertEquals(0, sea.boatCount)
+    }
 }
