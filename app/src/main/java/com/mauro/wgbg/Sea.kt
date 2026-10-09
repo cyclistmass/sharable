@@ -163,7 +163,6 @@ class Sea(board: Board, seed: Int = 1) {
         var grabDx = 0f
         var grabDy = 0f
     }
-    private class Gull(var a: Float, val r: Float, val speed: Float, var phase: Float)
     private class Ring(val x: Float, val y: Float, var age: Float = 0f, val delay: Float = 0f)
 
     private val drops = ArrayList<Puff>()
@@ -178,7 +177,9 @@ class Sea(board: Board, seed: Int = 1) {
     var motion = 0.5f
     /** Clouds wanted on the sea: none at 0, up to 8. */
     val cloudTarget get() = (clouds01 * 8f).roundToInt().coerceIn(0, 8)
-    private val gulls = List(8) { i -> Gull(rnd.nextFloat() * 2 * PI.toFloat(), landR + 0.4f + 0.45f * i, (0.04f + 0.006f * i) * if (i % 2 == 1) -1 else 1, rnd.nextFloat() * 6) }
+    /** Pale articulated seabirds (Birds slider sets how many show). */
+    internal val birds = List(8) { i -> Seabird(seed * 31 + i, landR + 0.5f + 0.42f * i) }
+    private val birdPath = Path()
     private val glints = List(160) { val (x, y) = seaPoint(0.2f); floatArrayOf(x, y, rnd.nextFloat() * 6f, 0.6f + rnd.nextFloat()) }
     internal var time = 0f
         private set
@@ -233,7 +234,7 @@ class Sea(board: Board, seed: Int = 1) {
         drops.removeAll { it.age > it.life }
         for (r in rings) r.age += dt
         rings.removeAll { it.age - it.delay > 1.3f }
-        for (g in gulls) { g.a += g.speed * pdt; g.phase += pdt * 3 }
+        for (b in birds) b.update(pdt)
         for (b in boats) sail(b, pdt)
         for (c in clouds) {
             if (c.poof >= 0) { c.poof += dt; continue }
@@ -567,16 +568,12 @@ class Sea(board: Board, seed: Int = 1) {
             val lift = if (p.dy < 0) -sin(PI.toFloat() * t) * 0.15f else 0f
             drawCircle(Color(0xFFE8F7FF).copy(alpha = 1 - t), p.r * s, at(p.x + p.dx * t, p.y + p.dy * t * 0.4f + lift))
         }
-        val gullCount = (birds01 * gulls.size).roundToInt()
-        for (gi in 0 until gullCount) {
-            val g = gulls[gi]
-            val p = at(cos(g.a) * g.r, sin(g.a) * g.r)
-            val flap = (0.55f + 0.45f * sin(g.phase)) * 0.06f * s
-            val w = 0.11f * s
-            val path = Path().apply {
-                moveTo(p.x - w, p.y); quadraticTo(p.x - w / 2, p.y - flap, p.x, p.y); quadraticTo(p.x + w / 2, p.y - flap, p.x + w, p.y)
-            }
-            drawPath(path, Color.White, style = Stroke(0.028f * s, cap = StrokeCap.Round))
+        val birdCount = (birds01 * birds.size).roundToInt()
+        for (bi in 0 until birdCount) {
+            val b = birds[bi]
+            // A faint shadow on the water below, then the bird.
+            drawCircle(Color(0x22001020), 0.12f * s, at(b.x + 0.25f, b.y + 0.35f))
+            b.draw(this, at(b.x, b.y), 0.28f * s, birdPath)
         }
         for (c in clouds) {
             val fade = if (c.poof >= 0) (1 - c.poof / 0.25f).coerceAtLeast(0f) else 1f
