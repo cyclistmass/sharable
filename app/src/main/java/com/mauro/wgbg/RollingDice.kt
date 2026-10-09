@@ -70,7 +70,13 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
         if (rollKey == null || die1 <= 0) return@LaunchedEffect
         t.snapTo(0f)
         onFlying(true)
-        try { t.animateTo(1f, tween((DiceSprites.FALL_S * 1000).toInt(), easing = LinearEasing)) } finally { onFlying(false) }
+        var landed = false
+        try {
+            t.animateTo(1f, tween((DiceSprites.FALL_S * 1000).toInt(), easing = LinearEasing)) {
+                // Hand over to the panel's resting dice the moment both dice settle.
+                if (!landed && value >= 0.93f) { landed = true; onFlying(false) }
+            }
+        } finally { onFlying(false) }
     }
     if (die1 <= 0 || rest == null) return
     // Where this roll is thrown from: a direction and distance picked from the roll itself (same roll, same throw).
@@ -94,7 +100,7 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
         val p = t.value
         val q = ((p - 0.07f) / 0.93f).coerceIn(0f, 1f)
         if (slots != null) {
-            if (p >= 1f && q >= 1f) return@Canvas   // landed: the panel's own dice show the result
+            if (p >= 0.86f && q >= 0.86f) return@Canvas   // settling: the panel's own (themed) dice take over
             // Land each die exactly on its icon: the cube fills ~60% of a sprite frame, so scale to match.
             fun settle(r: androidx.compose.ui.geometry.Rect, u: Float, frame: Int, sheet: ImageBitmap, spin: Float) {
                 val restSide = r.width * 0.86f / DiceSprites.CUBE_SHARE

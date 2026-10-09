@@ -537,7 +537,7 @@ fun WatchGameScreen(
             // The roll's dice roll across the turn HUD and rest on its top-right corner until the next roll.
             val rolled = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
             Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
-                TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying)
+                TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme)
             }
             if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
