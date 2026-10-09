@@ -108,6 +108,8 @@ jobs:
           script: |
             bash tools/ci_monkey.sh apk/app-debug.apk 4000
             SETTLE=1 START=chivalry bash tools/ci_monkey.sh apk/app-debug.apk 3000
+            # The app plays itself (#46): bots-only games at Max speed in both rulesets; every game must finish.
+            bash tools/ci_selfplay.sh 60 3
 
       - name: Upload monkey log
         if: always()
