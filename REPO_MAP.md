@@ -9,11 +9,15 @@ that name and address. Update this table when a folder or repo is added, moved o
 | `sharable\` | [cyclistmass/sharable](https://github.com/cyclistmass/sharable) (root) | The published repo: README, this map, issues, CI (`.github/workflows/wgbg-ci.yml`) | `git push` from here |
 | `catan-android\` (branch `main`) | cyclistmass/sharable → `working-german-board-game/` | The game: engine, AI, CLI, Android app, tools, docs, `firestore.rules` | commit in `catan-android`, then in `sharable`: `git subtree pull --prefix=working-german-board-game ../catan-android main` and push |
 | `catan-android-pip\` (`pip/render-layers`) | same, via `catan-android` `main` | Pip's worktree (render performance) | merged into `main` by Bosun, then subtree pull |
-| `catan-android-perfA\`, `catan-android-perfB\` (`codex/perf`) | same, via `main`; on GitHub as branch **`wgbg/codex-perf`** (a2b4a0a) | Codex render-speed pass (#33), review only | the branch is based on cf4f5ac (= catan-android fdb55cf), so rebase onto main before merging (it conflicts in RollingDice) |
-| `catan-android-tiles\` (`codex/tiles`), `catan-android-tiles3d\` (`codex/tiles3d`) | same, via `main`; **still local only** | Codex 3D-tile experiments (#32); tiles3d is mid-work (V2 set, teeny goats on Fleece) | push as `wgbg/codex-tiles*` branches when Mauro OKs; merge when approved |
+| `catan-android-perfA\`, `catan-android-perfB\` (`codex/perf`, local 07d4c4b) | same, via `main`; on GitHub as branch **`wgbg/codex-perf`** (a2b4a0a, older than local) | Codex render-speed pass (#33), review only | based on cf4f5ac (= catan-android fdb55cf), so rebase onto main before merging (it conflicts in RollingDice); push the newer local commit when Mauro OKs |
+| `catan-android-tiles\` (`codex/tiles`), `catan-android-tiles3d\` (`codex/tiles3d`, bf741c7) | same, via `main`; **still local only** | Codex 3D tiles (#32): V2 set, ART_SPEC, bandit options, teeny goats on Fleece | push as `wgbg/codex-tiles*` branches when Mauro OKs; merge when approved |
 | `catan-android-net\` | same, via `main` | Online-play (Firebase, #7) work; already merged | retire once nothing is left unmerged |
 | `wgbg-art\` | **not in git yet** | Source art: Codex/ChatGPT batches, prompts, logs, palettes, inventory page | finished art is copied into `catan-android\app\src\main\res\drawable-nodpi\`; the sources need a home (see below) |
 | `wgbg-games\` | **not in git** | Play-by-file test games (`play.cmd`, `playtest1`) | local scratch; the CLI itself is in the game repo (`cli/`) |
+| `wgbg-art\dice-themed\` | **not in git yet** | Codex dice art: antique and pirate, white / red / event dice, faces + tumbles; `orig\` and `orig2\` are backups (#31, #48) | finished dice are copied into `res\drawable-nodpi\`; sources wait on the wgbg-art repo decision |
+| `wgbg-art\session-crest-2026-10-09\` | **not in git yet** | Crest's Codex briefs, red-option and dice sheets, playtest scripts | archive of that chat |
+| `wgbg-art\_chat-2026-10-09_pip_5c3f1b3d\` | **not in git yet** | Pip's chat archive: every file generated in that chat, timestamped, with MANIFEST.md | archive of that chat |
+| `wgbg-art\claude-artifacts\` | **not in git yet** | saved copies of the claude.ai pages (see below) | saved before each login switch |
 
 Never committed, on purpose:
 - `catan-android\app\google-services.json`: the Firebase app config, gitignored; download it again from the Firebase console (project `workinggermangame`).
