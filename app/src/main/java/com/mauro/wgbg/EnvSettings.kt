@@ -93,3 +93,50 @@ private fun brassSlider() = androidx.compose.material3.SliderDefaults.colors(
     activeTrackColor = Color(0xFFC9A04A),
     inactiveTrackColor = Color(0xFF3A2414),
 )
+
+/** Music and game-sound volumes (0..1), saved across restarts; the soundtrack (#17) will play through these. */
+class SoundSettings(private val store: FloatStore) {
+    private val music = mutableFloatStateOf(store.get(MUSIC, 0.6f).coerceIn(0f, 1f))
+    private val sounds = mutableFloatStateOf(store.get(SOUNDS, 0.8f).coerceIn(0f, 1f))
+    var musicVolume: Float
+        get() = music.floatValue
+        set(v) { music.floatValue = v.coerceIn(0f, 1f); store.put(MUSIC, music.floatValue) }
+    var soundVolume: Float
+        get() = sounds.floatValue
+        set(v) { sounds.floatValue = v.coerceIn(0f, 1f); store.put(SOUNDS, sounds.floatValue) }
+
+    companion object {
+        const val MUSIC = "vol-music"
+        const val SOUNDS = "vol-sounds"
+        /** The planned set list (#17); empty until the recordings exist. */
+        val SONGS: List<String> = emptyList()
+    }
+}
+
+/** Sound in the menu: a header with a ^ that opens Music and Game sounds sliders and the song list. */
+@Composable
+fun SoundControls(sound: SoundSettings) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+            Modifier.clickable { open = !open }.testTag("sound-toggle").height(36.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Sound", fontSize = 14.sp)
+            Text(if (open) "^" else "v", fontSize = 18.sp, color = Color(0xFFD9B865), modifier = Modifier.width(24.dp))
+        }
+        if (open) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Music ${(sound.musicVolume * 100).roundToInt()}%", fontSize = 12.sp, modifier = Modifier.width(96.dp))
+                Slider(sound.musicVolume, { sound.musicVolume = it }, Modifier.width(200.dp).testTag("vol-music"), colors = brassSlider())
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Sounds ${(sound.soundVolume * 100).roundToInt()}%", fontSize = 12.sp, modifier = Modifier.width(96.dp))
+                Slider(sound.soundVolume, { sound.soundVolume = it }, Modifier.width(200.dp).testTag("vol-sounds"), colors = brassSlider())
+            }
+            Text("Songs", fontSize = 12.sp)
+            if (SoundSettings.SONGS.isEmpty()) Text("No songs yet: the sea-shanty set is on the way (#17)", fontSize = 12.sp, color = Color(0xFFCDBFA6))
+        }
+    }
+}

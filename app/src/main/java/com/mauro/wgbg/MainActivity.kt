@@ -61,6 +61,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -251,6 +253,7 @@ fun WatchGameScreen(
     // Scenery settings (density and motion), kept across restarts; the sea reads them once it supports them.
     val appContext = LocalContext.current.applicationContext
     val env = remember { EnvSettings(PrefsStore(appContext)) }
+    val sound = remember { SoundSettings(PrefsStore(appContext)) }
     // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
     // game starts several times a second, which would otherwise wipe splashes and clouds.
     val oceanRes = LocalContext.current.resources
@@ -356,6 +359,7 @@ fun WatchGameScreen(
     }
     var panelOpen by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
+    var hudTopRight by remember { mutableStateOf<Offset?>(null) }
     BackHandler { confirmExit = !confirmExit }
     // What the human may do right now (empty while bots move or in Watch mode).
     val legal = tick.let { if (human && !inventory && !state.isOver && state.actingPlayer == 0) Rules.legalActions(state) else emptyList() }
@@ -453,10 +457,11 @@ fun WatchGameScreen(
             val previous = tick.let { if (speed == MAX_SPEED) null else tracker.last.takeIf { it !== report } }
             // The roll's dice roll across the turn HUD and rest on its top-right corner until the next roll.
             val rolled = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
-            Box(Modifier.align(Alignment.BottomStart).padding(8.dp)) {
+            Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
                 TurnHud(report, previous, names)
-                if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, modifier = Modifier.matchParentSize())
             }
+            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight,
+                modifier = Modifier.fillMaxSize())
         }
         if (human && !inventory) {
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
@@ -522,6 +527,7 @@ fun WatchGameScreen(
                     }
                 }
                 EnvControls(env)
+                SoundControls(sound)
                 PlayerPanel(players)
                 Text("Wins: " + names.indices.joinToString("  ") { "${names[it]} ${wins[it]}" } + "  · draws ${wins[4]}",
                     style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)

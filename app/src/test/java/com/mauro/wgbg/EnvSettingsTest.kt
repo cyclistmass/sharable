@@ -36,4 +36,13 @@ class EnvSettingsTest {
         assertEquals(1f, env.clouds)
         assertEquals(0f, env.birds)
     }
+
+    @Test
+    fun `volumes persist, are clamped and independent`() {
+        val store = MapStore()
+        SoundSettings(store).apply { musicVolume = 0.2f; soundVolume = 7f }
+        val again = SoundSettings(store)
+        assertEquals(0.2f, again.musicVolume)
+        assertEquals(1f, again.soundVolume)
+    }
 }
