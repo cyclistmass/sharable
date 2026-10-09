@@ -317,10 +317,15 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
 /** Joins room [code] in its first open seat (seats 1-3, in order). */
 internal fun joinFirstOpenSeat(transport: wgbg.net.GameTransport, setup: GameSetup, code: String, seat: Int = 1): java.util.concurrent.CompletableFuture<LobbySession> =
     LobbySession.join(transport, setup, code, seat).handle { s, e -> s to e }.thenCompose { (s, e) ->
+        // Only "this seat can't be taken" (the transport's checks) moves on to the next seat; anything else
+        // (no such room, permission, network) is the real answer and is reported as it is.
+        val seatRefused = e != null && generateSequence(e) { it.cause }.last() is IllegalArgumentException
+        if (e != null) runCatching { android.util.Log.w("WGBG-ONLINE", "join $code seat $seat failed", e) } // no Log in JVM tests
         when {
             e == null -> java.util.concurrent.CompletableFuture.completedFuture(s)
-            seat < GameSetup.MAX_SEATS - 1 && onlineProblem(e) != ROOM_MISSING -> joinFirstOpenSeat(transport, setup, code, seat + 1)
-            else -> java.util.concurrent.CompletableFuture.failedFuture(if (onlineProblem(e) == ROOM_MISSING) e else IllegalStateException("That room is full or has started"))
+            !seatRefused -> java.util.concurrent.CompletableFuture.failedFuture(e)
+            seat < GameSetup.MAX_SEATS - 1 -> joinFirstOpenSeat(transport, setup, code, seat + 1)
+            else -> java.util.concurrent.CompletableFuture.failedFuture(IllegalStateException("That room is full or has started"))
         }
     }
 

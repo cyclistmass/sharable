@@ -56,7 +56,7 @@ class FirestoreTransport(private val auth: FirebaseAuth, private val db: Firebas
         // A remembered sign-in can be dead (its account deleted, or made against the debug emulators):
         // check its token first, and sign in afresh if the server refuses it.
         val saved = auth.currentUser
-        val result = if (saved == null) fresh() else saved.getIdToken(false).future()
+        val result = if (saved == null) fresh() else saved.getIdToken(true).future() // true: ask the server, a cached token proves nothing
             .thenApply { CompletableFuture.completedFuture(saved.uid) }
             .exceptionally { auth.signOut(); fresh() }
             .thenCompose { it }
