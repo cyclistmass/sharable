@@ -54,7 +54,7 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
  * The lobby (#19), ported from docs/design/LobbyA.dc.html with Lobby B's thin brass edge:
  * room code, invite link (copy, share, QR), the four seats with ready state and a bot picker
  * on open seats, recent players, and Start / New game settings. State is hoisted: every
- * change goes through [onChange], so the Firebase transport (#7) can sit behind it later.
+ * change goes through [onChange]; OnlineLobbyScreen connects this seam to the transport.
  */
 @Composable
 fun LobbyScreen(
@@ -63,6 +63,7 @@ fun LobbyScreen(
     onStart: (GameSetup) -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    reconnecting: Boolean = false,
 ) {
     val context = LocalContext.current
     var bigQr by remember { mutableStateOf(false) }
@@ -77,6 +78,7 @@ fun LobbyScreen(
                         Text("Room ${lobby.code}", style = Wood.title(24.sp, Wood.BRASS_INK), modifier = Modifier.testTag("room-code"))
                     }
                     Text("${lobby.taken} of ${GameSetup.MAX_SEATS} seats taken", style = Wood.sans(13.sp, color = Wood.INK_MUTED))
+                    if (reconnecting) Text("Reconnecting…", style = Wood.sans(12.sp, color = Wood.INK_MUTED))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BrassButton("Copy link", "copy-link", Modifier.height(34.dp)) { copyLink(context, lobby.link) }

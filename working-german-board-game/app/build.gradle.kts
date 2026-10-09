@@ -3,6 +3,9 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Firebase config is machine-local (gitignored); without it the app builds offline-only, as on CI.
+if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+
 android {
     namespace = "com.mauro.wgbg"
     compileSdk = 37
@@ -32,9 +35,13 @@ android {
 }
 
 dependencies {
+    implementation(project(":net"))
     implementation(project(":engine"))
     implementation(project(":ai"))
     implementation(libs.zxing.core)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
 
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
