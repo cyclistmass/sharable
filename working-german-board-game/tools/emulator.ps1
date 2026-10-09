@@ -27,15 +27,42 @@ function Get-EmuWindow {
 # script would see (and capture) only a scaled-down 1536x864 view of it.
 [EmuWin]::SetProcessDPIAware() | Out-Null
 
-# 1. Start and wait for boot.
+# 1. Make sure the emulator is actually USABLE, fast. Never block on `adb wait-for-device`: an
+#    emulator stuck "offline" (hung adb, bad snapshot) would hang it forever.
+function Invoke-Adb([string[]]$a, [int]$sec = 8) {
+    # Runs adb with a hard timeout; returns its output, or $null if it hung or failed.
+    $job = Start-Job -ScriptBlock { param($adb, $a) & $adb @a 2>$null } -ArgumentList $adb, $a
+    if (Wait-Job $job -Timeout $sec) { $o = Receive-Job $job; Remove-Job $job -Force; return ($o -join "`n") }
+    Stop-Job $job; Remove-Job $job -Force; return $null
+}
+function Test-EmuReady {
+    $state = Invoke-Adb @("get-state") 5
+    if ($state -notmatch "device") { return $false }
+    return (Invoke-Adb @("shell", "getprop", "sys.boot_completed") 5) -match "1"
+}
+function Restart-Emulator {
+    "Emulator not healthy: killing it and cold-booting"
+    Get-Process qemu-system-x86_64, emulator -ErrorAction SilentlyContinue | Stop-Process -Force
+    Get-Process adb -ErrorAction SilentlyContinue | Stop-Process -Force
+    Start-Sleep -Seconds 2
+    Start-Process "$sdk\emulator\emulator.exe" -ArgumentList "-avd", $Avd, "-no-snapshot-load", "-no-snapshot-save" -WindowStyle Normal
+}
+function Wait-EmuReady([int]$sec) {
+    $t0 = Get-Date
+    while (((Get-Date) - $t0).TotalSeconds -lt $sec) { if (Test-EmuReady) { return $true }; Start-Sleep -Seconds 3 }
+    return $false
+}
+
+$t0 = Get-Date
 if (-not (Get-EmuWindow)) {
     Start-Process "$sdk\emulator\emulator.exe" -ArgumentList "-avd", $Avd, "-no-snapshot-save" -WindowStyle Normal
+    if (-not (Wait-EmuReady 90)) { Restart-Emulator; if (-not (Wait-EmuReady 90)) { throw "Emulator did not boot in 3 minutes" } }
+} elseif (-not (Wait-EmuReady 15)) {
+    # Running but offline or hung: don't wait it out, restart it.
+    Restart-Emulator
+    if (-not (Wait-EmuReady 90)) { throw "Emulator did not come back after a cold boot" }
 }
-& $adb wait-for-device | Out-Null
-for ($i = 0; $i -lt 120; $i++) {
-    if ((& $adb shell getprop sys.boot_completed 2>$null) -match "1") { break }
-    Start-Sleep -Seconds 2
-}
+"Emulator ready in $([int]((Get-Date) - $t0).TotalSeconds)s"
 for ($i = 0; $i -lt 30 -and -not (Get-EmuWindow); $i++) { Start-Sleep -Seconds 1 }
 $p = Get-EmuWindow
 if (-not $p) { throw "Emulator window not found" }
