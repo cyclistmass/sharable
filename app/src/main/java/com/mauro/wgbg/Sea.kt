@@ -186,6 +186,11 @@ class Sea(board: Board, seed: Int = 1) {
     // Tonal patches: two small tileable noise textures, built once (pixels here, the bitmap lazily on first draw).
     internal val patchPixels = arrayOf(patchTexture(PATCH_A_LOW, PATCH_A_HIGH, seed * 31 + 1), patchTexture(PATCH_B_LOW, PATCH_B_HIGH, seed * 31 + 2))
     private var patchBrushes: List<Pair<BitmapShader, ShaderBrush>>? = null
+
+    /** Painted, seamlessly tiling ocean (ocean_tile, made with Mauro's ChatGPT); null in tests, where the gradient stands in. */
+    var oceanBitmap: Bitmap? = null
+    private var oceanBrushes: List<Pair<BitmapShader, ShaderBrush>>? = null
+    private val oceanMatrix = Matrix()
     private val patchMatrix = Matrix()
     private val crescent = Path()
 
@@ -354,7 +359,8 @@ class Sea(board: Board, seed: Int = 1) {
             0.0f to DEEP_SHORE, f(SEA_R * 0.72f) to DEEP_SHORE, f(SEA_R) to DEEP_MID, 1f to DEEP_RIM,
             center = c, radius = far,
         ), all.topLeft, all.size)
-        drawPatches(this, c, s, squash, all)
+        val ocean = oceanBitmap
+        if (ocean != null) drawOcean(this, ocean, c, s, squash, all, far) else drawPatches(this, c, s, squash, all)
         // Shallows hugging the coast: stacked translucent hex halos read as a soft gradient.
         for ((grow, alpha) in listOf(1.22f to 0.18f, 1.14f to 0.22f, 1.07f to 0.28f)) {
             for (h in land) drawPath(hexPath(at, h, grow), SHALLOW.copy(alpha = alpha))
@@ -378,6 +384,33 @@ class Sea(board: Board, seed: Int = 1) {
         }
         // Surf line on the coast (tiles cover its inner half).
         for (h in land) drawPath(hexPath(at, h, 1.06f), Color.White.copy(alpha = 0.8f), style = Stroke(0.05f * s))
+    }
+
+    /**
+     * The painted ocean: the tile repeated across the screen, with a second copy turned and drifting the
+     * other way at low alpha so the surface shimmers, and the edges sinking to deep water.
+     */
+    private fun drawOcean(ds: DrawScope, bmp: Bitmap, c: Offset, s: Float, squash: Float, area: Rect, far: Float) {
+        val brushes = oceanBrushes ?: List(2) {
+            val sh = BitmapShader(bmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+            sh to ShaderBrush(sh)
+        }.also { oceanBrushes = it }
+        val tile = OCEAN_TILE * s / bmp.width                  // one tile spans OCEAN_TILE hex sides
+        for ((i, pair) in brushes.withIndex()) {
+            val (shader, brush) = pair
+            val drift = time * if (i == 0) 0.05f else -0.035f
+            oceanMatrix.reset()
+            oceanMatrix.setScale(tile * if (i == 0) 1f else 1.37f, tile * squash * if (i == 0) 1f else 1.37f)
+            if (i == 1) oceanMatrix.postRotate(31f)
+            oceanMatrix.postTranslate(c.x + drift * s, c.y + drift * s * 0.45f * squash)
+            shader.setLocalMatrix(oceanMatrix)
+            ds.drawRect(brush, area.topLeft, area.size, alpha = if (i == 0) 1f else 0.3f)
+        }
+        // Deeper toward the edges of the screen; the island's waters stay bright.
+        ds.drawRect(Brush.radialGradient(
+            0f to Color.Transparent, (SEA_R * s / far).coerceIn(0.05f, 0.95f) to Color(0x22000A1E), 1f to Color(0x99000A1E),
+            center = c, radius = far,
+        ), area.topLeft, area.size)
     }
 
     /** Two translucent layers of soft tonal patches drifting slowly in different directions. */
@@ -560,6 +593,8 @@ class Sea(board: Board, seed: Int = 1) {
         private const val PATCH_B_HIGH = 0xFF4E9AB5.toInt()
         /** Patch texture size in pixels, and how many hex sides one tile spans. */
         const val PATCH_TEX = 64
+        /** How many hex sides one ocean tile spans on screen. */
+        const val OCEAN_TILE = 6f
         private const val PATCH_TILE_A = 4.3f
         private const val PATCH_TILE_B = 3.1f
 

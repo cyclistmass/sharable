@@ -251,7 +251,8 @@ fun WatchGameScreen(
     val env = remember { EnvSettings(PrefsStore(appContext)) }
     // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
     // game starts several times a second, which would otherwise wipe splashes and clouds.
-    val sea = remember { Sea(state.board) }
+    val oceanRes = LocalContext.current.resources
+    val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile) } }
     // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
     // read the current game's sea and board through these.
     val seaNow by rememberUpdatedState(sea)
