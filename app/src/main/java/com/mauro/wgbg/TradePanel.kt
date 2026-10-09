@@ -150,7 +150,10 @@ fun TradePanel(
     modifier: Modifier = Modifier,
     /** Answers to our offer by seat: ✓ yes, ✗ no, ⇄ countered. */
     responses: Map<Int, String> = emptyMap(),
+    /** Changes after every move; [s] is mutated in place, so this makes the panel redraw. */
+    version: Int = 0,
 ) {
+    version
     val mode = tradeMode(s, me)
     // Fresh selections whenever the trade situation changes.
     val key = listOf(s.turn, s.phase, s.actingPlayer, s.counterFrom, s.hands.sum())

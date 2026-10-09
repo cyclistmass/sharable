@@ -38,7 +38,8 @@ fun barSegments(level: Int) = level.coerceIn(0, 4)
  * points (Landmark cards) are not shown.
  */
 @Composable
-fun PlayerStrip(s: GameState, me: Int, names: List<String>, modifier: Modifier = Modifier) {
+fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifier: Modifier = Modifier) {
+    version // the state object is mutated in place; this changing value makes the strip redraw after each move
     Column(modifier.brassEdgedWood().padding(horizontal = 12.dp, vertical = 8.dp).testTag("player-strip"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         for (p in 0 until s.numPlayers) {
             val turn = !s.isOver && p == s.currentPlayer
@@ -64,7 +65,8 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, modifier: Modifier =
 
 /** Your hand along the bottom edge (no frame): the illustrated cards you hold, each with its count. */
 @Composable
-fun HandRow(s: GameState, me: Int, modifier: Modifier = Modifier) {
+fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) {
+    version // see PlayerStrip
     Row(modifier.testTag("hand-row"), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
         for (r in 0 until CARD_TYPES) {
             val n = s.hand(me, r)
