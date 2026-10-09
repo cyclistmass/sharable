@@ -508,7 +508,7 @@ fun WatchGameScreen(
         if (panelOpen) CompositionLocalProvider(LocalContentColor provides Color(0xFFEDE6D8)) {
             Column(
                 Modifier.align(Alignment.TopEnd).fillMaxHeight()
-                    .padding(top = 60.dp, end = 8.dp, bottom = 8.dp)
+                    .padding(top = 116.dp, end = 8.dp, bottom = 8.dp) // below the Menu button and the gear
                     .width(340.dp)
                     .brassEdgedWood()
                     .verticalScroll(rememberScrollState())
@@ -542,10 +542,10 @@ fun WatchGameScreen(
         }
       }
         BrassButton(if (panelOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) { panelOpen = !panelOpen }
-        // The gear: every setting in one panel, left of the Menu button.
-        GearButton(settingsOpen, { settingsOpen = !settingsOpen }, Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 108.dp))
+        // The gear sits directly under the Menu button; its panel opens below it.
+        GearButton(settingsOpen, { settingsOpen = !settingsOpen }, Modifier.align(Alignment.TopEnd).padding(top = 58.dp, end = 22.dp))
         if (settingsOpen) SettingsPanel(env, sound, onClose = { settingsOpen = false },
-            Modifier.align(Alignment.TopEnd).padding(top = 64.dp, end = 8.dp))
+            Modifier.align(Alignment.TopEnd).padding(top = 116.dp, end = 8.dp))
         if (confirmExit) Column(
             Modifier.align(Alignment.Center).brassEdgedWood().padding(18.dp).testTag("exit-confirm"),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -563,7 +563,7 @@ fun WatchGameScreen(
             open = tradeOpen || tradeNeedsMe(state, 0),
             attention = tick.let { tradeNeedsMe(state, 0) },
             onClick = { tradeOpen = !tradeOpen },
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (panelOpen) 356.dp else 8.dp),
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (panelOpen || settingsOpen) 376.dp else 84.dp),
         )
     }
 }
