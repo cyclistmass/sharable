@@ -16,6 +16,15 @@ Every new or changed graphic goes onto a **palette for evaluation** before it is
 
 Art assets must be CC0 or our own; record sources in CREDITS.md.
 
+## Design motif (required on every panel)
+
+Every panel, dialog, HUD box, menu and button uses our tabletop look: **dark wood panels with
+old-brass edges, brass-edged buttons** (wood: `res/drawable-nodpi/wood_grain.png`; brass: ambientCG
+Metal042B `old_brass.jpg`; shared modifiers and buttons in `Tabletop.kt`: `brassEdgedWood()`,
+`brassPlate()`, `BrassButton`, `GoButton`, `Choice`; fonts Alegreya SC / Alegreya Sans). No plain
+Material grey buttons or black boxes. Action colours stay: Yes/confirm green, No/cancel red,
+Counter/primary gold.
+
 ## Names (copyright safety)
 
 Never use Catan names in UI, art or card text. Use our names: Timber, Clay, Fleece, Grain, Stone;

@@ -21,7 +21,10 @@ tap_text() {
   sleep 0.7
 }
 
-# Open the menu, switch to Watch bots (starts at Max), Max -> 1x, close the menu.
+# The app opens on the game-start screen: Play, then open the menu, switch to Watch bots
+# (starts at Max), Max -> 1x, close the menu.
+tap_text "Play"
+sleep 3
 "$A" shell input tap 2270 84
 sleep 1
 tap_text "Watch bots"
@@ -35,6 +38,6 @@ TMP="$(cygpath -w "$TEMP/play.mp4")"
 
 mkdir -p docs
 ffmpeg -loglevel error -y -i "$TMP" \
-  -vf "fps=12,scale=900:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=192[p];[s1][p]paletteuse=dither=sierra2_4a" \
+  -vf "fps=10,scale=760:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=sierra2_4a" \
   docs/gameplay-1x.gif
 ls -la docs/gameplay-1x.gif

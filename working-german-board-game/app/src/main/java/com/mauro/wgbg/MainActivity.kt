@@ -7,6 +7,9 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.activity.compose.BackHandler
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -89,6 +93,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import wgbg.ai.EasyBot
 import wgbg.ai.GreedyBot
 import wgbg.ai.Bot
 import wgbg.engine.Action
@@ -129,7 +134,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color.Black)) {
-                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), debugCamera())
+                AppRoot(debugCamera())
             }
         }
     }
@@ -170,16 +175,59 @@ private fun polygon(points: List<Offset>) = Path().apply {
 /** Pips under a number token: how many dice combinations roll it (2/12 → 1, 6/8 → 5). */
 private fun pips(n: Int) = 6 - kotlin.math.abs(7 - n)
 
-/** Play seat 0 against three bots (issue #5), or watch four bots play. */
+private enum class Screen { START, LOBBY, GAME }
+
+/** Game start (#3) -> optional lobby (#19) -> the game; the in-game Exit goes back to game start. */
 @Composable
-fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camera.FIT) {
-    var seed by remember { mutableLongStateOf(1L) }
-    // Play mode: you are seat 0 ("You"); Watch mode: four bots at full speed.
-    var human by remember { mutableStateOf(true) }
+fun AppRoot(initialCamera: Camera = Camera.FIT) {
+    var screen by rememberSaveable { mutableStateOf(Screen.START) }
+    var setup by remember { mutableStateOf(GameSetup()) }
+    var lobby by remember { mutableStateOf<Lobby?>(null) }
+    var gameNo by rememberSaveable { mutableIntStateOf(0) }
+    when (screen) {
+        Screen.START -> NewGameScreen(
+            onStart = { setup = it; gameNo++; screen = Screen.GAME },
+            initial = setup,
+            onOpenLobby = { setup = it; lobby = Lobby.host(it); screen = Screen.LOBBY },
+        )
+        Screen.LOBBY -> lobby?.let { l ->
+            BackHandler { screen = Screen.START }
+            LobbyScreen(l, onChange = { lobby = it }, onStart = { setup = it; gameNo++; screen = Screen.GAME }, onSettings = { screen = Screen.START })
+        } ?: run { screen = Screen.START }
+        Screen.GAME -> key(gameNo) {
+            BackHandler { screen = Screen.START }
+            WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START })
+        }
+    }
+}
+
+/**
+ * The game. With a [setup] you play seat 0 against bots (friends play as bots until online play
+ * lands, #7); the menu can switch to watching the bots. Age of Chivalry is watch-only until its
+ * screens exist (#4).
+ */
+@Composable
+fun WatchGameScreen(
+    modifier: Modifier = Modifier,
+    initialCamera: Camera = Camera.FIT,
+    setup: GameSetup = GameSetup(),
+    onExit: () -> Unit = {},
+) {
+    var seed by remember { mutableLongStateOf(System.nanoTime() and 0xffffffL) }
+    // Play mode: you are seat 0 ("You"); Watch mode: bots in every seat at full speed.
+    var human by remember { mutableStateOf(setup.ruleset == Ruleset.BASE) }
     val names = if (human) listOf("You") + PLAYER_NAMES.drop(1) else PLAYER_NAMES
-    var seats by remember { mutableIntStateOf(4) } // 3 or 4 players (until the new-game screen exists)
-    val state = remember(seed, seats) { Rules.newGame(GameConfig(numPlayers = seats), seed) }
-    val bots = remember(seed, seats) { List<Bot>(seats) { GreedyBot(seed * 31 + it) } }
+    val seats = setup.players.size
+    val state = remember(seed, seats) { Rules.newGame(setup.config(), seed) }
+    // Each playing seat's bot: the level picked on the game-start screen (friends play as Greedy until #7;
+    // Strong plays as Greedy until #6). In Watch mode seat 0 gets a Greedy bot too.
+    val bots = remember(seed, seats) {
+        setup.players.mapIndexed { i, seat ->
+            val s = setup.seats[seat]
+            val r = seed * 31 + i
+            if (s.kind == SeatKind.BOT && s.bot == BotLevel.EASY) EasyBot(r) else GreedyBot(r)
+        }
+    }
     val log = remember(seed, seats) { mutableStateListOf<String>() }
     val tracker = remember(seed, seats, human) { TurnTracker(names) }
     // Moves from the human's taps and buttons; the game loop checks each against the rules.
@@ -189,7 +237,7 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
     var pending by remember { mutableStateOf<List<Action>>(emptyList()) }
     val responses = remember(seed, seats) { mutableStateMapOf<Int, String>() }
     // Dice setting cycles: random, then deck stacks of 1-4 x 36 cards (asked per game once the new-game screen exists).
-    var diceSetting by remember { mutableIntStateOf(0) } // 0 = random, n = n decks
+    var diceSetting by remember { mutableIntStateOf(setup.decks) } // 0 = random, n = n decks
     val dice = remember(diceSetting) { if (diceSetting == 0) DiceDeck.of(DiceMode.RANDOM) else DiceDeck.of(DiceMode.DECK, diceSetting) }
     var tick by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf(true) }
@@ -321,13 +369,20 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                     boardGestures(
                         grab = { p -> seaNow.cloudAt(lattice(p))?.also { dragged = it } != null },
                         onGrabMove = { p -> dragged?.let { seaNow.move(it, lattice(p)) } },
-                        onGrabEnd = { moved, at, v ->
+                        onGrabEnd = { g ->
                             dragged?.let { c ->
-                                if (!moved) seaNow.poof(c)
-                                else {
-                                    // Screen px/s to lattice units/s, sampled over 0.1 s so tilt is accounted for.
-                                    val d = lattice(at + v * 0.1f) - lattice(at)
-                                    flingCloud(seaNow, c, d.x * 10f, d.y * 10f)
+                                seaNow.release(c)
+                                // Screen px/s to lattice units/s, sampled over 0.1 s so zoom and tilt are accounted for.
+                                fun toLattice(v: Offset) = (lattice(g.at + v * 0.1f) - lattice(g.at)) * 10f
+                                val release = toLattice(g.velocity)
+                                when (CloudFeel.classify(g.travel, g.durationMs, g.velocity.getDistance(), viewConfiguration.touchSlop)) {
+                                    CloudFeel.Gesture.TAP -> seaNow.poof(c, lattice(g.start))
+                                    CloudFeel.Gesture.NUDGE -> {
+                                        val avg = (g.at - g.start) / (g.durationMs.coerceAtLeast(16) / 1000f)
+                                        toLattice(avg).let { seaNow.push(c, it.x * CloudFeel.NUDGE_GAIN, it.y * CloudFeel.NUDGE_GAIN) }
+                                    }
+                                    CloudFeel.Gesture.FLICK -> seaNow.fling(c, release.x * CloudFeel.FLICK_RETAIN, release.y * CloudFeel.FLICK_RETAIN)
+                                    CloudFeel.Gesture.DRAG -> seaNow.fling(c, release.x * CloudFeel.DRAG_RELEASE, release.y * CloudFeel.DRAG_RELEASE)
                                 }
                             }
                             dragged = null
@@ -388,7 +443,12 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
         if (!inventory) {
             val report = tick.let { if (speed == MAX_SPEED) tracker.last else tracker.current ?: tracker.last }
             val previous = tick.let { if (speed == MAX_SPEED) null else tracker.last.takeIf { it !== report } }
-            TurnHud(report, previous, names, Modifier.align(Alignment.BottomStart).padding(8.dp))
+            // The roll's dice roll across the turn HUD and rest on its top-right corner until the next roll.
+            val rolled = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
+            Box(Modifier.align(Alignment.BottomStart).padding(8.dp)) {
+                TurnHud(report, previous, names)
+                if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, modifier = Modifier.matchParentSize())
+            }
         }
         if (human && !inventory) {
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
@@ -439,11 +499,11 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     FilledTonalButton(onClick = { playing = !playing }) { Text(if (playing) "Pause" else "Play") }
                     FilledTonalButton(onClick = { speed = if (speed == MAX_SPEED) 1 else speed * 2 }) { Text(if (speed == MAX_SPEED) "Max" else "${speed}×") }
-                    FilledTonalButton(onClick = { seed++; playing = true }) { Text("New") }
+                    FilledTonalButton(onClick = onExit,
+                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFFC0392B), contentColor = Color.White)) { Text("Exit game") }
                     FilledTonalButton(onClick = { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }) {
                         Text(if (human) "Watch bots" else "Play")
                     }
-                    FilledTonalButton(onClick = { seats = if (seats == 4) 3 else 4; tradeOpen = false; playing = true }) { Text("$seats players") }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     FilledTonalButton(onClick = { inventory = !inventory }) { Text(if (inventory) "Back to game" else "Inventory") }
@@ -517,7 +577,7 @@ private suspend fun PointerInputScope.boardGestures(
     onTilt: (dy: Float) -> Unit,
     grab: (Offset) -> Boolean = { false },
     onGrabMove: (Offset) -> Unit = {},
-    onGrabEnd: (moved: Boolean, at: Offset, velocity: Offset) -> Unit = { _, _, _ -> },
+    onGrabEnd: (GrabEnd) -> Unit = {},
 ) = awaitEachGesture {
     val first = awaitFirstDown(requireUnconsumed = false)
     // A single finger landing on a cloud drags that cloud (a tap without moving poofs it).
@@ -525,6 +585,7 @@ private suspend fun PointerInputScope.boardGestures(
         var moved = false
         var travel = 0f
         var last = first.position
+        var lastTime = first.uptimeMillis
         // Release velocity (px/s) so a thrown cloud keeps going.
         val tracker = VelocityTracker().apply { addPosition(first.uptimeMillis, first.position) }
         do {
@@ -535,10 +596,11 @@ private suspend fun PointerInputScope.boardGestures(
             if (moved) onGrabMove(c.position)
             tracker.addPosition(c.uptimeMillis, c.position)
             last = c.position
+            lastTime = c.uptimeMillis
             c.consume()
         } while (c.pressed)
         val v = tracker.calculateVelocity()
-        onGrabEnd(moved, last, Offset(v.x, v.y))
+        onGrabEnd(GrabEnd(first.position, last, travel, lastTime - first.uptimeMillis, Offset(v.x, v.y)))
         return@awaitEachGesture
     }
     var mode = 0 // 0 undecided, 1 transform, 2 tilt
@@ -1027,7 +1089,5 @@ private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer:
 }
 
 
-/** Hands a released cloud its throw (the sea caps the speed and damps it to rest). */
-private fun flingCloud(sea: Sea, c: Sea.Cloud, vx: Float, vy: Float) {
-    if (vx.isFinite() && vy.isFinite()) sea.fling(c, vx, vy)
-}
+/** A finished touch on a cloud: where it started and ended (px), path length, duration and release velocity (px/s). */
+private class GrabEnd(val start: Offset, val at: Offset, val travel: Float, val durationMs: Long, val velocity: Offset)

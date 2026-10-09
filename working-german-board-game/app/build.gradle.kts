@@ -34,6 +34,7 @@ android {
 dependencies {
     implementation(project(":engine"))
     implementation(project(":ai"))
+    implementation(libs.zxing.core)
 
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
