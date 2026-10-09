@@ -9,3 +9,6 @@
 - Assets must be **our own or clearly CC0**, recorded in `CREDITS.md`. These models, effects and proof plates are own procedural assets. Keep TileLife as the overlay layer; apply the same plate exclusion mask after displacement, interpolation and blur.
 
 Reproduce sequentially with `tools/blender/run_token_clearings.ps1`. No application changes are part of this art pass.
+
+- **Fleece means alpaca fleece:** 6?8 alpacas in small groups, long fluffy necks and upright ears, cream/white/fawn/brown coats; grazing and one or two looking up. Keep the lush pasture, wall/gate and visibly smaller horned, bearded goats. Motion: gentle shifts, grazing neck bends and head turns, outside the number clearing.
+- **Clay colour:** a restrained terracotta/brick-red ground, terraces and cut faces; wet bottom darker red-brown. Keep the kiln and brick stacks distinct, and Clay clearly redder than Desert ochre.

@@ -114,9 +114,11 @@ def fleece():
     for x in [.02,.25]:pole('gate post',(x,.72,pasture(x,.72)),(x,.72,pasture(x,.72)+.19),.018,wood)
     for z in [.065,.135]:pole('gate rail',(.02,.71,pasture(0,.72)+z),(.25,.71,pasture(0,.72)+z),.012,wood)
     pole('gate diagonal brace',(.02,.707,pasture(0,.72)+.065),(.25,.707,pasture(0,.72)+.135),.008,wood)
-    # Six stationary sheep in two small family groups; seventh is the animation layer.
+    # Six grouped alpacas; a seventh shifts and grazes in the sprite layer.
     v2.pasture=pasture
-    for x,y,h in [(.13,.40,.3),(.32,.43,-.4),(.29,-.13,-.1),(.38,.13,-.7),(.54,-.09,.2),(.10,-.58,.6)]:v2.sheep(x,y,h,1.1)
+    from alpacas import alpaca
+    for i,(x,y,h) in enumerate([(.13,.40,.3),(.32,.43,-.4),(.29,-.13,-.1),(.38,.13,-.7),(.54,-.09,.2),(.10,-.58,.6)]):
+        alpaca(x,y,h,.3+i*.13,i%4,upright=i in (0,1))
     rock=mat('goat outcrop',(.34,.33,.25),.20)
     for x,y,sz in [(.02,.67,.11),(.12,.65,.09),(.55,.33,.10)]:pebble((x,y,pasture(x,y)+sz*.3),(sz,sz*.8,sz*.7),rock)
     goat(.02,.67,.2,1.0,pasture(.02,.67)+.068);goat(.53,.33,-1.0,1.8,pasture(.53,.33)+.06)
@@ -212,16 +214,16 @@ def clay_height(x,y):
     return .115+.025*math.exp(-((x+.45)**2+(y-.46)**2)/.18)
 
 def clay():
-    terrain_base('clay',(.46,.19,.065),True)
-    earth=mat('terrace cut clay',(.45,.18,.065),.25);wet=mat('wet dark clay bottom',(.18,.070,.023),.20)
+    terrain_base('clay',(.49,.145,.080),True)
+    earth=mat('terrace cut clay',(.49,.145,.078),.25);wet=mat('wet dark clay bottom',(.20,.052,.030),.20)
     wet.node_tree.nodes.get('Principled BSDF').inputs['Roughness'].default_value=.33
-    cut=mat('fresh cut terrace walls',(.31,.105,.030),.22)
+    cut=mat('fresh cut terrace walls',(.35,.080,.045),.22)
     o=v2.field('deep excavated clay terraces',clay_height,earth,True,76,192);o.data.materials.append(wet);o.data.materials.append(cut)
     for p in o.data.polygons:
         z=sum(o.data.vertices[v].co.z for v in p.vertices)/len(p.vertices)
         if z<-.045:p.material_index=1
         elif p.normal.z<.65:p.material_index=2
-    water=mat('wet clay puddle',(.14,.095,.048),.06);water.node_tree.nodes.get('Principled BSDF').inputs['Roughness'].default_value=.20
+    water=mat('wet clay puddle',(.15,.058,.037),.06);water.node_tree.nodes.get('Principled BSDF').inputs['Roughness'].default_value=.20
     pebble((-.27,-.19,-.112),(.12,.073,.002),water,True)
     brick=mat('hand fired kiln bricks',(.39,.105,.035),.23);mortar=mat('dark mortar',(.15,.070,.020),.13);wood=mat('yard oak',(.22,.11,.034),.20)
     x=.46;y=-.08;z=clay_height(x,y)
@@ -321,7 +323,8 @@ def stone():
 
 def animals(phase):
     v2.pasture=pasture
-    v2.sheep(.16+.055*math.sin(phase),-.37+.020*math.cos(phase),-.2+.10*math.sin(phase),phase)
+    from alpacas import alpaca
+    alpaca(.16+.040*math.sin(phase),-.37+.015*math.cos(phase),-.2+.10*math.sin(phase),phase,1)
     goat(.42+.010*math.sin(phase),.08+.006*math.cos(phase),-.5,phase+.9)
 
 def main():

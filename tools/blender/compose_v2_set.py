@@ -78,14 +78,14 @@ def main():
     im=Image.open(path);assert im.mode=='RGBA' and im.size==(1024,256)
     layers.append(dict(file=str(path.relative_to(OUT)),bytes=path.stat().st_size,dimensions=im.size))
     stats=dict(tiles=records,layers=layers,tile_png_bytes=sum(r['bytes'] for r in records),tile_lossless_webp_bytes=sum(r['webp_lossless_bytes'] for r in records),
-               sheep_png_bytes=sum(r['bytes'] for r in layers if 'fleece' in r['file'] and r['file'].endswith('.png')))
+               animal_png_bytes=sum(r['bytes'] for r in layers if 'fleece' in r['file'] and r['file'].endswith('.png')))
     (OUT/'validation-v2.json').write_text(json.dumps(stats,indent=2))
     modes={
         'timber':'Procedural bird wings and three falling leaves. Trees surround a shared flat number glade.',
         'stone':'Selected R3 Alpine chain: seven summits on shared shoulders, warm rock, snow caps, scree and foothill pines. Three mist wisps and one soaring bird.',
-        'fleece':'Lush pasture, seven sheep and three tiny horned goats. 16 sheep-and-goat layers graze and wander.',
+        'fleece':'Lush pasture, seven alpacas and three tiny horned goats. 16 alpaca-and-goat layers graze, turn their heads and wander.',
         'grain':'Procedural wind moves a masked wheat patch using a small textured mesh.',
-        'clay':'Nine fading smoke puffs curl upward from the kiln chimney.',
+        'clay':'Terracotta-red terraces and a dark red-brown pit floor. Nine fading smoke puffs curl upward from the brick kiln chimney.',
         'desert':'Relief dunes, ripples, scrub and bleached remains. A masked dune patch subtly shimmers in the heat.'}
     cards=[]
     for r in TERRAINS:
@@ -107,6 +107,8 @@ if(matchMedia('(prefers-reduced-motion: reduce)').matches)setPaused(true);
         html=html.replace('</section><script>',proof+'</section><script>')
         html=html.replace('<a href="PLAN.md">Integration plan</a>','<a href="PLAN.md">Integration plan</a> · <a href="stone-alpine/stone-phone-25pct.png">Stone at phone scale</a> · <a href="stone-alpine/REPORT.md">R3 report</a>')
     html=html.replace('<a href="PLAN.md">Integration plan</a>','<a href="PLAN.md">Integration plan</a> · <a href="palette-v2-density.png">Before → after density</a> · <a href="../bandit/bandit-options.png">Bandit options</a>')
+    if (OUT/'alpaca-clay/clay-fleece-phone-25pct.png').exists():
+        html=html.replace('<a href="ART_SPEC.md">Art specification</a>','<a href="ART_SPEC.md">Art specification</a> ? <a href="alpaca-clay/clay-fleece-phone-25pct.png">Fleece / Clay phone proof</a> ? <a href="alpaca-clay/REPORT.md">Alpaca / terracotta report</a>')
     (OUT/'palette-v2.html').write_text(html,encoding='utf-8')
     print('V2_PALETTE_OK',len(records),'tiles;',len(layers),'layer files;',stats['tile_png_bytes'],'PNG bytes',flush=True)
 

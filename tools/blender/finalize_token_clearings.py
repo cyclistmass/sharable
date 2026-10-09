@@ -15,9 +15,9 @@ def main():
 
 All six terrains have a flat circle at model (-0.36, +0.30), radius 0.345 for the upright game's radius-0.30 plate. The low foreground apron also protects the plate at 55°. See ART_SPEC.md for the shared rule and source coordinates.
 
-Terrain changes: Timber trees form a rear/right forest around a glade; Stone keeps seven Alpine summits around a flat warm-rock shelf; Fleece has a trampled patch, relocated sheep/goats and a rear wall/gate; Grain rows stop at a threshed clearing; Clay has a level yard with the shed moved behind/right; Desert has a flat sand pan and relocated outcrops. Surface spacing avoids coincident-face black artifacts. Tall content stays behind or beside the plate.
+Terrain changes: Timber trees form a rear/right forest around a glade; Stone keeps seven Alpine summits around a flat warm-rock shelf; Fleece has a trampled patch, grouped alpacas and tiny goats and a rear wall/gate; Grain rows stop at a threshed clearing; Clay has a level yard with the shed moved behind/right; Desert has a flat sand pan and relocated outcrops. Surface spacing avoids coincident-face black artifacts. Tall content stays behind or beside the plate.
 
-Review: `palette-v2.html`, `palette-v2.png`, `token-check.png` (18 views plus mixed 3×3 patch), `token-check-patch-max.png`, and `token-clearing/*phone-25pct.png`. All six 8s animated WebPs and their phase/overlay-frame sheets were refreshed. The existing 16-phase sheep/goat sprites are reused: their motion paths and ground heights remain outside the changed ground. A cached analytic mask keeps every moving layer outside the upright plate, including after blur/warping/interpolation.
+Review: `palette-v2.html`, `palette-v2.png`, `token-check.png` (18 views plus mixed 3×3 patch), `token-check-patch-max.png`, and `token-clearing/*phone-25pct.png`. All six 8s animated WebPs and their phase/overlay-frame sheets were refreshed. The 16-phase Fleece sprites now contain a long-necked alpaca shifting, grazing and turning its head, plus a tiny goat. Six static alpacas include two looking up; all motion paths stay outside the clearing. A cached analytic mask keeps every moving layer outside the upright plate, including after blur/warping/interpolation.
 
 Current 18 static PNGs: **{stats['tile_png_bytes']:,} bytes**. Trial lossless WebP total: **{stats['tile_lossless_webp_bytes']:,} bytes**. Eight-step production estimate: 48 bases ({base:,} bytes) + eight animal atlases + sixteen effect masks = **72 files + metadata, {estimate:,} bytes**. The plate guard is procedural, not another shipped bitmap. Eight-angle assets are not yet rendered; this is an estimate, not an APK measurement.
 
@@ -38,10 +38,11 @@ Validation: all 18 RGBA views have transparent margins; six loops / 384 frames a
     text=re.sub(r'Current delivery:.*?\n\n',f'Current delivery: six terrains × three views = 18 static sources, all refreshed for number clearance. PNGs: **{stats["tile_png_bytes"]:,} bytes**; trial lossless WebP: **{stats["tile_lossless_webp_bytes"]:,} bytes**. Eight-step estimate remains 72 shipping files + metadata, **{estimate:,} bytes**, excluding review animations and sheets.\n\n',text,count=1,flags=re.S)
     text=re.sub(r'\| Six terrain bases \| 48 \|.*?\|',f'| Six terrain bases | 48 | {base:,} |',text)
     text=re.sub(r'\| Total \| \*\*72 files \+ metadata\*\* \|.*?\|',f'| Total | **72 files + metadata** | **{estimate:,} bytes** |',text)
-    text=re.sub(r'\| 16-phase sheep-and-goat atlases \| 8 \|.*?\|',f'| 16-phase sheep-and-goat atlases | 8 | {8*atlas:,} |',text)
+    text=re.sub(r'\| 16-phase alpaca-and-goat atlases \| 8 \|.*?\|',f'| 16-phase alpaca-and-goat atlases | 8 | {8*atlas:,} |',text)
     for label,path in [('Grain wind masks','grain/wind_mask_mid.png'),('Desert heat masks','desert/heat_mask_mid.png')]:
         text=re.sub(r'\| '+label+r' \| 8 \|.*?\|',f'| {label} | 8 | {8*(layers/path).stat().st_size:,} |',text)
     text=text.replace('Timber PNGs and its loop retained byte-for-byte','Timber refreshed around a common glade')
+    text=text.replace('six baked sheep','six baked alpacas').replace('one grazing/wandering sheep','one grazing/wandering alpaca').replace('seven sheep / three goats','seven alpacas / three goats').replace('than a smaller wool sphere','than the alpacas')
     text=text.replace('preserved Timber/app hashes','application hashes')
     text=text.replace('four original summits plus three new peaks','seven varied summits arranged around the number shelf')
     text=text.replace('15 curved rows, 1018 modelled ears','curved rows cut around the plate reservation, dense modelled ears')

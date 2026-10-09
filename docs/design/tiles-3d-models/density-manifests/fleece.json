@@ -15,23 +15,23 @@
       "flattened_surfaces": 1
     }
   },
-  "scene_objects": 177,
+  "scene_objects": 75,
   "renders": [
     {
       "file": "fleece_V2_flat.png",
-      "seconds": 5.55,
+      "seconds": 7.34,
       "tilt": 0,
       "resolution": 512
     },
     {
       "file": "fleece_V2_mid.png",
-      "seconds": 5.3,
+      "seconds": 5.97,
       "tilt": 0.48,
       "resolution": 512
     },
     {
       "file": "fleece_V2_max.png",
-      "seconds": 4.69,
+      "seconds": 4.75,
       "tilt": 0.96,
       "resolution": 512
     }

@@ -68,8 +68,8 @@
     },
     {
       "file": "fleece_V2_flat.png",
-      "bytes": 209880,
-      "webp_lossless_bytes": 86920,
+      "bytes": 210757,
+      "webp_lossless_bytes": 88002,
       "alpha_bounds": [
         99,
         76,
@@ -79,8 +79,8 @@
     },
     {
       "file": "fleece_V2_mid.png",
-      "bytes": 207932,
-      "webp_lossless_bytes": 87526,
+      "bytes": 210342,
+      "webp_lossless_bytes": 89954,
       "alpha_bounds": [
         99,
         93,
@@ -90,11 +90,11 @@
     },
     {
       "file": "fleece_V2_max.png",
-      "bytes": 178509,
-      "webp_lossless_bytes": 71150,
+      "bytes": 182088,
+      "webp_lossless_bytes": 74974,
       "alpha_bounds": [
         99,
-        137,
+        133,
         413,
         393
       ]
@@ -134,8 +134,8 @@
     },
     {
       "file": "clay_V2_flat.png",
-      "bytes": 187323,
-      "webp_lossless_bytes": 68400,
+      "bytes": 187418,
+      "webp_lossless_bytes": 67938,
       "alpha_bounds": [
         99,
         76,
@@ -145,8 +145,8 @@
     },
     {
       "file": "clay_V2_mid.png",
-      "bytes": 191666,
-      "webp_lossless_bytes": 70586,
+      "bytes": 191225,
+      "webp_lossless_bytes": 70668,
       "alpha_bounds": [
         99,
         85,
@@ -156,8 +156,8 @@
     },
     {
       "file": "clay_V2_max.png",
-      "bytes": 167757,
-      "webp_lossless_bytes": 59488,
+      "bytes": 167156,
+      "webp_lossless_bytes": 59120,
       "alpha_bounds": [
         99,
         112,
@@ -202,57 +202,57 @@
   "layers": [
     {
       "file": "animation-layers\\fleece\\animals_mid_00.png",
-      "bytes": 7388,
+      "bytes": 7744,
       "alpha_bounds": [
-        31,
+        33,
         8,
         123,
-        108
-      ]
-    },
-    {
-      "file": "animation-layers\\fleece\\animals_mid_01.png",
-      "bytes": 7297,
-      "alpha_bounds": [
-        35,
-        8,
-        124,
-        108
-      ]
-    },
-    {
-      "file": "animation-layers\\fleece\\animals_mid_02.png",
-      "bytes": 7352,
-      "alpha_bounds": [
-        37,
-        8,
-        124,
-        108
-      ]
-    },
-    {
-      "file": "animation-layers\\fleece\\animals_mid_03.png",
-      "bytes": 7354,
-      "alpha_bounds": [
-        40,
-        9,
-        125,
         109
       ]
     },
     {
-      "file": "animation-layers\\fleece\\animals_mid_04.png",
-      "bytes": 7414,
+      "file": "animation-layers\\fleece\\animals_mid_01.png",
+      "bytes": 7711,
       "alpha_bounds": [
-        41,
+        36,
+        8,
+        124,
+        109
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_02.png",
+      "bytes": 7615,
+      "alpha_bounds": [
+        38,
+        8,
+        124,
+        109
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_03.png",
+      "bytes": 7532,
+      "alpha_bounds": [
+        40,
         9,
         125,
         110
       ]
     },
     {
+      "file": "animation-layers\\fleece\\animals_mid_04.png",
+      "bytes": 7515,
+      "alpha_bounds": [
+        40,
+        9,
+        125,
+        111
+      ]
+    },
+    {
       "file": "animation-layers\\fleece\\animals_mid_05.png",
-      "bytes": 7372,
+      "bytes": 7470,
       "alpha_bounds": [
         40,
         10,
@@ -262,9 +262,9 @@
     },
     {
       "file": "animation-layers\\fleece\\animals_mid_06.png",
-      "bytes": 7388,
+      "bytes": 7549,
       "alpha_bounds": [
-        37,
+        38,
         10,
         124,
         113
@@ -272,39 +272,39 @@
     },
     {
       "file": "animation-layers\\fleece\\animals_mid_07.png",
-      "bytes": 7305,
+      "bytes": 7594,
       "alpha_bounds": [
-        34,
+        36,
         10,
         124,
-        115
+        114
       ]
     },
     {
       "file": "animation-layers\\fleece\\animals_mid_08.png",
-      "bytes": 7358,
+      "bytes": 7723,
       "alpha_bounds": [
-        31,
+        33,
         10,
         123,
-        116
+        115
       ]
     },
     {
       "file": "animation-layers\\fleece\\animals_mid_09.png",
-      "bytes": 7344,
+      "bytes": 7680,
       "alpha_bounds": [
-        27,
+        30,
         10,
         122,
-        116
+        115
       ]
     },
     {
       "file": "animation-layers\\fleece\\animals_mid_10.png",
-      "bytes": 7402,
+      "bytes": 7586,
       "alpha_bounds": [
-        23,
+        28,
         10,
         122,
         115
@@ -312,52 +312,52 @@
     },
     {
       "file": "animation-layers\\fleece\\animals_mid_11.png",
-      "bytes": 7318,
+      "bytes": 7581,
       "alpha_bounds": [
-        21,
+        26,
+        9,
+        121,
+        115
+      ]
+    },
+    {
+      "file": "animation-layers\\fleece\\animals_mid_12.png",
+      "bytes": 7572,
+      "alpha_bounds": [
+        26,
         9,
         121,
         114
       ]
     },
     {
-      "file": "animation-layers\\fleece\\animals_mid_12.png",
-      "bytes": 7365,
+      "file": "animation-layers\\fleece\\animals_mid_13.png",
+      "bytes": 7557,
       "alpha_bounds": [
-        21,
+        26,
         9,
         121,
         113
       ]
     },
     {
-      "file": "animation-layers\\fleece\\animals_mid_13.png",
-      "bytes": 7318,
-      "alpha_bounds": [
-        21,
-        9,
-        121,
-        112
-      ]
-    },
-    {
       "file": "animation-layers\\fleece\\animals_mid_14.png",
-      "bytes": 7357,
+      "bytes": 7657,
       "alpha_bounds": [
-        23,
+        28,
         8,
         122,
-        110
+        111
       ]
     },
     {
       "file": "animation-layers\\fleece\\animals_mid_15.png",
-      "bytes": 7326,
+      "bytes": 7624,
       "alpha_bounds": [
-        27,
+        31,
         8,
         122,
-        109
+        110
       ]
     },
     {
@@ -382,14 +382,14 @@
     },
     {
       "file": "animation-layers\\fleece\\animals_mid_atlas.webp",
-      "bytes": 46392,
+      "bytes": 47406,
       "dimensions": [
         1024,
         256
       ]
     }
   ],
-  "tile_png_bytes": 3388525,
-  "tile_lossless_webp_bytes": 1277706,
-  "sheep_png_bytes": 117658
+  "tile_png_bytes": 3394444,
+  "tile_lossless_webp_bytes": 1284292,
+  "animal_png_bytes": 121710
 }

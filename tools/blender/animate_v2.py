@@ -1,5 +1,5 @@
 """Procedural overlay reference and 8-second animated WebP palette, Python + Pillow.
-Five effects have no temporal sprite assets. Fleece mixes 16 sheep-and-goat layers.
+Five effects have no temporal sprite assets. Fleece mixes 16 alpaca-and-goat layers.
 Grain and Desert reuse masked static patches through tiny displaced bitmap meshes.
 No application sources are changed. Angles/world anchors are shared with the renderer.
 """
@@ -60,11 +60,11 @@ class Overlays:
         inputs={r:(OUT/f'{r}_V2_mid.png').read_bytes() for r in TERRAINS}
         self.base={r:Image.open(BytesIO(data)).convert('RGBA') for r,data in inputs.items()}
         self.input_hashes={r:hashlib.sha256(data).hexdigest() for r,data in inputs.items()}
-        self.sheep=[]
+        self.animals=[]
         for i in range(16):
             layer=Image.new('RGBA',(512,512))
             layer.alpha_composite(Image.open(OUT/'animation-layers/fleece'/f'animals_mid_{i:02d}.png').convert('RGBA'),(232,208))
-            self.sheep.append(layer)
+            self.animals.append(layer)
         self.token_guard=screen_mask()
         self.wind=wind_patch(self.base['grain'],True)
         path=OUT/'animation-layers/grain';path.mkdir(parents=True,exist_ok=True)
@@ -104,12 +104,12 @@ class Overlays:
             wing=2.5+1.6*math.cos(p*4)
             d.line([(cx-5,cy-wing),(cx-2,cy-.5),(cx,cy+1),(cx+2,cy-.5),(cx+5,cy-wing*.8)],fill=(220,212,182,220),width=1)
         elif terrain=='fleece':
-            x=.16+.055*math.sin(p);y=-.37+.020*math.cos(p)
+            x=.16+.040*math.sin(p);y=-.37+.015*math.cos(p)
             c=project(x,y,pasture(x,y)+.005)
             ellipse(d,c,18,5,(42,41,22,36))
             # Premultiplied-alpha interpolation; Pillow's straight RGBA blend would make dark fringes.
             u=p/TAU*16;i=int(u)%16;f=u-int(u)
-            a=self.sheep[i].convert('RGBa');b=self.sheep[(i+1)%16].convert('RGBa')
+            a=self.animals[i].convert('RGBa');b=self.animals[(i+1)%16].convert('RGBa')
             frame=Image.blend(a,b,f).convert('RGBA');layer.alpha_composite(frame)
         elif terrain=='grain':
             layer=wind_mesh(self.wind,p)

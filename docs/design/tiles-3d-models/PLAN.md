@@ -4,9 +4,9 @@ Status: number-clearing palette revision across all six terrains; MainActivity a
 
 ## Geometry and projection
 
-- Fleece: lush rolling grass, flowers, bushes, three-course irregular dry-stone wall and wooden gate; six baked sheep and two tiny brown/white goats on rock outcrops. The exclusive moving layer adds one grazing/wandering sheep and one grazing goat: seven sheep / three goats in motion. Goats have slimmer bodies, upright tails, horns and beards.
+- Fleece: lush rolling grass, flowers, bushes, three-course irregular dry-stone wall and wooden gate; six baked alpacas with long fluffy necks, upright ears and mixed cream/white/fawn/brown coats (two looking up), plus two tiny brown/white goats on rock outcrops. The exclusive moving layer adds one grazing/wandering alpaca and one grazing goat: seven alpacas / three goats in motion. Goats have slimmer bodies, upright tails, horns and beards.
 - Grain: curved rows cut around the plate reservation, dense modelled ears with kernels/awns, continuous rounded canopy masses, three stooks, a wooden cart with wheels/spokes and poppies along the field edge.
-- Clay: one deep excavation with three cut terraces, wet dark floor/puddle, kiln/chimney, brick stacks, two slatted drying racks and plank shed. The hex top cap is opened so it cannot cover the below-ground pit; floor z=-.115 remains above the base bottom -.22.
+- Clay: one deep excavation with three cut terraces, terracotta-red terraces/cut faces, wet dark red-brown floor/puddle, kiln/chimney, brick stacks, two slatted drying racks and plank shed. The hex top cap is opened so it cannot cover the below-ground pit; floor z=-.115 remains above the base bottom -.22.
 - Desert: diagonal relief dunes with modelled ripples, rock clusters, loose stones, scrub, dead bleached tree and tiny skull. Deliberately retains more open sand than the other terrains.
 - Stone: selected R3 Alpine chain with seven varied summits arranged around the number shelf (.65/.74/.79), shared shoulders/saddles, warm dark bedrock/clefts, snow caps, scree and foothill pines. Three 512px views plus a 1024px single source; the main neighbour proof renders nine edge-sharing model instances at 1536 x 1024. A separate 2304 x 1536 sprite mock retains game spacing. See token-clearing/REPORT.md for the current revision.
 
@@ -16,17 +16,17 @@ Names, hex base/thickness and upper-left sun/soft sky follow the approved V2 set
 
 ## Assets, APK and memory
 
-Current delivery: six terrains × three views = 18 static sources, all refreshed for number clearance. PNGs: **3,388,525 bytes**; trial lossless WebP: **1,277,706 bytes**. Eight-step estimate remains 72 shipping files + metadata, **3,816,712 bytes**, excluding review animations and sheets.
+Current delivery: six terrains × three views = 18 static sources, all refreshed for number clearance. PNGs: **3,394,444 bytes**; trial lossless WebP: **1,284,292 bytes**. Eight-step estimate remains 72 shipping files + metadata, **3,842,387 bytes**, excluding review animations and sheets.
 
 | Proposed eight-step shipping assets | Count | Estimated compressed bytes |
 | --- | ---: | ---: |
-| Six terrain bases | 48 | 3,407,216 |
+| Six terrain bases | 48 | 3,424,779 |
 | 16-phase sheep-and-goat atlases | 8 | 371,136 |
 | Grain wind masks | 8 | 14,448 |
 | Desert heat masks | 8 | 23,912 |
-| Total | **72 files + metadata** | **3,816,712 bytes** |
+| Total | **72 files + metadata** | **3,842,387 bytes** |
 
-At six steps: 36 bases + 6 atlases + 12 masks = 54 files, about 2.86 MB. Preview animated WebPs, raw 512px animal sources, historical sheep-only sprites, comparison sheets, 1024px Stone mock and bandit options are excluded. Ship only the selected bandit, separately measured. PNG/WebP ZIP savings are small; these are asset estimates, not measured APK deltas.
+At six steps: 36 bases + 6 atlases + 12 masks = 54 files, about 2.88 MB. Preview animated WebPs, raw 512px animal sources, historical sheep-only sprites, comparison sheets, 1024px Stone mock and bandit options are excluded. Ship only the selected bandit, separately measured. PNG/WebP ZIP savings are small; these are asset estimates, not measured APK deltas.
 
 Decoded RGBA at 512px: all eight angles cost 48 MiB; the recommended adjacent-angle pair shared across six terrains costs 12 MiB. Two 1024 x 256 animal atlases add 2 MiB; two derived Grain patches and two Desert patches add 4 MiB. Four 256px ALPHA8 masks add .25 MiB (1 MiB if RGBA). Total active CPU bitmap estimate **18.25-19 MiB**, plus decode intermediates, board layers and possible GPU copies. Avoid per-hex duplicates and eagerly loading all angles. Mipmaps add about one third; a 1024px tier quadruples memory.
 

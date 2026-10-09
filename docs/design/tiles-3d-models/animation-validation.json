@@ -18,42 +18,6 @@
     ]
   },
   {
-    "terrain": "fleece",
-    "preview": "fleece_V2_mid_animated.webp",
-    "bytes": 632372,
-    "frames": 64,
-    "duration_ms": 8000,
-    "period_endpoint_equal": true,
-    "input_sha256": "d2582c01671045f5cb8b618556c4b9c550c4373ab7cb0038aff1466012526618",
-    "min_adjacent_change": 3830,
-    "max_adjacent_change": 8116,
-    "loop_boundary_change": 8116,
-    "review_crop": [
-      241,
-      204,
-      369,
-      336
-    ]
-  },
-  {
-    "terrain": "clay",
-    "preview": "clay_V2_mid_animated.webp",
-    "bytes": 436904,
-    "frames": 64,
-    "duration_ms": 8000,
-    "period_endpoint_equal": true,
-    "input_sha256": "25343b4010599ced3a41dceb22ca68e7481b3d0a749ed99e9c20871dc63ec7b3",
-    "min_adjacent_change": 482,
-    "max_adjacent_change": 860,
-    "loop_boundary_change": 860,
-    "review_crop": [
-      310,
-      125,
-      375,
-      210
-    ]
-  },
-  {
     "terrain": "desert",
     "preview": "desert_V2_mid_animated.webp",
     "bytes": 1094844,
@@ -105,6 +69,42 @@
       102,
       400,
       344
+    ]
+  },
+  {
+    "terrain": "clay",
+    "preview": "clay_V2_mid_animated.webp",
+    "bytes": 438698,
+    "frames": 64,
+    "duration_ms": 8000,
+    "period_endpoint_equal": true,
+    "input_sha256": "c17b982588d834750c7e14427d4c3cb3c830ace8320d6fc6f39c14a215101221",
+    "min_adjacent_change": 480,
+    "max_adjacent_change": 860,
+    "loop_boundary_change": 860,
+    "review_crop": [
+      310,
+      125,
+      375,
+      210
+    ]
+  },
+  {
+    "terrain": "fleece",
+    "preview": "fleece_V2_mid_animated.webp",
+    "bytes": 648788,
+    "frames": 64,
+    "duration_ms": 8000,
+    "period_endpoint_equal": true,
+    "input_sha256": "ed886f6d47897516b28e6caa4f21efe4f2efb765f9ee37cd4f0610dfc9419e5b",
+    "min_adjacent_change": 3533,
+    "max_adjacent_change": 6551,
+    "loop_boundary_change": 5799,
+    "review_crop": [
+      246,
+      204,
+      369,
+      335
     ]
   }
 ]

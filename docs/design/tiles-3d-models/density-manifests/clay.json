@@ -19,19 +19,19 @@
   "renders": [
     {
       "file": "clay_V2_flat.png",
-      "seconds": 5.34,
+      "seconds": 5.72,
       "tilt": 0,
       "resolution": 512
     },
     {
       "file": "clay_V2_mid.png",
-      "seconds": 5.08,
+      "seconds": 5.22,
       "tilt": 0.48,
       "resolution": 512
     },
     {
       "file": "clay_V2_max.png",
-      "seconds": 4.39,
+      "seconds": 4.67,
       "tilt": 0.96,
       "resolution": 512
     }

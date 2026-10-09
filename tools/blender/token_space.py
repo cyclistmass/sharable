@@ -112,7 +112,7 @@ def prepare_scene(terrain):
         for p,m,s in zip(o.data.polygons,mi,sm):p.material_index=m;p.use_smooth=s
         removed+=1
     colors={'timber':(.23,.34,.085),'stone':(.34,.27,.18),'fleece':(.28,.37,.12),
-            'grain':(.43,.30,.10),'clay':(.40,.235,.12),'desert':(.65,.43,.19)}
+            'grain':(.43,.30,.10),'clay':(.44,.165,.105),'desert':(.65,.43,.19)}
     clearing_z=.0002 if terrain=='timber' else .0032
     m=v2.mat(terrain+' natural number clearing',colors[terrain],.12)
     vs=[(CX,CY,clearing_z)]+[(CX+CLEAR_R*math.cos(i*math.tau/128),CY+CLEAR_R*math.sin(i*math.tau/128),clearing_z) for i in range(128)]
