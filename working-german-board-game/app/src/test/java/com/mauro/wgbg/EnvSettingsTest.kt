@@ -1,8 +1,8 @@
 package com.mauro.wgbg
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import com.mauro.wgbg.EnvSettings.Item
 
 class EnvSettingsTest {
     private class MapStore : FloatStore {
@@ -12,32 +12,28 @@ class EnvSettingsTest {
     }
 
     @Test
-    fun `defaults are Balanced density and half motion`() {
+    fun `every scenery slider starts at half`() {
         val env = EnvSettings(MapStore())
-        assertEquals(0.45f, env.density)
-        assertEquals(0.5f, env.motion)
-        assertEquals(EnvSettings.Preset.BALANCED, env.preset)
+        for (i in Item.entries) assertEquals(0.5f, env[i])
     }
 
     @Test
-    fun `settings persist and are independent`() {
+    fun `sliders persist and are independent`() {
         val store = MapStore()
-        EnvSettings(store).apply { density = 0.85f; motion = 0f }
+        EnvSettings(store).apply { this[Item.CLOUDS] = 0.9f; this[Item.BOATS] = 0f }
         val again = EnvSettings(store) // as after an app restart
-        assertEquals(0.85f, again.density)
-        assertEquals(0f, again.motion)
-        assertEquals(EnvSettings.Preset.RICH, again.preset)
-        again.motion = 1f
-        assertEquals(0.85f, again.density, "motion never changes density")
+        assertEquals(0.9f, again.clouds)
+        assertEquals(0f, again.boats)
+        assertEquals(0.5f, again.birds, "untouched sliders keep their default")
+        again[Item.WAVES] = 1f
+        assertEquals(0.9f, again.clouds, "one slider never moves another")
     }
 
     @Test
     fun `out of range values are clamped, including bad stored ones`() {
-        val store = MapStore().apply { map[EnvSettings.DENSITY] = 7f; map[EnvSettings.MOTION] = -2f }
+        val store = MapStore().apply { map["env-clouds"] = 7f; map["env-birds"] = -2f }
         val env = EnvSettings(store)
-        assertEquals(1f, env.density)
-        assertEquals(0f, env.motion)
-        env.density = 0.33f
-        assertNull(env.preset)
+        assertEquals(1f, env.clouds)
+        assertEquals(0f, env.birds)
     }
 }

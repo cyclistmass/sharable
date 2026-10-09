@@ -24,6 +24,7 @@ import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.sin
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -168,7 +169,16 @@ class Sea(board: Board, seed: Int = 1) {
     private val drops = ArrayList<Puff>()
     private val rings = ArrayList<Ring>()
     val clouds = ArrayList<Cloud>()
-    private val gulls = List(3) { i -> Gull(rnd.nextFloat() * 2 * PI.toFloat(), landR + 0.4f + 0.18f * i, (0.04f + 0.017f * i) * if (i % 2 == 1) -1 else 1, rnd.nextFloat() * 6) }
+    /** Scenery amounts, 0..1 (from the menu's sliders): clouds, birds, harbour boats and waves. */
+    var clouds01 = 0.5f
+    var birds01 = 0.5f
+    var boats01 = 0.5f
+    var waves01 = 0.5f
+    /** How fast passive things move (waves, glints, drift, gulls); 0.5 is normal. */
+    var motion = 0.5f
+    /** Clouds wanted on the sea: none at 0, up to 8. */
+    val cloudTarget get() = (clouds01 * 8f).roundToInt().coerceIn(0, 8)
+    private val gulls = List(8) { i -> Gull(rnd.nextFloat() * 2 * PI.toFloat(), landR + 0.4f + 0.45f * i, (0.04f + 0.006f * i) * if (i % 2 == 1) -1 else 1, rnd.nextFloat() * 6) }
     private val glints = List(160) { val (x, y) = seaPoint(0.2f); floatArrayOf(x, y, rnd.nextFloat() * 6f, 0.6f + rnd.nextFloat()) }
     internal var time = 0f
         private set
@@ -176,10 +186,15 @@ class Sea(board: Board, seed: Int = 1) {
     // Tonal patches: two small tileable noise textures, built once (pixels here, the bitmap lazily on first draw).
     internal val patchPixels = arrayOf(patchTexture(PATCH_A_LOW, PATCH_A_HIGH, seed * 31 + 1), patchTexture(PATCH_B_LOW, PATCH_B_HIGH, seed * 31 + 2))
     private var patchBrushes: List<Pair<BitmapShader, ShaderBrush>>? = null
+
+    /** Painted, seamlessly tiling ocean (ocean_tile, made with Mauro's ChatGPT); null in tests, where the gradient stands in. */
+    var oceanBitmap: Bitmap? = null
+    private var oceanBrushes: List<Pair<BitmapShader, ShaderBrush>>? = null
+    private val oceanMatrix = Matrix()
     private val patchMatrix = Matrix()
     private val crescent = Path()
 
-    init { repeat(4) { clouds += newCloud() } }
+    init { repeat(4) { clouds += newCloud() } } // 4 = the default cloud amount (0.5 of 8)
 
     /** A random point on the open sea at least [margin] from the coast and the screen edge. */
     private fun seaPoint(margin: Float): Pair<Float, Float> {
@@ -199,25 +214,31 @@ class Sea(board: Board, seed: Int = 1) {
 
     /** Advances the animation by [dt] seconds. */
     fun update(dt: Float) {
-        time += dt
+        // Passive animation (waves, glints, drift, gulls) runs faster or slower with the Motion setting;
+        // touch physics on clouds uses real time and is unaffected.
+        val pdt = dt * (0.25f + 1.5f * motion)
+        time += pdt
         for (p in drops) p.age += dt
         drops.removeAll { it.age > it.life }
         for (r in rings) r.age += dt
         rings.removeAll { it.age - it.delay > 1.3f }
-        for (g in gulls) { g.a += g.speed * dt; g.phase += dt * 3 }
+        for (g in gulls) { g.a += g.speed * pdt; g.phase += pdt * 3 }
         for (c in clouds) {
             if (c.poof >= 0) { c.poof += dt; continue }
             c.wobble = (c.wobble - dt).coerceAtLeast(0f)
             if (c.dragging) {
                 // Follows the finger smoothly (frame-rate independent), keeping where it was grabbed.
                 val k = CloudFeel.followFraction(dt)
+                // No bounds while held: the cloud goes exactly where the finger takes it.
                 c.x += (c.targetX - c.x) * k; c.y += (c.targetY - c.y) * k
-                keepOnSea(c)
                 continue
             }
-            val a = atan2(c.y, c.x) + c.drift * dt
-            val d = hypot(c.x, c.y)
-            c.x = cos(a) * d; c.y = sin(a) * d
+            // The slow drift around the island pauses while the cloud is moving, so throws go straight.
+            if (c.vx == 0f && c.vy == 0f) {
+                val a = atan2(c.y, c.x) + c.drift * pdt
+                val d = hypot(c.x, c.y)
+                c.x = cos(a) * d; c.y = sin(a) * d
+            }
             // Momentum from a tap, nudge or flick: carries on, slows smoothly to rest, bounces softly off the bounds.
             if (c.vx != 0f || c.vy != 0f) {
                 c.x += c.vx * dt; c.y += c.vy * dt
@@ -227,10 +248,12 @@ class Sea(board: Board, seed: Int = 1) {
             }
             keepOnSea(c)
         }
-        // A poofed cloud is replaced a few seconds later somewhere else on the sea.
-        val gone = clouds.count { it.poof > 3.5f }
+        // A poofed cloud is replaced a few seconds later somewhere else on the sea; the count follows
+        // the density setting (extra clouds drift off by fading, missing ones drift in).
         clouds.removeAll { it.poof > 3.5f }
-        repeat(gone) { clouds += newCloud() }
+        val live = clouds.count { it.poof < 0 }
+        if (live > cloudTarget) clouds.lastOrNull { it.poof < 0 && !it.dragging }?.let { it.poof = 0f }
+        else if (clouds.count { it.poof < 0 } < cloudTarget && clouds.size < cloudTarget + 2) clouds += newCloud()
     }
 
     /** True if [p] (lattice) is on open water. */
@@ -300,10 +323,10 @@ class Sea(board: Board, seed: Int = 1) {
         val lo = landR + 0.25f
         val d = hypot(c.x, c.y).coerceAtLeast(1e-3f)
         if (d < lo) {
+            // Over the island: no snapping; it floats gently back out to sea.
             val nx = c.x / d; val ny = c.y / d
             val vr = c.vx * nx + c.vy * ny
-            if (vr < 0) { c.vx -= (1 + BOUNCE) * vr * nx; c.vy -= (1 + BOUNCE) * vr * ny }
-            c.x = nx * lo; c.y = ny * lo
+            if (vr < FLOAT_OUT) { c.vx += (FLOAT_OUT - vr) * nx; c.vy += (FLOAT_OUT - vr) * ny }
         }
         val rx = OPEN_RX - CLOUD_EDGE; val ry = OPEN_RY - CLOUD_EDGE
         val q = sqrt((c.x / rx) * (c.x / rx) + (c.y / ry) * (c.y / ry))
@@ -339,17 +362,21 @@ class Sea(board: Board, seed: Int = 1) {
             0.0f to DEEP_SHORE, f(SEA_R * 0.72f) to DEEP_SHORE, f(SEA_R) to DEEP_MID, 1f to DEEP_RIM,
             center = c, radius = far,
         ), all.topLeft, all.size)
-        drawPatches(this, c, s, squash, all)
+        val ocean = oceanBitmap
+        if (ocean != null) drawOcean(this, ocean, c, s, squash, all, far) else drawPatches(this, c, s, squash, all)
         // Shallows hugging the coast: stacked translucent hex halos read as a soft gradient.
         for ((grow, alpha) in listOf(1.22f to 0.18f, 1.14f to 0.22f, 1.07f to 0.28f)) {
             for (h in land) drawPath(hexPath(at, h, grow), SHALLOW.copy(alpha = alpha))
         }
         // Sun glints twinkling.
-        for (g in glints) {
+        val glintCount = (glints.size * waves01).toInt()
+        for (i in 0 until glintCount) {
+            val g = glints[i]
             val a = (sin(time * g[3] + g[2]) * 0.5f + 0.5f)
             if (a > 0.55f) drawCircle(Color.White.copy(alpha = (a - 0.55f) * 1.4f), 0.018f * s, at(g[0], g[1]))
         }
-        for (w in wavelets) drawWavelet(this, at, w)
+        // Waves slider: how many wavelets and whitecaps show (none at 0; the water's colour and texture stay).
+        for (w in wavelets) if ((w.id * 0.618f) % 1f < waves01) drawWavelet(this, at, w)
         for (b in breaks) drawBreak(this, at, s, b)
         for (r in rings) {
             val t = ((r.age - r.delay) / 1.2f).coerceIn(0f, 1f)
@@ -360,6 +387,33 @@ class Sea(board: Board, seed: Int = 1) {
         }
         // Surf line on the coast (tiles cover its inner half).
         for (h in land) drawPath(hexPath(at, h, 1.06f), Color.White.copy(alpha = 0.8f), style = Stroke(0.05f * s))
+    }
+
+    /**
+     * The painted ocean: the tile repeated across the screen, with a second copy turned and drifting the
+     * other way at low alpha so the surface shimmers, and the edges sinking to deep water.
+     */
+    private fun drawOcean(ds: DrawScope, bmp: Bitmap, c: Offset, s: Float, squash: Float, area: Rect, far: Float) {
+        val brushes = oceanBrushes ?: List(2) {
+            val sh = BitmapShader(bmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+            sh to ShaderBrush(sh)
+        }.also { oceanBrushes = it }
+        val tile = OCEAN_TILE * s / bmp.width                  // one tile spans OCEAN_TILE hex sides
+        for ((i, pair) in brushes.withIndex()) {
+            val (shader, brush) = pair
+            val drift = time * if (i == 0) 0.05f else -0.035f
+            oceanMatrix.reset()
+            oceanMatrix.setScale(tile * if (i == 0) 1f else 1.37f, tile * squash * if (i == 0) 1f else 1.37f)
+            if (i == 1) oceanMatrix.postRotate(31f)
+            oceanMatrix.postTranslate(c.x + drift * s, c.y + drift * s * 0.45f * squash)
+            shader.setLocalMatrix(oceanMatrix)
+            ds.drawRect(brush, area.topLeft, area.size, alpha = if (i == 0) 1f else 0.3f)
+        }
+        // Deeper toward the edges of the screen; the island's waters stay bright.
+        ds.drawRect(Brush.radialGradient(
+            0f to Color.Transparent, (SEA_R * s / far).coerceIn(0.05f, 0.95f) to Color(0x22000A1E), 1f to Color(0x99000A1E),
+            center = c, radius = far,
+        ), area.topLeft, area.size)
     }
 
     /** Two translucent layers of soft tonal patches drifting slowly in different directions. */
@@ -461,7 +515,9 @@ class Sea(board: Board, seed: Int = 1) {
             val lift = if (p.dy < 0) -sin(PI.toFloat() * t) * 0.15f else 0f
             drawCircle(Color(0xFFE8F7FF).copy(alpha = 1 - t), p.r * s, at(p.x + p.dx * t, p.y + p.dy * t * 0.4f + lift))
         }
-        for (g in gulls) {
+        val gullCount = (birds01 * gulls.size).roundToInt()
+        for (gi in 0 until gullCount) {
+            val g = gulls[gi]
             val p = at(cos(g.a) * g.r, sin(g.a) * g.r)
             val flap = (0.55f + 0.45f * sin(g.phase)) * 0.06f * s
             val w = 0.11f * s
@@ -513,6 +569,8 @@ class Sea(board: Board, seed: Int = 1) {
         private const val WOBBLE = 0.45f
         /** Share of a cloud's speed into a bound that it keeps, reversed (soft bounce). Other cloud tunables: [CloudFeel]. */
         const val BOUNCE = 0.4f
+        /** Speed (units/s) at which a cloud left over the island floats back out to sea. */
+        const val FLOAT_OUT = 0.45f
 
         const val SMALL_WAVELETS = 330
         const val BIG_WAVELETS = 30
@@ -540,6 +598,8 @@ class Sea(board: Board, seed: Int = 1) {
         private const val PATCH_B_HIGH = 0xFF4E9AB5.toInt()
         /** Patch texture size in pixels, and how many hex sides one tile spans. */
         const val PATCH_TEX = 64
+        /** How many hex sides one ocean tile spans on screen. */
+        const val OCEAN_TILE = 6f
         private const val PATCH_TILE_A = 4.3f
         private const val PATCH_TILE_B = 3.1f
 

@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -109,7 +110,7 @@ fun Modifier.brassEdgedWood(edge: Dp = 5.dp): Modifier {
     val brass = rememberTexture(R.drawable.old_brass, 200.dp)
     return shadow(8.dp, RectangleShapeCompat).drawBehind {
         drawRect(wood)
-        drawRect(Brush.verticalGradient(listOf(Color(0x80462814), Color(0xBD1A0F07))))
+        drawRect(Brush.verticalGradient(listOf(Color(0xC22E1A0C), Color(0xE6120A04))))
         val e = edge.toPx()
         // The brass frame, then a bevel: light on the outer top-left, dark on the inner edge.
         drawRect(brass, Offset(e / 2, e / 2), Size(size.width - e, size.height - e), style = Stroke(e))
@@ -163,6 +164,22 @@ fun Choice(
                 .let { if (enabled) it else it.copy(color = it.color.copy(alpha = 0.4f)) },
         )
     }
+}
+
+/** A plain in-game button in the motif: dark wood with a brass rim. */
+@Composable
+fun WoodButton(label: String, tag: String, modifier: Modifier = Modifier, size: TextUnit = 14.sp, onClick: () -> Unit) =
+    Choice(label, selected = false, tag = tag, modifier = modifier.heightIn(min = 40.dp), size = size, onClick = onClick)
+
+/** A coloured action button (green Yes/Confirm, red No/Cancel/Exit) with the brass edge. */
+@Composable
+fun ColorButton(label: String, color: Color, tag: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(8.dp)
+    Box(
+        modifier.heightIn(min = 40.dp).shadow(3.dp, shape).clip(shape).background(color).border(2.dp, Wood.BRASS_EDGE, shape)
+            .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 14.dp).testTag(tag),
+        contentAlignment = Alignment.Center,
+    ) { Text(label, style = Wood.sans(15.sp, FontWeight.Bold, Color.White), maxLines = 1) }
 }
 
 /** A brass-plate action button with dark ink. */

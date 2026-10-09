@@ -125,7 +125,7 @@ fun NewGameScreen(
         }
         Panel(Modifier.width(300.dp)) {
             Text("Dice", style = Wood.title(22.sp))
-            DiceChoice("True random", "every roll from the phone's secure random source", setup.decks == 0, "dice-random") {
+            DiceChoice("True random", "the phone's secure dice", setup.decks == 0, "dice-random") {
                 setup = setup.withDecks(0)
             }
             DiceChoice("Card deck", "every total in fair shares", setup.decks > 0, "dice-deck") {
@@ -152,11 +152,8 @@ private const val MAX_NAME = 16
 
 @Composable
 private fun Panel(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
-    val shape = RoundedCornerShape(14.dp)
     Column(
-        modifier.fillMaxHeight().clip(shape)
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Wood.WOOD_MID, Wood.WOOD_DARK)))
-            .border(3.dp, Wood.BRASS, shape).padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier.fillMaxHeight().brassEdgedWood().padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         content = content,
     )

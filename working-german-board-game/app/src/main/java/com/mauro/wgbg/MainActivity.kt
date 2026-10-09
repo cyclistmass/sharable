@@ -13,6 +13,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -249,7 +251,8 @@ fun WatchGameScreen(
     val env = remember { EnvSettings(PrefsStore(appContext)) }
     // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
     // game starts several times a second, which would otherwise wipe splashes and clouds.
-    val sea = remember { Sea(state.board) }
+    val oceanRes = LocalContext.current.resources
+    val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile) } }
     // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
     // read the current game's sea and board through these.
     val seaNow by rememberUpdatedState(sea)
@@ -258,6 +261,7 @@ fun WatchGameScreen(
     LaunchedEffect(sea) { // the sea keeps moving even when the game is paused
         var last = 0L
         while (true) withFrameNanos { now ->
+            sea.clouds01 = env.clouds; sea.birds01 = env.birds; sea.boats01 = env.boats; sea.waves01 = env.waves
             if (last != 0L) sea.update(((now - last) / 1e9f).coerceAtMost(0.05f))
             last = now
             seaTick++
@@ -355,8 +359,8 @@ fun WatchGameScreen(
     val targets = Targets.of(legal)
     val chosen = pending.filter { it in legal } // a stale pick (the turn moved on) is dropped
     Box(modifier) {
-      Row(Modifier.fillMaxSize()) {
-      Box(Modifier.weight(1f).fillMaxHeight()) {
+      Box(Modifier.fillMaxSize()) { // the menu floats over the board, so the ocean always fills the screen
+      Box(Modifier.fillMaxSize()) {
         val measurer = rememberTextMeasurer()
         val resources = LocalContext.current.resources
         val wood = remember { WoodPieces(resources, PLAYER_COLORS + TOKEN_WOOD) }
@@ -466,12 +470,8 @@ fun WatchGameScreen(
                 Text(confirmTitle(state, chosen[0]), color = Color(0xFFEDE6D8), fontWeight = FontWeight.Bold)
                 confirmWarning(state, 0, chosen[0])?.let { Text(it, color = Color(0xFFFFB4A0), fontSize = 13.sp) }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (a in chosen) FilledTonalButton(onClick = { send(a) },
-                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF3E9B4F), contentColor = Color.White)) {
-                        Text(confirmLabel(state, a, names))
-                    }
-                    FilledTonalButton(onClick = { pending = emptyList() },
-                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFFC0392B), contentColor = Color.White)) { Text("Cancel") }
+                    for (a in chosen) ColorButton(confirmLabel(state, a, names), Color(0xFF3E9B4F), "confirm") { send(a) }
+                    ColorButton("Cancel", Color(0xFFC0392B), "cancel") { pending = emptyList() }
                 }
             }
             if (tick.let { state.isOver }) Column(
@@ -481,35 +481,35 @@ fun WatchGameScreen(
             ) {
                 Text(when (state.winner) { -1 -> "Draw"; 0 -> "You win!"; else -> "${names[state.winner]} wins" },
                     color = Color(0xFFF1D58A), fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                FilledTonalButton(onClick = { seed++; playing = true }) { Text("New game") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BrassButton("Play again", "play-again", Modifier.height(44.dp)) { seed++; playing = true }
+                    WoodButton("Exit", "game-over-exit", onClick = onExit)
+                }
             }
         }
       }
         if (panelOpen) CompositionLocalProvider(LocalContentColor provides Color(0xFFEDE6D8)) {
             Column(
-                Modifier.fillMaxHeight()
+                Modifier.align(Alignment.TopEnd).fillMaxHeight()
                     .padding(top = 60.dp, end = 8.dp, bottom = 8.dp)
                     .width(340.dp)
-                    .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(14.dp))
+                    .brassEdgedWood()
                     .verticalScroll(rememberScrollState())
-                    .padding(10.dp),
+                    .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text("Game #$seed · turn ${players.first().turn}", style = MaterialTheme.typography.titleMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    FilledTonalButton(onClick = { playing = !playing }) { Text(if (playing) "Pause" else "Play") }
-                    FilledTonalButton(onClick = { speed = if (speed == MAX_SPEED) 1 else speed * 2 }) { Text(if (speed == MAX_SPEED) "Max" else "${speed}×") }
-                    FilledTonalButton(onClick = onExit,
-                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFFC0392B), contentColor = Color.White)) { Text("Exit game") }
-                    FilledTonalButton(onClick = { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }) {
-                        Text(if (human) "Watch bots" else "Play")
-                    }
+                    WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
+                    WoodButton(if (speed == MAX_SPEED) "Max" else "${speed}×", "menu-speed") { speed = if (speed == MAX_SPEED) 1 else speed * 2 }
+                    ColorButton("Exit game", Color(0xFFC0392B), "menu-exit", onClick = onExit)
+                    WoodButton(if (human) "Watch bots" else "Play", "menu-watch") { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    FilledTonalButton(onClick = { inventory = !inventory }) { Text(if (inventory) "Back to game" else "Inventory") }
-                    FilledTonalButton(onClick = { camera = Camera.FIT }) { Text("Fit") }
-                    FilledTonalButton(onClick = { diceSetting = (diceSetting + 1) % 5 }) {
-                        Text(if (diceSetting == 0) "Dice: random" else "Dice: ${36 * diceSetting} deck · ${(dice as? DiceDeck)?.remaining ?: ""}")
+                    WoodButton(if (inventory) "Back to game" else "Inventory", "menu-inventory") { inventory = !inventory }
+                    WoodButton("Fit", "menu-fit") { camera = Camera.FIT }
+                    WoodButton(if (diceSetting == 0) "Dice: random" else "Dice: ${36 * diceSetting} deck · ${(dice as? DiceDeck)?.remaining ?: ""}", "menu-dice") {
+                        diceSetting = (diceSetting + 1) % 5
                     }
                 }
                 EnvControls(env)
@@ -520,11 +520,7 @@ fun WatchGameScreen(
             }
         }
       }
-        FilledTonalButton(
-            onClick = { panelOpen = !panelOpen },
-            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
-            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0x99303036), contentColor = Color.White),
-        ) { Text(if (panelOpen) "Hide" else "Menu") }
+        BrassButton(if (panelOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) { panelOpen = !panelOpen }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.
         if (human && !inventory && tick.let { tradeButtonVisible(state) }) TradeToggle(
             open = tradeOpen || tradeNeedsMe(state, 0),
@@ -670,10 +666,9 @@ private fun PlayerPanel(players: List<PlayerInfo>) {
         for (pl in players) {
             Row(
                 Modifier.fillMaxWidth()
-                    .background(
-                        if (pl.active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-                        RoundedCornerShape(8.dp),
-                    )
+                    // The player whose turn it is gets a brass-rimmed highlight.
+                    .then(if (pl.active) Modifier.background(Color(0x33C9A04A), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color(0xFFC9A04A), RoundedCornerShape(8.dp)) else Modifier)
                     .padding(horizontal = 8.dp, vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -843,7 +838,8 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         val ps = scale * (l.k(p.v1) + l.k(p.v2)) / 2f
         PortGeom(p.type, a, b, mid, n, mid + Offset(n.x, n.y * l.squash) * (0.58f * ps), ps)
     }
-    for (pg in ports) drawPortWater(pg, pg.scale, l.squash)
+    // Boats slider: a share of the harbours get their little sailboat.
+    for ((i, pg) in ports.withIndex()) drawPortWater(pg, pg.scale, l.squash, showBoat = (i * 0.618f) % 1f < (sea?.boats01 ?: 1f))
     for (pg in ports) drawPortPiersAndToken(pg, pg.scale, measurer, wood)
 
     // Roads.
@@ -972,7 +968,7 @@ private class PortGeom(val type: Int, val a: Offset, val b: Offset, val mid: Off
 
 private val WATER = Color(0xFF4FA3D9)
 
-private fun DrawScope.drawPortWater(pg: PortGeom, scale: Float, squash: Float = 1f) {
+private fun DrawScope.drawPortWater(pg: PortGeom, scale: Float, squash: Float = 1f, showBoat: Boolean = true) {
     val c = pg.mid + Offset(pg.out.x, pg.out.y * squash) * (0.5f * scale)
     // The water lies flat on the table, so tilting squashes it.
     // Harbor shallows: a soft lighter patch on the sea rather than a separate pond.
@@ -988,6 +984,7 @@ private fun DrawScope.drawPortWater(pg: PortGeom, scale: Float, squash: Float = 
     }
     drawPath(waves, Color.White.copy(alpha = 0.8f), style = Stroke(0.018f * scale, cap = StrokeCap.Round))
     // A little sailboat off to the side.
+    if (!showBoat) return
     val perp = Offset(-pg.out.y, pg.out.x)
     val boat = pg.mid + pg.out * (0.62f * scale) + perp * (0.42f * scale)
     val u = 0.09f * scale
