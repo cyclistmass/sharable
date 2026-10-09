@@ -6,6 +6,7 @@ import wgbg.engine.ActionBuffer
 import wgbg.engine.ActionType
 import wgbg.engine.CARD_TYPES
 import wgbg.engine.DevCard
+import wgbg.engine.DiceStats
 import wgbg.engine.GameConfig
 import wgbg.engine.GameState
 import wgbg.engine.Phase
@@ -30,6 +31,7 @@ import kotlin.system.exitProcess
  *   wgbg act   <dir> --seat N <move#>
  *   wgbg wait  <dir> --seat N [--timeout 600]   blocks until it's your turn (or game over)
  *   wgbg log   <dir>                 replays and verifies the whole game
+ *   wgbg dice  <dir> [--sample N]    histogram of the game's rolls (and N fresh true-random rolls)
  */
 
 private val RES = listOf("Timber", "Clay", "Fleece", "Grain", "Stone")
@@ -238,13 +240,32 @@ private fun recentMoves(r: Record, n: Int): List<String> {
 
 // ------------------------------------------------------------------ commands
 
+/** A text histogram of totals against the odds, with the fairness numbers under it. */
+internal fun diceReport(title: String, d: DiceStats): String = buildString {
+    appendLine("== $title ==")
+    if (d.rolls == 0) { appendLine("no rolls yet"); return@buildString }
+    val top = (0 until 11).maxOf { maxOf(d.counts[it].toDouble(), d.expected[it]) }
+    val width = 40
+    for (i in 0 until 11) {
+        val bar = (d.counts[i] * width / top).toInt()
+        val mark = (d.expected[i] * width / top).toInt()
+        val line = CharArray(width + 1) { c -> when { c < bar -> '#'; c == mark -> '|'; else -> ' ' } }
+        appendLine("%3d %s %6d  (expected %.1f)".format(i + 2, String(line), d.counts[i], d.expected[i]))
+    }
+    appendLine("# = rolled, | = what fair dice average")
+    appendLine("7s: ${d.sevens} of ${d.rolls} (%.1f%%; fair dice: 16.7%%)".format(100.0 * d.sevens / d.rolls))
+    val six = d.mostSevensIn(6)
+    appendLine("Longest run of 7s: ${d.longestSevenRun}. Most 7s in any 6 rolls: $six (chance in a given 6 rolls: %.3f%%)".format(100 * DiceStats.chanceOfAtLeastSevens(six, 6)))
+    appendLine("Chi-square %.1f, p = %.3f%s".format(d.chiSquare, d.pValue, if (d.rolls < 180) " (rough: under 180 rolls)" else if (d.pValue < 0.001) " - suspicious" else " - consistent with fair dice"))
+}
+
 private fun arg(args: List<String>, name: String): String? = args.indexOf(name).takeIf { it >= 0 }?.let { args.getOrNull(it + 1) }
 
 private fun fail(msg: String): Nothing { System.err.println(msg); exitProcess(2) }
 
 fun main(argv: Array<String>) {
     val args = argv.toList()
-    val cmd = args.getOrNull(0) ?: fail("usage: wgbg new|state|act|wait|log <dir> ...")
+    val cmd = args.getOrNull(0) ?: fail("usage: wgbg new|state|act|wait|log|dice <dir> ...")
     val dir = File(args.getOrNull(1) ?: fail("missing game folder"))
     val seat = arg(args, "--seat")?.toInt()
     when (cmd) {
@@ -294,6 +315,19 @@ fun main(argv: Array<String>) {
                 }
                 if (System.currentTimeMillis() - t0 > timeout) { println("Still not your move after ${timeout / 1000}s."); return }
                 Thread.sleep(1000)
+            }
+        }
+        "dice" -> {
+            // Histogram of this game's rolls, and optionally a fresh sample from the same true-random dice.
+            val sample = arg(args, "--sample")?.toInt() ?: 0
+            if (File(dir, "game.txt").exists()) {
+                val r = Record.load(dir)
+                val sums = r.actions.filter { it.type == ActionType.ROLL && it.payload != 0L }.map { it.a + it.b }
+                print(diceReport("This game (${sums.size} rolls)", DiceStats(sums)))
+            } else if (sample == 0) fail("no game in $dir; add --sample N for a fresh sample")
+            if (sample > 0) {
+                val src = TrueRandomDice()
+                print(diceReport("$sample fresh rolls from the same dice (${SecureRandom().algorithm})", DiceStats(List(sample) { src.next().sum })))
             }
         }
         "log" -> {
