@@ -41,6 +41,17 @@ fun barSegments(level: Int) = level.coerceIn(0, 4)
 fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifier: Modifier = Modifier) {
     version // the state object is mutated in place; this changing value makes the strip redraw after each move
     Column(modifier.brassEdgedWood().padding(horizontal = 12.dp, vertical = 8.dp).testTag("player-strip"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Age of Chivalry: how near the Raiders are (a ship marker on a 7-step track).
+        s.ck?.let { ck ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.testTag("raiders-track")) {
+                Text("Raiders", color = Color(0xFFE57373), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp))
+                for (i in 0 until wgbg.engine.CkPiece.BARBARIAN_TRACK) Box(
+                    Modifier.size(width = 14.dp, height = 8.dp)
+                        .background(if (i < ck.barbarianPos) Color(0xFFC0392B) else Color(0x73000000), RoundedCornerShape(2.dp)),
+                )
+                Text("${raidersStepsLeft(ck.barbarianPos)}", color = Color(0xFFE57373), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+        }
         for (p in 0 until s.numPlayers) {
             val turn = !s.isOver && p == s.currentPlayer
             Row(
@@ -86,3 +97,6 @@ fun TurnPrompt(text: String, modifier: Modifier = Modifier) {
     Text(text, color = Color(0xFFEDE6D8), fontSize = 15.sp, fontWeight = FontWeight.Bold,
         modifier = modifier.brassEdgedWood().padding(horizontal = 16.dp, vertical = 6.dp).testTag("turn-prompt"))
 }
+
+/** Ship steps left before the Raiders land (attack) for track position [pos]. */
+fun raidersStepsLeft(pos: Int) = (wgbg.engine.CkPiece.BARBARIAN_TRACK - pos).coerceAtLeast(0)
