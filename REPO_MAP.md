@@ -22,4 +22,19 @@ Never committed, on purpose:
 Open question: `wgbg-art\` is about 136 MB of source images. Options are a separate repo
 (`cyclistmass/wgbg-art`, ideally with Git LFS) or `working-german-board-game/art-src/` with LFS. Not decided yet.
 
+## claude.ai pages (not git)
+
+Design canvases and pages for the game belong in **Mauro's** claude.ai account (mauro.dibenedetto@gmail.com).
+Check which account Claude Code is logged in as before publishing; the PC also logs in as Erin
+(quailhollowcookies.com), and anything published then lands in her gallery.
+
+| Page | Account | Note |
+|---|---|---|
+| Tiles canvas https://claude.ai/artifact/4egJhXbNhRjjzZSv5zXhja | Mauro | palette for tile art |
+| Cards and names canvas https://claude.ai/artifact/JQGQiUm4tAjHQcR9ZLstn9 | Mauro | palette for cards and the names table |
+| Art inventory https://claude.ai/artifact/EPCzewYHf6xvRnF8sQQ8pY | Mauro | every image and its status; source `wgbg-art\inventory\` |
+| Hexhold (early web prototype, 2026-10-01) https://claude.ai/artifact/CvWUT69SZnGeKhZ4bcYcUt | **Erin (wrong account)** | copy saved at `wgbg-art\claude-artifacts\hexhold-2026-10-01.html`; republish under Mauro's account or share it to him |
+| Game Start & Lobby https://claude.ai/artifact/QpUuSrw6XhxKvrfYWwrnps | **Erin (wrong account)** | empty canvas, created by mistake; safe to delete |
+| Lobby/board layout canvas https://claude.ai/artifact/3325unbrfXKARLrn8MbcAC | unknown, unreadable since a login switch | designs were copied to `working-german-board-game/docs/design/` |
+
 Other projects on this PC (`quailhollow-cookies-2026\`, `whisper\`, …) are not part of the game and are not in cyclistmass/sharable.
