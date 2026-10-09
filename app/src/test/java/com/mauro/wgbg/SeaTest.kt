@@ -47,10 +47,16 @@ class SeaTest {
         val sea = Sea(board)
         val c = sea.clouds.first()
         sea.grab(c, Offset(c.x, c.y))
-        sea.move(c, Offset(0f, 0f))          // onto the island
+        sea.move(c, Offset(0f, 0f))          // onto the island: it goes there while held
         repeat(60) { sea.update(dt) }
-        assertTrue(hypot(c.x, c.y) >= sea.landR)
+        assertTrue(hypot(c.x, c.y) < 0.2f, "follows the finger over the island")
+        sea.release(c)
+        repeat(60 * 15) { sea.update(dt) }   // let go: it floats back out to sea
+        assertTrue(hypot(c.x, c.y) >= sea.landR, "floated off the island")
+        sea.grab(c, Offset(c.x, c.y))
         sea.move(c, Offset(40f, -40f))       // far off the screen
+        repeat(60) { sea.update(dt) }
+        sea.release(c)
         repeat(60) { sea.update(dt) }
         assertTrue(sea.inOpenSea(c.x, c.y))
     }
@@ -87,8 +93,8 @@ class SeaTest {
             assertTrue(hypot(c.vx, c.vy) <= CloudFeel.MAX_SPEED + 1e-3f)
             repeat(20) {
                 sea.update(dt)
-                for (k in sea.clouds) assertTrue(hypot(k.x, k.y) >= sea.landR + 0.24f && sea.inOpenSea(k.x, k.y, Sea.CLOUD_EDGE - 0.01f),
-                    "cloud off the water at ${k.x},${k.y}")
+                // Never past the screen edge (over the island it floats back out on its own).
+                for (k in sea.clouds) assertTrue(sea.inOpenSea(k.x, k.y, Sea.CLOUD_EDGE - 0.01f), "cloud off the screen at ${k.x},${k.y}")
             }
         }
     }
@@ -297,5 +303,30 @@ class SeaTest {
             hypot(c.vx, c.vy)
         }
         for (v in ends) assertEquals(1.5f * kotlin.math.exp(-CloudFeel.DAMPING), v, 0.02f)
+    }
+
+    @Test
+    fun `a dragged cloud moves the way the finger moves, even inward or past the edge`() {
+        val sea = Sea(board)
+        val c = sea.clouds.first()
+        sea.grab(c, Offset(c.x, c.y))
+        val from = Offset(c.x, c.y)
+        val to = Offset(from.x * 0.3f, from.y * 0.3f)     // straight toward the island's center
+        sea.move(c, to)
+        repeat(60) { sea.update(dt) }
+        val moved = Offset(c.x - from.x, c.y - from.y)
+        val wanted = Offset(to.x - from.x, to.y - from.y)
+        val cos = (moved.x * wanted.x + moved.y * wanted.y) / (moved.getDistance() * wanted.getDistance())
+        assertTrue(cos > 0.99f, "moved off the drag direction (cos $cos)")
+    }
+
+    @Test
+    fun `a thrown cloud flies straight, not curving around the island`() {
+        val sea = Sea(board)
+        val c = sea.clouds.first()
+        c.x = 0f; c.y = -(sea.landR + 0.6f)            // just above the island, on the water
+        sea.fling(c, 1.2f, 0f)                          // throw it sideways
+        repeat(30) { sea.update(dt) }
+        assertEquals(-(sea.landR + 0.6f), c.y, 0.02f, "no curve while it flies")
     }
 }

@@ -229,13 +229,16 @@ class Sea(board: Board, seed: Int = 1) {
             if (c.dragging) {
                 // Follows the finger smoothly (frame-rate independent), keeping where it was grabbed.
                 val k = CloudFeel.followFraction(dt)
+                // No bounds while held: the cloud goes exactly where the finger takes it.
                 c.x += (c.targetX - c.x) * k; c.y += (c.targetY - c.y) * k
-                keepOnSea(c)
                 continue
             }
-            val a = atan2(c.y, c.x) + c.drift * pdt
-            val d = hypot(c.x, c.y)
-            c.x = cos(a) * d; c.y = sin(a) * d
+            // The slow drift around the island pauses while the cloud is moving, so throws go straight.
+            if (c.vx == 0f && c.vy == 0f) {
+                val a = atan2(c.y, c.x) + c.drift * pdt
+                val d = hypot(c.x, c.y)
+                c.x = cos(a) * d; c.y = sin(a) * d
+            }
             // Momentum from a tap, nudge or flick: carries on, slows smoothly to rest, bounces softly off the bounds.
             if (c.vx != 0f || c.vy != 0f) {
                 c.x += c.vx * dt; c.y += c.vy * dt
@@ -320,10 +323,10 @@ class Sea(board: Board, seed: Int = 1) {
         val lo = landR + 0.25f
         val d = hypot(c.x, c.y).coerceAtLeast(1e-3f)
         if (d < lo) {
+            // Over the island: no snapping; it floats gently back out to sea.
             val nx = c.x / d; val ny = c.y / d
             val vr = c.vx * nx + c.vy * ny
-            if (vr < 0) { c.vx -= (1 + BOUNCE) * vr * nx; c.vy -= (1 + BOUNCE) * vr * ny }
-            c.x = nx * lo; c.y = ny * lo
+            if (vr < FLOAT_OUT) { c.vx += (FLOAT_OUT - vr) * nx; c.vy += (FLOAT_OUT - vr) * ny }
         }
         val rx = OPEN_RX - CLOUD_EDGE; val ry = OPEN_RY - CLOUD_EDGE
         val q = sqrt((c.x / rx) * (c.x / rx) + (c.y / ry) * (c.y / ry))
@@ -566,6 +569,8 @@ class Sea(board: Board, seed: Int = 1) {
         private const val WOBBLE = 0.45f
         /** Share of a cloud's speed into a bound that it keeps, reversed (soft bounce). Other cloud tunables: [CloudFeel]. */
         const val BOUNCE = 0.4f
+        /** Speed (units/s) at which a cloud left over the island floats back out to sea. */
+        const val FLOAT_OUT = 0.45f
 
         const val SMALL_WAVELETS = 330
         const val BIG_WAVELETS = 30
