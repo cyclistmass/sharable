@@ -7,3 +7,5 @@
   Converted to grayscale and stained per player at runtime.
 
 All other graphics are drawn procedurally in code.
+- Old brass on the lobby and panel designs: "Metal042B" from ambientCG
+  (https://ambientcg.com/view?id=Metal042B), CC0 1.0 Universal (public domain).

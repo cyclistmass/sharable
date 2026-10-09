@@ -8,7 +8,8 @@ Android hex-trading board game (Catan-compatible rules), Kotlin + Compose. Modul
 Every new or changed graphic goes onto a **palette for evaluation** before it is final:
 1. Draft options on a Design canvas artboard (claude.ai Design artifact) so the user can compare
    variations side by side. Existing canvases: tiles https://claude.ai/artifact/4egJhXbNhRjjzZSv5zXhja,
-   cards and names https://claude.ai/artifact/JQGQiUm4tAjHQcR9ZLstn9. Add new ones as needed.
+   cards and names https://claude.ai/artifact/JQGQiUm4tAjHQcR9ZLstn9, lobby/game start/board
+   layout https://claude.ai/artifact/3325unbrfXKARLrn8MbcAC. Add new ones as needed.
 2. Once approved, port it into the app and add it to the in-app **Inventory** screen
    (`drawInventory` in MainActivity.kt), so every object can be eyeballed together on device.
 3. Screenshot the Inventory screen and the board to confirm.
