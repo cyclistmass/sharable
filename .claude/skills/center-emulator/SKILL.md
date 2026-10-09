@@ -11,7 +11,7 @@ Run:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/center_emulator.ps1
 ```
 
-It works in physical pixels (this PC: one 4K screen at 250% scaling), sizes the window to ~70% of
+It works in physical pixels (this PC: one 4K screen at 250% scaling), sizes the window to ~90% of
 the screen width with the 2400x1080 landscape aspect, centers it (nudged left to leave room for
 the side toolbar), and brings it to the front.
 

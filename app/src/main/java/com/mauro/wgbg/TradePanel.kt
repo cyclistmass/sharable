@@ -1,5 +1,6 @@
 package com.mauro.wgbg
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,6 +32,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -95,6 +98,9 @@ fun bankRate(s: GameState, p: Int, r: Int): Int {
 }
 
 // ------------------------------------------------------------------ the chest
+
+/** Illustrated resource cards (Mauro's art), indexed like RESOURCE_NAMES. */
+val CARD_ART = listOf(R.drawable.card_timber, R.drawable.card_clay, R.drawable.card_fleece, R.drawable.card_grain, R.drawable.card_stone)
 
 private val WOOD_DARK = Color(0xFF2A1B10)
 private val WOOD_MID = Color(0xFF4A3020)
@@ -252,17 +258,15 @@ private fun CardRow(counts: IntArray, editable: Boolean, single: Boolean, badge:
             val n = counts[r]
             val lit = n > 0
             Box(
-                Modifier.size(width = 38.dp, height = 50.dp)
-                    .background(if (lit) CARD_FACE else Color(0xFF8C7F6E), RoundedCornerShape(6.dp))
-                    .border(if (lit) 3.dp else 2.dp, if (lit) BRASS_LIGHT else CARD_COLORS[r], RoundedCornerShape(6.dp))
+                Modifier.size(width = 38.dp, height = 55.dp)
+                    .then(if (lit) Modifier.border(2.dp, BRASS_LIGHT, RoundedCornerShape(5.dp)) else Modifier)
                     .then(if (editable) Modifier.clickable { change(r, 1) } else Modifier),
                 contentAlignment = Alignment.Center,
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.size(14.dp).background(CARD_COLORS[r], CircleShape))
-                    Text(RESOURCE_NAMES[r], color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                    Text(if (lit) "$n" else "", color = Color(0xFF2B2118), fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                }
+                // The illustrated card; dimmed until it is part of the trade.
+                Image(painterResource(CARD_ART[r]), RESOURCE_NAMES[r], Modifier.fillMaxSize(), alpha = if (lit) 1f else 0.45f)
+                if (lit) Text("$n", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.background(Color(0xCC2A1B10), CircleShape).padding(horizontal = 7.dp, vertical = 1.dp))
             }
             Box(Modifier.height(15.dp), contentAlignment = Alignment.Center) {
                 if (editable && lit && !single) Text("−", color = INK, fontSize = 15.sp, fontWeight = FontWeight.Bold,

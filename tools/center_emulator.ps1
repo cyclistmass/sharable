@@ -1,8 +1,8 @@
 # Centers the running emulator window on the primary screen, landscape-sized, and keeps it there.
 # The emulator re-lays out its own window when the display rotates (e.g. when the app starts in
 # landscape), which can push it off screen after it was placed, so this re-checks and re-centers.
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File tools\center_emulator.ps1 [-Width 0.7]
-param([double]$Width = 0.7, [int]$Checks = 4)
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File tools\center_emulator.ps1 [-Width 0.9]
+param([double]$Width = 0.9, [int]$Checks = 4)
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type @'

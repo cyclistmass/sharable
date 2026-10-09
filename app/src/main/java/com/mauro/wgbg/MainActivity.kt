@@ -61,6 +61,8 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
@@ -338,6 +340,21 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                     )
                 }
                 .pointerInput(Unit) {
+                    // Mouse wheel (emulator, tablets with a mouse): wheel zooms, Shift+wheel tilts.
+                    awaitPointerEventScope {
+                        while (true) {
+                            val e = awaitPointerEvent()
+                            if (e.type != PointerEventType.Scroll) continue
+                            val c = e.changes.firstOrNull() ?: continue
+                            val dy = c.scrollDelta.y
+                            lastTouch = System.nanoTime()
+                            camera = if (e.keyboardModifiers.isShiftPressed) camera.tilted(-dy * 40f, size.height.toFloat())
+                            else camera.transform(c.position, Offset.Zero, if (dy < 0) 1.12f else 1f / 1.12f, Size(size.width.toFloat(), size.height.toFloat()))
+                            e.changes.forEach { it.consume() }
+                        }
+                    }
+                }
+                .pointerInput(Unit) {
                     detectTapGestures(onTap = { at ->
                         val p = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(at)
                         val moves = if (inventory) emptyList() else movesAt(boardNow, legalNow, p)
@@ -362,6 +379,11 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                 if (!targets.isEmpty) drawTargets(state.board, targets, camera, (kotlin.math.sin(seaTick / 9f) + 1f) / 2f)
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
+        }
+        // Inventory: the illustrated resource cards along the bottom.
+        if (inventory) Row(Modifier.align(Alignment.BottomCenter).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((r, art) in CARD_ART.withIndex()) androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(art), RESOURCE_NAMES[r], Modifier.size(width = 76.dp, height = 110.dp))
         }
         if (!inventory) {
             val report = tick.let { if (speed == MAX_SPEED) tracker.last else tracker.current ?: tracker.last }
