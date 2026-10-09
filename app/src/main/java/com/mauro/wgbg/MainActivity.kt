@@ -13,7 +13,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -172,15 +175,16 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
     // Play mode: you are seat 0 ("You"); Watch mode: four bots at full speed.
     var human by remember { mutableStateOf(true) }
     val names = if (human) listOf("You") + PLAYER_NAMES.drop(1) else PLAYER_NAMES
-    val state = remember(seed) { Rules.newGame(GameConfig(numPlayers = 4), seed) }
-    val bots = remember(seed) { List<Bot>(4) { GreedyBot(seed * 31 + it) } }
-    val log = remember(seed) { mutableStateListOf<String>() }
-    val tracker = remember(seed, human) { TurnTracker(names) }
+    var seats by remember { mutableIntStateOf(4) } // 3 or 4 players (until the new-game screen exists)
+    val state = remember(seed, seats) { Rules.newGame(GameConfig(numPlayers = seats), seed) }
+    val bots = remember(seed, seats) { List<Bot>(seats) { GreedyBot(seed * 31 + it) } }
+    val log = remember(seed, seats) { mutableStateListOf<String>() }
+    val tracker = remember(seed, seats, human) { TurnTracker(names) }
     // Moves from the human's taps and buttons; the game loop checks each against the rules.
     val humanMoves = remember { Channel<Action>(Channel.UNLIMITED) }
     var tradeOpen by remember { mutableStateOf(false) }
     var victims by remember { mutableStateOf<List<Action>>(emptyList()) }
-    val responses = remember(seed) { mutableStateMapOf<Int, String>() }
+    val responses = remember(seed, seats) { mutableStateMapOf<Int, String>() }
     // Dice setting cycles: random, then deck stacks of 1-4 x 36 cards (asked per game once the new-game screen exists).
     var diceSetting by remember { mutableIntStateOf(0) } // 0 = random, n = n decks
     val dice = remember(diceSetting) { if (diceSetting == 0) DiceDeck.of(DiceMode.RANDOM) else DiceDeck.of(DiceMode.DECK, diceSetting) }
@@ -209,7 +213,7 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
         }
     }
 
-    LaunchedEffect(seed, playing, speed, human) {
+    LaunchedEffect(seed, seats, playing, speed, human) {
         val buf = ActionBuffer()
         while (humanMoves.tryReceive().isSuccess) { } // drop taps left over from another game
         suspend fun step(): ActionKind {
@@ -398,19 +402,21 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                     .padding(top = 60.dp, end = 8.dp, bottom = 8.dp)
                     .width(340.dp)
                     .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(14.dp))
+                    .verticalScroll(rememberScrollState())
                     .padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text("Game #$seed · turn ${players.first().turn}", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     FilledTonalButton(onClick = { playing = !playing }) { Text(if (playing) "Pause" else "Play") }
                     FilledTonalButton(onClick = { speed = if (speed == MAX_SPEED) 1 else speed * 2 }) { Text(if (speed == MAX_SPEED) "Max" else "${speed}×") }
                     FilledTonalButton(onClick = { seed++; playing = true }) { Text("New") }
                     FilledTonalButton(onClick = { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }) {
                         Text(if (human) "Watch bots" else "Play")
                     }
+                    FilledTonalButton(onClick = { seats = if (seats == 4) 3 else 4; tradeOpen = false; playing = true }) { Text("$seats players") }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     FilledTonalButton(onClick = { inventory = !inventory }) { Text(if (inventory) "Back to game" else "Inventory") }
                     FilledTonalButton(onClick = { camera = Camera.FIT }) { Text("Fit") }
                     FilledTonalButton(onClick = { diceSetting = (diceSetting + 1) % 5 }) {
