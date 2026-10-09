@@ -1,65 +1,77 @@
 {
-  "B1-flat": {
-    "visible_hex_width_px": 292,
-    "pawn_body_width_px": 102,
-    "width_ratio": 0.35,
-    "phone_hex_width_px": 73.0,
-    "phone_pawn_width_px": 25.549999999999997
+  "placements": {
+    "B1-timber-flat": {
+      "hex_width_px": 311.22,
+      "body_width_px": 108.93,
+      "width_ratio": 0.35,
+      "phone_hex_width_px": 77.81,
+      "phone_body_width_px": 27.23
+    },
+    "B1-timber-max": {
+      "hex_width_px": 311.22,
+      "body_width_px": 108.93,
+      "width_ratio": 0.35,
+      "phone_hex_width_px": 77.81,
+      "phone_body_width_px": 27.23
+    },
+    "B1-grain-max": {
+      "hex_width_px": 311.22,
+      "body_width_px": 108.93,
+      "width_ratio": 0.35,
+      "phone_hex_width_px": 77.81,
+      "phone_body_width_px": 27.23
+    },
+    "B2-timber-flat": {
+      "hex_width_px": 311.22,
+      "body_width_px": 108.93,
+      "width_ratio": 0.35,
+      "phone_hex_width_px": 77.81,
+      "phone_body_width_px": 27.23
+    },
+    "B2-timber-max": {
+      "hex_width_px": 311.22,
+      "body_width_px": 108.93,
+      "width_ratio": 0.35,
+      "phone_hex_width_px": 77.81,
+      "phone_body_width_px": 27.23
+    },
+    "B2-grain-max": {
+      "hex_width_px": 311.22,
+      "body_width_px": 108.93,
+      "width_ratio": 0.35,
+      "phone_hex_width_px": 77.81,
+      "phone_body_width_px": 27.23
+    },
+    "B3-timber-flat": {
+      "hex_width_px": 311.22,
+      "body_width_px": 108.93,
+      "width_ratio": 0.35,
+      "phone_hex_width_px": 77.81,
+      "phone_body_width_px": 27.23
+    },
+    "B3-timber-max": {
+      "hex_width_px": 311.22,
+      "body_width_px": 108.93,
+      "width_ratio": 0.35,
+      "phone_hex_width_px": 77.81,
+      "phone_body_width_px": 27.23
+    },
+    "B3-grain-max": {
+      "hex_width_px": 311.22,
+      "body_width_px": 108.93,
+      "width_ratio": 0.35,
+      "phone_hex_width_px": 77.81,
+      "phone_body_width_px": 27.23
+    }
   },
-  "B1-max": {
-    "visible_hex_width_px": 292,
-    "pawn_body_width_px": 102,
-    "width_ratio": 0.35,
-    "phone_hex_width_px": 73.0,
-    "phone_pawn_width_px": 25.549999999999997
+  "reused_own_raw_sha256": {
+    "B1-render.png": "51b1513584368b38c09a61b293fce6bf7f2f60d3d80136136d9114fdeee55647",
+    "B2-render.png": "6f5da2b348d01a90c974f16947fcc89b8bb47668562abf8ee7f0084302c5b8be",
+    "B3-render.png": "d3a90803b48a5b12bc238218d09d16123f5db4dfc871882071ff40bf2acb6e1d"
   },
-  "B1-painted": {
-    "visible_hex_width_px": 408,
-    "pawn_body_width_px": 143,
-    "width_ratio": 0.35,
-    "phone_hex_width_px": 102.0,
-    "phone_pawn_width_px": 35.699999999999996
-  },
-  "B2-flat": {
-    "visible_hex_width_px": 292,
-    "pawn_body_width_px": 102,
-    "width_ratio": 0.35,
-    "phone_hex_width_px": 73.0,
-    "phone_pawn_width_px": 25.549999999999997
-  },
-  "B2-max": {
-    "visible_hex_width_px": 292,
-    "pawn_body_width_px": 102,
-    "width_ratio": 0.35,
-    "phone_hex_width_px": 73.0,
-    "phone_pawn_width_px": 25.549999999999997
-  },
-  "B2-painted": {
-    "visible_hex_width_px": 408,
-    "pawn_body_width_px": 143,
-    "width_ratio": 0.35,
-    "phone_hex_width_px": 102.0,
-    "phone_pawn_width_px": 35.699999999999996
-  },
-  "B3-flat": {
-    "visible_hex_width_px": 292,
-    "pawn_body_width_px": 102,
-    "width_ratio": 0.35,
-    "phone_hex_width_px": 73.0,
-    "phone_pawn_width_px": 25.549999999999997
-  },
-  "B3-max": {
-    "visible_hex_width_px": 292,
-    "pawn_body_width_px": 102,
-    "width_ratio": 0.35,
-    "phone_hex_width_px": 73.0,
-    "phone_pawn_width_px": 25.549999999999997
-  },
-  "B3-painted": {
-    "visible_hex_width_px": 408,
-    "pawn_body_width_px": 143,
-    "width_ratio": 0.35,
-    "phone_hex_width_px": 102.0,
-    "phone_pawn_width_px": 35.699999999999996
-  }
+  "sprite_size": [
+    512,
+    512
+  ],
+  "phone_sheet_scale": 0.25
 }

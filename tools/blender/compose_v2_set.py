@@ -9,26 +9,31 @@ TERRAINS=['timber','stone','fleece','grain','clay','desert'];WOOD='#4A3020';GOLD
 def font(n):return ImageFont.truetype('C:/Windows/Fonts/georgia.ttf',n)
 
 def board(range_only=False):
-    im=Image.new('RGBA',(1152,768),WOOD);d=ImageDraw.Draw(im)
-    title='Stone | connected ridges across nine neighbours' if range_only else 'V2 | six-terrain board patch'
-    d.text((24,16),title,font=font(27),fill=GOLD)
-    d.text((24,54),'Maximum tilt 55° | independent sprites, rear-to-front | game hex spacing',font=font(18),fill='#EFE3C8')
+    factor=2 if range_only else 1
+    im=Image.new('RGBA',(1152*factor,768*factor),WOOD);d=ImageDraw.Draw(im)
+    title='Stone | R3 Alpine chain across nine neighbours' if range_only else 'V2 | six-terrain board patch'
+    d.text((24*factor,16*factor),title,font=font(27*factor),fill=GOLD)
+    d.text((24*factor,54*factor),'Maximum tilt 55° | independent sprites, rear-to-front | game hex spacing',font=font(18*factor),fill='#EFE3C8')
     order=['stone','stone','timber','stone','stone','fleece','clay','grain','desert']
-    scale=164;t=.96
+    scale=164*factor;t=.96
     for row in range(3):
         y=(row-1)*1.5
         for col in range(3):
             x=(col-1)*math.sqrt(3)+(row%2)*math.sqrt(3)/2-.30
             k=1+.22*math.sin(t)*y*math.cos(t)/4.2
-            cx=575+x*scale*k;cy=442+y*math.cos(t)*scale*k
+            cx=575*factor+x*scale*k;cy=442*factor+y*math.cos(t)*scale*k
             r='stone' if range_only else order[row*3+col]
-            tile=Image.open(OUT/f'{r}_V2_max.png').convert('RGBA')
+            tile=Image.open(OUT/('stone_V2_max_mock1024.png' if range_only else f'{r}_V2_max.png')).convert('RGBA')
             size=round(2.65*scale*k);tile=tile.resize((size,size),Image.Resampling.LANCZOS)
             im.alpha_composite(tile,(round(cx-size/2),round(cy-size/2)))
     d=ImageDraw.Draw(im)
-    d.text((24,712),'Palette mock: no number tokens/pieces. Ridge exits align laterally; inset tile gaps stay visible.',font=font(16),fill='#EFE3C8')
-    path=OUT/('stone-range-patch_V2_max.png' if range_only else 'board-patch_V2_max.png')
+    d.text((24*factor,712*factor),'Palette mock: no number tokens/pieces. Ridge exits align laterally; inset tile gaps stay visible.',font=font(16*factor),fill='#EFE3C8')
+    geometry_proof=OUT/'stone-alpine/stone_R3_chain_patch_max_board.png'
+    name='stone-range-sprite-patch_V2_max.png' if range_only and geometry_proof.exists() else 'stone-range-patch_V2_max.png' if range_only else 'board-patch_V2_max.png'
+    path=OUT/name
     im.convert('RGB').save(path)
+    if range_only and geometry_proof.exists():
+        Image.open(geometry_proof).convert('RGB').save(OUT/'stone-range-patch_V2_max.png')
 
 def main():
     board();board(True)
@@ -61,13 +66,15 @@ def main():
             webp=BytesIO();im.save(webp,format='WEBP',lossless=True,method=4)
             records.append(dict(file=path.name,bytes=path.stat().st_size,webp_lossless_bytes=len(webp.getvalue()),alpha_bounds=box))
     layers=[]
-    for path in sorted((OUT/'animation-layers/fleece').glob('*.png')):
+    for path in sorted((OUT/'animation-layers/fleece').glob('animals_mid_*.png')):
         im=Image.open(path);assert im.mode=='RGBA' and im.size==(128,128)
         assert im.getchannel('A').getbbox()
         layers.append(dict(file=str(path.relative_to(OUT)),bytes=path.stat().st_size,alpha_bounds=im.getchannel('A').getbbox()))
     for path in sorted((OUT/'animation-layers/grain').glob('*')):
         layers.append(dict(file=str(path.relative_to(OUT)),bytes=path.stat().st_size))
-    path=OUT/'animation-layers/fleece/sheep_mid_atlas.webp'
+    for path in sorted((OUT/'animation-layers/desert').glob('*')):
+        layers.append(dict(file=str(path.relative_to(OUT)),bytes=path.stat().st_size))
+    path=OUT/'animation-layers/fleece/animals_mid_atlas.webp'
     im=Image.open(path);assert im.mode=='RGBA' and im.size==(1024,256)
     layers.append(dict(file=str(path.relative_to(OUT)),bytes=path.stat().st_size,dimensions=im.size))
     stats=dict(tiles=records,layers=layers,tile_png_bytes=sum(r['bytes'] for r in records),tile_lossless_webp_bytes=sum(r['webp_lossless_bytes'] for r in records),
@@ -75,11 +82,11 @@ def main():
     (OUT/'validation-v2.json').write_text(json.dumps(stats,indent=2))
     modes={
         'timber':'Procedural bird wings and three falling leaves. Approved forest retained.',
-        'stone':'Three soft mist ribbons drifting over the connected saddle and crags.',
-        'fleece':'16 sheep-only Blender layers, with grazing and a short closed wandering path.',
+        'stone':'Selected R3 Alpine chain: seven summits on shared shoulders, warm rock, snow caps, scree and foothill pines. Three mist wisps and one soaring bird.',
+        'fleece':'Lush pasture, seven sheep and three tiny horned goats. 16 sheep-and-goat layers graze and wander.',
         'grain':'Procedural wind moves a masked wheat patch using a small textured mesh.',
         'clay':'Nine fading smoke puffs curl upward from the kiln chimney.',
-        'desert':'Six translucent spiral strokes form a small, slow dust devil.'}
+        'desert':'Relief dunes, ripples, scrub and bleached remains. A masked dune patch subtly shimmers in the heat.'}
     cards=[]
     for r in TERRAINS:
         details=''.join(f'<figure><img loading="lazy" src="{r}_V2_{a}.png" alt="{r.title()} {a} tilt"><figcaption>{a.title()}</figcaption></figure>' for a in ['flat','mid','max'])
@@ -94,6 +101,12 @@ document.getElementById('toggle').addEventListener('click',()=>setPaused(!paused
 document.querySelectorAll('.loop').forEach(img=>img.addEventListener('load',()=>{if(paused)setPaused(true)}));
 if(matchMedia('(prefers-reduced-motion: reduce)').matches)setPaused(true);
 </script></html>'''
+    html=html.replace('Mist, smoke and dust are overlays','Mist, smoke and heat shimmer are overlays')
+    if (OUT/'stone-alpine/stone_R3_chain_patch_max_board.png').exists():
+        proof='<figure><img src="stone-range-sprite-patch_V2_max.png" alt="R3 Alpine chain at current game sprite spacing"><figcaption>Integration check: independent sprites at the game\'s inset spacing. The main Stone patch above shows the edge-sharing model geometry.</figcaption></figure>'
+        html=html.replace('</section><script>',proof+'</section><script>')
+        html=html.replace('<a href="PLAN.md">Integration plan</a>','<a href="PLAN.md">Integration plan</a> · <a href="stone-alpine/stone-phone-25pct.png">Stone at phone scale</a> · <a href="stone-alpine/REPORT.md">R3 report</a>')
+    html=html.replace('<a href="PLAN.md">Integration plan</a>','<a href="PLAN.md">Integration plan</a> · <a href="palette-v2-density.png">Before → after density</a> · <a href="../bandit/bandit-options.png">Bandit options</a>')
     (OUT/'palette-v2.html').write_text(html,encoding='utf-8')
     print('V2_PALETTE_OK',len(records),'tiles;',len(layers),'layer files;',stats['tile_png_bytes'],'PNG bytes',flush=True)
 

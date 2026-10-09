@@ -47,7 +47,7 @@ def main():
         assert duration==8000
         assert ImageChops.difference(frames[0],frames[16]).getbbox(alpha_only=False) is not None,r
     html=(OUT/'palette-v2.html').read_text(encoding='utf-8');parser=Links();parser.feed(html)
-    assert parser.images==26
+    assert parser.images==(27 if (OUT/'stone-alpine/stone_R3_chain_patch_max_board.png').exists() else 26)
     for ref in parser.refs:assert (OUT/ref).is_file(),ref
     js=re.search(r'<script>(.*?)</script>',html,re.S).group(1)
     checked=subprocess.run(['node','--check'],input=js,text=True,capture_output=True)

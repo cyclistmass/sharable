@@ -1,0 +1,29 @@
+{
+  "blender": "4.5.1 LTS",
+  "threads": 2,
+  "metadata": {
+    "ears": 1018,
+    "curved_crop_rows": 15
+  },
+  "scene_objects": 79,
+  "renders": [
+    {
+      "file": "grain_V2_flat.png",
+      "seconds": 7.78,
+      "tilt": 0,
+      "resolution": 512
+    },
+    {
+      "file": "grain_V2_mid.png",
+      "seconds": 7.05,
+      "tilt": 0.48,
+      "resolution": 512
+    },
+    {
+      "file": "grain_V2_max.png",
+      "seconds": 5.98,
+      "tilt": 0.96,
+      "resolution": 512
+    }
+  ]
+}

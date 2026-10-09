@@ -56,7 +56,8 @@ def build_range(option):
                 x+=rng.uniform(-.014,.014); y+=rng.uniform(-.014,.014)
             ids[q,r]=len(verts); verts.append((x,y,field(x,y,option)+.004))
     faces=[]
-    for q,r in ids:
+    # Include cells whose anchor is outside the hex but whose second triangle is inside.
+    for q,r in ((q,r) for q in range(-n,n+1) for r in range(-n,n+1)):
         for tri in [[(q,r),(q+1,r),(q,r+1)],[(q+1,r),(q+1,r+1),(q,r+1)]]:
             if all(p in ids for p in tri):
                 faces.append(tuple(ids[p] for p in tri))

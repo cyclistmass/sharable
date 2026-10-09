@@ -1,0 +1,26 @@
+{
+  "blender": "4.5.1 LTS",
+  "threads": 2,
+  "metadata": {},
+  "scene_objects": 151,
+  "renders": [
+    {
+      "file": "clay_V2_flat.png",
+      "seconds": 5.09,
+      "tilt": 0,
+      "resolution": 512
+    },
+    {
+      "file": "clay_V2_mid.png",
+      "seconds": 5.05,
+      "tilt": 0.48,
+      "resolution": 512
+    },
+    {
+      "file": "clay_V2_max.png",
+      "seconds": 4.5,
+      "tilt": 0.96,
+      "resolution": 512
+    }
+  ]
+}

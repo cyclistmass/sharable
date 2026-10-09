@@ -11,11 +11,22 @@ All other graphics are drawn procedurally in code.
   meshes/materials authored by Codex for Mauro. The approved V2 set covers Timber, Stone,
   Fleece, Grain, Clay and Desert: connected ranges, trees, sheep, wheat, kiln, terraces,
   dunes and thick hex bases. Sources: `tools/blender/render_models.py` and
-  `tools/blender/render_v2_set.py`. Sheep-only sprite phases are original Blender renders;
-  bird, mist, wheat wind, smoke and dust overlays are original procedural code in
+  `tools/blender/render_v2_set.py` and the density pass `tools/blender/render_density.py`.
+  Tiny goats, lush pasture/wall/gate, dense wheat, cut clay terraces/racks/shed,
+  relief dunes/ripples/bleached remains and snow caps are original procedural meshes.
+  Sheep-and-goat sprite phases are original Blender renders;
+  bird, mist, wheat wind, smoke and heat overlays are original procedural code in
   `tools/blender/animate_v2.py`. Palette/mock composition: `compose_palette.py` and
   `compose_v2_set.py` in the same directory. No downloaded models, third-party textures
   or generated-image assets. Palette only; not installed in the app.
+- Selected Stone R3 Alpine chain and seven-peak follow-up (`stone-alpine/`): own
+  procedural geometry in `tools/blender/alpine_chain.py`, derived from our R3 study.
+  Shared ridge/shoulder terrain, snow, scree and V2 pines; warm density-pass materials.
+  Original mist/bird overlay code and `compose_alpine.py` phone/geometry proofs.
+- Bandit options (`docs/design/bandit/`): original procedural Blender cloaked figures,
+  lantern and beacon-ring models authored by Codex for Mauro in `tools/blender/bandit.py`.
+  Density round reuses the completed own renders/sprites; new tile/phone proofs are
+  composed by `tools/blender/compose_density.py`. No downloaded models or textures.
 - Tile relief faces (`relief_*.webp`) and comparison palette (`docs/design/tiles-3d/`):
   authored by Codex for Mauro from Mauro's existing owned tile paintings. The original
   procedural color-height brush relief bake is reproducible with `tools/art/tiles-3d.cjs`.

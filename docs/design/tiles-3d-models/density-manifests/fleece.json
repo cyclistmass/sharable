@@ -1,0 +1,26 @@
+{
+  "blender": "4.5.1 LTS",
+  "threads": 2,
+  "metadata": {},
+  "scene_objects": 180,
+  "renders": [
+    {
+      "file": "fleece_V2_flat.png",
+      "seconds": 5.8,
+      "tilt": 0,
+      "resolution": 512
+    },
+    {
+      "file": "fleece_V2_mid.png",
+      "seconds": 5.19,
+      "tilt": 0.48,
+      "resolution": 512
+    },
+    {
+      "file": "fleece_V2_max.png",
+      "seconds": 4.45,
+      "tilt": 0.96,
+      "resolution": 512
+    }
+  ]
+}

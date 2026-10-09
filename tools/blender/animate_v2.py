@@ -1,11 +1,11 @@
 """Procedural overlay reference and 8-second animated WebP palette, Python + Pillow.
-Five effects have no temporal sprite assets. Fleece mixes 16 small Blender sheep layers.
-Grain reuses a masked piece of its static render through a tiny displaced bitmap mesh.
+Five effects have no temporal sprite assets. Fleece mixes 16 sheep-and-goat layers.
+Grain and Desert reuse masked static patches through tiny displaced bitmap meshes.
 No application sources are changed. Angles/world anchors are shared with the renderer.
 """
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageChops, ImageFont, ImageStat, ImageOps
-import math, json, hashlib
+import math, json, hashlib, argparse
 from io import BytesIO
 
 ROOT=Path(__file__).resolve().parents[2];OUT=ROOT/'docs/design/tiles-3d-models'
@@ -17,18 +17,21 @@ def project(x,y,z=0):
     return (256+x*PIX,256-(y*math.cos(TILT)+z*math.sin(TILT))*PIX)
 
 def pasture(x,y):
-    return .024+.10*math.exp(-((x+.40)**2+(y-.23)**2)/.17)+.065*math.exp(-((x-.4)**2+(y+.17)**2)/.18)
+    return .032+.14*math.exp(-((x+.43)**2+(y-.22)**2)/.15)+.095*math.exp(-((x-.42)**2+(y+.20)**2)/.18)
 
 def font(size):return ImageFont.truetype('C:/Windows/Fonts/georgia.ttf',size)
 def ellipse(d,c,rx,ry,fill):d.ellipse((c[0]-rx,c[1]-ry,c[0]+rx,c[1]+ry),fill=fill)
 
 def wind_patch(source,save_mask=False):
     mask=Image.new('L',(512,512));d=ImageDraw.Draw(mask)
-    for row in range(9):
-        y=-.45+row*.12;left=-.64;right=.64 if y>=-.24 else .27
-        # Covers only the row canopy/stems, with the cart and sheaves excluded.
-        pts=[project(left,y-.042,0),project(right,y-.042,0),project(right,y+.028,.29),project(left,y+.028,.29)]
-        d.polygon(pts,fill=255)
+    for row in range(15):
+        points=[]
+        for j in range(45):
+            x=-.73+j*.033;y=-.55+row*.078+.065*math.sin(2.4*x+.03*row)
+            if abs(y)+abs(x)/math.sqrt(3)>.84 or (x>.25 and y<.08):continue
+            z=.055+.047*math.sin(2.3*x+.4)*math.cos(1.7*y)
+            points.append(project(x,y,z+.245))
+        if len(points)>1:d.line(points,fill=255,width=14)
     mask=mask.filter(ImageFilter.GaussianBlur(1.2))
     if save_mask:
         folder=OUT/'animation-layers/grain';folder.mkdir(parents=True,exist_ok=True)
@@ -36,12 +39,12 @@ def wind_patch(source,save_mask=False):
     patch=source.copy();patch.putalpha(ImageChops.multiply(source.getchannel('A'),mask))
     return patch
 
-def wind_mesh(patch,p):
+def wind_mesh(patch,p,amplitude=2.0):
     # Backward source quad per grid cell, equivalent to a cached textured overlay mesh.
     cells=[];n=16
     def source(x,y):
         wave=p*2-y*.038+x*.012
-        return (x-2.0*math.sin(wave),y-.65*math.cos(wave))
+        return (x-amplitude*math.sin(wave),y-amplitude*.325*math.cos(wave))
     for row in range(n):
         for col in range(n):
             x=col*32;y=row*32;box=(x,y,x+32,y+32)
@@ -57,12 +60,19 @@ class Overlays:
         self.sheep=[]
         for i in range(16):
             layer=Image.new('RGBA',(512,512))
-            layer.alpha_composite(Image.open(OUT/'animation-layers/fleece'/f'sheep_mid_{i:02d}.png').convert('RGBA'),(232,232))
+            layer.alpha_composite(Image.open(OUT/'animation-layers/fleece'/f'animals_mid_{i:02d}.png').convert('RGBA'),(232,208))
             self.sheep.append(layer)
         self.wind=wind_patch(self.base['grain'],True)
         path=OUT/'animation-layers/grain';path.mkdir(parents=True,exist_ok=True)
         self.wind.resize((256,256),Image.Resampling.LANCZOS).save(path/'wind_patch_mid.png')
         self.wind.resize((256,256),Image.Resampling.LANCZOS).save(path/'wind_patch_mid.webp',lossless=True,method=4)
+        mask=Image.new('L',(512,512));d=ImageDraw.Draw(mask)
+        d.ellipse((148,216,310,325),fill=190)
+        mask=mask.filter(ImageFilter.GaussianBlur(12))
+        self.heat=self.base['desert'].copy();self.heat.putalpha(ImageChops.multiply(self.heat.getchannel('A'),mask))
+        path=OUT/'animation-layers/desert';path.mkdir(parents=True,exist_ok=True)
+        mask.resize((256,256),Image.Resampling.LANCZOS).save(path/'heat_mask_mid.png')
+        self.heat.resize((256,256),Image.Resampling.LANCZOS).save(path/'heat_patch_mid.webp',lossless=True,method=4)
 
     def overlay(self,terrain,phase):
         p=phase%TAU
@@ -78,15 +88,19 @@ class Overlays:
                 c=project(xx,yy,.55-a*.16)
                 ellipse(d,c,1.5,2.3,(176,162,63,round(135*fade)))
         elif terrain=='stone':
-            # Three translucent ribbons drift across the saddle, never solid clouds.
-            for j in range(3):
-                q=p+j*2.1;cx,cy=project(-.04+.13*math.sin(q),.19+j*.035,.57+j*.095)
+            # Selected R3: height-aware wisps at three connected saddles.
+            for j,(x,y,z) in enumerate([(-.23,.18,.88),(.24,.19,.72),(.02,-.24,.57)]):
+                q=p+j*2.1;cx,cy=project(x+.09*math.sin(q),y+.018*math.cos(q),z)
                 alpha=round(46+13*math.cos(q))
                 pts=[(cx-29+i*6,cy+2.3*math.sin(i*.7+q)) for i in range(11)]
                 d.line(pts,fill=(232,237,230,alpha),width=3+j)
             layer=layer.filter(ImageFilter.GaussianBlur(2.0))
+            # One soaring bird stays above the chain; no temporal sprite or full-tile redraw at runtime.
+            d=ImageDraw.Draw(layer);cx,cy=project(.08+.26*math.sin(p),.15+.075*math.cos(p),1.12+.035*math.cos(p))
+            wing=2.5+1.6*math.cos(p*4)
+            d.line([(cx-5,cy-wing),(cx-2,cy-.5),(cx,cy+1),(cx+2,cy-.5),(cx+5,cy-wing*.8)],fill=(220,212,182,220),width=1)
         elif terrain=='fleece':
-            x=.19+.07*math.sin(p);y=-.34+.025*math.cos(p)
+            x=.16+.055*math.sin(p);y=-.37+.020*math.cos(p)
             c=project(x,y,pasture(x,y)+.005)
             ellipse(d,c,18,5,(42,41,22,36))
             # Premultiplied-alpha interpolation; Pillow's straight RGBA blend would make dark fringes.
@@ -97,7 +111,7 @@ class Overlays:
             layer=wind_mesh(self.wind,p)
             # The actual image patch moves, not just painted moving glints.
         elif terrain=='clay':
-            chimney=project(.485,-.125,.69)
+            chimney=project(.515,-.045,.726)
             for j in range(9):
                 age=(p/TAU*3+j/9)%1
                 fade=math.sin(math.pi*age)**2
@@ -107,29 +121,25 @@ class Overlays:
                 ellipse(d,(cx,cy),radius,radius*.72,(124,119,106,round(75*fade)))
             layer=layer.filter(ImageFilter.GaussianBlur(1.7))
         elif terrain=='desert':
-            cx,cy=project(-.28+.025*math.sin(p),-.30,.17)
-            for j in range(6):
-                h=j/5;rx=3+5*h
-                pts=[(cx+rx*math.sin(p*2+h*6+i*.35),cy-h*32+i*.28) for i in range(14)]
-                d.line(pts,fill=(154,108,57,round(68*(1-h*.7))),width=2)
-            layer=layer.filter(ImageFilter.GaussianBlur(.9))
+            layer=wind_mesh(self.heat,p,.8)
         return layer
 
     def frame(self,r,p):
         im=self.base[r].copy();im.alpha_composite(self.overlay(r,p));return im
 
 def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--terrain',choices=TERRAINS);args=parser.parse_args()
     ov=Overlays();validation=[]
     atlas=Image.new('RGBA',(1024,256))
     for i in range(16):
-        frame=Image.open(OUT/'animation-layers/fleece'/f'sheep_mid_{i:02d}.png').convert('RGBA')
+        frame=Image.open(OUT/'animation-layers/fleece'/f'animals_mid_{i:02d}.png').convert('RGBA')
         assert frame.size==(128,128)
         box=frame.getchannel('A').getbbox()
         assert box and min(box[:2])>0 and max(box[2:])<128,(i,box)
         atlas.alpha_composite(frame,((i%8)*128,(i//8)*128))
-    atlas.save(OUT/'animation-layers/fleece/sheep_mid_atlas.webp',lossless=True,method=4)
+    atlas.save(OUT/'animation-layers/fleece/animals_mid_atlas.webp',lossless=True,method=4)
     review=OUT/'animation-review';review.mkdir(exist_ok=True)
-    for r in TERRAINS:
+    for r in ([args.terrain] if args.terrain else TERRAINS):
         start=ov.frame(r,0);end=ov.frame(r,TAU)
         assert ImageChops.difference(start,end).getbbox(alpha_only=False) is None,(r,'seam mismatch')
         frames=[ov.frame(r,TAU*i/64) for i in range(64)]
@@ -166,6 +176,9 @@ def main():
         validation.append(dict(terrain=r,preview=path.name,bytes=path.stat().st_size,frames=64,duration_ms=sum(durations),period_endpoint_equal=True,input_sha256=ov.input_hashes[r],
                                min_adjacent_change=min(changes),max_adjacent_change=max(changes),loop_boundary_change=changes[-1],review_crop=bounds))
         print('ANIMATION_OK',r,path.stat().st_size,flush=True)
-    (OUT/'animation-validation.json').write_text(json.dumps(validation,indent=2))
+    path=OUT/'animation-validation.json'
+    previous=json.loads(path.read_text()) if path.exists() and args.terrain else []
+    previous=[entry for entry in previous if entry['terrain']!=args.terrain]
+    path.write_text(json.dumps(previous+validation,indent=2))
 
 if __name__=='__main__':main()
