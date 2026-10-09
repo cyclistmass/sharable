@@ -100,7 +100,7 @@ class Sea(board: Board, seed: Int = 1) {
         fun add(x: Float, y: Float, big: Boolean): Boolean {
             val cd = coastDist(x, y)
             val len = (0.075f + rnd.nextFloat() * 0.085f + (if (rnd.nextFloat() < 0.08f) 0.05f else 0f)) * if (big) 2f else 1f
-            if (cd < roam + len * 0.4f || hypot(x, y) + roam + len * 0.75f > SEA_R) return false
+            if (cd < roam + len * 0.4f || !inOpenSea(x, y, roam + len * 0.75f)) return false
             // Near the coast crests lie parallel to it; out at sea they take varied angles around a gentle swell.
             val nearest = land.minBy { hypot(x - it.x, y - it.y) }
             val shoreAngle = atan2(y - nearest.y, x - nearest.x) + PI.toFloat() / 2
@@ -114,8 +114,8 @@ class Sea(board: Board, seed: Int = 1) {
         }
         fun waterPoint(): Pair<Float, Float> {
             val a = rnd.nextFloat() * 2 * PI.toFloat()
-            val d = sqrt(rnd.nextFloat()) * SEA_R
-            return cos(a) * d to sin(a) * d
+            val d = sqrt(rnd.nextFloat())
+            return cos(a) * d * OPEN_RX to sin(a) * d * OPEN_RY
         }
         // Small wavelets: denser near the shore, calmer in open water.
         var small = 0
@@ -152,9 +152,15 @@ class Sea(board: Board, seed: Int = 1) {
         var hits = 0
         /** Seconds left of the wobble from the last poke. */
         var wobble = 0f
-        /** Velocity from a fling, lattice units per second; it dies away on its own. */
+        /** Velocity from a tap, nudge or flick, lattice units per second; it dies away on its own. */
         var vx = 0f
         var vy = 0f
+        /** While dragged: where the finger wants the cloud, and the grab offset from the finger. */
+        var dragging = false
+        var targetX = 0f
+        var targetY = 0f
+        var grabDx = 0f
+        var grabDy = 0f
     }
     private class Gull(var a: Float, val r: Float, val speed: Float, var phase: Float)
     private class Ring(val x: Float, val y: Float, var age: Float = 0f, val delay: Float = 0f)
@@ -163,7 +169,7 @@ class Sea(board: Board, seed: Int = 1) {
     private val rings = ArrayList<Ring>()
     val clouds = ArrayList<Cloud>()
     private val gulls = List(3) { i -> Gull(rnd.nextFloat() * 2 * PI.toFloat(), landR + 0.4f + 0.18f * i, (0.04f + 0.017f * i) * if (i % 2 == 1) -1 else 1, rnd.nextFloat() * 6) }
-    private val glints = List(70) { val (x, y) = seaPoint(0.2f); floatArrayOf(x, y, rnd.nextFloat() * 6f, 0.6f + rnd.nextFloat()) }
+    private val glints = List(160) { val (x, y) = seaPoint(0.2f); floatArrayOf(x, y, rnd.nextFloat() * 6f, 0.6f + rnd.nextFloat()) }
     internal var time = 0f
         private set
 
@@ -175,10 +181,19 @@ class Sea(board: Board, seed: Int = 1) {
 
     init { repeat(4) { clouds += newCloud() } }
 
+    /** A random point on the open sea at least [margin] from the coast and the screen edge. */
     private fun seaPoint(margin: Float): Pair<Float, Float> {
-        val a = rnd.nextFloat() * 2 * PI.toFloat()
-        val d = landR + margin + rnd.nextFloat() * (SEA_R - landR - 2 * margin)
-        return cos(a) * d to sin(a) * d
+        while (true) {
+            val x = (rnd.nextFloat() * 2 - 1) * OPEN_RX
+            val y = (rnd.nextFloat() * 2 - 1) * OPEN_RY
+            if (hypot(x, y) > landR + margin && inOpenSea(x, y, margin)) return x to y
+        }
+    }
+
+    /** True if (x, y) lies at least [margin] inside the open-sea ellipse (the screen at fit zoom). */
+    fun inOpenSea(x: Float, y: Float, margin: Float = 0f): Boolean {
+        val rx = OPEN_RX - margin; val ry = OPEN_RY - margin
+        return rx > 0 && ry > 0 && (x / rx) * (x / rx) + (y / ry) * (y / ry) <= 1f
     }
     private fun newCloud(): Cloud { val (x, y) = seaPoint(0.35f); return Cloud(x, y, 0.012f + rnd.nextFloat() * 0.02f, rnd.nextInt(3)) }
 
@@ -193,17 +208,24 @@ class Sea(board: Board, seed: Int = 1) {
         for (c in clouds) {
             if (c.poof >= 0) { c.poof += dt; continue }
             c.wobble = (c.wobble - dt).coerceAtLeast(0f)
+            if (c.dragging) {
+                // Follows the finger smoothly (frame-rate independent), keeping where it was grabbed.
+                val k = CloudFeel.followFraction(dt)
+                c.x += (c.targetX - c.x) * k; c.y += (c.targetY - c.y) * k
+                keepOnSea(c)
+                continue
+            }
             val a = atan2(c.y, c.x) + c.drift * dt
             val d = hypot(c.x, c.y)
             c.x = cos(a) * d; c.y = sin(a) * d
-            // Momentum from a fling: carries on and slows smoothly to rest, bouncing softly off the bounds.
+            // Momentum from a tap, nudge or flick: carries on, slows smoothly to rest, bounces softly off the bounds.
             if (c.vx != 0f || c.vy != 0f) {
                 c.x += c.vx * dt; c.y += c.vy * dt
-                val damp = exp(-FLING_DAMPING * dt)
+                val damp = CloudFeel.damp(dt)
                 c.vx *= damp; c.vy *= damp
-                if (hypot(c.vx, c.vy) < FLING_REST) { c.vx = 0f; c.vy = 0f }
-                bounce(c)
+                if (hypot(c.vx, c.vy) < CloudFeel.REST) { c.vx = 0f; c.vy = 0f }
             }
+            keepOnSea(c)
         }
         // A poofed cloud is replaced a few seconds later somewhere else on the sea.
         val gone = clouds.count { it.poof > 3.5f }
@@ -212,7 +234,7 @@ class Sea(board: Board, seed: Int = 1) {
     }
 
     /** True if [p] (lattice) is on open water. */
-    fun isWater(p: Offset) = hypot(p.x, p.y).let { it in landR..SEA_R }
+    fun isWater(p: Offset) = hypot(p.x, p.y) > landR && inOpenSea(p.x, p.y)
 
     fun cloudAt(p: Offset): Cloud? = clouds.lastOrNull { it.poof < 0 && hypot(p.x - it.x, p.y - it.y) < 0.38f }
 
@@ -220,11 +242,14 @@ class Sea(board: Board, seed: Int = 1) {
      * Pokes a cloud. It shrugs off the first few pokes (it wobbles, shrinks a little and sheds a
      * few wisps) and poofs on the [POKES_TO_POOF]th.
      */
-    fun poof(c: Cloud) {
+    fun poof(c: Cloud, from: Offset? = null) {
         if (c.poof >= 0) return
         c.hits++
         if (c.hits < POKES_TO_POOF) {
             c.wobble = WOBBLE
+            // Each poke also pushes the cloud gently away from the finger.
+            val (vx, vy) = CloudFeel.impulseAway(c.x, c.y, from?.x ?: c.x, from?.y ?: c.y, rnd.nextFloat() * 2 * PI.toFloat())
+            push(c, vx, vy)
             repeat(3) {
                 val a = -PI.toFloat() / 2 + (rnd.nextFloat() - 0.5f) * 2.4f
                 drops += Puff(c.x, c.y, 0.045f, 0.45f, dx = cos(a) * 0.3f, dy = sin(a) * 0.3f)
@@ -238,39 +263,57 @@ class Sea(board: Board, seed: Int = 1) {
         }
     }
 
-    /**
-     * Lets go of a dragged cloud with the finger's release velocity ([vx], [vy] in lattice units per
-     * second). It keeps moving and slows to rest in about 1.5-2 s; very hard flicks are capped.
-     */
+    /** Sets a cloud moving at ([vx], [vy]) lattice units/s (a flick); capped at [CloudFeel.MAX_SPEED]. */
     fun fling(c: Cloud, vx: Float, vy: Float) {
         if (c.poof >= 0 || !vx.isFinite() || !vy.isFinite()) return
-        val sp = hypot(vx, vy)
-        val k = if (sp > FLING_MAX) FLING_MAX / sp else 1f
-        c.vx = vx * k; c.vy = vy * k
+        c.dragging = false
+        val (cx, cy) = CloudFeel.cap(vx, vy)
+        c.vx = cx; c.vy = cy
     }
 
-    /** Keeps [c] between the island and the rim; hitting either reflects its radial speed, softened. */
-    private fun bounce(c: Cloud) {
-        val d = hypot(c.x, c.y).coerceAtLeast(1e-3f)
-        val lo = landR + 0.25f; val hi = SEA_R - 0.25f
-        if (d in lo..hi) return
-        val nx = c.x / d; val ny = c.y / d
-        val vr = c.vx * nx + c.vy * ny
-        if ((d > hi && vr > 0) || (d < lo && vr < 0)) {
-            c.vx -= (1 + BOUNCE) * vr * nx; c.vy -= (1 + BOUNCE) * vr * ny
-        }
-        val r = d.coerceIn(lo, hi)
-        c.x = nx * r; c.y = ny * r
+    /** Adds ([vx], [vy]) to a cloud's velocity (taps and nudges stack), capped. */
+    fun push(c: Cloud, vx: Float, vy: Float) {
+        if (c.poof >= 0 || !vx.isFinite() || !vy.isFinite()) return
+        val (cx, cy) = CloudFeel.cap(c.vx + vx, c.vy + vy)
+        c.vx = cx; c.vy = cy
     }
 
-    /** Drags a cloud, keeping it over the water. Grabbing a moving cloud stops it. */
-    fun move(c: Cloud, to: Offset) {
+    /** Picks a cloud up at [at]: it stops and remembers where on it the finger is. */
+    fun grab(c: Cloud, at: Offset) {
         c.vx = 0f; c.vy = 0f
-        val d = hypot(to.x, to.y)
-        // At the dead center there's no direction to push out along: keep the cloud's current bearing.
-        val (ux, uy) = if (d > 1e-3f) to.x / d to to.y / d else hypot(c.x, c.y).let { c.x / it to c.y / it }
-        val r = d.coerceIn(landR + 0.25f, SEA_R - 0.25f)
-        c.x = ux * r; c.y = uy * r
+        c.dragging = true
+        c.grabDx = c.x - at.x; c.grabDy = c.y - at.y
+        c.targetX = c.x; c.targetY = c.y
+    }
+
+    /** Drags a grabbed cloud toward the finger at [to]; it follows smoothly and stays over the water. */
+    fun move(c: Cloud, to: Offset) {
+        if (!c.dragging) grab(c, to)
+        c.targetX = to.x + c.grabDx; c.targetY = to.y + c.grabDy
+    }
+
+    /** Lets go of a dragged cloud (follow it with [fling] or [push] to give it momentum). */
+    fun release(c: Cloud) { c.dragging = false }
+
+    /** Keeps [c] between the island and the open-sea edge; hitting either reflects its speed, softened. */
+    private fun keepOnSea(c: Cloud) {
+        val lo = landR + 0.25f
+        val d = hypot(c.x, c.y).coerceAtLeast(1e-3f)
+        if (d < lo) {
+            val nx = c.x / d; val ny = c.y / d
+            val vr = c.vx * nx + c.vy * ny
+            if (vr < 0) { c.vx -= (1 + BOUNCE) * vr * nx; c.vy -= (1 + BOUNCE) * vr * ny }
+            c.x = nx * lo; c.y = ny * lo
+        }
+        val rx = OPEN_RX - CLOUD_EDGE; val ry = OPEN_RY - CLOUD_EDGE
+        val q = sqrt((c.x / rx) * (c.x / rx) + (c.y / ry) * (c.y / ry))
+        if (q > 1f) {
+            var nx = c.x / (rx * rx); var ny = c.y / (ry * ry)
+            val n = hypot(nx, ny); nx /= n; ny /= n
+            val vr = c.vx * nx + c.vy * ny
+            if (vr > 0) { c.vx -= (1 + BOUNCE) * vr * nx; c.vy -= (1 + BOUNCE) * vr * ny }
+            c.x /= q; c.y /= q
+        }
     }
 
     fun splash(p: Offset) {
@@ -287,39 +330,33 @@ class Sea(board: Board, seed: Int = 1) {
     /** Water, waves, surf and splashes: drawn before the tiles. [at] maps lattice to screen; [s] is px per side. */
     fun drawWater(ds: DrawScope, at: (Float, Float) -> Offset, s: Float, squash: Float, woodBrush: Brush) = with(ds) {
         val c = at(0f, 0f)
-        val oval = { r: Float -> Rect(c.x - r * s, c.y - r * s * squash, c.x + r * s, c.y + r * s * squash) }
-        // Frame shadow and wooden rim.
-        oval(SEA_R + RIM + 0.1f).let { drawOval(Color.Black.copy(alpha = 0.45f), it.topLeft + Offset(0f, 0.18f * s), it.size) }
-        oval(SEA_R + RIM / 2).let { drawOval(woodBrush, it.topLeft, it.size, style = Stroke(RIM * s)) }
-        oval(SEA_R + RIM / 2).let { drawOval(Color.Black.copy(alpha = 0.32f), it.topLeft, it.size, style = Stroke(RIM * s)) }
-        oval(SEA_R + RIM).let { drawOval(Color(0x88E2B37C), it.topLeft, it.size, style = Stroke(0.025f * s)) }
-        oval(SEA_R).let { drawOval(Color(0xFF3B2412), it.topLeft, it.size, style = Stroke(0.035f * s)) }
-
-        val clip = Path().apply { addOval(oval(SEA_R)) }
-        clipPath(clip) {
-            drawOval(Brush.radialGradient(
-                0.0f to DEEP_SHORE, 0.72f to DEEP_SHORE, 0.86f to DEEP_MID, 1f to DEEP_RIM,
-                center = c, radius = SEA_R * s,
-            ), oval(SEA_R).topLeft, oval(SEA_R).size)
-            drawPatches(this, c, s, squash, oval(SEA_R))
-            // Shallows hugging the coast: stacked translucent hex halos read as a soft gradient.
-            for ((grow, alpha) in listOf(1.22f to 0.18f, 1.14f to 0.22f, 1.07f to 0.28f)) {
-                for (h in land) drawPath(hexPath(at, h, grow), SHALLOW.copy(alpha = alpha))
-            }
-            // Sun glints twinkling.
-            for (g in glints) {
-                val a = (sin(time * g[3] + g[2]) * 0.5f + 0.5f)
-                if (a > 0.55f) drawCircle(Color.White.copy(alpha = (a - 0.55f) * 1.4f), 0.018f * s, at(g[0], g[1]))
-            }
-            for (w in wavelets) drawWavelet(this, at, w)
-            for (b in breaks) drawBreak(this, at, s, b)
-            for (r in rings) {
-                val t = ((r.age - r.delay) / 1.2f).coerceIn(0f, 1f)
-                if (r.age < r.delay) continue
-                val rr = (0.06f + t * 0.6f) * s
-                val cc = at(r.x, r.y)
-                drawOval(Color.White.copy(alpha = 0.9f * (1 - t)), cc - Offset(rr, rr * 0.62f * squash), Size(2 * rr, 2 * rr * 0.62f * squash), style = Stroke(0.03f * s))
-            }
+        // The ocean fills the whole screen (no frame); deeper toward the edges.
+        val far = maxOf(hypot(c.x, c.y), hypot(size.width - c.x, c.y), hypot(c.x, size.height - c.y), hypot(size.width - c.x, size.height - c.y))
+            .coerceAtLeast(1f)
+        val f = { r: Float -> (r * s / far).coerceIn(0.01f, 0.99f) }
+        val all = Rect(Offset.Zero, size)
+        drawRect(Brush.radialGradient(
+            0.0f to DEEP_SHORE, f(SEA_R * 0.72f) to DEEP_SHORE, f(SEA_R) to DEEP_MID, 1f to DEEP_RIM,
+            center = c, radius = far,
+        ), all.topLeft, all.size)
+        drawPatches(this, c, s, squash, all)
+        // Shallows hugging the coast: stacked translucent hex halos read as a soft gradient.
+        for ((grow, alpha) in listOf(1.22f to 0.18f, 1.14f to 0.22f, 1.07f to 0.28f)) {
+            for (h in land) drawPath(hexPath(at, h, grow), SHALLOW.copy(alpha = alpha))
+        }
+        // Sun glints twinkling.
+        for (g in glints) {
+            val a = (sin(time * g[3] + g[2]) * 0.5f + 0.5f)
+            if (a > 0.55f) drawCircle(Color.White.copy(alpha = (a - 0.55f) * 1.4f), 0.018f * s, at(g[0], g[1]))
+        }
+        for (w in wavelets) drawWavelet(this, at, w)
+        for (b in breaks) drawBreak(this, at, s, b)
+        for (r in rings) {
+            val t = ((r.age - r.delay) / 1.2f).coerceIn(0f, 1f)
+            if (r.age < r.delay) continue
+            val rr = (0.06f + t * 0.6f) * s
+            val cc = at(r.x, r.y)
+            drawOval(Color.White.copy(alpha = 0.9f * (1 - t)), cc - Offset(rr, rr * 0.62f * squash), Size(2 * rr, 2 * rr * 0.62f * squash), style = Stroke(0.03f * s))
         }
         // Surf line on the coast (tiles cover its inner half).
         for (h in land) drawPath(hexPath(at, h, 1.06f), Color.White.copy(alpha = 0.8f), style = Stroke(0.05f * s))
@@ -467,16 +504,18 @@ class Sea(board: Board, seed: Int = 1) {
         /** Width of the wooden rim. */
         const val RIM = 0.26f
         /** Pokes it takes to poof a cloud. */
-        const val POKES_TO_POOF = 4
+        const val POKES_TO_POOF = CloudFeel.POKES_TO_POOF
+        /** The open sea: an ellipse matching a landscape phone screen at fit zoom (lattice units). */
+        const val OPEN_RX = 12.8f
+        const val OPEN_RY = 5.75f
+        /** How far inside the open-sea edge clouds stay. */
+        const val CLOUD_EDGE = 0.4f
         private const val WOBBLE = 0.45f
-        /** Fling physics: speed cap (units/s), damping rate (1/s: a brisk throw rests in ~1.7 s), rest speed, bounce. */
-        const val FLING_MAX = 6f
-        const val FLING_DAMPING = 2.4f
-        private const val FLING_REST = 0.04f
+        /** Share of a cloud's speed into a bound that it keeps, reversed (soft bounce). Other cloud tunables: [CloudFeel]. */
         const val BOUNCE = 0.4f
 
-        const val SMALL_WAVELETS = 150
-        const val BIG_WAVELETS = 14
+        const val SMALL_WAVELETS = 330
+        const val BIG_WAVELETS = 30
         /** How far a wavelet may hop from home between loops, and how far it drifts within one. */
         const val HOP = 0.09f
         const val DRIFT = 0.035f

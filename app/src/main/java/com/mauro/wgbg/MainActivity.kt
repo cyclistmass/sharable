@@ -321,13 +321,20 @@ fun WatchGameScreen(modifier: Modifier = Modifier, initialCamera: Camera = Camer
                     boardGestures(
                         grab = { p -> seaNow.cloudAt(lattice(p))?.also { dragged = it } != null },
                         onGrabMove = { p -> dragged?.let { seaNow.move(it, lattice(p)) } },
-                        onGrabEnd = { moved, at, v ->
+                        onGrabEnd = { g ->
                             dragged?.let { c ->
-                                if (!moved) seaNow.poof(c)
-                                else {
-                                    // Screen px/s to lattice units/s, sampled over 0.1 s so tilt is accounted for.
-                                    val d = lattice(at + v * 0.1f) - lattice(at)
-                                    flingCloud(seaNow, c, d.x * 10f, d.y * 10f)
+                                seaNow.release(c)
+                                // Screen px/s to lattice units/s, sampled over 0.1 s so zoom and tilt are accounted for.
+                                fun toLattice(v: Offset) = (lattice(g.at + v * 0.1f) - lattice(g.at)) * 10f
+                                val release = toLattice(g.velocity)
+                                when (CloudFeel.classify(g.travel, g.durationMs, g.velocity.getDistance(), viewConfiguration.touchSlop)) {
+                                    CloudFeel.Gesture.TAP -> seaNow.poof(c, lattice(g.start))
+                                    CloudFeel.Gesture.NUDGE -> {
+                                        val avg = (g.at - g.start) / (g.durationMs.coerceAtLeast(16) / 1000f)
+                                        toLattice(avg).let { seaNow.push(c, it.x * CloudFeel.NUDGE_GAIN, it.y * CloudFeel.NUDGE_GAIN) }
+                                    }
+                                    CloudFeel.Gesture.FLICK -> seaNow.fling(c, release.x * CloudFeel.FLICK_RETAIN, release.y * CloudFeel.FLICK_RETAIN)
+                                    CloudFeel.Gesture.DRAG -> seaNow.fling(c, release.x * CloudFeel.DRAG_RELEASE, release.y * CloudFeel.DRAG_RELEASE)
                                 }
                             }
                             dragged = null
@@ -517,7 +524,7 @@ private suspend fun PointerInputScope.boardGestures(
     onTilt: (dy: Float) -> Unit,
     grab: (Offset) -> Boolean = { false },
     onGrabMove: (Offset) -> Unit = {},
-    onGrabEnd: (moved: Boolean, at: Offset, velocity: Offset) -> Unit = { _, _, _ -> },
+    onGrabEnd: (GrabEnd) -> Unit = {},
 ) = awaitEachGesture {
     val first = awaitFirstDown(requireUnconsumed = false)
     // A single finger landing on a cloud drags that cloud (a tap without moving poofs it).
@@ -525,6 +532,7 @@ private suspend fun PointerInputScope.boardGestures(
         var moved = false
         var travel = 0f
         var last = first.position
+        var lastTime = first.uptimeMillis
         // Release velocity (px/s) so a thrown cloud keeps going.
         val tracker = VelocityTracker().apply { addPosition(first.uptimeMillis, first.position) }
         do {
@@ -535,10 +543,11 @@ private suspend fun PointerInputScope.boardGestures(
             if (moved) onGrabMove(c.position)
             tracker.addPosition(c.uptimeMillis, c.position)
             last = c.position
+            lastTime = c.uptimeMillis
             c.consume()
         } while (c.pressed)
         val v = tracker.calculateVelocity()
-        onGrabEnd(moved, last, Offset(v.x, v.y))
+        onGrabEnd(GrabEnd(first.position, last, travel, lastTime - first.uptimeMillis, Offset(v.x, v.y)))
         return@awaitEachGesture
     }
     var mode = 0 // 0 undecided, 1 transform, 2 tilt
@@ -1027,7 +1036,5 @@ private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer:
 }
 
 
-/** Hands a released cloud its throw (the sea caps the speed and damps it to rest). */
-private fun flingCloud(sea: Sea, c: Sea.Cloud, vx: Float, vy: Float) {
-    if (vx.isFinite() && vy.isFinite()) sea.fling(c, vx, vy)
-}
+/** A finished touch on a cloud: where it started and ended (px), path length, duration and release velocity (px/s). */
+private class GrabEnd(val start: Offset, val at: Offset, val travel: Float, val durationMs: Long, val velocity: Offset)

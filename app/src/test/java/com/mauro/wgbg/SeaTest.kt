@@ -19,7 +19,7 @@ class SeaTest {
     fun `clouds stay over the water, never the island or the frame`() {
         val sea = Sea(board)
         repeat(20_000) { sea.update(dt) } // over five minutes of drifting
-        for (c in sea.clouds) assertTrue(hypot(c.x, c.y) in sea.landR..Sea.SEA_R, "cloud at ${c.x},${c.y}")
+        for (c in sea.clouds) assertTrue(hypot(c.x, c.y) >= sea.landR && sea.inOpenSea(c.x, c.y), "cloud at ${c.x},${c.y}")
     }
 
     @Test
@@ -46,10 +46,13 @@ class SeaTest {
     fun `dragged clouds are kept on the sea`() {
         val sea = Sea(board)
         val c = sea.clouds.first()
+        sea.grab(c, Offset(c.x, c.y))
         sea.move(c, Offset(0f, 0f))          // onto the island
+        repeat(60) { sea.update(dt) }
         assertTrue(hypot(c.x, c.y) >= sea.landR)
-        sea.move(c, Offset(40f, -40f))       // far past the frame
-        assertTrue(hypot(c.x, c.y) <= Sea.SEA_R)
+        sea.move(c, Offset(40f, -40f))       // far off the screen
+        repeat(60) { sea.update(dt) }
+        assertTrue(sea.inOpenSea(c.x, c.y))
     }
 
     /** Bearing of a cloud around the sea's center, so its passive orbit drift can be told apart from a fling. */
@@ -60,7 +63,7 @@ class SeaTest {
     }
 
     @Test
-    fun `a flung cloud travels, slows smoothly and comes to rest in about two seconds`() {
+    fun `a flung cloud travels, slows smoothly and comes to rest in a few seconds`() {
         val sea = Sea(board)
         val c = sea.clouds.first()
         // Throw it along its orbit (tangentially) so it doesn't hit a bound.
@@ -68,8 +71,8 @@ class SeaTest {
         sea.fling(c, -c.y / d * 3f, c.x / d * 3f)
         val first = travel(sea, c, 30)                // first half second
         assertTrue(first > 0.6f, "moved only $first in 0.5 s")
-        repeat(90) { sea.update(dt) }                 // to 2 s
-        assertEquals(0f, hypot(c.vx, c.vy), "still moving after 2 s")
+        repeat(330) { sea.update(dt) }                // to 6 s: light and floaty, but it stops
+        assertEquals(0f, hypot(c.vx, c.vy), "still moving after 6 s")
         val drift = travel(sea, c, 60)                // only the slow passive drift remains
         assertTrue(drift < 0.2f, "still travelling $drift per second")
     }
@@ -81,22 +84,23 @@ class SeaTest {
         repeat(200) {
             val c = sea.clouds[rnd.nextInt(sea.clouds.size)]
             sea.fling(c, (rnd.nextFloat() - 0.5f) * 200f, (rnd.nextFloat() - 0.5f) * 200f)
-            assertTrue(hypot(c.vx, c.vy) <= Sea.FLING_MAX + 1e-3f)
+            assertTrue(hypot(c.vx, c.vy) <= CloudFeel.MAX_SPEED + 1e-3f)
             repeat(20) {
                 sea.update(dt)
-                for (k in sea.clouds) assertTrue(hypot(k.x, k.y) in sea.landR + 0.24f..Sea.SEA_R - 0.24f, "cloud off the water at ${k.x},${k.y}")
+                for (k in sea.clouds) assertTrue(hypot(k.x, k.y) >= sea.landR + 0.24f && sea.inOpenSea(k.x, k.y, Sea.CLOUD_EDGE - 0.01f),
+                    "cloud off the water at ${k.x},${k.y}")
             }
         }
     }
 
     @Test
-    fun `hitting the rim bounces a cloud back softly instead of stopping it dead`() {
+    fun `hitting the edge bounces a cloud back softly instead of stopping it dead`() {
         val sea = Sea(board)
         val c = sea.clouds.first()
-        val d = hypot(c.x, c.y)
-        sea.fling(c, c.x / d * 5f, c.y / d * 5f)      // straight out at the rim
+        c.x = Sea.OPEN_RX - 1.5f; c.y = 0f               // near the right edge of the screen
+        sea.fling(c, 5f, 0f)                             // straight out at it
         var inward = false
-        repeat(60) { sea.update(dt); if (c.vx * c.x + c.vy * c.y < 0) inward = true }
+        repeat(600) { sea.update(dt); if (c.vx * c.x + c.vy * c.y < 0) inward = true }
         assertTrue(inward, "it should rebound inward")
     }
 
@@ -119,7 +123,8 @@ class SeaTest {
         val sea = Sea(board)
         assertTrue(sea.isWater(Offset(0f, -(sea.landR + Sea.SEA_R) / 2)))
         assertFalse(sea.isWater(Offset(0f, 0f)))
-        assertFalse(sea.isWater(Offset(Sea.SEA_R + 0.5f, 0f)))
+        assertTrue(sea.isWater(Offset(Sea.SEA_R + 2f, 0f)), "the sea now runs to the screen edge")
+        assertFalse(sea.isWater(Offset(Sea.OPEN_RX + 0.5f, 0f)))
     }
 
     @Test
@@ -151,7 +156,7 @@ class SeaTest {
                 val x = sea.waveletX(w, t); val y = sea.waveletY(w, t)
                 val reach = w.len * 0.75f
                 assertTrue(sea.coastDist(x, y) > reach * 0.5f, "wavelet ${w.id} on the coast at t=$t")
-                assertTrue(hypot(x, y) + reach < Sea.SEA_R, "wavelet ${w.id} over the rim at t=$t")
+                assertTrue(sea.inOpenSea(x, y, reach), "wavelet ${w.id} off the screen at t=$t")
                 t += 0.25f
             }
         }
@@ -169,9 +174,10 @@ class SeaTest {
         assertTrue(small.count { it.len > 0.16f } < small.size / 5)
         assertEquals(2f, big.map { it.len }.average().toFloat() / small.map { it.len }.average().toFloat(), 0.35f)
         assertTrue(big.all { sea.coastDist(it.x, it.y) > 1f }, "big crests stay offshore")
-        // Busier near the shore than in open water.
+        // Busier near the shore than in open water: the 0.6-wide coastal band is under a tenth of
+        // the screen-wide sea, so holding well over a seventh of the wavelets means denser there.
         val near = small.count { sea.coastDist(it.x, it.y) < 0.6f }
-        assertTrue(near > small.size / 4, "only $near near the coast")
+        assertTrue(near > small.size / 7, "only $near near the coast")
     }
 
     @Test
@@ -235,5 +241,49 @@ class SeaTest {
         val v = (0 until 2000).map { Sea.hop(it, it * 3, 0) }
         assertTrue(v.all { it in -1f..1f })
         assertTrue(v.average() in -0.1..0.1)
+    }
+
+    @Test
+    fun `a tap pushes the cloud away from the finger, and the fifth tap poofs it`() {
+        val sea = Sea(board)
+        val c = sea.clouds.first()
+        val from = Offset(c.x - 0.1f, c.y)               // finger just left of center
+        sea.poof(c, from)
+        assertTrue(c.vx > 0f, "pushed to the right, away from the finger")
+        repeat(3) { sea.poof(c, from) }
+        assertTrue(c.poof < 0, "four taps only push it")
+        sea.poof(c, from)
+        assertTrue(c.poof >= 0, "the fifth tap poofs it")
+    }
+
+    @Test
+    fun `a dragged cloud follows the finger smoothly and keeps where it was grabbed`() {
+        val sea = Sea(board)
+        val c = sea.clouds.first()
+        val grabAt = Offset(c.x + 0.1f, c.y)             // grabbed a little right of its center
+        sea.grab(c, grabAt)
+        val to = Offset(grabAt.x, grabAt.y + 0.5f)
+        sea.move(c, to)
+        sea.update(dt)
+        assertTrue(abs(c.y - (to.y)) > 0.05f, "it eases toward the finger rather than jumping")
+        repeat(60) { sea.update(dt) }
+        assertEquals(to.x - 0.1f, c.x, 0.02f)
+        assertEquals(to.y, c.y, 0.02f)
+        sea.release(c)
+    }
+
+    @Test
+    fun `cloud momentum is the same at 30, 60 and 120 frames a second`() {
+        val ends = listOf(30, 60, 120).map { fps ->
+            val sea = Sea(board)
+            val c = sea.clouds.first()
+            val d = hypot(c.x, c.y)
+            val x0 = c.x; val y0 = c.y
+            // Remove the passive drift from the comparison by measuring speed, not position.
+            sea.fling(c, -c.y / d * 1.5f, c.x / d * 1.5f)
+            repeat(fps) { sea.update(1f / fps) }
+            hypot(c.vx, c.vy)
+        }
+        for (v in ends) assertEquals(1.5f * kotlin.math.exp(-CloudFeel.DAMPING), v, 0.02f)
     }
 }
