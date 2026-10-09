@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Monkey test: installs the APK on a running emulator, fires random input at the app and fails
+# on any crash or ANR. Used by CI (wgbg-ci.yml, "monkey" job) and runnable locally.
+# Usage: tools/ci_monkey.sh path/to/app-debug.apk [events] [seed]
+set -euo pipefail
+APK="$1"
+EVENTS="${2:-5000}"
+SEED="${3:-$RANDOM}"
+ADB="${ADB:-adb}"
+PKG=com.mauro.wgbg
+
+"$ADB" install -r "$APK"
+"$ADB" shell am start -n "$PKG/.MainActivity"
+sleep 8
+"$ADB" logcat -c
+echo "monkey: $EVENTS events, seed $SEED"
+set +e
+"$ADB" shell monkey -p "$PKG" --throttle 30 --pct-syskeys 0 --pct-appswitch 0 --pct-anyevent 0 \
+  -s "$SEED" -v "$EVENTS" > monkey.txt 2>&1
+code=$?
+set -e
+tail -5 monkey.txt
+"$ADB" logcat -d -b crash > crash.txt || true
+if [ $code -ne 0 ] || grep -qE "// CRASH|// NOT RESPONDING|Monkey aborted" monkey.txt || grep -q "FATAL EXCEPTION" crash.txt; then
+  echo "Monkey found a crash (seed $SEED):"
+  grep -A30 -E "// CRASH|NOT RESPONDING" monkey.txt | head -60 || true
+  cat crash.txt | head -60
+  exit 1
+fi
+echo "monkey: no crash"
