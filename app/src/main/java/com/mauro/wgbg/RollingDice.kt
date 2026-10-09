@@ -38,7 +38,7 @@ object DiceSprites {
     /** Die size at rest when the panel's slots aren't known yet, dp. */
     const val SIDE_DP = 55
     /** Share of a tumbling render's width the cube fills (the resting faces fill their whole image). */
-    const val TUMBLE_SHARE = 0.70f
+    const val TUMBLE_SHARE = 347f / 512f   // every tumble render normalised to a 347 px body in a 512 px frame (Codex)
     /** Animation time of the first touch-down: from here on the die shows its rolled face, square. */
     const val LAND = 0.62f
     /** Animation time when both dice have settled and the panel's own dice take over. */

@@ -254,13 +254,34 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     var session by remember { mutableStateOf<LobbySession?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    // The room this phone sits in, kept across restarts: Android may kill a backgrounded app, and a player
+    // must be able to get back into a live game (playtest: the app came back on the start screen, game lost).
+    val savedRoom = remember { context.getSharedPreferences("online", android.content.Context.MODE_PRIVATE) }
+    fun enterRoom(s: LobbySession) {
+        session = s; savedRoom.edit().putString("room", s.id).putString("name", setup.name).apply(); screen = Screen.ONLINE_LOBBY
+    }
     fun failed(e: Throwable) { busy = false; problem = onlineProblem(e) }
     fun leaveRoom() {
         session?.let { s ->
             if (!s.client.view().let { it.room?.host == s.uid } && s.client.view().room?.status == Status.lobby) s.transport.leave(s.id)
             s.close()
         }
+        savedRoom.edit().remove("room").apply()
         session = null; screen = Screen.START
+    }
+    // Back after the app was closed or killed while in a room: rejoin it (the game catches up from its moves).
+    LaunchedEffect(Unit) {
+        val code = savedRoom.getString("room", null) ?: return@LaunchedEffect
+        if (start != null || session != null) return@LaunchedEffect
+        setup = setup.copy(name = savedRoom.getString("name", null) ?: setup.name)
+        busy = true; problem = "Rejoining room $code…"
+        LobbySession.rejoin(transport.value, setup, code).whenComplete { r, e ->
+            scope.launch {
+                busy = false
+                if (e != null) { savedRoom.edit().remove("room").apply(); problem = "Couldn't rejoin $code: ${onlineProblem(e)}" }
+                else { problem = null; enterRoom(r) }
+            }
+        }
     }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { session?.close() } }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
@@ -277,7 +298,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 onOpenLobby = { s ->
                     setup = s; busy = true; problem = null
                     LobbySession.host(transport.value, s, java.security.SecureRandom().nextLong()).whenComplete { r, e ->
-                        scope.launch { if (e != null) failed(e) else { busy = false; session = r; screen = Screen.ONLINE_LOBBY } }
+                        scope.launch { if (e != null) failed(e) else { busy = false; enterRoom(r) } }
                     }
                 },
                 onJoinRoom = { s -> setup = s; problem = null; screen = Screen.JOIN },
@@ -287,7 +308,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 JoinRoomScreen(setup.name, busy, onJoin = { code, name ->
                     setup = setup.copy(name = name); busy = true; problem = null
                     joinFirstOpenSeat(transport.value, setup, code).whenComplete { r, e ->
-                        scope.launch { if (e != null) failed(e) else { busy = false; session = r; screen = Screen.ONLINE_LOBBY } }
+                        scope.launch { if (e != null) failed(e) else { busy = false; enterRoom(r) } }
                     }
                 }, onBack = { screen = Screen.START })
             }
@@ -331,7 +352,8 @@ internal fun joinFirstOpenSeat(transport: wgbg.net.GameTransport, setup: GameSet
             e == null -> java.util.concurrent.CompletableFuture.completedFuture(s)
             !seatRefused -> java.util.concurrent.CompletableFuture.failedFuture(e)
             seat < GameSetup.MAX_SEATS - 1 -> joinFirstOpenSeat(transport, setup, code, seat + 1)
-            else -> java.util.concurrent.CompletableFuture.failedFuture(IllegalStateException("That room is full or has started"))
+            // No seat to take: maybe it's because you already sit there (back after the app was closed).
+            else -> LobbySession.rejoin(transport, setup, code)
         }
     }
 

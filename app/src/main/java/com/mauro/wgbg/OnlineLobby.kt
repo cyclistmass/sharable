@@ -34,6 +34,31 @@ class LobbySession(val transport: GameTransport, val setup: GameSetup, val id: S
             }
         fun join(transport: GameTransport, setup: GameSetup, code: String, seat: Int): CompletableFuture<LobbySession> =
             transport.signIn().thenCompose { uid -> transport.join(code, seat, setup.name).thenApply { LobbySession(transport, setup, code, uid) } }
+
+        /**
+         * Back into room [code] where this phone already holds a seat (after the app was closed or killed):
+         * the session replays the room's moves and play carries on. Fails if the room is gone, over, or this
+         * phone isn't seated in it.
+         */
+        fun rejoin(transport: GameTransport, setup: GameSetup, code: String): CompletableFuture<LobbySession> =
+            transport.signIn().thenCompose { uid ->
+                val s = LobbySession(transport, setup, code, uid)
+                val f = CompletableFuture<LobbySession>()
+                val sub = s.client.watch { v ->
+                    val r = v.room
+                    when {
+                        // A started room you don't sit in can't even be read (permission denied): say it plainly.
+                        r == null -> v.error?.let { e ->
+                            f.completeExceptionally(if (onlineProblem(e) == "No room with that code") e else IllegalStateException("That room is full or has started"))
+                        }
+                        r.status == Status.done -> f.completeExceptionally(IllegalStateException("That game has ended"))
+                        r.seats.any { it.uid == uid } -> f.complete(s)
+                        else -> f.completeExceptionally(IllegalStateException("That room is full or has started"))
+                    }
+                }
+                f.whenComplete { _, e -> sub.close(); if (e != null) s.close() }
+                f.orTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+            }
     }
 }
 
