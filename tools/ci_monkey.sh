@@ -9,9 +9,13 @@ SEED="${3:-$RANDOM}"
 ADB="${ADB:-adb}"
 PKG=com.mauro.wgbg
 
+"$ADB" wait-for-device
+# A fresh CI emulator is busy for a while after boot; let it settle so its own load isn't read as our ANR.
+until [ "$("$ADB" shell getprop sys.boot_completed | tr -d '')" = "1" ]; do sleep 2; done
+sleep "${SETTLE:-45}"
 "$ADB" install -r "$APK"
-"$ADB" shell am start -n "$PKG/.MainActivity"
-sleep 8
+"$ADB" shell am start -W -n "$PKG/.MainActivity"   # -W waits for the first frame
+sleep 10
 "$ADB" logcat -c
 echo "monkey: $EVENTS events, seed $SEED"
 set +e
