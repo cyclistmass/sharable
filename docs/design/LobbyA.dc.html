@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lobby A</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#F1D58A}a:hover{color:#FFE9B0}
+.table{background-image:linear-gradient(rgba(20,11,5,.80),rgba(8,4,2,.90)),url(/_blob/6d40b161f8c732929a7323bf1a4ccccc);background-size:auto,320px}
+.wood{background-image:linear-gradient(rgba(70,40,20,.50),rgba(26,15,7,.74)),url(/_blob/6d40b161f8c732929a7323bf1a4ccccc);background-size:auto,240px}
+.brass{background-image:linear-gradient(135deg,rgba(255,232,165,.30),rgba(70,46,12,.42) 42%,rgba(255,222,150,.22) 68%,rgba(40,24,6,.50)),url(/_blob/0b3a3304b2457a0467f5d5604f21048a);background-size:auto,300px;box-shadow:0 5px 14px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,242,205,.55),inset 0 -1px 0 rgba(30,18,4,.7)}
+.brassbtn{background-image:linear-gradient(rgba(255,236,175,.22),rgba(80,52,12,.48)),url(/_blob/0b3a3304b2457a0467f5d5604f21048a);background-size:auto,220px;box-shadow:inset 0 1px 0 rgba(255,245,212,.6),0 2px 4px rgba(0,0,0,.65)}
+.seat{background-image:linear-gradient(rgba(70,40,20,.50),rgba(26,15,7,.74)),url(/_blob/6d40b161f8c732929a7323bf1a4ccccc);background-size:auto,240px;border:5px solid transparent;border-image:url(/_blob/0b3a3304b2457a0467f5d5604f21048a) 30 round;box-shadow:0 5px 12px rgba(0,0,0,.7)}
+.rivet{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFF1C4,#B58A3A 45%,#4A3008 100%);box-shadow:0 1px 1px rgba(0,0,0,.7)}
+</style>
+</helmet>
+<div class="table" style="width: 888px; height: 400px; box-sizing: border-box; font-family: 'Alegreya Sans', sans-serif; color: #EDE6D8; padding: 14px; display: flex; gap: 14px">
+  <div style="flex: 1 1 0; position: relative">
+    <section class="seat" style="height: 100%; box-sizing: border-box; padding: 10px 14px; display: flex; flex-direction: column; gap: 9px">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <div class="brassbtn" style="border-radius: 6px; padding: 2px 12px; border: 1px solid #4A3008">
+          <h1 style="margin: 0; font-family: 'Alegreya SC', serif; font-size: 24px; color: #2A1A08; text-shadow: 0 1px 0 rgba(255,240,200,.6)">Room ROVER-42</h1>
+        </div>
+        <span style="font-size: 13px; color: #D9CBB0">3 of 4 seats taken</span>
+      </div>
+      <div style="display: flex; gap: 8px">
+        <button class="brassbtn" style="height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid #4A3008; color: #2A1A08; font: 700 14px 'Alegreya Sans', sans-serif">Copy link</button>
+        <button class="brassbtn" style="height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid #4A3008; color: #2A1A08; font: 700 14px 'Alegreya Sans', sans-serif">Share…</button>
+        <button class="brassbtn" style="height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid #4A3008; color: #2A1A08; font: 700 14px 'Alegreya Sans', sans-serif">Show QR</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 5px">
+        <div style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.32); border-radius: 10px; padding: 5px 10px; box-shadow: inset 0 1px 3px rgba(0,0,0,.6)">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #D32F2F; border: 2px solid #D9B865; display: flex; align-items: center; justify-content: center; font-weight: 700">M</div>
+          <span style="flex: 1 1 0; font-weight: 700; font-size: 15px">Mauro <span style="font-weight: 400; color: #D9CBB0">(host)</span></span>
+          <span style="font-size: 13px; font-weight: 700; color: #8BD18B">Ready</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.32); border-radius: 10px; padding: 5px 10px; box-shadow: inset 0 1px 3px rgba(0,0,0,.6)">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #1E63C6; border: 2px solid #D9B865; display: flex; align-items: center; justify-content: center; font-weight: 700">E</div>
+          <span style="flex: 1 1 0; font-weight: 700; font-size: 15px">Erin</span>
+          <span style="font-size: 13px; font-weight: 700; color: #8BD18B">Ready</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.32); border-radius: 10px; padding: 5px 10px; box-shadow: inset 0 1px 3px rgba(0,0,0,.6)">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #F57C00; border: 2px solid #D9B865; display: flex; align-items: center; justify-content: center; font-weight: 700">T</div>
+          <span style="flex: 1 1 0; font-weight: 700; font-size: 15px">Tiberiu</span>
+          <span style="font-size: 13px; font-weight: 700; color: #E0B23A">Not ready</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; border: 2px dashed rgba(217,184,101,0.6); border-radius: 10px; padding: 4px 10px">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #F5F5F5; border: 2px solid #D9B865; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #2B2118">+</div>
+          <span style="flex: 1 1 0; font-size: 14px; color: #D9CBB0">Open seat · bot if nobody joins</span>
+          <div style="display: flex; gap: 3px">
+            <button style="height: 26px; padding: 0 8px; border-radius: 7px; border: 1px solid #8A6A2A; background: rgba(0,0,0,.35); color: #EDE6D8; font: 600 11px 'Alegreya Sans', sans-serif">Easy</button>
+            <button class="brassbtn" style="height: 26px; padding: 0 8px; border-radius: 7px; border: 1px solid #4A3008; color: #2A1A08; font: 700 11px 'Alegreya Sans', sans-serif">Greedy</button>
+            <button style="height: 26px; padding: 0 8px; border-radius: 7px; border: 1px solid #8A6A2A; background: rgba(0,0,0,.35); color: #EDE6D8; font: 600 11px 'Alegreya Sans', sans-serif">Strong</button>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #D9CBB0">
+        <span>Recent:</span>
+        <span style="padding: 3px 10px; border-radius: 12px; background: rgba(0,0,0,0.35); color: #EDE6D8">Tiberiu</span>
+        <span style="padding: 3px 10px; border-radius: 12px; background: rgba(0,0,0,0.35); color: #EDE6D8">Erin</span>
+        <span style="padding: 3px 10px; border-radius: 12px; background: rgba(0,0,0,0.35); color: #EDE6D8">Sam</span>
+        <span>tap to invite</span>
+      </div>
+    </section>
+  </div>
+  <aside style="width: 250px; display: flex; flex-direction: column; gap: 10px">
+    <div style="flex: 1 1 0; position: relative">
+      <div class="seat" style="height: 100%; box-sizing: border-box; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 7px">
+        <div style="width: 120px; height: 120px; background: #EFE3C8; border-radius: 6px; border: 3px solid #8A6A2A; display: flex; align-items: center; justify-content: center; color: #2B2118; font-size: 13px; text-align: center">[QR code for<br>the invite link]</div>
+        <div style="font-size: 12px; text-align: center; color: #D9CBB0">Scan to join on another phone</div>
+        <div style="width: 100%; border-top: 1px solid rgba(217,184,101,0.45); padding-top: 6px; font-size: 13px; line-height: 1.45">
+          <div>Base game · 10 points</div>
+          <div>Dice: 72-card deck</div>
+        </div>
+      </div>
+    </div>
+    <button style="height: 46px; border-radius: 10px; border: 2px solid #D9B865; background: #3E9B4F; color: #fff; font: 700 17px 'Alegreya Sans', sans-serif; box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 3px 6px rgba(0,0,0,.7)">Start game</button>
+    <button class="brassbtn" style="height: 36px; border-radius: 10px; border: 1px solid #4A3008; color: #2A1A08; font: 700 14px 'Alegreya Sans', sans-serif">New game settings…</button>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":888,"height":400}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -107,83 +107,111 @@ class GameSetupTest {
 
     // ---------------------------------------------------------------- lobby
 
-    private val lobby = Lobby.host(base.withSeat(1, SeatKind.FRIEND).withSeat(2, SeatKind.FRIEND).withBot(3, BotLevel.EASY), code = "K7QX4")
+    private val lobby = Lobby.host(base.withSeat(1, SeatKind.FRIEND).withSeat(2, SeatKind.FRIEND).withBot(3, BotLevel.EASY), code = "ROVER-42")
 
     @Test
-    fun `hosting seats you, places the chosen bots and leaves friend seats open`() {
+    fun `hosting seats you, reserves the chosen bots and opens friend seats with a Greedy fallback`() {
         assertEquals("Mauro", lobby.seats[0].name)
         assertTrue(lobby.seats[1].open && lobby.seats[2].open)
+        assertEquals(BotLevel.GREEDY, lobby.seats[1].bot)
+        assertFalse(lobby.seats[3].open)
         assertEquals(BotLevel.EASY, lobby.seats[3].bot)
-        assertEquals("https://wgbg.example/join/K7QX4", lobby.link)
-        assertEquals(2, lobby.filled)
+        assertEquals("Easy bot", lobby.seats[3].label)
+        assertEquals("https://wgbg.example/join/ROVER-42", lobby.link)
+        assertEquals(1, lobby.taken)
     }
 
     @Test
-    fun `room codes avoid look-alike characters and validate`() {
+    fun `an empty seat in the setup stays open with no bot`() {
+        val l = Lobby.host(base.withSeat(2, SeatKind.EMPTY))
+        assertTrue(l.seats[2].open)
+        assertNull(l.seats[2].bot)
+        assertFalse(l.seats[2].plays)
+    }
+
+    @Test
+    fun `room codes read aloud cleanly and typed codes are forgiven`() {
         val r = Random(7)
         repeat(500) {
             val code = Lobby.newCode(r)
             assertTrue(Lobby.isValidCode(code), code)
-            assertTrue(code.none { it in "0O1IL" }, code)
         }
-        assertFalse(Lobby.isValidCode("K7QX"))
-        assertFalse(Lobby.isValidCode("K7QX0"))
-        assertFalse(Lobby.isValidCode("k7qx4"))
+        assertEquals("ROVER-42", Lobby.normalizeCode(" rover 42 "))
+        assertEquals("ROVER-42", Lobby.normalizeCode("rover42"))
+        assertEquals("ROVER-42", Lobby.normalizeCode("Rover-42"))
+        assertNull(Lobby.normalizeCode("ROVER-4"))
+        assertNull(Lobby.normalizeCode("ROVER-04"))
+        assertNull(Lobby.normalizeCode("BANANA-42")) // not one of our words
+        assertNull(Lobby.normalizeCode(""))
+        assertFalse(Lobby.isValidCode("rover-42"))
     }
 
     @Test
-    fun `friends join open seats in order until the room is full`() {
+    fun `friends join open seats in order, never the reserved bot's, until the room is full`() {
         val one = lobby.join("Justin")!!
         assertEquals("Justin", one.seats[1].name)
         val two = one.join("Erin")!!
         assertEquals("Erin", two.seats[2].name)
-        assertNull(two.join("Late"))
+        assertNull(two.join("Late")) // seat 3 is a reserved bot
+        assertEquals(BotLevel.EASY, two.seats[3].bot)
+        assertEquals(3, two.taken)
     }
 
     @Test
-    fun `start waits until every seated person is ready`() {
-        val full = lobby.join("Justin")!!.join("Erin")!!
-        assertFalse(full.canStart) // nobody ready yet (bot is)
-        val ready = full.copy(seats = full.seats.map { if (it.isBot) it else it.copy(ready = true) })
+    fun `start waits until every person is ready`() {
+        val full = lobby.join("Justin")!!
+        assertFalse(full.canStart)
+        assertEquals(listOf("Mauro isn't ready", "Justin isn't ready"), full.waitingOn)
+        val ready = full.copy(seats = full.seats.map { if (it.isPerson) it.copy(ready = true) else it })
         assertTrue(ready.canStart)
-        // A guest can't start the game.
-        assertFalse(ready.copy(me = 1).canStart)
+        assertTrue(ready.waitingOn.isEmpty())
+        assertFalse(ready.copy(me = 1).canStart) // a guest can't start
     }
 
     @Test
-    fun `open seats drop out at start, and the player count must still fit the ruleset`() {
+    fun `open seats with a bot play, empty open seats drop out, and the count must fit the ruleset`() {
         val host = lobby.toggleReady()
-        assertTrue(host.canStart) // you + easy bot = 2 players, base game
-        assertEquals(listOf(0, 3), host.gameSetup().players)
-        val chivalry = host.copy(setup = host.setup.withRuleset(Ruleset.CHIVALRY))
+        assertTrue(host.canStart)
+        assertEquals(listOf(0, 1, 2, 3), host.gameSetup().players) // seats 1-2 fall to Greedy bots
+        val sparse = host.setBot(1, null).setBot(2, null)
+        assertEquals(listOf(0, 3), sparse.gameSetup().players)
+        assertTrue(sparse.canStart)
+        val chivalry = sparse.copy(setup = sparse.setup.withRuleset(Ruleset.CHIVALRY))
         assertFalse(chivalry.canStart)
+        assertTrue(chivalry.waitingOn.single().contains("3-4"))
     }
 
     @Test
-    fun `only the host places and removes bots, never on a person or seat 0`() {
+    fun `only the host sets bots, never on a person, seat 0, or to nothing on a reserved seat`() {
         val withJustin = lobby.join("Justin")!!
-        assertSame(withJustin, withJustin.placeBot(1, BotLevel.STRONG)) // Justin's seat
-        assertSame(withJustin, withJustin.placeBot(0, BotLevel.STRONG))
-        val bot2 = withJustin.placeBot(2, BotLevel.GREEDY)
-        assertEquals(BotLevel.GREEDY, bot2.seats[2].bot)
-        assertEquals(BotLevel.STRONG, bot2.placeBot(3, BotLevel.STRONG).seats[3].bot) // relevel
-        assertTrue(bot2.removeBot(2).seats[2].open)
-        assertSame(bot2, bot2.removeBot(1)) // can't remove a person
-        val guest = bot2.copy(me = 1)
-        assertSame(guest, guest.placeBot(2, BotLevel.EASY))
-        assertSame(guest, guest.removeBot(2))
+        assertSame(withJustin, withJustin.setBot(1, BotLevel.STRONG)) // Justin's seat
+        assertSame(withJustin, withJustin.setBot(0, BotLevel.STRONG))
+        assertSame(withJustin, withJustin.setBot(3, null)) // reserved bot can change level, not vanish
+        assertEquals(BotLevel.STRONG, withJustin.setBot(3, BotLevel.STRONG).seats[3].bot)
+        assertEquals(BotLevel.EASY, withJustin.setBot(2, BotLevel.EASY).seats[2].bot)
+        assertTrue(withJustin.setBot(2, BotLevel.EASY).seats[2].open) // still joinable
+        val guest = withJustin.copy(me = 1)
+        assertSame(guest, guest.setBot(2, BotLevel.EASY))
+    }
+
+    @Test
+    fun `a person leaving reopens the seat`() {
+        val l = lobby.join("Justin")!!.leave(1)
+        assertTrue(l.seats[1].open)
+        assertFalse(l.seats[1].isPerson)
+        assertSame(l, l.leave(0)) // the host can't leave their own room this way
+        assertSame(l, l.leave(3)) // a bot isn't a person
     }
 
     @Test
     fun `lobby seats become the game's friend, bot and empty seats`() {
-        val l = lobby.join("Justin")!!
-        val g = l.gameSetup()
+        val g = lobby.join("Justin")!!.setBot(2, null).gameSetup()
         assertEquals(listOf(SeatKind.FRIEND, SeatKind.FRIEND, SeatKind.EMPTY, SeatKind.BOT), g.seats.map { it.kind })
         assertEquals(BotLevel.EASY, g.seats[3].bot)
     }
 
     @Test
-    fun `ready toggles only for a seated player`() {
+    fun `ready toggles only for a seated person`() {
         assertTrue(lobby.toggleReady().seats[0].ready)
         assertFalse(lobby.toggleReady().toggleReady().seats[0].ready)
         val ghost = lobby.copy(me = 1) // seat 1 is open
@@ -191,11 +219,38 @@ class GameSetupTest {
     }
 
     @Test
-    fun `the stub lobby is a sensible picture of a room`() {
+    fun `the stub lobby matches the Lobby A design`() {
         val s = Lobby.sample()
-        assertEquals(listOf("Mauro", "Justin", "Erin"), s.seats.take(3).map { it.name })
-        assertTrue(s.seats[1].ready)
-        assertTrue(s.seats[3].isBot)
-        assertFalse(s.canStart)
+        assertEquals("ROVER-42", s.code)
+        assertEquals(listOf("Mauro", "Erin", "Tiberiu"), s.seats.take(3).map { it.name })
+        assertEquals(listOf(true, true, false), s.seats.take(3).map { it.ready })
+        assertTrue(s.seats[3].open)
+        assertEquals(BotLevel.GREEDY, s.seats[3].bot)
+        assertEquals(3, s.taken)
+        assertEquals("72-card deck", GameSetup.diceLabel(s.setup.decks))
+        assertEquals(listOf("Tiberiu isn't ready"), s.waitingOn)
+    }
+
+    // ---------------------------------------------------------------- invite and QR
+
+    @Test
+    fun `the invite names the room, ruleset and link, and greets a recent player by name`() {
+        val l = Lobby.sample()
+        assertEquals("Join my game: room ROVER-42, Base game. https://wgbg.example/join/ROVER-42", inviteText(l))
+        assertEquals("Sam, join my game: room ROVER-42, Base game. https://wgbg.example/join/ROVER-42", inviteText(l, "Sam"))
+    }
+
+    @Test
+    fun `the QR code is square, has finder patterns, and differs per room`() {
+        val a = qrMatrix(Lobby.sample().link)
+        assertEquals(a.width, a.height)
+        assertTrue(a.width in 21 + 2..41 + 2, "a short link fits a small QR version (got ${a.width})")
+        // Top-left finder pattern: a dark 7x7 ring inside the 1-module margin.
+        for (k in 0 until 7) {
+            assertTrue(a[1 + k, 1] && a[1, 1 + k] && a[1 + k, 7] && a[7, 1 + k])
+        }
+        assertFalse(a[0, 0]) // quiet margin
+        val b = qrMatrix(Lobby.sample().copy(code = "TIDE-17").link)
+        assertFalse(a == b)
     }
 }

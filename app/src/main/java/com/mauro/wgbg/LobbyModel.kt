@@ -8,18 +8,21 @@ import kotlin.random.Random
 /** Where invite links point. Placeholder until #7 picks the real domain and App Link. */
 const val JOIN_BASE = "https://wgbg.example/join/"
 
-/** One lobby seat: open, a person who joined, or a bot the host placed. */
+/**
+ * One lobby seat. A person sits in it ([name]), or it is open (anyone can join; [bot] is the
+ * bot that takes it at start if nobody does, null = it stays empty), or it is reserved for [bot].
+ */
 data class LobbySeat(
     val name: String? = null,
     val bot: BotLevel? = null,
     val ready: Boolean = false,
     val photo: String? = null,
+    val open: Boolean = name == null,
 ) {
-    val open get() = name == null && bot == null
-    val isBot get() = bot != null
-    /** Bots are always ready; open seats never are. */
-    val isReady get() = isBot || (!open && ready)
-    val label get() = name ?: bot?.let { "${it.label} bot" } ?: "Open seat"
+    val isPerson get() = name != null
+    /** Somebody (person or bot) will play from this seat. */
+    val plays get() = isPerson || bot != null
+    val label get() = name ?: if (open) "Open seat" else "${bot!!.label} bot"
 }
 
 /** A room: its code, the host's settings, and four seats (seat 0 is the host). */
@@ -29,6 +32,8 @@ data class Lobby(
     val seats: List<LobbySeat>,
     /** Which seat this phone is. */
     val me: Int = 0,
+    /** People played with before, for one-tap invites (stubbed until #7). */
+    val recent: List<String> = emptyList(),
 ) {
     init {
         require(seats.size == GameSetup.MAX_SEATS)
@@ -37,34 +42,41 @@ data class Lobby(
 
     val link get() = JOIN_BASE + code
     val isHost get() = me == 0
-    val filled get() = seats.count { !it.open }
+    /** People seated, for "3 of 4 seats taken". */
+    val taken get() = seats.count { it.isPerson }
 
-    /** Start needs the ruleset's player count, everyone seated ready, and the host's settings valid. */
-    val canStart get() = isHost && filled in setup.ruleset.players && seats.all { it.open || it.isReady } && setup.problems.isEmpty()
+    /** Start: host only, every person ready, and the seats make a valid game with the host's settings. */
+    val canStart get() = isHost && seats.all { !it.isPerson || it.ready } && gameSetup().canStart
 
-    fun toggleReady() = if (seats[me].open) this else update(me) { it.copy(ready = !it.ready) }
+    /** Why Start is off, for the screen; empty when it isn't. */
+    val waitingOn: List<String>
+        get() = buildList {
+            seats.filter { it.isPerson && !it.ready }.forEach { add("${it.name} isn't ready") }
+            addAll(gameSetup().problems)
+        }
 
-    /** Host only: a bot takes an open seat, or changes level. */
-    fun placeBot(i: Int, level: BotLevel) =
-        if (!isHost || i == 0 || !(seats[i].open || seats[i].isBot)) this else update(i) { LobbySeat(bot = level) }
+    fun toggleReady() = if (!seats[me].isPerson) this else update(me) { it.copy(ready = !it.ready) }
 
-    /** Host only: frees a bot's seat (people leave on their own). */
-    fun removeBot(i: Int) = if (!isHost || !seats[i].isBot) this else update(i) { LobbySeat() }
+    /** Host only: sets the bot of a seat no person sits in (null on an open seat = leave it empty). */
+    fun setBot(i: Int, level: BotLevel?) =
+        if (!isHost || i == 0 || seats[i].isPerson || (level == null && !seats[i].open)) this else update(i) { it.copy(bot = level) }
 
-    /** A person takes the first open seat; returns null when the room is full. */
+    /** A person takes the first open seat; returns null when there is none. */
     fun join(name: String, photo: String? = null): Lobby? {
         val i = seats.indexOfFirst { it.open }.takeIf { it > 0 } ?: return null
         return update(i) { LobbySeat(name = name, photo = photo) }
     }
 
-    /** The settings the game will start with: lobby seats decide who is a friend, bot or empty. */
+    /** A person leaves: the seat reopens, keeping any bot that was waiting for it. */
+    fun leave(i: Int) = if (i == 0 || !seats[i].isPerson) this else update(i) { LobbySeat(bot = BotLevel.GREEDY) }
+
+    /** The settings the game starts with: lobby seats decide who is a friend, bot or empty. */
     fun gameSetup(): GameSetup = setup.copy(
         seats = seats.mapIndexed { i, s ->
             when {
-                i == 0 -> SeatSetup(SeatKind.FRIEND)
-                s.isBot -> SeatSetup(SeatKind.BOT, s.bot!!)
-                s.open -> SeatSetup(SeatKind.EMPTY)
-                else -> SeatSetup(SeatKind.FRIEND)
+                i == 0 || s.isPerson -> SeatSetup(SeatKind.FRIEND)
+                s.bot != null -> SeatSetup(SeatKind.BOT, s.bot)
+                else -> SeatSetup(SeatKind.EMPTY)
             }
         },
     )
@@ -72,30 +84,44 @@ data class Lobby(
     private fun update(i: Int, f: (LobbySeat) -> LobbySeat) = copy(seats = seats.toMutableList().also { it[i] = f(it[i]) })
 
     companion object {
-        /** No 0/O, 1/I/L: codes get read aloud and typed from screenshots. */
-        const val CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
-        const val CODE_LENGTH = 5
+        /** Short words that read aloud cleanly; codes look like ROVER-42. */
+        val CODE_WORDS = listOf(
+            "ROVER", "HARBOR", "ANCHOR", "BARLEY", "CEDAR", "CLOVER", "COBALT", "DUNE", "EMBER", "FERRY",
+            "FJORD", "GROVE", "HAVEN", "HERON", "ISLE", "JUNIPER", "KESTREL", "LANTERN", "MAPLE", "MEADOW",
+            "OTTER", "PIER", "QUARRY", "RAVEN", "REEF", "SAFFRON", "TIMBER", "TIDE", "VALE", "WILLOW",
+        )
+        private val CODE_REGEX = Regex("([A-Z]+)-([1-9][0-9])")
 
-        fun newCode(random: Random = Random.Default) = String(CharArray(CODE_LENGTH) { CODE_CHARS[random.nextInt(CODE_CHARS.length)] })
+        fun newCode(random: Random = Random.Default) = "${CODE_WORDS[random.nextInt(CODE_WORDS.size)]}-${random.nextInt(10, 100)}"
 
-        fun isValidCode(code: String) = code.length == CODE_LENGTH && code.all { it in CODE_CHARS }
+        /** Accepts what people type: any case, spaces or a missing dash ("rover 42", "rover42"). */
+        fun normalizeCode(typed: String): String? {
+            val t = typed.trim().uppercase().replace(Regex("[\\s_-]+"), "")
+            val m = Regex("([A-Z]+)([1-9][0-9])").matchEntire(t) ?: return null
+            return "${m.groupValues[1]}-${m.groupValues[2]}".takeIf(::isValidCode)
+        }
 
-        /** A fresh room from the game-start settings: you in seat 0, the chosen bots placed, friend seats open. */
+        fun isValidCode(code: String) = CODE_REGEX.matchEntire(code)?.let { it.groupValues[1] in CODE_WORDS } ?: false
+
+        /** A fresh room from the game-start settings: you in seat 0, chosen bots reserved, friend seats open (Greedy fills). */
         fun host(setup: GameSetup, code: String = newCode()) = Lobby(
             code = code,
             setup = setup,
             seats = setup.seats.mapIndexed { i, s ->
                 when {
                     i == 0 -> LobbySeat(name = setup.name, photo = setup.photo)
-                    s.kind == SeatKind.BOT -> LobbySeat(bot = s.bot)
-                    else -> LobbySeat()
+                    s.kind == SeatKind.BOT -> LobbySeat(bot = s.bot, open = false)
+                    s.kind == SeatKind.FRIEND -> LobbySeat(bot = BotLevel.GREEDY)
+                    else -> LobbySeat(open = true)
                 }
             },
         )
 
-        /** Stub data for the lobby until #7: two friends joined, one ready. */
-        fun sample() = host(GameSetup(name = "Mauro").withSeat(1, SeatKind.FRIEND).withSeat(2, SeatKind.FRIEND), code = "K7QX4")
-            .let { it.join("Justin")!!.join("Erin")!! }
-            .let { it.copy(seats = it.seats.toMutableList().also { s -> s[1] = s[1].copy(ready = true) }) }
+        /** Stub data until #7, matching the Lobby A design: three people, one not ready, one open seat. */
+        fun sample() = host(
+            GameSetup(name = "Mauro").withSeat(1, SeatKind.FRIEND).withSeat(2, SeatKind.FRIEND).withSeat(3, SeatKind.FRIEND).withDecks(2),
+            code = "ROVER-42",
+        ).let { it.join("Erin")!!.join("Tiberiu")!! }
+            .let { l -> l.copy(seats = l.seats.mapIndexed { i, s -> if (i <= 1) s.copy(ready = true) else s }, recent = listOf("Tiberiu", "Erin", "Sam")) }
     }
 }
