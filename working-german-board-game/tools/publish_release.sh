@@ -11,7 +11,7 @@ VIDEO="${1:-$TEMP/wgbg-showcase/working-german-board-game-gameplay.mp4}"
 REPO=cyclistmass/sharable
 SHARABLE="${SHARABLE:-../sharable}"
 WORK="$(mktemp -d)"
-tok() { printf "protocol=https\nhost=github.com\npath=%s.git\n\n" "$REPO" | git credential fill | sed -n 's/^password=//p'; }
+tok() { printf "protocol=https\nhost=github.com\npath=%s.git\n\n" "$REPO" | git -c credential.useHttpPath=true credential fill | sed -n 's/^password=//p'; }
 api() { curl -s -m 60 -H "Authorization: Bearer $(tok)" "$@"; }
 
 SHA=$(git -C "$SHARABLE" rev-parse origin/main)
