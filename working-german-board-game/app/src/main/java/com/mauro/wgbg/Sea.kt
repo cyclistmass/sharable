@@ -195,6 +195,8 @@ class Sea(board: Board, seed: Int = 1) {
     /** Pale articulated seabirds (Birds slider sets how many show). */
     internal val birds = List(16) { i -> Seabird(seed * 31 + i, landR + 0.5f + 0.21f * i) }
     internal val birdCount get() = sceneryCount(birds01, birds.size)
+    /** Boat positions (x, y pairs) handed to the birds each step, so some can circle a boat. */
+    private val boatXY = FloatArray(2 * MAX_BOATS)
     internal val waveCount get() = sceneryCount(waves01, wavelets.size)
     internal val whitecapScale get() = 0.65f + 0.7f * waves01.coerceIn(0f, 1f)
     internal val whitecapAlpha get() = 0.4f + 0.6f * waves01.coerceIn(0f, 1f)
@@ -282,7 +284,8 @@ class Sea(board: Board, seed: Int = 1) {
         drops.removeAll { it.age > it.life }
         for (r in rings) r.age += dt
         rings.removeAll { it.age - it.delay > 1.3f }
-        for (b in birds) b.update(pdt)
+        for (i in 0 until boatCount) { boatXY[2 * i] = boats[i].x; boatXY[2 * i + 1] = boats[i].y }
+        for (b in birds) b.update(pdt, boatXY, boatCount)
         for (b in boats) sail(b, pdt)
         for (c in clouds) {
             if (c.poof >= 0) { c.poof += dt; continue }
@@ -705,7 +708,7 @@ class Sea(board: Board, seed: Int = 1) {
                     val q = at(b.x + 0.3f, b.y + 0.45f)
                     withTransform({ rotate(deg, q) }) { drawImage(sh, dstOffset = IntOffset((q.x - size / 2).toInt(), (q.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()), alpha = 0.6f) }
                 }
-                val frame = b.flapFrame()
+                val frame = b.flapFrame(flap.width / flap.height)
                 withTransform({ rotate(deg, p) }) {
                     if (frame >= 0) drawImage(flap, srcOffset = IntOffset(frame * flap.height, 0), srcSize = IntSize(flap.height, flap.height),
                         dstOffset = IntOffset((p.x - size / 2).toInt(), (p.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()), filterQuality = FilterQuality.Medium)
