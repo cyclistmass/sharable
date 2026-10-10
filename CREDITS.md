@@ -32,7 +32,8 @@ unless another path is given.
   Antique and Pirate event dice. The pirate event die style options (`dice_pe1_*` Brass-engraved,
   `dice_pe2_*` Ship-timber, `dice_pe3_*` Brass cage, and their tumbles) are from the same source, imported at
   −25% saturation by `tools/import_event_dice.py`.
-- Bandit "skeleton corsair" (`bandit_tilt_0..7`): a 3D model rendered in Blender, 8 tilt steps.
+- Rendered buildings (`bld_*`, #41): homestead, town, roads in three directions, Ramparts and three Capitals, in a Default and a Pirate set, each a tintable wood layer plus a brass/stone trim layer in 8 tilt steps; own Blender models and procedural materials, imported by `tools/import_buildings.py`.
+- Bandit V2 "skeleton corsair" (`bandit_tilt_0..7`): the painted-miniature finish with an aged ivory skull, bigger afro and upturned brim, a 3D model rendered in Blender, 8 tilt steps (Mauro's pick, 2026-10-10).
 - Tile candidates for Menu › Tiles: compare (`tile3d_v2_*`, `tile_a1_relief_*`): 3D renders and relief faces,
   for picking only, not on the board yet.
 
