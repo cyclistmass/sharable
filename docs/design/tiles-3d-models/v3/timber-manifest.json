@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "trees": 22,
+    "trees": 26,
     "story": "logging camp, cut logs, stumps, dense flowering understorey",
     "token_space": {
       "token_center": [
@@ -11,7 +11,7 @@
       "clearing_radius": 0.31,
       "upright_plate": true,
       "foreground_max_tilt_degrees": 55,
-      "pruned_objects": 10,
+      "pruned_objects": 12,
       "flattened_surfaces": 0
     }
   },
@@ -19,20 +19,33 @@
     {
       "file": "timber_V3_flat.png",
       "tilt_radians": 0,
-      "seconds": 20.2
+      "seconds": 64.53,
+      "sha256": "24f68f16bd9d31b9ce23fc4428844777959acdf3a5c91c66281dd299ccc113ef"
     },
     {
       "file": "timber_V3_mid.png",
       "tilt_radians": 0.48,
-      "seconds": 18.5
+      "seconds": 61.64,
+      "sha256": "422a0e8b41e8701fa3677e1373f2325791fb8b76837248fbf4b0059dd8f6af21"
     },
     {
       "file": "timber_V3_max.png",
       "tilt_radians": 0.96,
-      "seconds": 14.3
+      "seconds": 47.05,
+      "sha256": "4405fe949697492324d73ad3234b300e2f9fdd6e10a1456cbb5a3e6434201c01"
     }
   ],
-  "objects": 217,
-  "samples": 32,
-  "threads": 2
+  "objects": 348,
+  "samples": 48,
+  "threads": 2,
+  "source_hashes": {
+    "render_v3.py": "f2f806aea229528c3616ce8f5ac1f1aa6c2819e4f23ebd89b7ae0e3618285be2",
+    "v3_art.py": "553c72f17bb2e0fc362ddaaee21b6e0c76ead8471c6b13328b34da4b42b136f7",
+    "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+    "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+    "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+    "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+    "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+    "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+  }
 }

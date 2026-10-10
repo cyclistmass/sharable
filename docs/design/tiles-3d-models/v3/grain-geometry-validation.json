@@ -1,5 +1,5 @@
 {
-  "mesh_vertices_checked": 147063,
+  "mesh_vertices_checked": 312383,
   "prop_vertices_inside_clearing": 0,
   "foreground_vertices_over_plate_at_eight_steps": [
     0,
@@ -14,5 +14,15 @@
   "plate_center": [
     0.36,
     0.3
-  ]
+  ],
+  "source_hashes": {
+    "render_v3.py": "f2f806aea229528c3616ce8f5ac1f1aa6c2819e4f23ebd89b7ae0e3618285be2",
+    "v3_art.py": "553c72f17bb2e0fc362ddaaee21b6e0c76ead8471c6b13328b34da4b42b136f7",
+    "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+    "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+    "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+    "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+    "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+    "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+  }
 }

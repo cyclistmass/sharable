@@ -27,7 +27,8 @@ Counter/primary gold.
 
 ## Names (copyright safety)
 
-Never use Catan names in UI, art or card text. Use our names: Timber, Clay, Fleece, Grain, Stone;
+Never use Catan names in UI, art or card text. Use our names: Timber, Clay, Fleece, Grain, Galena
+(the ore — lead/silver/zinc — keeps us off the Catan brand further than "Stone" did);
 Homestead/Town; Bandit; Fortune cards (Sentinel, Landmark, Trailblazers, Windfall, Corner the
 Market); expansion "Age of Chivalry" (Parchment, Weave, Silver; Guilds, Academy, Crown decks;
 Raiders, Capital, Ramparts). The full table is on the cards canvas, "Names" artboard.

@@ -14,9 +14,6 @@ foreach ($terrainName in $Terrains) {
     Invoke-V3Blender @('--terrain',$terrainName) "docs/design/tiles-3d-models/v3/$terrainName-render.log"
     Write-Output "Finished V3 $terrainName; Blender exited"
 }
-foreach ($terrainName in @('timber','stone','fleece','grain','clay','desert')) {
-    Invoke-V3Blender @('--terrain',$terrainName,'--validate-only') "docs/design/tiles-3d-models/v3/$terrainName-validation.log"
-    Write-Output "Validated V3 $terrainName; Blender exited"
-}
+# Each rendered scene validates its actual final geometry before rendering.
 & $Python tools/blender/compose_v3.py
 if ($LASTEXITCODE -ne 0) { throw 'V3 review/validation failed' }

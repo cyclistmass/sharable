@@ -2,7 +2,7 @@
 No raster projection or downloaded meshes. Blender -b -t 2 -P ... -- --terrain timber.
 V2 remains reproducible at its historical left-hand clearing.
 """
-import sys,math,random,argparse,json,time
+import sys,math,random,argparse,json,time,hashlib
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import bpy
@@ -23,14 +23,19 @@ def land(terrain,fn,color,name):
 def meadow(x,y):return .025+.10*math.exp(-((x+.38)**2+(y-.24)**2)/.18)+.055*math.exp(-((x-.35)**2+(y+.38)**2)/.15)
 def wheat_ground(x,y):return .050+.035*math.sin(x*2.4+.5)*math.cos(y*2)
 def pit(x,y):
-    d=math.hypot((x+.10)/.59,(y+.13)/.56)
+    xx=(x+.12)/.59;yy=(y+.13)/.56;a=math.atan2(yy,xx)
+    d=(abs(xx)**3.6+abs(yy)**3.6)**(1/3.6)
+    d*=1+.045*math.sin(7*a)+.029*math.sin(13*a+.7)
     def smooth(a,b):
         t=max(0,min(1,(d-a)/(b-a)));return t*t*(3-2*t)
-    return -.125+.074*smooth(.28,.33)+.076*smooth(.52,.57)+.078*smooth(.78,.83)+.028*smooth(.99,1.12)
+    return -.145+.080*smooth(.28,.31)+.080*smooth(.54,.57)+.085*smooth(.79,.82)+.031*smooth(.99,1.12)
 def dunes(x,y):
-    u=.87*x+.5*y;q=max(abs(x)/(.93*math.sqrt(3)/2),(abs(y)+abs(x)/math.sqrt(3))/.93)
+    u=.86*x+.51*y+.045*math.sin(y*6)+.025*math.sin(x*4);q=max(abs(x)/(.93*math.sqrt(3)/2),(abs(y)+abs(x)/math.sqrt(3))/.93)
     taper=1-.55*max(0,min(1,(q-.75)/.25))
-    return .055+(.32*(.5+.5*math.sin(u*10+.9*math.sin(y*2)))**2+.055*math.exp(-((x+.4)**2+(y+.45)**2)/.10))*taper+.006*math.sin(x*72+y*41)
+    phase=(u*1.60+.32)%1
+    # Broad windward slope, sharp crest and steeper leeward slip face.
+    wave=(phase/.72)**1.45 if phase<.72 else ((1-phase)/.28)**.85
+    return .042+(.34*wave+.040*math.exp(-((x+.4)**2+(y+.45)**2)/.10))*taper
 
 def zfn(terrain):
     return {'timber':lambda x,y:0,'fleece':meadow,'grain':wheat_ground,'clay':pit,'desert':dunes,'stone':density.alpine_height_v3}[terrain]
@@ -132,27 +137,22 @@ def crane(fn,x,y,headframe=False):
 
 def timber():
     fn=lambda x,y:0;density.terrain_base('timber',(.085,.20,.018));rng=random.Random(3817)
-    bark=mat('V3 forest resin bark',(.17,.055,.009),.35);greens=[mat('V3 rich forest canopy '+str(i),c,.28) for i,c in enumerate([(.013,.09,.003),(.036,.29,.005),(.19,.55,.012),(.42,.72,.025)])]
+    bark=mat('V3 forest resin bark',(.18,.064,.014),.35);greens=[mat('V3 rich forest canopy '+str(i),c,.24) for i,c in enumerate([(.015,.13,.030),(.055,.30,.028),(.19,.46,.022),(.48,.69,.065)])]
     points=[]
-    for row in range(9):
-        for col in range(9):
-            x=-.73+col*.18+rng.uniform(-.035,.035);y=-.75+row*.19+rng.uniform(-.03,.03)
-            if not inside(x,y,.91) or token.distance(x,y)<.46:continue
+    for row in range(12):
+        for col in range(11):
+            x=-.75+col*.149+rng.uniform(-.031,.031);y=-.83+row*.15+rng.uniform(-.027,.027)
+            if not inside(x,y,.91) or token.distance(x,y)<.39:continue
             # Clear a logging path and camp, not a second empty circle.
-            if abs(x+.28)<.17 and -.58<y<.05:continue
+            if abs(x+.28)<.115 and -.70<y<.43:continue
             if abs(x+.51)<.14 and abs(y+.24)<.18:continue
+            if abs(x+.12)<.18 and abs(y+.54)<.14:continue
             if abs(x+.10)<.22 and .46<y<.83:continue
-            h=rng.uniform(.32,.64)
+            h=rng.uniform(.35,.66)
             h=min(h,(token.distance(x,y)-.36)/.40,max(.08,min(token.front_cap(x-.35*h,y-.35*h),token.front_cap(x+.35*h,y-.35*h))*.90))
             if h<.14:continue
             before=set(bpy.context.scene.objects);tree(x,y,h,2,rng,(bark,greens))
-            # Fine radial needle sprays break up the smooth three-tier silhouette.
-            sprays=Batch('V3 pine textured branch sprays',greens[(row+col)%4])
-            for tier in range(3):
-                for j in range(9):
-                    a=j*TAU/9+tier*.38;rr=h*(.24-tier*.048);xx=x+rr*math.cos(a);yy=y+rr*math.sin(a);zz=h*(.25+tier*.19)
-                    for k in range(4):sprays.blade(xx,yy,zz,h*.12,a+(k-1.5)*.3,h*.027)
-            sprays.finish(False)
+            bpy.context.view_layer.update()
             objects=set(bpy.context.scene.objects)-before
             if any(not token.allowed(*(obj.matrix_world@v.co),.025) for obj in objects for v in obj.data.vertices):
                 for obj in objects:bpy.data.objects.remove(obj,do_unlink=True)
@@ -195,7 +195,7 @@ def fleece():
 def grain():
     density.field_ground=wheat_ground;ground=land('grain',wheat_ground,(.43,.22,.024),'rolling field ground');rng=random.Random(1309)
     bpy.data.objects.remove(ground,do_unlink=True)
-    gold=[mat('V3 dense wheat honey '+str(i),c,.22) for i,c in enumerate([(.83,.38,.012),(1,.63,.025),(1,.78,.065)])]
+    gold=[mat('V3 dense wheat honey '+str(i),c,.18) for i,c in enumerate([(.95,.53,.035),(1,.72,.085),(1,.86,.20)])]
     stooks=[(-.17,-.42),(.14,-.66),(-.60,.25),(-.18,.62)]
     def crop_height(x,y):
         edge=.93-abs(y)-abs(x)/math.sqrt(3);side=.93*math.sqrt(3)/2-abs(x)
@@ -212,17 +212,22 @@ def grain():
         x,y=[sum(skin.data.vertices[i].co[k] for i in poly.vertices)/len(poly.vertices) for k in range(2)]
         if crop_height(x,y)<.015:poly.material_index=1
     batches=[Batch('V3 wheat sculpted ears '+str(i),m) for i,m in enumerate(gold)];ears=0
-    for row in range(25):
-        for col in range(97):
-            x=-.79+col*.0165;y=-.87+row*.070+.040*math.sin(x*3+row*.04)
+    for row in range(36):
+        for col in range(80):
+            x=-.79+col*.020;y=-.88+row*.050+.040*math.sin(x*3+row*.04)
             if not inside(x,y,.915) or crop_height(x,y)<.018:continue
-            for j in range(2):
+            for j in range(1):
                 xx=x+rng.uniform(-.009,.009);yy=y+rng.uniform(-.025,.025);z=wheat_ground(xx,yy);h=crop_height(xx,yy)
                 if h<.018:continue
                 hh=h+rng.uniform(.006,.022);b=batches[(row+col+j)%3]
-                b.rod((xx,yy,z),(xx+.007,yy,z+hh),.0018,4);b.ellipsoid((xx+.007,yy,z+hh),(.0065,.008,.032),n=6,rings=4)
-                for k in range(3):s=-1 if k%2 else 1;b.rod((xx,yy,z+hh-.020+k*.016),(xx+s*.018,yy,z+hh+.023+k*.006),.0008,3)
-                b.blade(xx,yy,z+hh*.4,hh*.45,rng.random()*TAU,.006)
+                bend=.015+.012*math.sin(xx*12+yy*9)
+                b.rod((xx,yy,z),(xx+bend*.3,yy,z+hh*.6),.0018,4)
+                b.rod((xx+bend*.3,yy,z+hh*.6),(xx+bend,yy,z+hh),.0015,4)
+                for k in range(5):
+                    for sign in [-1,1]:
+                        b.ellipsoid((xx+bend+sign*.006,yy,z+hh-.022+k*.011),(.0075,.006,.010),n=5,rings=3)
+                        b.rod((xx+bend+sign*.003,yy,z+hh-.020+k*.010),(xx+bend+sign*.016,yy+.002,z+hh+.004+k*.010),.00065,3)
+                b.blade(xx,yy,z+hh*.36,hh*.48,rng.random()*TAU,.008)
                 ears+=1
     for b in batches:b.finish()
     rope=mat('V3 wheat sheaf rope',(.20,.07,.008),.1)
@@ -230,11 +235,15 @@ def grain():
     for x,y in stooks:
         z=wheat_ground(x,y);cap=min(token.front_cap(x+dx,y+dy) for dx,dy in [(-.055,.055),(.055,.055),(0,.055)])
         height=min(.35,max(.15,cap-z-.055))
-        for i in range(24):
-            a=i*TAU/24;rr=.036+.013*math.sin(i*2.4)
-            pole('V3 bundled stook stems',(x+.061*math.cos(a),y+.061*math.sin(a),z),(x+rr*math.cos(a),y+rr*math.sin(a),z+height),.007,gold[i%3],5)
-            sheaf_ears.ellipsoid((x+rr*math.cos(a),y+rr*math.sin(a),z+height),(.012,.011,.037),a,n=7,rings=4)
-        cone('V3 sheaf rope binding',(x,y,z+height*.48),.033,.026,rope,12,top=.033)
+        for i in range(38):
+            a=i*TAU/38;rr=.066+.015*math.sin(i*2.4);hh=height+rng.uniform(-.030,.020)
+            waist=(x+.025*math.cos(a),y+.025*math.sin(a),z+height*.44)
+            pole('V3 sheaf splayed cut straw',(x+.067*math.cos(a),y+.067*math.sin(a),z),waist,.0045,gold[i%3],5)
+            pole('V3 sheaf fanning stems',waist,(x+rr*math.cos(a),y+rr*math.sin(a),z+hh),.0035,gold[i%3],5)
+            for k in range(4):
+                sheaf_ears.ellipsoid((x+rr*math.cos(a),y+rr*math.sin(a),z+hh-.020+k*.013),(.009,.007,.009),a,n=6,rings=3)
+        for k in range(3):
+            bpy.ops.mesh.primitive_torus_add(major_radius=.028,minor_radius=.003,major_segments=20,minor_segments=4,location=(x,y,z+height*.44+(k-1)*.005));bpy.context.object.data.materials.append(rope)
     sheaf_ears.finish()
     # A loaded cart on the foreground-left harvest path.
     wood=mat('V3 cart warm oak',(.27,.105,.021),.32);x=-.48;y=-.34;z=wheat_ground(x,y)
@@ -247,8 +256,8 @@ def grain():
     load=Batch('V3 loose wheat in cart',gold[1])
     for i in range(75):load.ellipsoid((x+rng.uniform(-.09,.09),y+rng.uniform(-.06,.06),z+.12+rng.uniform(-.012,.025)),(.014,.022,.016),n=6,rings=3)
     load.finish();fence(wheat_ground,(-.57,.56),(.04,.83),11);fence(wheat_ground,(.41,-.61),(.68,-.29),7)
-    plants(wheat_ground,826,700);rubble(wheat_ground,613,140,(.38,.25,.065),.025)
-    return {'wheat_ears':ears,'curved_rows':25,'story':'full fields, harvest path, sheaves, fence and loaded cart'}
+    plants(lambda x,y:wheat_ground(x,y)+crop_height(x,y),826,1000);rubble(wheat_ground,613,140,(.38,.25,.065),.025)
+    return {'wheat_ears':ears,'curved_rows':36,'story':'full fields, harvest path, cinched fanning sheaves, fence and loaded cart'}
 
 def clay():
     density.clay_height=pit;earth=land('clay',pit,(.78,.15,.025),'deep excavated clay terraces');wet=mat('V3 dark wet red clay',(.21,.035,.015),.35);cut=mat('V3 orange red pit faces',(.56,.075,.016),.35)
@@ -269,8 +278,13 @@ def clay():
     cube('V3 kiln fire mouth',(x,y-.123,z+.053),(.070,.015,.083),dark,.015)
     smoke=mat('V3 soft kiln smoke',(.57,.52,.45),.12)
     # Own lightweight translucent procedural smoke sculpture, static in this round.
-    p=smoke.node_tree.nodes.get('Principled BSDF');p.inputs['Alpha'].default_value=.30
-    for i in range(7):pebble((x+.02*math.sin(i*.9),y+.014*i,z+.54+i*.039),(.025+i*.004,.026+i*.003,.034),smoke,True)
+    ns=smoke.node_tree.nodes;ls=smoke.node_tree.links;output=ns.get('Material Output')
+    for link in list(output.inputs['Surface'].links):ls.remove(link)
+    volume=ns.new('ShaderNodeVolumePrincipled');volume.inputs['Color'].default_value=(.72,.70,.66,1)
+    noise=ns.new('ShaderNodeTexNoise');noise.inputs['Scale'].default_value=4;noise.inputs['Detail'].default_value=2
+    density_node=ns.new('ShaderNodeMath');density_node.operation='MULTIPLY';density_node.inputs[1].default_value=13
+    ls.new(noise.outputs['Fac'],density_node.inputs[0]);ls.new(density_node.outputs[0],volume.inputs['Density']);ls.new(volume.outputs[0],output.inputs['Volume'])
+    for i in range(7):pebble((x+.02*math.sin(i*.9),y+.014*i,z+.54+i*.039),(.025+i*.004,.026+i*.003,.047),smoke,True)
     for bx,by,rows in [(-.56,-.41,4),(-.29,-.60,5),(.05,-.62,3),(-.07,.62,3),(.64,-.19,3)]:
         for layer in range(rows):
             for j in range(6):cube('V3 large stacked brick pallets',(bx+(j%3)*.046,by+(j//3)*.030,pit(bx,by)+.013+layer*.026),(.042,.026,.023),brick,.002)
@@ -282,7 +296,7 @@ def clay():
         for level in [.055,.12]:
             cube('V3 drying rack shelf',(bx,by,zz+level),(.19,.105,.012),wood,.003)
             for j in range(4):cube('V3 drying rack clay brick',(bx-.065+j*.045,by,zz+level+.015),(.039,.055,.023),brick,.002)
-    rubble(pit,903,650,(.40,.070,.015),.045);plants(pit,114,900)
+    rubble(pit,903,350,(.40,.070,.015),.030);plants(pit,114,900)
     return {'story':'red terraced excavation, round kiln with smoke, hoist crane, rail line, brick pallets and drying racks'}
 
 def stone():
@@ -343,7 +357,7 @@ def desert():
     bark=mat('V3 bleached dead tree wood',(.42,.27,.10),.32);x=-.36;y=.14;z=dunes(x,y)
     pole('V3 bare dead tree trunk',(x,y,z),(x+.018,y,z+.30),.019,bark,7)
     for a,b in [((x,y,z+.10),(x-.10,y+.02,z+.23)),((x-.10,y+.02,z+.23),(x-.13,y+.03,z+.29)),((x+.01,y,z+.19),(x+.10,y-.01,z+.25)),((x+.10,y-.01,z+.25),(x+.12,y+.01,z+.32)),((x+.01,y,z+.28),(x-.03,y-.02,z+.36))]:pole('V3 dead tree fork',a,b,.009,bark,5)
-    plants(dunes,920,380,flowers=False,dry=True);rubble(dunes,682,480,(.41,.23,.063),.027)
+    plants(dunes,920,230,flowers=False,dry=True);rubble(dunes,682,110,(.53,.32,.11),.017)
     return {'story':'sculpted wind-ripple dunes, layered sandstone clusters, dry scrub and dead tree'}
 
 def rich_materials(scene):
@@ -398,18 +412,26 @@ def validate_geometry(scene):
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--terrain',required=True,choices=['timber','stone','fleece','grain','clay','desert']);parser.add_argument('--validate-only',action='store_true');args=parser.parse_args(sys.argv[sys.argv.index('--')+1:]);name=args.terrain
-    scene,cam=setup();scene.cycles.samples=32;scene.render.threads_mode='FIXED';scene.render.threads=2
+    import v3_art
+    v3_art.install(sys.modules[__name__])
+    global ACTIVE_TERRAIN
+    ACTIVE_TERRAIN=name
+    scene,cam=setup();scene.cycles.samples=48;scene.render.threads_mode='FIXED';scene.render.threads=2
     density.alpine_height_v3=lambda x,y:0
-    metadata=globals()[name]();bpy.context.view_layer.update();metadata['token_space']=token.prepare_scene(name);rich_materials(scene)
-    if args.validate_only:
-        folder=OUT/'v3';folder.mkdir(exist_ok=True);result=validate_geometry(scene)
-        (folder/f'{name}-geometry-validation.json').write_text(json.dumps(result,indent=2));print('V3_GEOMETRY_OK',name,json.dumps(result));return
+    metadata=globals()[name]();v3_art.enhance(name);bpy.context.view_layer.update();metadata['token_space']=token.prepare_scene(name);v3_art.ground_inlay(name);rich_materials(scene);v3_art.materials(scene,name)
+    folder=OUT/'v3';folder.mkdir(exist_ok=True);result=validate_geometry(scene)
+    sources=['render_v3.py','v3_art.py','render_density.py','render_v2_set.py','render_models.py','token_space.py','alpine_chain.py','alpacas.py']
+    source_hashes={s:hashlib.sha256((Path(__file__).parent/s).read_bytes()).hexdigest() for s in sources}
+    result['source_hashes']=source_hashes
+    (folder/f'{name}-geometry-validation.json').write_text(json.dumps(result,indent=2));print('V3_GEOMETRY_OK',name,json.dumps(result),flush=True)
+    if args.validate_only:return
     records=[]
     for angle,t in v2.angles:
         v2.camera(cam,t);scene.render.filepath=str(OUT/f'{name}_V3_{angle}.png');start=time.monotonic();bpy.ops.render.render(write_still=True)
-        records.append({'file':f'{name}_V3_{angle}.png','tilt_radians':t,'seconds':round(time.monotonic()-start,2)})
+        records.append({'file':f'{name}_V3_{angle}.png','tilt_radians':t,'seconds':round(time.monotonic()-start,2),
+                        'sha256':hashlib.sha256(Path(scene.render.filepath).read_bytes()).hexdigest()})
         print('V3_RENDER',records[-1],flush=True)
     folder=OUT/'v3';folder.mkdir(exist_ok=True)
-    (folder/f'{name}-manifest.json').write_text(json.dumps({'metadata':metadata,'renders':records,'objects':len(scene.objects),'samples':32,'threads':2},indent=2))
+    (folder/f'{name}-manifest.json').write_text(json.dumps({'metadata':metadata,'renders':records,'objects':len(scene.objects),'samples':48,'threads':2,'source_hashes':source_hashes},indent=2))
 
 if __name__=='__main__':main()

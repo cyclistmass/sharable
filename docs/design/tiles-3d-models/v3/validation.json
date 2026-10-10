@@ -14,7 +14,7 @@
   "opaque_black_pixels_by_view": {
     "timber_V3_flat.png": 0,
     "timber_V3_mid.png": 0,
-    "timber_V3_max.png": 1,
+    "timber_V3_max.png": 0,
     "stone_V3_flat.png": 0,
     "stone_V3_mid.png": 0,
     "stone_V3_max.png": 0,
@@ -24,200 +24,200 @@
     "grain_V3_flat.png": 0,
     "grain_V3_mid.png": 0,
     "grain_V3_max.png": 0,
-    "clay_V3_flat.png": 0,
-    "clay_V3_mid.png": 0,
-    "clay_V3_max.png": 0,
+    "clay_V3_flat.png": 38,
+    "clay_V3_mid.png": 30,
+    "clay_V3_max.png": 9,
     "desert_V3_flat.png": 0,
     "desert_V3_mid.png": 0,
     "desert_V3_max.png": 0
   },
-  "png_bytes": 4241800,
-  "retained_render_seconds": 314.97,
+  "png_bytes": 4564461,
+  "retained_render_seconds": 585.78,
   "views": [
     {
       "file": "timber_V3_flat.png",
-      "sha256": "e7687d9eff5c65aabf8a8a14f08399b753bddc1ae9de963ba7abedcf13bb5ff1",
+      "sha256": "cc584c30b6cd394d9d900f64b841056c3e2ef94864e6f060f9e2aa2edf0641a0",
       "alpha_bounds": [
-        78,
-        75,
-        415,
+        77,
+        76,
+        417,
         441
       ]
     },
     {
       "file": "timber_V3_mid.png",
-      "sha256": "41b20ddebf0c8c3408090d914f428ca02f8a6257c656b5926b3a89c8123e4d5c",
+      "sha256": "fd030af48e863abf6255e872e69b9feb71f967c7a279af9fe3dbfb14da5b5c27",
       "alpha_bounds": [
-        78,
-        78,
-        415,
+        77,
+        94,
+        417,
         434
       ]
     },
     {
       "file": "timber_V3_max.png",
-      "sha256": "1e0d13602fdd43f6ec0651ac0da030aa396127c731f9db808e5206ff3b6d37d5",
+      "sha256": "03902c3d5dba322123a975b512cf954eb53fdc5d75dcba1e38138b9677c607cb",
       "alpha_bounds": [
-        78,
-        107,
-        414,
+        77,
+        109,
+        417,
         393
       ]
     },
     {
       "file": "stone_V3_flat.png",
-      "sha256": "573afc45e7f5cdcef2e165c621bb37f94277bb1bb3afa0b28b9f5eb68144e292",
+      "sha256": "61721c195d7ebd8d8f9bcf9262bb12339d702f274b8e4c294b408be68ac961f0",
       "alpha_bounds": [
-        98,
+        95,
         76,
-        415,
+        416,
         436
       ]
     },
     {
       "file": "stone_V3_mid.png",
-      "sha256": "2bad7656277aca434a111d101967ad695c66d77611861bc46c3ddd027bccc655",
+      "sha256": "0ba35efa414f14108aaf2f196aa493ffe1957ee3c32a39f88e6a5d3ec379f5c2",
       "alpha_bounds": [
-        98,
-        38,
-        414,
+        94,
+        33,
+        417,
         434
       ]
     },
     {
       "file": "stone_V3_max.png",
-      "sha256": "cbae934538381bdcdcdb2afef91c890c07c3f1c73308a24f5f5bfe0d8772706d",
+      "sha256": "87b1d4f0ac2883d5a13f440c6f49ad351bfdd341a8bf0a9c54e0e74415f07033",
       "alpha_bounds": [
-        98,
-        8,
-        413,
+        95,
+        2,
+        416,
         393
       ]
     },
     {
       "file": "fleece_V3_flat.png",
-      "sha256": "75a54de6fd73baa9f15f2205766ba1fd6104bcb78706a4c2cec7c2174d68ca72",
+      "sha256": "17e7cc7d7438ea6d929f09b837512991bb005dc4c4a583bab32f9ebc35fc689f",
       "alpha_bounds": [
-        97,
+        93,
         76,
-        415,
+        417,
         436
       ]
     },
     {
       "file": "fleece_V3_mid.png",
-      "sha256": "6e87536d207efcf16ac41ed3af44f2e0061e9c41cf259b77a76201d5d1d43a89",
+      "sha256": "9920e6b67f58e98a8233113716f84741b3374e5c3c372d2e28781a768f6ebad2",
       "alpha_bounds": [
-        97,
         93,
-        415,
+        88,
+        418,
         434
       ]
     },
     {
       "file": "fleece_V3_max.png",
-      "sha256": "daf81f8d14942a0684b014b9650b335d1933de2a5d0b5a1aae12bade8e5c61de",
+      "sha256": "aadde39e93aac41c6148207868bfc86bb6fb46c955fd2c1fbba8c7d657d8ef40",
       "alpha_bounds": [
-        98,
-        142,
-        415,
+        93,
+        138,
+        417,
         393
       ]
     },
     {
       "file": "grain_V3_flat.png",
-      "sha256": "ec2e7e96eccf827c9c45e8798a44c4e4c3c8ced4cfec3a58842e2be32bc4d171",
+      "sha256": "a636e6d9654e3116d4749f951979053dc867e321b250443071cac2fc6051083f",
       "alpha_bounds": [
-        98,
-        76,
-        415,
-        436
+        97,
+        74,
+        419,
+        438
       ]
     },
     {
       "file": "grain_V3_mid.png",
-      "sha256": "a22443af921c4c3c15c831f842e69d4bcb17b683509335e92052b963ed86b02c",
+      "sha256": "527ce2fa0b06b513bced6616434299e51e80994afaf707e83ebd2bf1ec363505",
       "alpha_bounds": [
         97,
-        76,
-        414,
+        75,
+        419,
         434
       ]
     },
     {
       "file": "grain_V3_max.png",
-      "sha256": "c7d7c26692f872197594bf33afc126d5d0ed36299cfd6c094214982814d74b01",
+      "sha256": "4eae063ee527ff80de92d4198a55b71a83e3569bbee83dc6fb9491c0085cb7f5",
       "alpha_bounds": [
         97,
-        110,
-        414,
+        107,
+        419,
         393
       ]
     },
     {
       "file": "clay_V3_flat.png",
-      "sha256": "934a3aa2248279d9e75deed533239f73c391462426f75441c865ec0dd63e1ff8",
+      "sha256": "4c34b90a343501e47233ef101a77d1c89b4a429473057f804fd692312abc9cd8",
       "alpha_bounds": [
-        99,
-        76,
-        414,
+        94,
+        74,
+        416,
         436
       ]
     },
     {
       "file": "clay_V3_mid.png",
-      "sha256": "760caa9cc39836ff8ffc9ae735aa384967c7f8471b4aecc2ce3c9f935f88c58f",
+      "sha256": "45018e06e84e44277595d851af503a187eb06abdbd6358e508b42efcc6b6fe8f",
       "alpha_bounds": [
-        99,
+        94,
         58,
-        414,
+        416,
         434
       ]
     },
     {
       "file": "clay_V3_max.png",
-      "sha256": "2555f9f7600ce57c46bd87965eb54a50eeea11b930def6659882ad5d541c34a0",
+      "sha256": "fb5bdc4681ea6d64cf02f807fc526b797790c9628cae04fb99c32125cf914310",
       "alpha_bounds": [
-        99,
+        94,
         35,
-        414,
+        416,
         393
       ]
     },
     {
       "file": "desert_V3_flat.png",
-      "sha256": "57c052125a1794580b91a704f5c6d1bff1e12647811879c8bce0458b44f280ba",
+      "sha256": "67235f120dbaf407e3ea377387e3c41acabe28ab6aee9bdf37b4ae2e9ced8318",
       "alpha_bounds": [
-        98,
-        76,
-        413,
+        94,
+        69,
+        419,
         436
       ]
     },
     {
       "file": "desert_V3_mid.png",
-      "sha256": "543f320d69831441f145f00e9bccae837e984006d27dd7ef70b8ceba3ec83670",
+      "sha256": "d3b9a443a37856cccea9bc35f5deac5b155fa7de5b96ef70faee1cc6cbee31c6",
       "alpha_bounds": [
-        98,
-        89,
-        413,
+        94,
+        77,
+        419,
         434
       ]
     },
     {
       "file": "desert_V3_max.png",
-      "sha256": "088a8589943d280c70eb3239d236e041529cec793e9f8bc0358f53412172f428",
+      "sha256": "9d085022a8d476fe243e3c584ecc5cc198beac4a5942098f861230d4cafd5a83",
       "alpha_bounds": [
-        98,
-        123,
-        413,
+        95,
+        103,
+        419,
         393
       ]
     }
   ],
   "geometry": [
     {
-      "mesh_vertices_checked": 60356,
+      "mesh_vertices_checked": 299438,
       "prop_vertices_inside_clearing": 0,
       "foreground_vertices_over_plate_at_eight_steps": [
         0,
@@ -232,10 +232,20 @@
       "plate_center": [
         0.36,
         0.3
-      ]
+      ],
+      "source_hashes": {
+        "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
+        "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+        "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+        "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+        "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+        "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+        "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+        "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+      }
     },
     {
-      "mesh_vertices_checked": 18593,
+      "mesh_vertices_checked": 101020,
       "prop_vertices_inside_clearing": 0,
       "foreground_vertices_over_plate_at_eight_steps": [
         0,
@@ -250,10 +260,20 @@
       "plate_center": [
         0.36,
         0.3
-      ]
+      ],
+      "source_hashes": {
+        "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
+        "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+        "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+        "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+        "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+        "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+        "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+        "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+      }
     },
     {
-      "mesh_vertices_checked": 77021,
+      "mesh_vertices_checked": 144365,
       "prop_vertices_inside_clearing": 0,
       "foreground_vertices_over_plate_at_eight_steps": [
         0,
@@ -268,10 +288,20 @@
       "plate_center": [
         0.36,
         0.3
-      ]
+      ],
+      "source_hashes": {
+        "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
+        "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+        "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+        "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+        "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+        "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+        "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+        "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+      }
     },
     {
-      "mesh_vertices_checked": 147063,
+      "mesh_vertices_checked": 762094,
       "prop_vertices_inside_clearing": 0,
       "foreground_vertices_over_plate_at_eight_steps": [
         0,
@@ -286,10 +316,20 @@
       "plate_center": [
         0.36,
         0.3
-      ]
+      ],
+      "source_hashes": {
+        "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
+        "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+        "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+        "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+        "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+        "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+        "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+        "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+      }
     },
     {
-      "mesh_vertices_checked": 37625,
+      "mesh_vertices_checked": 63288,
       "prop_vertices_inside_clearing": 0,
       "foreground_vertices_over_plate_at_eight_steps": [
         0,
@@ -304,10 +344,20 @@
       "plate_center": [
         0.36,
         0.3
-      ]
+      ],
+      "source_hashes": {
+        "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
+        "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+        "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+        "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+        "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+        "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+        "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+        "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+      }
     },
     {
-      "mesh_vertices_checked": 21957,
+      "mesh_vertices_checked": 29812,
       "prop_vertices_inside_clearing": 0,
       "foreground_vertices_over_plate_at_eight_steps": [
         0,
@@ -322,11 +372,21 @@
       "plate_center": [
         0.36,
         0.3
-      ]
+      ],
+      "source_hashes": {
+        "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
+        "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+        "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+        "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+        "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+        "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+        "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+        "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+      }
     }
   ],
-  "trial_lossless_webp_bytes": 1997964,
-  "eight_step_base_only_estimated_webp_bytes": 5327904,
+  "trial_lossless_webp_bytes": 2293046,
+  "eight_step_base_only_estimated_webp_bytes": 6114789,
   "painted_references": [
     {
       "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_timber.webp",

@@ -23,6 +23,7 @@ docs/design/tiles-3d-models/timber_V3_max.png
 docs/design/tiles-3d-models/timber_V3_mid.png
 docs/design/tiles-3d-models/token-check-v3-patch-max.png
 docs/design/tiles-3d-models/token-check-v3.png
+docs/design/tiles-3d-models/v3/ART_REVIEW.md
 docs/design/tiles-3d-models/v3/FILES.txt
 docs/design/tiles-3d-models/v3/REPORT.md
 docs/design/tiles-3d-models/v3/clay-geometry-validation.json
@@ -60,3 +61,4 @@ docs/design/tiles-3d-models/v3/validation.json
 tools/blender/compose_v3.py
 tools/blender/render_v3.py
 tools/blender/run_v3.ps1
+tools/blender/v3_art.py

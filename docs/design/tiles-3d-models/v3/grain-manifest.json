@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "wheat_ears": 2199,
-    "curved_rows": 25,
-    "story": "full fields, harvest path, sheaves, fence and loaded cart",
+    "wheat_ears": 3533,
+    "curved_rows": 36,
+    "story": "full fields, harvest path, cinched fanning sheaves, fence and loaded cart",
     "token_space": {
       "token_center": [
         0.36,
@@ -12,7 +12,7 @@
       "clearing_radius": 0.31,
       "upright_plate": true,
       "foreground_max_tilt_degrees": 55,
-      "pruned_objects": 11,
+      "pruned_objects": 16,
       "flattened_surfaces": 1
     }
   },
@@ -20,20 +20,30 @@
     {
       "file": "grain_V3_flat.png",
       "tilt_radians": 0,
-      "seconds": 26.25
+      "seconds": 63.03
     },
     {
       "file": "grain_V3_mid.png",
       "tilt_radians": 0.48,
-      "seconds": 24.34
+      "seconds": 50.2
     },
     {
       "file": "grain_V3_max.png",
       "tilt_radians": 0.96,
-      "seconds": 18.06
+      "seconds": 35.17
     }
   ],
-  "objects": 148,
-  "samples": 32,
-  "threads": 2
+  "objects": 406,
+  "samples": 48,
+  "threads": 2,
+  "source_hashes": {
+    "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
+    "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+    "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+    "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+    "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+    "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+    "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+    "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+  }
 }

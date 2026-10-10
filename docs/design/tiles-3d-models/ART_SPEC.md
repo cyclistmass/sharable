@@ -10,6 +10,8 @@
 
 Reproduce V3 sequentially with `tools/blender/run_v3.ps1`; V2 sources retain their historical left-hand clearing. V3 applies (+0.36,+0.30) inside its renderer/composer process, without changing V2 scripts or app code. No application changes are part of this art pass.
 
+The second V3 modelling pass keeps this top-right position; a lower-right recut is explicitly deferred. Judge the painted/V3 comparison at equal hex width and at 25% scale. Use layered conifer branches, coherent animal bodies with fine fleece, clustered botanical detail, tied/fanning wheat sheaves, irregular excavation cuts and fractured rock ledges. Surface pigment and flat ground markings may texture the protected foreground apron, but must not introduce raised scenery over the plate. Source: `tools/blender/v3_art.py`; preserve the base and eight-angle sequence.
+
 - **V3 Fleece:** sheep are the main flock; retain a few SMALL alpacas at 65% of the previous model size, long necks/upright ears and mixed fleece, and teeny horned/bearded goats. Lush pasture, flower/hedge groundcover, dry-stone walls and gate. V2 alpaca-only art is historical.
 - **Clay colour:** a restrained terracotta/brick-red ground, terraces and cut faces; wet bottom darker red-brown. Keep the kiln and brick stacks distinct, and Clay clearly redder than Desert ochre.
 
