@@ -289,7 +289,8 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     // must be able to get back into a live game (playtest: the app came back on the start screen, game lost).
     val savedRoom = remember { context.getSharedPreferences("online", android.content.Context.MODE_PRIVATE) }
     fun enterRoom(s: LobbySession) {
-        session = s; savedRoom.edit().putString("room", s.id).putString("name", setup.name).apply(); screen = Screen.ONLINE_LOBBY
+        session = s; savedRoom.edit().putString("room", s.id).putString("name", setup.name).putLong("at", System.currentTimeMillis()).apply()
+        screen = Screen.ONLINE_LOBBY
     }
     fun failed(e: Throwable) { busy = false; problem = onlineProblem(e) }
     fun leaveRoom() {
@@ -301,17 +302,29 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
         session = null; screen = Screen.START
     }
     // Back after the app was closed or killed while in a room: rejoin it (the game catches up from its moves).
+    // Only a recent room (ROOM_REJOIN_MS): an old one is forgotten, because dropping into a long-dead room looks
+    // like a game that never gets past the first roll (it waits on players who are gone).
     LaunchedEffect(Unit) {
         val code = savedRoom.getString("room", null) ?: return@LaunchedEffect
         if (start != null || session != null) return@LaunchedEffect
+        if (!rejoinRecent(savedRoom.getLong("at", 0L), System.currentTimeMillis())) { savedRoom.edit().remove("room").apply(); return@LaunchedEffect }
         setup = setup.copy(name = savedRoom.getString("name", null) ?: setup.name)
         busy = true; problem = "Rejoining room $code…"
         LobbySession.rejoin(transport.value, setup, code).whenComplete { r, e ->
             scope.launch {
                 busy = false
                 if (e != null) { savedRoom.edit().remove("room").apply(); problem = "Couldn't rejoin $code: ${onlineProblem(e)}" }
+                // A finished game isn't worth going back to.
+                else if (r.client.view().room?.status == Status.done) { r.close(); savedRoom.edit().remove("room").apply(); problem = null }
                 else { problem = null; enterRoom(r) }
             }
+        }
+    }
+    // While in a room, keep its "last here" time fresh so a long game is still rejoined after Android closes the app.
+    LaunchedEffect(screen) {
+        while (screen == Screen.ONLINE_LOBBY || screen == Screen.ONLINE_GAME) {
+            savedRoom.edit().putLong("at", System.currentTimeMillis()).apply()
+            kotlinx.coroutines.delay(5 * 60 * 1000L)
         }
     }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { session?.close() } }
@@ -1566,6 +1579,12 @@ internal fun appVersion(): String {
     val ctx = LocalContext.current
     return remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "?" }
 }
+
+/** How long after you were last in an online room the app still rejoins it on launch. */
+internal const val ROOM_REJOIN_MS = 2 * 60 * 60 * 1000L
+
+/** True when a room saved at [savedAt] (ms) is recent enough to rejoin at [now]; unknown or future times are not. */
+internal fun rejoinRecent(savedAt: Long, now: Long): Boolean = savedAt in 1..now && now - savedAt <= ROOM_REJOIN_MS
 
 /** Island radius for the off-board supplies (#52), from the board's outermost corner. */
 internal fun supplyLandR(board: Board): Float =
