@@ -30,25 +30,38 @@ object DiceArt {
     val FACES_PE = listOf(R.drawable.dice_pe_1, R.drawable.dice_pe_2, R.drawable.dice_pe_3, R.drawable.dice_pe_4, R.drawable.dice_pe_5, R.drawable.dice_pe_6)
     /** Pirate event die: 10 tumbling frames. */
     val TUMBLE_PE = listOf(R.drawable.dice_tumble_pe_1, R.drawable.dice_tumble_pe_2, R.drawable.dice_tumble_pe_3, R.drawable.dice_tumble_pe_4, R.drawable.dice_tumble_pe_5, R.drawable.dice_tumble_pe_6, R.drawable.dice_tumble_pe_7, R.drawable.dice_tumble_pe_8, R.drawable.dice_tumble_pe_9, R.drawable.dice_tumble_pe_10)
+    /** Pirate event die style options (#48, Mauro: "add them all as options"): P1 Brass-engraved, P2 Ship-timber, P3 Brass cage. */
+    val FACES_PE1 = listOf(R.drawable.dice_pe1_1, R.drawable.dice_pe1_2, R.drawable.dice_pe1_3, R.drawable.dice_pe1_4, R.drawable.dice_pe1_5, R.drawable.dice_pe1_6)
+    val FACES_PE2 = listOf(R.drawable.dice_pe2_1, R.drawable.dice_pe2_2, R.drawable.dice_pe2_3, R.drawable.dice_pe2_4, R.drawable.dice_pe2_5, R.drawable.dice_pe2_6)
+    val FACES_PE3 = listOf(R.drawable.dice_pe3_1, R.drawable.dice_pe3_2, R.drawable.dice_pe3_3, R.drawable.dice_pe3_4, R.drawable.dice_pe3_5, R.drawable.dice_pe3_6)
+    /** Their tumbling frames (Codex is still adding frames; tools/import_event_dice.py brings them in). */
+    val TUMBLE_PE1 = listOf(R.drawable.dice_tumble_pe1_1, R.drawable.dice_tumble_pe1_2)
+    val TUMBLE_PE2 = listOf(R.drawable.dice_tumble_pe2_1, R.drawable.dice_tumble_pe2_2, R.drawable.dice_tumble_pe2_3, R.drawable.dice_tumble_pe2_4)
+    val TUMBLE_PE3 = listOf(R.drawable.dice_tumble_pe3_1, R.drawable.dice_tumble_pe3_2, R.drawable.dice_tumble_pe3_3)
+    /** Settings > Event die names, in style order (0 = the original pirate event die). */
+    val EVENT_STYLES = listOf("Classic bone", "Brass-engraved", "Ship-timber", "Brass cage")
+    private val PE_FACES = listOf(FACES_PE, FACES_PE1, FACES_PE2, FACES_PE3)
+    private val PE_TUMBLES = listOf(TUMBLE_PE, TUMBLE_PE1, TUMBLE_PE2, TUMBLE_PE3)
 
     /** The face image for a production die: [red] or ivory/bone, Normal or [pirate] set, showing [value]. */
-    fun face(red: Boolean, pirate: Boolean, value: Int): Int = set(red, pirate).first[value.coerceIn(1, 6) - 1]
+    fun face(red: Boolean, pirate: Boolean, value: Int): Int = faces(red, pirate)[value.coerceIn(1, 6) - 1]
 
     /** The tumbling frames for a production die. */
-    fun tumble(red: Boolean, pirate: Boolean): List<Int> = set(red, pirate).second
+    fun tumble(red: Boolean, pirate: Boolean): List<Int> = when { pirate && red -> TUMBLE_PR; pirate -> TUMBLE_PB; red -> TUMBLE_NR; else -> TUMBLE_NI }
 
-    private fun set(red: Boolean, pirate: Boolean) = when {
-        pirate && red -> FACES_PR to TUMBLE_PR; pirate -> FACES_PB to TUMBLE_PB; red -> FACES_NR to TUMBLE_NR; else -> FACES_NI to TUMBLE_NI
+    private fun faces(red: Boolean, pirate: Boolean) = when {
+        pirate && red -> FACES_PR; pirate -> FACES_PB; red -> FACES_NR; else -> FACES_NI
     }
 
     /**
      * The event die face for engine face [e] (0-2 ship; 3 trade = Guilds, 4 politics = Crown, 5 science = Academy),
-     * Antique set or [pirate] set. The art numbers its gates 4 Guilds, 5 Academy, 6 Crown.
+     * Antique set or [pirate] set in event die [style] (see [EVENT_STYLES]). The art numbers its gates
+     * 4 Guilds, 5 Academy, 6 Crown.
      */
-    fun eventFace(pirate: Boolean, e: Int): Int = (if (pirate) FACES_PE else FACES_AE)[eventFile(e) - 1]
+    fun eventFace(pirate: Boolean, e: Int, style: Int = 0): Int = (if (pirate) PE_FACES[style.coerceIn(0, 3)] else FACES_AE)[eventFile(e) - 1]
 
     /** Art file number (1-6) for engine event face [e] (0-5). */
     fun eventFile(e: Int): Int = when (e.coerceIn(0, 5)) { 0, 1, 2 -> e + 1; 3 -> 4; 4 -> 6; else -> 5 }
 
-    fun eventTumble(pirate: Boolean): List<Int> = if (pirate) TUMBLE_PE else TUMBLE_AE
+    fun eventTumble(pirate: Boolean, style: Int = 0): List<Int> = if (pirate) PE_TUMBLES[style.coerceIn(0, 3)] else TUMBLE_AE
 }

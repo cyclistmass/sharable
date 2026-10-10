@@ -451,6 +451,8 @@ fun WatchGameScreen(
     var speed by remember { mutableIntStateOf(if (human) 2 else MAX_SPEED) }
     val wins = remember { mutableStateListOf(0, 0, 0, 0, 0) } // per seat, last slot = draws
     var inventory by remember { mutableStateOf(false) }
+    /** Watching bots: stop on the finished board instead of going straight into the next game (#13). */
+    var oneGame by remember { mutableStateOf(false) }
     var compareTiles by remember { mutableStateOf(false) }
     // Scenery settings (density and motion), kept across restarts; the sea reads them once it supports them.
     val appContext = LocalContext.current.applicationContext
@@ -461,7 +463,9 @@ fun WatchGameScreen(
     val oceanRes = LocalContext.current.resources
     val cliff = listOf(R.drawable.cliff_top_1, R.drawable.cliff_top_2, R.drawable.cliff_top_3).map { ImageBitmap.imageResource(it) }
     val raiders = ImageBitmap.imageResource(R.drawable.raiders_ship)
-    val banditSprites = BANDIT_SPRITES.map { ImageBitmap.imageResource(it) }
+    // Retain the list; cover a screen-wide sprite, including inventory and zoom.
+    val screen = androidx.compose.ui.platform.LocalConfiguration.current
+    val banditSprites = rememberDiceFrames(BANDIT_SPRITES, maxOf(screen.screenWidthDp, screen.screenHeightDp))
     // Knight art per theme: index (level - 1) * 2 + (active ? 1 : 0).
     val knightsPirate = KNIGHTS_PIRATE.map { ImageBitmap.imageResource(it) }
     val knightsNormal = KNIGHTS_NORMAL.map { ImageBitmap.imageResource(it) }
@@ -561,7 +565,7 @@ fun WatchGameScreen(
             runCatching { android.util.Log.i("WGBG-GAME", "over ruleset=${if (state.ck != null) "chivalry" else "base"} winner=${state.winner} turns=${state.turn} hash=${state.stateHash()}") }
             if (state.winner >= 0) log.add(0, "${names[state.winner]} wins!")
             tick++
-            if (speed == MAX_SPEED && playing && !human) seed++ // straight into the next game
+            if (speed == MAX_SPEED && playing && !human && !oneGame) seed++ // straight into the next game
         }
     }
 
@@ -824,7 +828,7 @@ fun WatchGameScreen(
             // Dice in the chosen theme: yellow 1-6, red 1-6, the event die's six faces.
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 val rows = listOf((1..6).map { DiceArt.face(false, env.pirateTheme, it) }, (1..6).map { DiceArt.face(true, env.pirateTheme, it) },
-                    (0..5).map { DiceArt.eventFace(env.pirateTheme, it) })
+                    (0..5).map { DiceArt.eventFace(env.pirateTheme, it, env.eventDieStyle) })
                 for (row in rows) Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     for (id in row) androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(id), null, Modifier.size(32.dp))
                 }
@@ -837,10 +841,10 @@ fun WatchGameScreen(
             val rolled = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
             // While the trade chest is open it docks here, over the turn panel, so the board stays in view.
             if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
-                TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme,
+                TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
                     eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight)
             }
-            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
+            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
@@ -913,6 +917,11 @@ fun WatchGameScreen(
                     WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
                     WoodButton(if (speed == MAX_SPEED) "Max" else "${speed}×", "menu-speed") { speed = if (speed == MAX_SPEED) 1 else speed * 2 }
                     WoodButton(if (human) "Watch bots" else "Play", "menu-watch") { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }
+                    if (!human) WoodButton(if (oneGame) "One game" else "Nonstop", "menu-one-game") {
+                        oneGame = !oneGame
+                        if (!oneGame && state.isOver) seed++
+                    }
+                    if (!human && oneGame && tick.let { state.isOver }) WoodButton("Next game", "menu-next-game") { seed++ }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     WoodButton(if (inventory) "Back to game" else "Inventory", "menu-inventory") { inventory = !inventory }
@@ -1483,8 +1492,8 @@ private fun DrawScope.drawTile(
 }
 
 /** Bandit V1 "skeleton corsair" (Codex 3D model via mauro-7a, #32): one sprite per tilt step 0.96*i/7. */
-internal val BANDIT_SPRITES = List(8) { i -> listOf(R.drawable.bandit_tilt_0, R.drawable.bandit_tilt_1, R.drawable.bandit_tilt_2, R.drawable.bandit_tilt_3,
-    R.drawable.bandit_tilt_4, R.drawable.bandit_tilt_5, R.drawable.bandit_tilt_6, R.drawable.bandit_tilt_7)[i] }
+internal val BANDIT_SPRITES = listOf(R.drawable.bandit_tilt_0, R.drawable.bandit_tilt_1, R.drawable.bandit_tilt_2, R.drawable.bandit_tilt_3,
+    R.drawable.bandit_tilt_4, R.drawable.bandit_tilt_5, R.drawable.bandit_tilt_6, R.drawable.bandit_tilt_7)
 
 /** Which two tilt sprites to show for board [tilt], and how much of the second (0..1). */
 internal fun banditSteps(tilt: Float): Triple<Int, Int, Float> {
@@ -1500,7 +1509,10 @@ internal fun banditSteps(tilt: Float): Triple<Int, Int, Float> {
 private fun DrawScope.drawBandit(sprites: List<ImageBitmap>, at: Offset, hexScale: Float, tilt: Float) {
     val side = 2.65f * hexScale
     val dst = IntOffset((at.x - side / 2).toInt(), (at.y - side / 2).toInt())
-    val (a, b, f) = banditSteps(tilt)
+    val pos = (tilt / Camera.MAX_TILT * 7f).coerceIn(0f, 7f)
+    val a = pos.toInt().coerceAtMost(6)
+    val b = a + 1
+    val f = pos - a
     fun draw(img: ImageBitmap, alpha: Float) = drawImage(img, IntOffset.Zero, IntSize(img.width, img.height), dst,
         IntSize(side.toInt(), side.toInt()), alpha = alpha, filterQuality = FilterQuality.Medium)
     draw(sprites[a], 1f)

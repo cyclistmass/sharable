@@ -79,18 +79,14 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
                 slots: Pair<Rect, Rect>? = null,
                 /** Settings > Theme: the Pirate dice instead of the Normal ones. */
                 pirate: Boolean = false,
+                /** Settings > Event die: which pirate event die art (DiceArt.EVENT_STYLES). */
+                eventStyle: Int = 0,
                 /** Age of Chivalry: the event die's face (-1 = none) and the pad it lands on (root coordinates). */
                 event: Int = -1,
                 eventSlot: Rect? = null,
                 /** True while the dice are in the air; the panel hides its resting dice until they land. */
                 onFlying: (Boolean) -> Unit = {}) {
     var origin by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(Offset.Zero) }
-    val redTumble = diceTumble(red = true, pirate).map { ImageBitmap.imageResource(it) }
-    val ivoryTumble = diceTumble(red = false, pirate).map { ImageBitmap.imageResource(it) }
-    val redFace = ImageBitmap.imageResource(diceFace(red = true, pirate, die1.coerceIn(1, 6)))
-    val ivoryFace = ImageBitmap.imageResource(diceFace(red = false, pirate, die2.coerceIn(1, 6)))
-    val eventTumble = DiceArt.eventTumble(pirate).map { ImageBitmap.imageResource(it) }
-    val eventFace = ImageBitmap.imageResource(DiceArt.eventFace(pirate, event.coerceAtLeast(0)))
     val t = remember { Animatable(1f) }
     LaunchedEffect(rollKey) {
         if (rollKey == null || die1 <= 0) return@LaunchedEffect
@@ -105,6 +101,19 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
         } finally { onFlying(false) }
     }
     if (die1 <= 0 || rest == null) return
+    // Cover the fallback cube, airborne lift and transparent tumble margins.
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val restDp = maxOf(DiceSprites.SIDE_DP.toFloat(), (slots?.first?.width ?: 0f) / density,
+        (slots?.second?.width ?: 0f) / density, (eventSlot?.width ?: 0f) / density)
+    val artDp = kotlin.math.ceil(restDp * DIE_FACE_SHARE * 1.5f / DiceSprites.TUMBLE_SHARE).toInt()
+    val redTumble = rememberDiceFrames(diceTumble(red = true, pirate), artDp)
+    val ivoryTumble = rememberDiceFrames(diceTumble(red = false, pirate), artDp)
+    val redFace = rememberDiceBitmap(diceFace(red = true, pirate, die1), artDp)
+    val ivoryFace = rememberDiceBitmap(diceFace(red = false, pirate, die2), artDp)
+    val showEvent = event >= 0 && eventSlot != null
+    val eventTumble = if (showEvent) rememberDiceFrames(DiceArt.eventTumble(pirate, eventStyle), artDp) else emptyList()
+    val eventFace = if (showEvent) rememberDiceBitmap(DiceArt.eventFace(pirate, event, eventStyle), artDp) else null
+
     // Where this roll is thrown from: a direction and distance picked from the roll itself (same roll, same throw).
     val rnd = remember(rollKey) { java.util.Random(rollKey.hashCode().toLong() * 7919L + 17) }
     val angle = remember(rollKey) { rnd.nextFloat() * 2 * Math.PI.toFloat() }
@@ -119,24 +128,24 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
         val start = center + Offset(cos(angle), kotlin.math.sin(angle)) * (half * reach)
         // Each die's resting square: its panel icon, or beside the HUD's corner until the icons are measured.
         val side = DiceSprites.SIDE_DP.dp.toPx()
-        val rest1 = slots?.first?.translate(-origin) ?: Rect(rest + Offset(-side * 2.25f, -side * 0.8f), Size(side, side))
-        val rest2 = slots?.second?.translate(-origin) ?: rest1.translate(Offset(side * 1.12f, 0f))
-        val dir = (rest1.center - start).let { it / it.getDistance().coerceAtLeast(1f) }
+        val rest1 = slots?.first?.center?.minus(origin) ?: (rest + Offset(-side * 1.75f, -side * 0.3f))
+        val rest2 = slots?.second?.center?.minus(origin) ?: (rest1 + Offset(side * 1.12f, 0f))
+        val dir = (rest1 - start).let { it / it.getDistance().coerceAtLeast(1f) }
         val perp = Offset(-dir.y, dir.x)
-        drawDie(rest1, p, start, perp, redTumble, redFace, spin = 1, turns = 1.4f)
-        drawDie(rest2, q, start, perp, ivoryTumble, ivoryFace, spin = 3, turns = -1.6f)
-        if (event >= 0 && eventSlot != null)
-            drawDie(eventSlot.translate(-origin), qe, start, -perp, eventTumble, eventFace, spin = 5, turns = 1.2f)
+        drawDie(rest1, slots?.first?.width ?: side, p, start, perp, redTumble, redFace, spin = 1, turns = 1.4f)
+        drawDie(rest2, slots?.second?.width ?: side, q, start, perp, ivoryTumble, ivoryFace, spin = 3, turns = -1.6f)
+        if (eventFace != null && eventSlot != null)
+            drawDie(eventSlot.center - origin, eventSlot.width, qe, start, -perp, eventTumble, eventFace, spin = 5, turns = 1.2f)
     }
 }
 
-/** One die at animation time [u], flying from [start] to its resting square [r] (drawn as the panel draws it). */
-private fun DrawScope.drawDie(r: Rect, u: Float, start: Offset, perp: Offset, tumble: List<ImageBitmap>, face: ImageBitmap,
+/** One die at animation time [u], flying from [start] to its resting square (drawn as the panel draws it). */
+private fun DrawScope.drawDie(restCenter: Offset, restWidth: Float, u: Float, start: Offset, perp: Offset, tumble: List<ImageBitmap>, face: ImageBitmap,
                               spin: Int, turns: Float) {
-    val cube = r.width * DIE_FACE_SHARE                                  // exactly the size Die3d draws it
+    val cube = restWidth * DIE_FACE_SHARE                                  // exactly the size Die3d draws it
     val hop = kotlin.math.sin(u.coerceAtMost(DiceSprites.LAND) / DiceSprites.LAND * Math.PI.toFloat())
     val b = DiceSprites.bounce(u)
-    val c = start + (r.center - start) * DiceSprites.fall(u) + perp * (hop * cube * 0.6f) - Offset(0f, b * cube)
+    val c = start + (restCenter - start) * DiceSprites.fall(u) + perp * (hop * cube * 0.6f) - Offset(0f, b * cube)
     val lift = 1f + 0.35f * hop + 0.3f * b                               // a little bigger in the air: it's up off the table
     val f = DiceSprites.frame(u, spin, tumble.size)
     val img = if (f < 0) face else tumble[f]

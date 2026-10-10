@@ -49,7 +49,9 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             /** False while thrown dice are still in the air (the resting dice appear when they land). */
             showDice: Boolean = true,
             /** Dice set: false = Normal (carved red + ivory), true = Pirate (ship-timber + bone, dark brass pips). */
-            pirate: Boolean = false) {
+            pirate: Boolean = false,
+            /** Settings > Event die: which pirate event die art (DiceArt.EVENT_STYLES). */
+            eventStyle: Int = 0) {
     if (report == null) return
     // Fixed size, so the dice always sit in the same spot; longer turns scroll inside.
     Column(
@@ -65,7 +67,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
                 var r1 by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
                 Die3d(report.die1, red = true, pirate = pirate, pad = color, visible = showDice && report.rolled, modifier = Modifier.onGloballyPositioned { r1 = it.boundsInRoot() })
                 Die3d(report.die2, red = false, pirate = pirate, pad = color, visible = showDice && report.rolled, modifier = Modifier.onGloballyPositioned { c -> r1?.let { a -> onDiceSlots?.invoke(a, c.boundsInRoot()) } })
-                if (eventDie) EventDie3d(report.event, pirate = pirate, pad = color, visible = showDice && report.rolled && report.event >= 0,
+                if (eventDie) EventDie3d(report.event, pirate = pirate, style = eventStyle, pad = color, visible = showDice && report.rolled && report.event >= 0,
                     modifier = Modifier.onGloballyPositioned { onEventSlot?.invoke(it.boundsInRoot()) })
                 if (report.rolled && showDice) Text("= ${report.die1 + report.die2}", color = HUD_TEXT, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
@@ -133,7 +135,8 @@ private fun MiniCard(edge: Color, label: String, count: Int, face: Color) {
 /** A resting 3D die (the same sprites the throw uses) at the panel's dice size, showing [value] on top. */
 @Composable
 private fun Die3d(value: Int, red: Boolean, pirate: Boolean, pad: Color, visible: Boolean, modifier: Modifier = Modifier) {
-    val face = androidx.compose.ui.graphics.ImageBitmap.imageResource(diceFace(red, pirate, value))
+    val face = if (visible) rememberDiceBitmap(diceFace(red, pirate, value), DIE_DP) else null
+    val outline = androidx.compose.runtime.remember { androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f) }
     Canvas(modifier.size(DIE_DP.dp)) {
         // The die is centred in its slot (where the thrown die lands) at DIE_FACE_SHARE of it; the pad in the
         // roller's colour shows a thin even halo of DIE_HALO_DP round it (shown even while the dice fly).
@@ -144,8 +147,8 @@ private fun Die3d(value: Int, red: Boolean, pirate: Boolean, pad: Color, visible
         val r = CornerRadius(padSize.minDimension * 0.2f)
         drawRoundRect(pad.copy(alpha = 0.85f), topLeft = padTopLeft, size = padSize, cornerRadius = r)
         drawRoundRect(Color.Black.copy(alpha = 0.35f), topLeft = padTopLeft, size = padSize, cornerRadius = r,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f))
-        if (!visible) return@Canvas
+            style = outline)
+        if (face == null) return@Canvas
         // The hand-made die (Codex art), square on the pad with the roll on top.
         drawImage(face, dstOffset = androidx.compose.ui.unit.IntOffset((size.width / 2 - side / 2).toInt(), (size.height / 2 - side / 2).toInt()),
             dstSize = androidx.compose.ui.unit.IntSize(side.toInt(), side.toInt()), filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium)
@@ -154,15 +157,15 @@ private fun Die3d(value: Int, red: Boolean, pirate: Boolean, pad: Color, visible
 
 /** The Age of Chivalry event die resting on its pad: the Raiders' ship or a gate (Guilds, Academy, Crown). */
 @Composable
-private fun EventDie3d(face: Int, pirate: Boolean, pad: Color, visible: Boolean, modifier: Modifier = Modifier) {
-    val img = androidx.compose.ui.graphics.ImageBitmap.imageResource(DiceArt.eventFace(pirate, face.coerceAtLeast(0)))
+private fun EventDie3d(face: Int, pirate: Boolean, style: Int, pad: Color, visible: Boolean, modifier: Modifier = Modifier) {
+    val img = if (visible) rememberDiceBitmap(DiceArt.eventFace(pirate, face.coerceAtLeast(0), style), DIE_DP) else null
     Canvas(modifier.size(DIE_DP.dp)) {
         val side = size.width * DIE_FACE_SHARE
         val halo = DIE_HALO_DP.dp.toPx()
         val padTopLeft = Offset(size.width / 2 - side / 2 - halo, size.height / 2 - side / 2 - halo)
         val padSize = Size(side + 2 * halo, side + 2 * halo)
         drawRoundRect(pad.copy(alpha = 0.85f), topLeft = padTopLeft, size = padSize, cornerRadius = CornerRadius(padSize.minDimension * 0.2f))
-        if (visible) drawImage(img, dstOffset = androidx.compose.ui.unit.IntOffset((size.width / 2 - side / 2).toInt(), (size.height / 2 - side / 2).toInt()),
+        if (img != null) drawImage(img, dstOffset = androidx.compose.ui.unit.IntOffset((size.width / 2 - side / 2).toInt(), (size.height / 2 - side / 2).toInt()),
             dstSize = androidx.compose.ui.unit.IntSize(side.toInt(), side.toInt()), filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium)
     }
 }
