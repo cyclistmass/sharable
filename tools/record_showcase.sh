@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Records the showcase media: two 1x bot-play clips (Default theme base game; Pirate theme Age of Chivalry
+# late game), tilted and zoomed so the pieces read, with the emulator-only Zoom/Tilt bars hidden.
+# Writes docs/gameplay-1x.gif and docs/gameplay-chivalry.gif, and the combined MP4 to $OUT (default: temp).
+# Run after tools/emulator.ps1 and installing the latest debug build.
+# Usage (Git Bash, from the project root): tools/record_showcase.sh [seconds per clip]
+set -euo pipefail
+SECS="${1:-30}"
+A="$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe"
+PKG=com.mauro.wgbg
+export MSYS_NO_PATHCONV=1
+export ANDROID_SERIAL="${ANDROID_SERIAL:-emulator-5554}"
+OUT="${OUT:-$TEMP/wgbg-showcase}"
+mkdir -p "$OUT" docs
+
+# Fresh app with these saved settings (debug builds let run-as write the prefs file).
+settings() {
+  "$A" shell am force-stop $PKG
+  "$A" shell pm clear $PKG >/dev/null
+  local f="$OUT/prefs.xml"
+  { echo "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>"; echo "<map>"
+    for kv in "$@"; do echo "    <float name=\"${kv%=*}\" value=\"${kv#*=}\" />"; done
+    echo "</map>"; } > "$f"
+  "$A" push "$(cygpath -w "$f")" /data/local/tmp/wgbg-prefs.xml >/dev/null
+  "$A" shell chmod 644 /data/local/tmp/wgbg-prefs.xml
+  "$A" shell "run-as $PKG sh -c 'mkdir -p shared_prefs && cp /data/local/tmp/wgbg-prefs.xml shared_prefs/wgbg-settings.xml'"
+}
+
+# Taps the on-screen element whose text is $1 (found with uiautomator).
+tap_text() {
+  "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+  local B
+  B=$("$A" shell cat /sdcard/ui.xml | tr '>' '\n' | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]" | grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | head -1)
+  [ -n "$B" ] || { echo "'$1' not found on screen"; exit 1; }
+  "$A" shell input tap $(( ${B%,*} + 20 )) $(( ${B#*,} + 20 ))
+  sleep 0.8
+}
+
+# Watch bots in ruleset $1 at the given tilt/zoom; then set the speed by tapping the speed button $2 times
+# (Max -> 1x -> 2x -> 4x -> 8x).
+watch() {
+  "$A" shell am start --activity-clear-task -n $PKG/.MainActivity --es start "$1" --ez watch true --ef tilt "$3" --ef zoom "$4" >/dev/null
+  sleep 3
+  tap_text "Menu"
+  for _ in $(seq 1 "$2"); do "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+    local label; label=$("$A" shell cat /sdcard/ui.xml | grep -o 'text="\(Max\|[0-9]*×\)"' | head -1 | cut -d'"' -f2)
+    tap_text "$label"; done
+  tap_text "Hide"
+}
+
+clip() { # record $SECS s to $OUT/$1.mp4
+  "$A" shell screenrecord --size 1200x540 --bit-rate 8000000 --time-limit "$SECS" /sdcard/clip.mp4
+  "$A" pull /sdcard/clip.mp4 "$(cygpath -w "$OUT/$1.mp4")" >/dev/null
+}
+
+gif() { # first 20 s of $1.mp4 -> docs/$2 (about 3 MB, light enough for the README)
+  ffmpeg -loglevel error -y -t 20 -i "$(cygpath -w "$OUT/$1.mp4")" \
+    -vf "fps=6,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=96:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" \
+    "docs/$2"
+}
+
+# 1. Default theme, base game, 1x.
+settings "view-bars=0.0"
+watch base 1 0.55 1.5
+sleep 4
+clip base
+
+# 2. Pirate theme, Age of Chivalry: 8x for two minutes so walls, Capitals and knights are out, then 1x.
+settings "view-bars=0.0" "theme-pirate=1.0" "event-die-style=3.0"
+watch chivalry 4 0.55 1.5
+sleep 120
+tap_text "Menu"; for _ in 1 2 3 4; do "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+  label=$("$A" shell cat /sdcard/ui.xml | grep -o 'text="\(Max\|[0-9]*×\)"' | head -1 | cut -d'"' -f2)
+  [ "$label" = "1×" ] && break; tap_text "$label"; done
+tap_text "Hide"
+sleep 2
+clip chivalry
+
+gif base gameplay-1x.gif
+gif chivalry gameplay-chivalry.gif
+ffmpeg -loglevel error -y -i "$(cygpath -w "$OUT/base.mp4")" -i "$(cygpath -w "$OUT/chivalry.mp4")" \
+  -filter_complex "[0:v][1:v]concat=n=2:v=1:a=0[v]" -map "[v]" -c:v libx264 -crf 22 -pix_fmt yuv420p -movflags +faststart \
+  "$(cygpath -w "$OUT/working-german-board-game-gameplay.mp4")"
+ls -la docs/gameplay-1x.gif docs/gameplay-chivalry.gif "$OUT/working-german-board-game-gameplay.mp4"

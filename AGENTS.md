@@ -81,7 +81,8 @@ honestly. Never call something done with failing or skipped tests.
   send a move with `adb shell am broadcast -a com.mauro.wgbg.MOVE -p com.mauro.wgbg --es move TYPE:PAYLOAD`.
   Each finished local game logs a `WGBG-GAME` line.
 - Scripts: `tools/ci_monkey.sh`, `tools/ci_selfplay.sh`, `tools/ci_online.sh`, `tools/online_sim.sh`,
-  `tools/record_gameplay.sh`; `tools/emulator.ps1` launches a landscape emulator on Windows.
+  `tools/record_showcase.sh` (README GIFs and the gameplay video), `tools/record_screenshots.sh` (README gallery);
+  `tools/emulator.ps1` launches a landscape emulator on Windows.
 
 ## Issues, commits and CI
 
@@ -90,8 +91,8 @@ honestly. Never call something done with failing or skipped tests.
   the work is done and verified.
 - CI (`.github/workflows/wgbg-ci.yml` in the sharable repo) runs every test, builds the APK, then runs
   monkey, bot self-play and a two-client online game on an emulator. A red CI is stop-and-fix.
-- Every push that changes how the game looks re-records `docs/gameplay-1x.gif` (`tools/record_gameplay.sh`)
-  in the same commit.
+- Every push that changes how the game looks re-records the README GIFs (`tools/record_showcase.sh`) and, if
+  the screens changed, the gallery (`tools/record_screenshots.sh`), in the same commit.
 - Keep git tidy: no stray files, delete merged branches and worktrees, no machine-specific paths in build
   files or scripts.
 

@@ -4,10 +4,29 @@ Open-source Android hex-trading board game, compatible with the rules of the
 classic German settlement-building game, for up to 4 players plus AI.
 Not affiliated with or endorsed by Catan GmbH.
 
-![Four bots playing at 1x speed: framed deep-sea board, dice and turn summary](docs/gameplay-1x.gif)
+![Four bots playing the base game at 1x: tilted board with rendered towns, roads and the bandit](docs/gameplay-1x.gif)
 
-*Four built-in bots playing at 1x on the Android emulator: round framed sea with waves, clouds and gulls,
-wooden pieces, true-random dice with the turn summary in the corner.*
+*Four built-in bots playing the base game at 1x, board tilted: rendered homesteads, towns and roads in each
+player's colour, the bandit on a number plate, boats and gulls on the sea.*
+
+![Age of Chivalry in the Pirate theme: knights, walls and the Raiders' ship](docs/gameplay-chivalry.gif)
+
+*Age of Chivalry in the Pirate theme: knights, city walls, the event die and the Raiders' ship.*
+
+**Play it:** [download the Android preview APK](https://github.com/cyclistmass/sharable/releases/download/wgbg-preview-2026-10-10/working-german-board-game-preview-2026-10-10.apk)
+· [1-minute gameplay video](https://github.com/cyclistmass/sharable/releases/download/wgbg-preview-2026-10-10/working-german-board-game-gameplay.mp4)
+· [release notes](https://github.com/cyclistmass/sharable/releases/tag/wgbg-preview-2026-10-10)
+
+### Screenshots
+
+| | |
+|---|---|
+| ![Tilted board late in a game](docs/screenshots/board-tilted.jpg) | ![Age of Chivalry endgame, Pirate theme](docs/screenshots/chivalry-endgame.jpg) |
+| Tilt and zoom the table (two fingers, or the Zoom/Tilt bars) | Age of Chivalry, Pirate theme: walls, Capitals, knights |
+| ![Your unplayed pieces on the water](docs/screenshots/your-pieces.jpg) | ![The trade chest](docs/screenshots/trade-chest.jpg) |
+| Your unplayed pieces wait on the water in front of you | Trading: tap the top of a card to ask, the bottom to offer |
+| ![Inventory of every object](docs/screenshots/inventory.jpg) | ![Settings](docs/screenshots/settings.jpg) |
+| The Inventory: every tile, piece, card and die | Settings: scenery, theme, event die style |
 
 License: GPL-3.0 (see `LICENSE`).
 
