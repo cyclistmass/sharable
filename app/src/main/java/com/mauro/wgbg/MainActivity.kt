@@ -85,6 +85,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -309,6 +310,9 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
         lifecycle.addObserver(o); onDispose { lifecycle.removeObserver(o) }
     }
     Box(Modifier.fillMaxSize()) {
+        // Which build this is, for testers (bumped with each major merge).
+        if (screen == Screen.START) Text("v${appVersion()}", color = Color(0xFFD9B865), fontSize = 12.sp,
+            modifier = Modifier.align(Alignment.BottomEnd).zIndex(1f).padding(10.dp).testTag("app-version"))
         when (screen) {
             Screen.START -> NewGameScreen(
                 onStart = { setup = it; gameNo++; screen = Screen.GAME },
@@ -941,7 +945,7 @@ fun WatchGameScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     GearButton(settingsOpen, { settingsOpen = true; panelOpen = false }, Modifier.size(44.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Turn ${players.first().turn}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    Text("Turn ${players.first().turn}  ·  v${appVersion()}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     // Small and out of the way; it asks before leaving.
                     Text("Exit", color = Color(0xFFFFB4A0), fontSize = 12.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.border(1.dp, Color(0xFF8A6A2A), RoundedCornerShape(10.dp))
@@ -1520,6 +1524,13 @@ private fun supplyAt(s: GameState, viewer: Int, offsets: List<Offset>, l: Layout
         if (Supply.hit(q.x, q.y, c.x, c.y, a) || (l.project(c.x, c.y) - p).getDistance() < minPx) return seat
     }
     return -1
+}
+
+/** The installed app's version name (app/build.gradle.kts versionName), e.g. "0.2.0". */
+@Composable
+internal fun appVersion(): String {
+    val ctx = LocalContext.current
+    return remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "?" }
 }
 
 /** Island radius for the off-board supplies (#52), from the board's outermost corner. */
