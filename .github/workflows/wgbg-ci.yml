@@ -36,6 +36,13 @@ jobs:
       - name: Engine, AI and app tests (rules, fuzz, break-it, dice fairness, trading, camera)
         run: bash ./gradlew --no-daemon :engine:test :ai:test :net:test :app:testDebugUnitTest
 
+      # The Firebase app config is kept out of git; CI gets it from a repository secret so the APK can play online
+      # and send crash reports. Without the secret the build still works, offline only.
+      - name: Firebase config for the APK
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json; echo "google-services.json written"; else echo "no GOOGLE_SERVICES_JSON secret: offline-only APK"; fi
       - name: Build debug APK (and the instrumented test APK)
         run: bash ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
 
@@ -136,8 +143,8 @@ jobs:
             SETTLE=1 START=chivalry bash tools/ci_monkey.sh apk/app-debug.apk 3000
             # The app plays itself (#46): bots-only games at Max speed in both rulesets; every game must finish.
             bash tools/ci_selfplay.sh 60 3
-            # A human seat played by tapping the screen like a finger (both rulesets); any crash fails.
-            bash tools/ci_touchplay.sh 150 12
+            # A human seat played by tapping the screen like a finger: both rulesets with 3 and 4 players; any crash fails.
+            bash tools/ci_touchplay.sh 100 10
             # Online play end to end (#35): two clients, one room, a whole game on the Firebase emulators.
             bash tools/ci_online.sh apk/app-debug-androidTest.apk demo-wgbg
 
