@@ -451,6 +451,8 @@ fun WatchGameScreen(
     var speed by remember { mutableIntStateOf(if (human) 2 else MAX_SPEED) }
     val wins = remember { mutableStateListOf(0, 0, 0, 0, 0) } // per seat, last slot = draws
     var inventory by remember { mutableStateOf(false) }
+    /** Watching bots: stop on the finished board instead of going straight into the next game (#13). */
+    var oneGame by remember { mutableStateOf(false) }
     var compareTiles by remember { mutableStateOf(false) }
     // Scenery settings (density and motion), kept across restarts; the sea reads them once it supports them.
     val appContext = LocalContext.current.applicationContext
@@ -561,7 +563,7 @@ fun WatchGameScreen(
             runCatching { android.util.Log.i("WGBG-GAME", "over ruleset=${if (state.ck != null) "chivalry" else "base"} winner=${state.winner} turns=${state.turn} hash=${state.stateHash()}") }
             if (state.winner >= 0) log.add(0, "${names[state.winner]} wins!")
             tick++
-            if (speed == MAX_SPEED && playing && !human) seed++ // straight into the next game
+            if (speed == MAX_SPEED && playing && !human && !oneGame) seed++ // straight into the next game
         }
     }
 
@@ -913,6 +915,11 @@ fun WatchGameScreen(
                     WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
                     WoodButton(if (speed == MAX_SPEED) "Max" else "${speed}×", "menu-speed") { speed = if (speed == MAX_SPEED) 1 else speed * 2 }
                     WoodButton(if (human) "Watch bots" else "Play", "menu-watch") { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }
+                    if (!human) WoodButton(if (oneGame) "One game" else "Nonstop", "menu-one-game") {
+                        oneGame = !oneGame
+                        if (!oneGame && state.isOver) seed++
+                    }
+                    if (!human && oneGame && tick.let { state.isOver }) WoodButton("Next game", "menu-next-game") { seed++ }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     WoodButton(if (inventory) "Back to game" else "Inventory", "menu-inventory") { inventory = !inventory }
