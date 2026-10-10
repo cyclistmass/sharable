@@ -78,4 +78,23 @@ class EnvSettingsTest {
         again.reset()
         assertEquals(EnvSettings.TileEdge.THIN, EnvSettings(store).tileEdge)
     }
+
+    @Test
+    fun `view bars default per device, are saved, and survive a restart`() {
+        org.junit.jupiter.api.Assertions.assertFalse(EnvSettings(MapStore()).viewBars, "phones: off by default")
+        org.junit.jupiter.api.Assertions.assertTrue(EnvSettings(MapStore(), viewBarsDefault = true).viewBars, "emulator: on by default")
+        val store = MapStore()
+        EnvSettings(store, viewBarsDefault = true).viewBars = false
+        org.junit.jupiter.api.Assertions.assertFalse(EnvSettings(store, viewBarsDefault = true).viewBars, "the player's choice wins after a restart")
+    }
+
+    @Test
+    fun `density is saved, clamped and reset`() {
+        val store = MapStore()
+        EnvSettings(store).density = 1.7f
+        val again = EnvSettings(store)
+        org.junit.jupiter.api.Assertions.assertEquals(1f, again.density)
+        again.reset()
+        org.junit.jupiter.api.Assertions.assertEquals(EnvSettings.DEFAULT, again.density)
+    }
 }

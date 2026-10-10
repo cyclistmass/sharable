@@ -188,16 +188,28 @@ class Sea(board: Board, seed: Int = 1) {
     var birds01 = 0.5f
     var boats01 = 0.5f
     var waves01 = 0.5f
+    /**
+     * Density, 0..1 (Settings' upright slider beside the four): one multiplier on every water object's count,
+     * from none (0) through as set (0.5) to double (1), capped at each pool's size.
+     */
+    var density01 = 0.5f
+        set(value) {
+            field = value.coerceIn(0f, 1f)
+            clouds01 = clouds01 // re-sync the clouds to the new target now
+        }
+    /** How many of a [maximum]-sized pool show for slider [value], after the Density multiplier. */
+    internal fun amount(value: Float, maximum: Int): Int =
+        (sceneryCount(value, maximum) * 2f * density01).roundToInt().coerceIn(0, maximum)
     /** How fast passive things move (waves, glints, drift, gulls); 0.5 is normal. */
     var motion = 0.5f
     /** Clouds wanted on the sea: four at 50%, sixteen at 100%. */
-    val cloudTarget get() = sceneryCount(clouds01, 16)
+    val cloudTarget get() = amount(clouds01, 16)
     /** Pale articulated seabirds (Birds slider sets how many show). */
     internal val birds = List(16) { i -> Seabird(seed * 31 + i, landR + 0.5f + 0.21f * i) }
-    internal val birdCount get() = sceneryCount(birds01, birds.size)
+    internal val birdCount get() = amount(birds01, birds.size)
     /** Boat positions (x, y pairs) handed to the birds each step, so some can circle a boat. */
     private val boatXY = FloatArray(2 * MAX_BOATS)
-    internal val waveCount get() = sceneryCount(waves01, wavelets.size)
+    internal val waveCount get() = amount(waves01, wavelets.size)
     internal val whitecapScale get() = 0.65f + 0.7f * waves01.coerceIn(0f, 1f)
     internal val whitecapAlpha get() = 0.4f + 0.6f * waves01.coerceIn(0f, 1f)
     private val birdPath = Path()
@@ -253,7 +265,7 @@ class Sea(board: Board, seed: Int = 1) {
         Boat(x, y.coerceIn(-LANE_Y, LANE_Y), tx, y.coerceIn(-LANE_Y, LANE_Y), if (rnd.nextBoolean()) 0f else PI.toFloat(), 0.10f + rnd.nextFloat() * 0.08f, i % 4, rnd.nextFloat() * 6f)
     }
     /** Boats shown at the Boats slider's setting (none at 0, all at 1). */
-    val boatCount get() = sceneryCount(boats01, MAX_BOATS)
+    val boatCount get() = amount(boats01, MAX_BOATS)
 
     /** A random point on the open sea at least [margin] from the coast and the screen edge. */
     private fun seaPoint(margin: Float): Pair<Float, Float> {
@@ -493,18 +505,23 @@ class Sea(board: Board, seed: Int = 1) {
             if (part == WaterPart.BASE) return@with
         }
         // Sun glints twinkling.
-        val glintCount = sceneryCount(waves01, glints.size)
+        // Everything keeps moving off screen (positions stay tracked); only what's on screen is drawn.
+        val glintCount = amount(waves01, glints.size)
         for (i in 0 until glintCount) {
             val g = glints[i]
             val a = (sin(time * g[3] + g[2]) * 0.5f + 0.5f)
-            if (a > 0.55f) drawCircle(Color.White.copy(alpha = (a - 0.55f) * 1.4f), 0.018f * s, at(g[0], g[1]))
+            if (a > 0.55f) { val q = at(g[0], g[1]); if (onScreen(q, 0.05f * s)) drawCircle(Color.White.copy(alpha = (a - 0.55f) * 1.4f), 0.018f * s, q) }
         }
         // Waves slider: how many wavelets and whitecaps show (none at 0; the water's colour and texture stay).
-        for (i in 0 until waveCount) drawWavelet(this, at, wavelets[i])
-        for (i in 0 until sceneryCount(waves01, breaks.size)) drawBreak(this, at, s, breaks[i])
+        for (i in 0 until waveCount) { val w = wavelets[i]; if (onScreen(at(w.x, w.y), 0.6f * s)) drawWavelet(this, at, w) }
+        for (i in 0 until amount(waves01, breaks.size)) { val k = breaks[i]; if (onScreen(at(k.x, k.y), 0.8f * s)) drawBreak(this, at, s, k) }
         // Tiny sailboats (Boats slider): a wooden hull with a little wake, the sail in a player's colour.
         val sprites = boatSprites
-        for (i in 0 until boatCount) if (sprites != null) drawBoatSprite(this, at, s, boats[i], sprites) else drawBoat(this, at, s, boats[i])
+        for (i in 0 until boatCount) {
+            val bt = boats[i]
+            if (!onScreen(at(bt.x, bt.y), 1.2f * s)) continue
+            if (sprites != null) drawBoatSprite(this, at, s, bt, sprites) else drawBoat(this, at, s, bt)
+        }
         for (r in rings) {
             val t = ((r.age - r.delay) / 1.2f).coerceIn(0f, 1f)
             if (r.age < r.delay) continue
@@ -697,6 +714,7 @@ class Sea(board: Board, seed: Int = 1) {
         }
         for (bi in 0 until birdCount) {
             val b = birds[bi]
+            if (!onScreen(at(b.x, b.y), 1f * s)) continue // shadow included
             // A faint shadow on the water below, then the bird.
             val flap = gullFlap; val glide = gullGlide
             if (flap != null && glide != null) {
@@ -723,6 +741,7 @@ class Sea(board: Board, seed: Int = 1) {
             val fade = if (c.poof >= 0) (1 - c.poof / 0.25f).coerceAtLeast(0f) else 1f
             if (fade <= 0f) continue
             val p = at(c.x, c.y)
+            if (!onScreen(p, 1.2f * s)) continue
             // Each poke leaves it a bit smaller; the latest one makes it jiggle.
             val jig = c.wobble / WOBBLE
             val u = 0.16f * s * (1 - 0.08f * c.hits) * (1 + 0.12f * jig * sin(c.wobble * 40f))
@@ -786,6 +805,9 @@ class Sea(board: Board, seed: Int = 1) {
     }
 
     companion object {
+        /** True when a thing at [p] with reach [r] px touches the canvas (off-screen things are skipped, not stopped). */
+        internal fun DrawScope.onScreen(p: Offset, r: Float): Boolean =
+            p.x > -r && p.y > -r && p.x < size.width + r && p.y < size.height + r
         /** Quadratic density: fine low-end control, default at a quarter of the expanded pool. */
         internal fun sceneryCount(value: Float, maximum: Int): Int =
             (value.coerceIn(0f, 1f).pow(2) * maximum).roundToInt()

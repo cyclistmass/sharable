@@ -50,7 +50,7 @@ class PrefsStore(context: Context) : FloatStore {
  * Scenery amounts, each 0..1 and saved across restarts: how many clouds, birds and harbour
  * boats show, and how busy the waves are. Pure decoration; the game never reads them.
  */
-class EnvSettings(private val store: FloatStore) {
+class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Boolean = false) {
     enum class Item(val label: String, val key: String) {
         CLOUDS("Clouds", "env-clouds"), BIRDS("Birds", "env-birds"), BOATS("Boats", "env-boats"), WAVES("Waves", "env-waves")
     }
@@ -65,6 +65,20 @@ class EnvSettings(private val store: FloatStore) {
         values.getValue(item).floatValue = c
         store.put(item.key, c)
     }
+
+    private val densityState = mutableFloatStateOf(store.get(DENSITY, DEFAULT).coerceIn(0f, 1f))
+
+    /** One multiplier on all water objects (0 none, 0.5 as the four sliders say, 1 double). Saved. */
+    var density: Float
+        get() = densityState.floatValue
+        set(v) { densityState.floatValue = v.coerceIn(0f, 1f); store.put(DENSITY, densityState.floatValue) }
+
+    private val viewBarsState = mutableFloatStateOf(store.get(VIEW_BARS, if (viewBarsDefault) 1f else 0f))
+
+    /** On-screen Zoom/Tilt bars: phones pinch and two-finger tilt instead; on by default on an emulator. Saved. */
+    var viewBars: Boolean
+        get() = viewBarsState.floatValue > 0.5f
+        set(v) { viewBarsState.floatValue = if (v) 1f else 0f; store.put(VIEW_BARS, viewBarsState.floatValue) }
 
     private val pirate = mutableFloatStateOf(store.get(THEME, 0f))
 
@@ -89,7 +103,7 @@ class EnvSettings(private val store: FloatStore) {
         set(v) { eventDie.floatValue = v.coerceIn(0, DiceArt.EVENT_STYLES.size - 1).toFloat(); store.put(EVENT_DIE, eventDie.floatValue) }
 
     /** Back to the defaults (saved). */
-    fun reset() { for (i in Item.entries) this[i] = DEFAULT; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0 }
+    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0 }
 
     val clouds get() = this[Item.CLOUDS]
     val birds get() = this[Item.BIRDS]
@@ -101,6 +115,14 @@ class EnvSettings(private val store: FloatStore) {
         const val THEME = "theme-pirate"
         const val EDGE = "tile-edge"
         const val EVENT_DIE = "event-die-style"
+        const val DENSITY = "env-density"
+        const val VIEW_BARS = "view-bars"
+
+        /** True on an Android emulator (where there's no pinch), from the build's hardware and product names. */
+        fun isEmulator(): Boolean {
+            val b = android.os.Build.FINGERPRINT.orEmpty() + " " + android.os.Build.HARDWARE.orEmpty() + " " + android.os.Build.PRODUCT.orEmpty()
+            return listOf("generic", "ranchu", "goldfish", "sdk_gphone", "emulator").any { it in b }
+        }
     }
 }
 
@@ -120,7 +142,14 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
             WoodButton("Done", "settings-done", onClick = onClose)
         }
         Text("Scenery", fontSize = 13.sp, color = Color(0xFFD9B865))
-        for (item in EnvSettings.Item.entries) SliderRow(item.label, env[item], "env-${item.name.lowercase()}") { env[item] = it }
+        // The four kinds on the left; the upright Density bar beside them scales them all together.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                for (item in EnvSettings.Item.entries)
+                    SliderRow(item.label, env[item], "env-${item.name.lowercase()}", sliderWidth = 170.dp) { env[item] = it }
+            }
+            BrassBar("Density", env.density, "env-density", height = 120.dp) { env.density = it }
+        }
         Text("Theme", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("Normal", selected = !env.pirateTheme, tag = "theme-normal", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.pirateTheme = false }
@@ -137,6 +166,11 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
             // A preview of the chosen style's ship face.
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(DiceArt.eventFace(true, 0, env.eventDieStyle)), null, Modifier.size(56.dp))
         }
+        Text("Zoom and Tilt bars (for emulators and mice; phones pinch)", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Show", selected = env.viewBars, tag = "view-bars-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.viewBars = true }
+            Choice("Hide", selected = !env.viewBars, tag = "view-bars-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.viewBars = false }
+        }
         Text("Tile edges", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (e in EnvSettings.TileEdge.entries)
@@ -151,10 +185,10 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
 }
 
 @Composable
-private fun SliderRow(label: String, value: Float, tag: String, onChange: (Float) -> Unit) {
+private fun SliderRow(label: String, value: Float, tag: String, sliderWidth: androidx.compose.ui.unit.Dp = 220.dp, onChange: (Float) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("$label ${(value * 100).roundToInt()}%", fontSize = 12.sp, color = Color(0xFFEDE6D8), modifier = Modifier.width(100.dp))
-        Slider(value, onChange, Modifier.width(220.dp).height(32.dp).testTag(tag), colors = brassSlider())
+        Slider(value, onChange, Modifier.width(sliderWidth).height(32.dp).testTag(tag), colors = brassSlider())
     }
 }
 
