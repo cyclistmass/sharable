@@ -126,7 +126,8 @@ class Seabird(seed: Int, private val ringR: Float) {
         fun pt(f: Float, r: Float) = Offset(p.x + fx * f * s + sx * r * s, p.y + fy * f * s + sy * r * s)
         val h = hinge()
         // Seen from above, a raised or lowered wing looks shorter; banking lifts one wing a little.
-        for (side in listOf(-1f, 1f)) {
+        for (wing in 0..1) {
+            val side = if (wing == 0) -1f else 1f
             val span = 1.25f * cos(h + side * bank * 0.3f).coerceIn(0.35f, 1f)
             val sweep = 0.18f + 0.12f * kotlin.math.abs(h)    // tips sweep back more mid-stroke
             path.reset()

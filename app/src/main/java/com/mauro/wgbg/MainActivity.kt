@@ -463,7 +463,9 @@ fun WatchGameScreen(
     val oceanRes = LocalContext.current.resources
     val cliff = listOf(R.drawable.cliff_top_1, R.drawable.cliff_top_2, R.drawable.cliff_top_3).map { ImageBitmap.imageResource(it) }
     val raiders = ImageBitmap.imageResource(R.drawable.raiders_ship)
-    val banditSprites = BANDIT_SPRITES.map { ImageBitmap.imageResource(it) }
+    // Retain the list; cover a screen-wide sprite, including inventory and zoom.
+    val screen = androidx.compose.ui.platform.LocalConfiguration.current
+    val banditSprites = rememberDiceFrames(BANDIT_SPRITES, maxOf(screen.screenWidthDp, screen.screenHeightDp))
     // Knight art per theme: index (level - 1) * 2 + (active ? 1 : 0).
     val knightsPirate = KNIGHTS_PIRATE.map { ImageBitmap.imageResource(it) }
     val knightsNormal = KNIGHTS_NORMAL.map { ImageBitmap.imageResource(it) }
@@ -1490,8 +1492,8 @@ private fun DrawScope.drawTile(
 }
 
 /** Bandit V1 "skeleton corsair" (Codex 3D model via mauro-7a, #32): one sprite per tilt step 0.96*i/7. */
-internal val BANDIT_SPRITES = List(8) { i -> listOf(R.drawable.bandit_tilt_0, R.drawable.bandit_tilt_1, R.drawable.bandit_tilt_2, R.drawable.bandit_tilt_3,
-    R.drawable.bandit_tilt_4, R.drawable.bandit_tilt_5, R.drawable.bandit_tilt_6, R.drawable.bandit_tilt_7)[i] }
+internal val BANDIT_SPRITES = listOf(R.drawable.bandit_tilt_0, R.drawable.bandit_tilt_1, R.drawable.bandit_tilt_2, R.drawable.bandit_tilt_3,
+    R.drawable.bandit_tilt_4, R.drawable.bandit_tilt_5, R.drawable.bandit_tilt_6, R.drawable.bandit_tilt_7)
 
 /** Which two tilt sprites to show for board [tilt], and how much of the second (0..1). */
 internal fun banditSteps(tilt: Float): Triple<Int, Int, Float> {
@@ -1507,7 +1509,10 @@ internal fun banditSteps(tilt: Float): Triple<Int, Int, Float> {
 private fun DrawScope.drawBandit(sprites: List<ImageBitmap>, at: Offset, hexScale: Float, tilt: Float) {
     val side = 2.65f * hexScale
     val dst = IntOffset((at.x - side / 2).toInt(), (at.y - side / 2).toInt())
-    val (a, b, f) = banditSteps(tilt)
+    val pos = (tilt / Camera.MAX_TILT * 7f).coerceIn(0f, 7f)
+    val a = pos.toInt().coerceAtMost(6)
+    val b = a + 1
+    val f = pos - a
     fun draw(img: ImageBitmap, alpha: Float) = drawImage(img, IntOffset.Zero, IntSize(img.width, img.height), dst,
         IntSize(side.toInt(), side.toInt()), alpha = alpha, filterQuality = FilterQuality.Medium)
     draw(sprites[a], 1f)
