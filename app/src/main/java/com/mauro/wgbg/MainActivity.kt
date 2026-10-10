@@ -492,7 +492,7 @@ fun WatchGameScreen(
     LaunchedEffect(sea) { // the sea keeps moving even when the game is paused
         var last = 0L
         while (true) withFrameNanos { now ->
-            sea.clouds01 = env.clouds; sea.birds01 = env.birds; sea.boats01 = env.boats; sea.waves01 = env.waves
+            sea.clouds01 = env.clouds; sea.birds01 = env.birds; sea.boats01 = env.boats; sea.waves01 = env.waves; sea.density01 = env.density
             if (last != 0L) sea.update(((now - last) / 1e9f).coerceAtMost(0.05f))
             last = now
             seaTick++
@@ -944,7 +944,7 @@ fun WatchGameScreen(
         }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.
         // Zoom and Tilt bars on the right edge (pinch and two-finger drag do the same).
-        if (!inventory && boardSize.minDimension > 0f) ViewBarsPanel(camera,
+        if (!inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
             onZoom = { z -> camera = camera.transform(Offset(boardSize.width / 2f, boardSize.height / 2f), Offset.Zero, z / camera.zoom, boardSize) },
             onTilt = { t -> camera = camera.copy(tilt = t) },
             Modifier.align(Alignment.CenterEnd).padding(end = 8.dp))

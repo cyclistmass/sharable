@@ -54,11 +54,12 @@ fun ViewBarsPanel(camera: Camera, onZoom: (Float) -> Unit, onTilt: (Float) -> Un
     }
 }
 
+/** An upright brass slider, 0 at the bottom to 1 at the top (view bars, Settings' Density). */
 @Composable
-private fun BrassBar(label: String, value: Float, tag: String, onChange: (Float) -> Unit) {
+internal fun BrassBar(label: String, value: Float, tag: String, height: androidx.compose.ui.unit.Dp = 150.dp, onChange: (Float) -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Canvas(
-            Modifier.width(30.dp).height(150.dp).testTag(tag)
+            Modifier.width(30.dp).height(height).testTag(tag)
                 .pointerInput(Unit) { detectTapGestures { onChange(ViewBars.barAt(it.y, size.height.toFloat())) } }
                 .pointerInput(Unit) {
                     detectVerticalDragGestures { change, _ ->

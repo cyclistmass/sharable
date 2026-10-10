@@ -66,6 +66,13 @@ class EnvSettings(private val store: FloatStore) {
         store.put(item.key, c)
     }
 
+    private val densityState = mutableFloatStateOf(store.get(DENSITY, DEFAULT).coerceIn(0f, 1f))
+
+    /** One multiplier on all water objects (0 none, 0.5 as the four sliders say, 1 double). Saved. */
+    var density: Float
+        get() = densityState.floatValue
+        set(v) { densityState.floatValue = v.coerceIn(0f, 1f); store.put(DENSITY, densityState.floatValue) }
+
     private val pirate = mutableFloatStateOf(store.get(THEME, 0f))
 
     /** Knight art: Normal (armoured knights) or Pirate themed (afro skeleton crew). Saved. */
@@ -89,7 +96,7 @@ class EnvSettings(private val store: FloatStore) {
         set(v) { eventDie.floatValue = v.coerceIn(0, DiceArt.EVENT_STYLES.size - 1).toFloat(); store.put(EVENT_DIE, eventDie.floatValue) }
 
     /** Back to the defaults (saved). */
-    fun reset() { for (i in Item.entries) this[i] = DEFAULT; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0 }
+    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0 }
 
     val clouds get() = this[Item.CLOUDS]
     val birds get() = this[Item.BIRDS]
@@ -101,6 +108,7 @@ class EnvSettings(private val store: FloatStore) {
         const val THEME = "theme-pirate"
         const val EDGE = "tile-edge"
         const val EVENT_DIE = "event-die-style"
+        const val DENSITY = "env-density"
     }
 }
 
@@ -120,7 +128,14 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
             WoodButton("Done", "settings-done", onClick = onClose)
         }
         Text("Scenery", fontSize = 13.sp, color = Color(0xFFD9B865))
-        for (item in EnvSettings.Item.entries) SliderRow(item.label, env[item], "env-${item.name.lowercase()}") { env[item] = it }
+        // The four kinds on the left; the upright Density bar beside them scales them all together.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                for (item in EnvSettings.Item.entries)
+                    SliderRow(item.label, env[item], "env-${item.name.lowercase()}", sliderWidth = 170.dp) { env[item] = it }
+            }
+            BrassBar("Density", env.density, "env-density", height = 120.dp) { env.density = it }
+        }
         Text("Theme", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("Normal", selected = !env.pirateTheme, tag = "theme-normal", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.pirateTheme = false }
@@ -151,10 +166,10 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
 }
 
 @Composable
-private fun SliderRow(label: String, value: Float, tag: String, onChange: (Float) -> Unit) {
+private fun SliderRow(label: String, value: Float, tag: String, sliderWidth: androidx.compose.ui.unit.Dp = 220.dp, onChange: (Float) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("$label ${(value * 100).roundToInt()}%", fontSize = 12.sp, color = Color(0xFFEDE6D8), modifier = Modifier.width(100.dp))
-        Slider(value, onChange, Modifier.width(220.dp).height(32.dp).testTag(tag), colors = brassSlider())
+        Slider(value, onChange, Modifier.width(sliderWidth).height(32.dp).testTag(tag), colors = brassSlider())
     }
 }
 

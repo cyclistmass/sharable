@@ -33,4 +33,31 @@ class SceneryDensityTest {
         assertEquals(0, Sea.sceneryCount(-1f, 16))
         assertEquals(16, Sea.sceneryCount(2f, 16))
     }
+
+    @Test fun `Density scales every water object together - none, as set, double, capped`() {
+        val sea = Sea(Rules.newGame(GameConfig(), 1).board)
+        sea.clouds01 = 0.5f; sea.birds01 = 0.5f; sea.boats01 = 0.5f; sea.waves01 = 0.5f
+        val base = listOf(sea.cloudTarget, sea.birdCount, sea.boatCount, sea.waveCount)
+        sea.density01 = 0f
+        org.junit.jupiter.api.Assertions.assertEquals(listOf(0, 0, 0, 0), listOf(sea.cloudTarget, sea.birdCount, sea.boatCount, sea.waveCount))
+        org.junit.jupiter.api.Assertions.assertEquals(0, sea.clouds.count { it.poof < 0 }, "clouds leave at once")
+        sea.density01 = 0.5f
+        org.junit.jupiter.api.Assertions.assertEquals(base, listOf(sea.cloudTarget, sea.birdCount, sea.boatCount, sea.waveCount))
+        sea.density01 = 1f
+        val dbl = listOf(sea.cloudTarget, sea.birdCount, sea.boatCount, sea.waveCount)
+        for (k in base.indices) org.junit.jupiter.api.Assertions.assertTrue(dbl[k] >= base[k] && dbl[k] <= 2 * base[k] + 1, "kind $k: ${base[k]} -> ${dbl[k]}")
+        sea.clouds01 = 1f; sea.birds01 = 1f; sea.waves01 = 1f
+        org.junit.jupiter.api.Assertions.assertTrue(sea.cloudTarget <= 16 && sea.birdCount <= 16, "capped at the pool size")
+        sea.density01 = -3f
+        org.junit.jupiter.api.Assertions.assertEquals(0, sea.birdCount)
+    }
+
+    @Test fun `off-screen birds keep flying while not drawn`() {
+        val sea = Sea(Rules.newGame(GameConfig(), 1).board)
+        sea.birds01 = 1f
+        val before = sea.birds.map { it.x to it.y }
+        repeat(60) { sea.update(1 / 60f) }
+        val moved = sea.birds.zip(before).count { (b, p) -> b.x != p.first || b.y != p.second }
+        org.junit.jupiter.api.Assertions.assertEquals(sea.birds.size, moved, "every bird's position is tracked, shown or not")
+    }
 }
