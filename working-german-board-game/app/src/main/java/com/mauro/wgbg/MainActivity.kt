@@ -64,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -156,6 +157,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashReport.install(this)
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0)
             androidx.core.content.ContextCompat.registerReceiver(this, debugMoves, android.content.IntentFilter(AgentHooks.ACTION),
                 androidx.core.content.ContextCompat.RECEIVER_EXPORTED)
@@ -184,7 +186,9 @@ class MainActivity : ComponentActivity() {
                 val autoSetup = debug && intent.getBooleanExtra("autosetup", false)
                 // Debug builds: `--ez watch true` starts in Watch mode at Max speed (CI self-play, #46).
                 val watch = debug && intent.getBooleanExtra("watch", false)
-                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup, watch)
+                // Debug builds: `--ez crash true` crashes on purpose to test the crash reporter.
+                val crashTest = debug && intent.getBooleanExtra("crash", false)
+                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup, watch, crashTest)
             }
         }
     }
@@ -261,7 +265,8 @@ private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME 
  * The in-game Exit goes back to game start (leaving the room).
  */
 @Composable
-fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseEmu: Boolean = false, autoplay: Boolean = false, autoSetup: Boolean = false, watch: Boolean = false) {
+fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseEmu: Boolean = false, autoplay: Boolean = false, autoSetup: Boolean = false, watch: Boolean = false,
+            crashTest: Boolean = false) {
     var screen by rememberSaveable { mutableStateOf(if (start != null) Screen.GAME else Screen.START) }
     var setup by remember { mutableStateOf(if (start == "chivalry") GameSetup().withRuleset(Ruleset.CHIVALRY) else GameSetup()) }
     var lobby by remember { mutableStateOf<Lobby?>(null) }
@@ -309,6 +314,12 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
         val o = androidx.lifecycle.LifecycleEventObserver { _, ev -> if (ev == androidx.lifecycle.Lifecycle.Event.ON_RESUME) session?.resume() }
         lifecycle.addObserver(o); onDispose { lifecycle.removeObserver(o) }
     }
+    // After a crash: show the saved report first (QR, Send, Share), then carry on as normal.
+    val ctx = LocalContext.current
+    var crash by remember { mutableStateOf(CrashReport.pending(ctx)) }
+    crash?.let { report -> CrashReportScreen(report) { crash = null }; return }
+    // Debug builds: `--ez crash true` throws a test crash to exercise the reporter.
+    if (crashTest) LaunchedEffect(Unit) { kotlinx.coroutines.delay(1500); throw IllegalStateException("test crash (debug --ez crash true)") }
     Box(Modifier.fillMaxSize()) {
         // Which build this is, for testers (bumped with each major merge).
         if (screen == Screen.START) Text("v${appVersion()}", color = Color(0xFFD9B865), fontSize = 12.sp,
@@ -519,6 +530,7 @@ fun WatchGameScreen(
         }
     }
     fun logMove(who: Int, action: Action) {
+        CrashReport.note("turn ${state.turn} ${state.phase} p$who ${action.type}:${action.payload}")
         when (action.type) {
             ActionType.REJECT_TRADE, ActionType.ACCEPT_TRADE, ActionType.COUNTER_TRADE, ActionType.END_TURN, ActionType.OFFER_TRADE -> {}
             ActionType.ROLL -> log.add(0, "${names[who]} rolled ${state.lastRoll}")
@@ -643,6 +655,7 @@ fun WatchGameScreen(
     // The view stays where the player puts it (Mauro, 2026-10-10: it used to glide back to the full board
     // after 6 s untouched). Menu > Fit and a double-tap still reset it; Camera.clamped keeps it on screen.
     var boardSize by remember { mutableStateOf(Size.Zero) }
+    var boardOrigin by remember { mutableStateOf(Offset.Zero) }
     // Each player's supply can be slid around the water (#52); a double-tap on it puts it back. Kept per game.
     var pileOffsets by remember(seed, seats) { mutableStateOf(List(seats) { Offset.Zero }) }
     val viewer = me.coerceAtLeast(0)
@@ -676,7 +689,14 @@ fun WatchGameScreen(
     // Debug agent hooks (#46): announce each moment the local player must act, and take moves by broadcast.
     val debuggable = LocalContext.current.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
     if (debuggable) {
-        LaunchedEffect(tick, legal.size) { if (legal.isNotEmpty()) AgentHooks.announce(online?.id ?: "local", state, legal, prompt(state, legal, names)) }
+        LaunchedEffect(tick, legal.size, boardSize, camera, boardOrigin) {
+            if (legal.isEmpty()) return@LaunchedEffect
+            // Screen pixel of each board move, for the touch test: the board's layout now, plus its place on screen.
+            val sz = boardSize
+            val l = if (sz.minDimension > 0f) Layout.fit(state.board, sz.width, sz.height, camera) else null
+            AgentHooks.announce(online?.id ?: "local", state, legal, prompt(state, legal, names),
+                l?.let { lay -> { a: Action -> spotOf(state.board, a)?.let { lay.project(it.x, it.y) + boardOrigin } } })
+        }
         androidx.compose.runtime.DisposableEffect(Unit) {
             val mine: (Action) -> Unit = { a -> humanMoves.trySend(a) }
             AgentHooks.sink = mine
@@ -725,6 +745,7 @@ fun WatchGameScreen(
         Canvas(
             Modifier.fillMaxSize()
                 .onSizeChanged { boardSize = Size(it.width.toFloat(), it.height.toFloat()) }
+                .onGloballyPositioned { boardOrigin = it.positionInWindow() }
                 .clipToBounds() // never draw the board under the side panel
                 .pointerInput(Unit) {
                     fun lattice(p: Offset) = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(p)
@@ -1031,7 +1052,7 @@ private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, puls
     for (v in t.vertices) {
         val p = vertexLattice(board, v)
         val c = l.project(p.x, p.y)
-        val r = 0.26f * l.scale * l.kAt(p.y) * swell
+        val r = BUILD_MARK_R * l.scale * l.kAt(p.y) * swell
         drawCircle(glow.copy(alpha = 0.32f * a), r * 1.6f, c)                       // soft halo
         drawCircle(glow.copy(alpha = 0.55f + 0.35f * a), r, c)                       // lit centre
         drawCircle(ink.copy(alpha = 0.55f), r, c, style = Stroke(r * 0.12f))         // outline
@@ -1043,7 +1064,7 @@ private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, puls
         val p1 = vertexLattice(board, ends[1])
         val a0 = l.project(p0.x + (p1.x - p0.x) * 0.2f, p0.y + (p1.y - p0.y) * 0.2f)
         val a1 = l.project(p1.x + (p0.x - p1.x) * 0.2f, p1.y + (p0.y - p1.y) * 0.2f)
-        val w = 0.15f * l.scale * l.kAt((p0.y + p1.y) / 2) * swell
+        val w = BUILD_MARK_W * l.scale * l.kAt((p0.y + p1.y) / 2) * swell
         drawLine(glow.copy(alpha = 0.35f * a), a0, a1, w * 2.8f, StrokeCap.Round)    // soft halo
         drawLine(ink.copy(alpha = 0.55f), a0, a1, w * 1.35f, StrokeCap.Round)        // outline
         drawLine(glow.copy(alpha = 0.65f + 0.35f * a), a0, a1, w * 1.05f, StrokeCap.Round)
@@ -1057,6 +1078,10 @@ private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, puls
         drawCircle(glow.copy(alpha = a), r, c, style = Stroke(r * 0.07f))
     }
 }
+
+/** Build-mark sizes in hex units: corner radius and edge half-width (Mauro, 2026-10-10: 25% smaller than 0.26 / 0.15). */
+internal const val BUILD_MARK_R = 0.195f
+internal const val BUILD_MARK_W = 0.1125f
 
 /** Your build marks' colour: your player colour, lightened toward white. */
 internal fun targetGlow(player: Int): Color = PLAYER_COLORS[player.coerceIn(0, PLAYER_COLORS.size - 1)].let { lerp(it, Color.White, 0.45f) }
@@ -2005,12 +2030,19 @@ object AgentHooks {
     /** "TYPE:PAYLOAD" (or the online codec's "1:TYPE:PAYLOAD") as a move, or null. */
     fun parse(text: String): Action? = wgbg.net.MoveCodec.decode(if (text.count { it == ':' } == 1) "1:$text" else text)
 
-    /** One line a driver can act on: where, the phase, what the screen asks, and every legal move. */
-    fun line(where: String, s: GameState, legal: List<Action>, prompt: String): String =
-        "$where turn=${s.turn} phase=${s.phase} player=${s.actingPlayer} prompt=\"$prompt\" legal=" +
+    /**
+     * One line a driver can act on: where, the phase, what the screen asks, and every legal move; board moves also
+     * get `spots=TYPE:PAYLOAD@x,y;...`, the screen pixel to tap for each (the touch test taps those, #46).
+     */
+    fun line(where: String, s: GameState, legal: List<Action>, prompt: String, spot: ((Action) -> Offset?)? = null): String {
+        val base = "$where turn=${s.turn} phase=${s.phase} player=${s.actingPlayer} prompt=\"$prompt\" legal=" +
             legal.joinToString(",") { "${it.type}:${it.payload}" }
+        if (spot == null) return base
+        val spots = legal.mapNotNull { a -> spot(a)?.let { "${a.type}:${a.payload}@${it.x.toInt()},${it.y.toInt()}" } }
+        return if (spots.isEmpty()) base else "$base spots=" + spots.joinToString(";")
+    }
 
-    fun announce(where: String, s: GameState, legal: List<Action>, prompt: String) {
-        runCatching { android.util.Log.i(TAG, line(where, s, legal, prompt)) }
+    fun announce(where: String, s: GameState, legal: List<Action>, prompt: String, spot: ((Action) -> Offset?)? = null) {
+        runCatching { android.util.Log.i(TAG, line(where, s, legal, prompt, spot)) }
     }
 }

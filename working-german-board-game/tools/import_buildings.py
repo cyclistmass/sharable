@@ -1,48 +1,45 @@
 """Imports the rendered building sets (#41, Codex art via mauro-7a) into res/drawable-nodpi and writes
 app/src/main/java/com/mauro/wgbg/BuildingArt.kt with the resource lists.
 
-Source: C:/Users/mauro/wgbg-art/buildings/{default,pirate}/piece_<name>[_trim]_tilt_<0..7>.png (256x256 RGBA,
-193 px per hex unit, contact anchor at the centre). Homestead and roads are identical in both themes, so they
-are imported once; town, ramparts and the three capitals are imported per theme.
+Every piece is per theme (the Pirate harbour set has its own porch-house homestead and boardwalk roads):
+  Default: C:/Users/mauro/wgbg-art/buildings/default/piece_<name>[_trim]_tilt_<0..7>.png
+  Pirate:  C:/Users/mauro/wgbg-art/buildings-pirate-astra/pirate_piece_<name>[_trim]_tilt_<0..7>.png
+All are 256x256 RGBA at 193 px per hex unit with the contact point at the centre. Old imported files are
+removed first so nothing stale stays in res/.
 
-Usage: py tools/import_buildings.py [source dir]
+Usage: py tools/import_buildings.py
 """
-import sys
 from pathlib import Path
 from PIL import Image
 
-SRC = Path(sys.argv[1] if len(sys.argv) > 1 else r"C:/Users/mauro/wgbg-art/buildings")
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "app/src/main/res/drawable-nodpi"
 KT = ROOT / "app/src/main/java/com/mauro/wgbg/BuildingArt.kt"
-SHARED = ["homestead", "road_v", "road_p30", "road_m30"]
-THEMED = ["town", "ramparts", "capital_guilds", "capital_academy", "capital_crown"]
-THEMES = ["default", "pirate"]
+PIECES = ["homestead", "town", "road_v", "road_p30", "road_m30", "ramparts", "capital_guilds", "capital_academy", "capital_crown"]
+THEMES = {
+    "default": (Path(r"C:/Users/mauro/wgbg-art/buildings/default"), "piece_"),
+    "pirate": (Path(r"C:/Users/mauro/wgbg-art/buildings-pirate-astra"), "pirate_piece_"),
+}
 STEPS = 8
 
-
-def convert(src: Path, name: str) -> str:
-    Image.open(src).convert("RGBA").save(OUT / f"{name}.webp", quality=90, method=6)
-    return name
-
-
-def frames(folder: Path, piece: str, layer: str, prefix: str) -> list:
-    mid = "_trim" if layer == "trim" else ""
-    return [convert(folder / f"piece_{piece}{mid}_tilt_{i}.png", f"{prefix}{mid}_tilt_{i}") for i in range(STEPS)]
-
-
-def kt_list(names: list) -> str:
-    return "listOf(" + ", ".join(f"R.drawable.{n}" for n in names) + ")"
-
+for old in OUT.glob("bld_*.webp"):
+    old.unlink()
 
 sets = {}
-for piece in SHARED:
-    for layer in ("body", "trim"):
-        sets[("shared", piece, layer)] = frames(SRC / "default", piece, layer, f"bld_{piece}")
-for theme in THEMES:
-    for piece in THEMED:
-        for layer in ("body", "trim"):
-            sets[(theme, piece, layer)] = frames(SRC / theme, piece, layer, f"bld_{theme}_{piece}")
+for theme, (folder, prefix) in THEMES.items():
+    for piece in PIECES:
+        for layer, mid in (("body", ""), ("trim", "_trim")):
+            names = []
+            for i in range(STEPS):
+                name = f"bld_{theme}_{piece}{mid}_tilt_{i}"
+                Image.open(folder / f"{prefix}{piece}{mid}_tilt_{i}.png").convert("RGBA").save(OUT / f"{name}.webp", quality=90, method=6)
+                names.append(name)
+            sets[(theme, piece, layer)] = names
+
+
+def kt_list(names):
+    return "listOf(" + ", ".join(f"R.drawable.{n}" for n in names) + ")"
+
 
 lines = [
     "package com.mauro.wgbg",
@@ -52,26 +49,22 @@ lines = [
     "/**",
     " * Rendered building sprites (#41): per piece a tintable wood body and an untinted trim layer, 8 tilt steps",
     " * (tilt = 0.96 * i / 7), 256 px frames at 193 px per hex unit with the contact point at the centre.",
-    " * Homestead and roads are shared; town, Ramparts and Capitals have a Default and a Pirate version.",
+    " * Default theme: the first set; Pirate theme: the harbour set (porch houses, boardwalk roads, sea wall, keep).",
     " */",
     "object BuildingArt {",
     "    class Piece(val body: List<Int>, val trim: List<Int>)",
     "",
 ]
-for piece in SHARED:
-    const = piece.upper()
-    lines.append(f"    val {const} = Piece({kt_list(sets[('shared', piece, 'body')])},")
-    lines.append(f"        {kt_list(sets[('shared', piece, 'trim')])})")
 for theme in THEMES:
-    for piece in THEMED:
-        const = f"{theme.upper()}_{piece.upper()}"
-        lines.append(f"    val {const} = Piece({kt_list(sets[(theme, piece, 'body')])},")
+    for piece in PIECES:
+        lines.append(f"    val {theme.upper()}_{piece.upper()} = Piece({kt_list(sets[(theme, piece, 'body')])},")
         lines.append(f"        {kt_list(sets[(theme, piece, 'trim')])})")
+lines.append("")
+for piece in ["homestead", "town", "road_v", "road_p30", "road_m30", "ramparts"]:
+    fn = "".join(w.capitalize() if k else w for k, w in enumerate(piece.split("_")))
+    lines.append(f"    fun {fn}(pirate: Boolean) = if (pirate) PIRATE_{piece.upper()} else DEFAULT_{piece.upper()}")
 lines += [
-    "",
-    "    /** The town, Ramparts and Capitals (Guilds, Academy, Crown) for the [pirate] theme or the default one. */",
-    "    fun town(pirate: Boolean) = if (pirate) PIRATE_TOWN else DEFAULT_TOWN",
-    "    fun ramparts(pirate: Boolean) = if (pirate) PIRATE_RAMPARTS else DEFAULT_RAMPARTS",
+    "    /** Capitals in order Guilds, Academy, Crown. */",
     "    fun capitals(pirate: Boolean) = if (pirate) listOf(PIRATE_CAPITAL_GUILDS, PIRATE_CAPITAL_ACADEMY, PIRATE_CAPITAL_CROWN)",
     "        else listOf(DEFAULT_CAPITAL_GUILDS, DEFAULT_CAPITAL_ACADEMY, DEFAULT_CAPITAL_CROWN)",
     "}",

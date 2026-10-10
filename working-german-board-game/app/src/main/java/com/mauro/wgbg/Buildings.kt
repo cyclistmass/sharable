@@ -26,12 +26,12 @@ class BuildingSprites(res: Resources, pirate: Boolean, chivalry: Boolean) {
     private fun load(res: Resources, p: BuildingArt.Piece) =
         Piece(p.body.map { ImageBitmap.imageResource(res, it) }, p.trim.map { ImageBitmap.imageResource(res, it) })
 
-    val homestead = load(res, BuildingArt.HOMESTEAD)
+    val homestead = load(res, BuildingArt.homestead(pirate))
     val town = load(res, BuildingArt.town(pirate))
     /** Roads by board edge direction: upright, rising to the right (+30) and falling to the right (-30). */
-    val roadV = load(res, BuildingArt.ROAD_V)
-    val roadP30 = load(res, BuildingArt.ROAD_P30)
-    val roadM30 = load(res, BuildingArt.ROAD_M30)
+    val roadV = load(res, BuildingArt.roadV(pirate))
+    val roadP30 = load(res, BuildingArt.roadP30(pirate))
+    val roadM30 = load(res, BuildingArt.roadM30(pirate))
     val ramparts = if (chivalry) load(res, BuildingArt.ramparts(pirate)) else null
     private val capitals = if (chivalry) BuildingArt.capitals(pirate).map { load(res, it) } else emptyList()
 

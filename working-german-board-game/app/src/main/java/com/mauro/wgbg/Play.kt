@@ -74,17 +74,20 @@ fun hexLattice(b: Board, h: Int) = b.topology.hexVertices[h].map { vertexLattice
  * edge, or the bandit moves for a tile (several when there is a choice of victim). Empty if the
  * tap is not near any target.
  */
+/** Where on the board (lattice units) a player taps for move [a], or null for moves that aren't board taps. */
+fun spotOf(b: Board, a: Action): Offset? = when (a.type) {
+    ActionType.BUILD_SETTLEMENT, ActionType.BUILD_CITY -> vertexLattice(b, a.payload.toInt())
+    ActionType.BUILD_ROAD -> edgeLattice(b, a.payload.toInt())
+    ActionType.MOVE_ROBBER -> hexLattice(b, a.robberHex)
+    in CK_VERTEX_KINDS -> ckVertex(a).takeIf { it >= 0 }?.let { vertexLattice(b, it) }
+    else -> null
+}
+
 fun movesAt(b: Board, legal: List<Action>, p: Offset): List<Action> {
     var best: List<Action> = emptyList()
     var bestD = 0.42f // hex sides; generous enough for fingers, tight enough to be unambiguous
     for (a in legal) {
-        val at = when (a.type) {
-            ActionType.BUILD_SETTLEMENT, ActionType.BUILD_CITY -> vertexLattice(b, a.payload.toInt())
-            ActionType.BUILD_ROAD -> edgeLattice(b, a.payload.toInt())
-            ActionType.MOVE_ROBBER -> hexLattice(b, a.robberHex)
-            in CK_VERTEX_KINDS -> ckVertex(a).takeIf { it >= 0 }?.let { vertexLattice(b, it) } ?: continue
-            else -> continue
-        }
+        val at = spotOf(b, a) ?: continue
         val d = hypot(at.x - p.x, at.y - p.y) * if (a.type == ActionType.MOVE_ROBBER) 0.5f else 1f // tiles are big targets
         if (d < bestD - 1e-4f) { bestD = d; best = listOf(a) }
         else if (kotlin.math.abs(d - bestD) < 1e-4f) best = best + a
