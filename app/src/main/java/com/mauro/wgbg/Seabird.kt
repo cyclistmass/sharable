@@ -32,6 +32,14 @@ class Seabird(seed: Int, private val ringR: Float) {
     private var circleLeft = 0f
     /** Index of the boat being circled, or -1 while cruising its home ring. */
     var circling = -1; private set
+    /** Seconds until the bird next cuts across the island, and how long the current crossing lasts. */
+    private var nextCross = 20f + rnd.nextFloat() * 60f
+    private var crossLeft = 0f
+    /** Where the current crossing heads: the far side of the island, fixed when the crossing starts. */
+    private var crossX = 0f
+    private var crossY = 0f
+    /** True while the bird is cutting across the island (birds fly over land too). */
+    val crossing get() = crossLeft > 0f
 
     var x = 0f; private set
     var y = 0f; private set
@@ -68,8 +76,25 @@ class Seabird(seed: Int, private val ringR: Float) {
                 else nextCircle = 6f + rnd.nextFloat() * 10f
             }
         }
+        // Now and then (when not with a boat) cut across the island, then back out to the home ring.
+        if (circling < 0) {
+            if (crossLeft > 0f) crossLeft -= dt
+            else {
+                nextCross -= dt
+                if (nextCross <= 0f) {
+                    // Long enough to reach the far side at this bird's speed (with time to turn), not a fixed span.
+                    crossLeft = 2.4f * ringR / speed; nextCross = 40f + rnd.nextFloat() * 80f
+                    val far = kotlin.math.atan2(y, x) + PI.toFloat()
+                    crossX = cos(far) * ringR; crossY = sin(far) * ringR
+                }
+            }
+        }
         val gx: Float; val gy: Float
-        if (circling >= 0) {
+        if (crossLeft > 0f && circling < 0) {
+            // Head across the middle of the island to the far side of the ring; done on arrival.
+            gx = crossX; gy = crossY
+            if (kotlin.math.hypot(gx - x, gy - y) < 0.5f) crossLeft = 0f
+        } else if (circling >= 0) {
             val bx = boats[2 * circling]; val by = boats[2 * circling + 1]
             val around = kotlin.math.atan2(y - by, x - bx) + dir * LEAD
             gx = bx + cos(around) * CIRCLE_R; gy = by + sin(around) * CIRCLE_R

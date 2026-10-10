@@ -383,7 +383,12 @@ class Sea(board: Board, seed: Int = 1) {
     /** True if [p] (lattice) is on open water. */
     fun isWater(p: Offset) = hypot(p.x, p.y) > landR && inOpenSea(p.x, p.y)
 
-    fun cloudAt(p: Offset): Cloud? = clouds.lastOrNull { it.poof < 0 && hypot(p.x - it.x, p.y - it.y) < 0.38f }
+    /**
+     * The cloud under lattice point [p], if any. Clouds drift over the island too (Mauro, 2026-10-10), but a
+     * touch on the island always goes to the board (building spots), so only touches over the water grab one.
+     */
+    fun cloudAt(p: Offset): Cloud? =
+        if (!isWater(p)) null else clouds.lastOrNull { it.poof < 0 && hypot(p.x - it.x, p.y - it.y) < 0.38f }
 
     /**
      * Pokes a cloud. It shrugs off the first few pokes (it wobbles, shrinks a little and sheds a
@@ -442,16 +447,8 @@ class Sea(board: Board, seed: Int = 1) {
     /** Lets go of a dragged cloud (follow it with [fling] or [push] to give it momentum). */
     fun release(c: Cloud) { c.dragging = false }
 
-    /** Keeps [c] between the island and the open-sea edge; hitting either reflects its speed, softened. */
+    /** Keeps [c] on the table: it may drift over the island, and bounces softly off the open-sea edge. */
     private fun keepOnSea(c: Cloud) {
-        val lo = landR + 0.25f
-        val d = hypot(c.x, c.y).coerceAtLeast(1e-3f)
-        if (d < lo) {
-            // Over the island: no snapping; it floats gently back out to sea.
-            val nx = c.x / d; val ny = c.y / d
-            val vr = c.vx * nx + c.vy * ny
-            if (vr < FLOAT_OUT) { c.vx += (FLOAT_OUT - vr) * nx; c.vy += (FLOAT_OUT - vr) * ny }
-        }
         val rx = OPEN_RX - CLOUD_EDGE; val ry = OPEN_RY - CLOUD_EDGE
         val q = sqrt((c.x / rx) * (c.x / rx) + (c.y / ry) * (c.y / ry))
         if (q > 1f) {
@@ -738,7 +735,8 @@ class Sea(board: Board, seed: Int = 1) {
             }
         }
         for (c in clouds) {
-            val fade = if (c.poof >= 0) (1 - c.poof / 0.25f).coerceAtLeast(0f) else 1f
+            // Over the island a cloud thins out a little so the board under it stays readable.
+            val fade = (if (c.poof >= 0) (1 - c.poof / 0.25f).coerceAtLeast(0f) else 1f) * (if (hypot(c.x, c.y) < landR) OVER_LAND_ALPHA else 1f)
             if (fade <= 0f) continue
             val p = at(c.x, c.y)
             if (!onScreen(p, 1.2f * s)) continue
@@ -836,7 +834,8 @@ class Sea(board: Board, seed: Int = 1) {
         /** Boat lanes stay within this distance of the middle, where the sea is wide. */
         const val LANE_Y = OPEN_RY * 0.6f
         /** Speed (units/s) at which a cloud left over the island floats back out to sea. */
-        const val FLOAT_OUT = 0.45f
+        /** How opaque a cloud is while it drifts over the island. */
+        const val OVER_LAND_ALPHA = 0.6f
 
         const val SMALL_WAVELETS = 660
         const val BIG_WAVELETS = 60

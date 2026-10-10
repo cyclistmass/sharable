@@ -52,10 +52,13 @@ class SeabirdTest {
     fun `cruising birds stay near their home ring`() {
         for (seed in 0 until 8) {
             val b = Seabird(seed, 4f)
+            var settle = 0
             repeat(60 * 120) {
                 b.update(1 / 60f)
                 val r = kotlin.math.hypot(b.x, b.y)
-                assertTrue(r in 2.6f..5.6f, "bird $seed wandered to r=$r")
+                // Outside a crossing of the island (and a few seconds after one, turning back), it keeps to its ring.
+                if (!b.crossing && settle-- <= 0) assertTrue(r in 2.6f..5.6f, "bird $seed wandered to r=$r")
+                if (b.crossing) settle = 60 * 12
             }
         }
     }
@@ -99,5 +102,22 @@ class SeabirdTest {
             repeat(60 * 60) { b.update(1 / 120f); val f = b.flapFrame(frames); if (f >= 0) { assertTrue(f < frames); seen += f } }
             assertTrue(seen.size == frames, "saw ${seen.size} of $frames frames")
         }
+    }
+
+    @Test
+    fun `birds now and then fly across the island and come back out`() {
+        var crossed = 0
+        for (seed in 0 until 8) {
+            val b = Seabird(seed, 4f)
+            var minR = 9f; var backOut = false; var wasCrossing = false
+            repeat(60 * 240) {
+                b.update(1 / 60f)
+                val r = kotlin.math.hypot(b.x, b.y)
+                if (b.crossing) { wasCrossing = true; minR = minOf(minR, r) }
+                else if (wasCrossing && r > 3f) backOut = true
+            }
+            if (minR < 1.5f && backOut) crossed++
+        }
+        assertTrue(crossed >= 6, "only $crossed of 8 birds crossed the island and came back out")
     }
 }
