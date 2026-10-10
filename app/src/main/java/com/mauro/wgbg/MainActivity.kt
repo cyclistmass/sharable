@@ -785,7 +785,9 @@ fun WatchGameScreen(
         ) {
             tick // redraw on every move
             if (!inventory) seaTick // and on every sea frame (the Inventory screen holds still)
-            if (inventory) drawInventory(measurer, wood, banditSprites, tileFaces, tileLine) else {
+            if (inventory) drawInventory(measurer, wood, banditSprites, tileFaces, tileLine,
+                InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide),
+                bottomInset = INVENTORY_CARDS_DP.dp.toPx()) else {
                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
                 val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
                 val layerSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt())
@@ -811,7 +813,7 @@ fun WatchGameScreen(
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
         }
-        // Inventory: the illustrated resource cards along the bottom.
+        // Inventory: the illustrated resource cards along the bottom, then the dice faces.
         if (inventory) Row(Modifier.align(Alignment.BottomCenter).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((r, art) in CARD_ART.withIndex()) androidx.compose.foundation.Image(
                 androidx.compose.ui.res.painterResource(art), RESOURCE_NAMES[r], Modifier.size(width = 76.dp, height = 110.dp))
@@ -819,6 +821,14 @@ fun WatchGameScreen(
             for (lv in 1..3) androidx.compose.foundation.Image(
                 androidx.compose.ui.res.painterResource(if (env.pirateTheme) KNIGHT_CARDS_PIRATE[lv - 1] else KNIGHT_CARDS_NORMAL[lv - 1]),
                 "Knight level $lv", Modifier.size(width = 76.dp, height = 110.dp))
+            // Dice in the chosen theme: yellow 1-6, red 1-6, the event die's six faces.
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                val rows = listOf((1..6).map { DiceArt.face(false, env.pirateTheme, it) }, (1..6).map { DiceArt.face(true, env.pirateTheme, it) },
+                    (0..5).map { DiceArt.eventFace(env.pirateTheme, it) })
+                for (row in rows) Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    for (id in row) androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(id), null, Modifier.size(32.dp))
+                }
+            }
         }
         if (!inventory) {
             val report = tick.let { if (speed == MAX_SPEED) tracker.last else turnHeader(tracker, state) }
@@ -1504,11 +1514,18 @@ private fun DrawScope.drawRobber(c: Offset, scale: Float) {
     drawCircle(Brush.radialGradient(listOf(Color(0xFF777777), Color(0xFF2A2A2A)), center = c + Offset(-0.3f * r, -0.4f * r), radius = r), 0.75f * r, c)
 }
 
+/** Bitmap art the Inventory lays out beside the drawn pieces (knights in the current theme). */
+private class InventoryArt(val knights: List<ImageBitmap>, val raiders: ImageBitmap, val cliffs: List<ImageBitmap>, val boats: List<ImageBitmap>,
+                           val gull: ImageBitmap)
+
+/** Height of the Inventory's bottom row of cards and dice (a Compose overlay); the canvas fits above it. */
+private const val INVENTORY_CARDS_DP = 126
+
 /** Every game object side by side, for eyeballing the art. */
 private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, bandit: List<ImageBitmap>? = null,
-                                    faces: Map<Int, ImageBitmap>? = null, tileLine: Boolean = false) {
+                                    faces: Map<Int, ImageBitmap>? = null, tileLine: Boolean = false, art: InventoryArt? = null, bottomInset: Float = 0f) {
     if (size.minDimension < 2f) return
-    val scale = min(size.width / 13.5f, size.height / 9.6f)
+    val scale = min(size.width / 13.5f, (size.height - bottomInset) / (if (art != null) 9.7f else 9.6f))
     fun label(text: String, at: Offset) {
         val t = measurer.measure(text, TextStyle(fontSize = (0.2f * scale / density).sp, color = Color(0xFFE8E2D6)))
         drawText(t, topLeft = at - Offset(t.size.width / 2f, 0f))
@@ -1541,10 +1558,29 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
         }
         label(PLAYER_NAMES[p], Offset(x + 0.3f * scale, y + 0.65f * scale))
     }
-    val robberAt = Offset(left + 5 * 2.05f * scale + 0.9f * scale, 6.4f * scale)
+    val robberAt = Offset(left + 5 * 2.05f * scale + 1.3f * scale, 7.0f * scale)
     if (bandit != null) drawBandit(bandit, robberAt - Offset(0f, 0.6f * scale), scale * 1.8f, 0.55f) else drawRobber(robberAt, scale * 1.5f)
-    // Row 4: what doesn't exist yet.
-    label("Cards (resource, development, progress, commodities): not designed yet", Offset(size.width / 2f, 8.4f * scale))
+    if (art == null) return
+    /** Draws [b] [w] scale-units wide, centred on [c] (height from its aspect). */
+    fun image(b: ImageBitmap, c: Offset, w: Float) {
+        val pw = w * scale; val ph = pw * b.height / b.width
+        drawImage(b, dstOffset = IntOffset((c.x - pw / 2).toInt(), (c.y - ph / 2).toInt()), dstSize = IntSize(pw.toInt(), ph.toInt()), filterQuality = FilterQuality.Medium)
+    }
+    // Row 4: Age of Chivalry knights (levels 1-3, idle and active), the Raiders' ship, a cliff strip, boats and a gull.
+    val y4 = 8.75f * scale
+    art.knights.forEachIndexed { i, k ->
+        val c = Offset(left - 0.6f * scale + i * 0.95f * scale, y4)
+        image(k, c, 0.9f)
+        label("L${i / 2 + 1}${if (i % 2 == 1) " on" else ""}", c + Offset(0f, 0.5f * scale))
+    }
+    val shipAt = Offset(left + 5.3f * scale, y4)
+    image(art.raiders, shipAt, 1.1f); label("Raiders", shipAt + Offset(0f, 0.6f * scale))
+    val cliffAt = Offset(left + 7.4f * scale, y4 - 0.15f * scale)
+    image(art.cliffs[0], cliffAt, 2.4f); label("Cliff", cliffAt + Offset(0f, 0.45f * scale))
+    art.boats.take(4).forEachIndexed { i, bt -> image(bt, Offset(left + 9.2f * scale + (i % 2) * 0.7f * scale, y4 - 0.35f * scale + (i / 2) * 0.6f * scale), 0.7f) }
+    label("Boats", Offset(left + 9.55f * scale, y4 + 0.6f * scale))
+    val gullAt = Offset(left + 10.7f * scale, y4)
+    image(art.gull, gullAt, 0.8f); label("Gull", gullAt + Offset(0f, 0.5f * scale))
 }
 
 private class PortGeom(val type: Int, val a: Offset, val b: Offset, val mid: Offset, val out: Offset, val token: Offset, val scale: Float)
