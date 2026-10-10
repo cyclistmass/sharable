@@ -835,7 +835,8 @@ fun WatchGameScreen(
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
         // The game state is mutated in place, so these get `tick` to redraw after every move.
-        if (!inventory) PlayerStrip(state, me, names, tick, Modifier.align(Alignment.TopStart).padding(8.dp).onGloballyPositioned { stripBottom = it.boundsInParent().bottom })
+        if (!inventory) PlayerStrip(state, me, names, tick, Modifier.align(Alignment.TopStart).padding(8.dp).onGloballyPositioned { stripBottom = it.boundsInParent().bottom },
+            roll = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } })
         if (net != null && !inventory) onlineView?.let { v ->
             Column(Modifier.align(Alignment.TopCenter).padding(top = 52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 OnlineConnectionStatus(v)

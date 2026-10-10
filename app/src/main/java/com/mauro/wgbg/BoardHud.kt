@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,7 +40,9 @@ fun barSegments(level: Int) = level.coerceIn(0, 4)
  * points (Landmark cards) are not shown.
  */
 @Composable
-fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifier: Modifier = Modifier) {
+fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifier: Modifier = Modifier,
+                /** The turn whose roll the mini cards show (#47); null shows none. */
+                roll: TurnReport? = null) {
     version // the state object is mutated in place; this changing value makes the strip redraw after each move
     Column(modifier.brassEdgedWood().padding(horizontal = 12.dp, vertical = 8.dp).testTag("player-strip"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         // Age of Chivalry: how near the Raiders are (a ship marker on a 7-step track).
@@ -76,6 +79,11 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                     Text(cardsLabel(s, p), color = Color(0xFFEDE6D8), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
                 Text("${if (p == me) s.victoryPoints(p) else s.publicVictoryPoints(p)}", color = Color(0xFFF1D58A), fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(24.dp))
+                // What this player got (+) and lost (-) on the last roll, as tiny cards (#47).
+                val minis = rollMinis(roll, p, me)
+                if (minis.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.testTag("roll-minis-$p")) {
+                    for (m in minis) MiniRollCard(m)
+                }
             }
         }
     }
@@ -110,3 +118,37 @@ fun raidersStepsLeft(pos: Int) = (wgbg.engine.CkPiece.BARBARIAN_TRACK - pos).coe
 
 /** Hand size for the player list: "8", or "8/3" (cards / progress cards) in Age of Chivalry. */
 fun cardsLabel(s: GameState, p: Int): String = s.ck?.let { "${s.cardCount(p)}/${it.progressCount(p)}" } ?: "${s.cardCount(p)}"
+
+/** One mini card in the player list: [card] (-1 = face down, a robbery others can't see) and [n] (+ got, - lost). */
+data class RollMini(val card: Int, val n: Int)
+
+/**
+ * The mini cards for player [p] after [roll] (#47): production in, discards out (public: they go back to the
+ * bank face up) and a robbery, whose card only the thief and the victim see; everyone else sees it face down.
+ */
+fun rollMinis(roll: TurnReport?, p: Int, me: Int): List<RollMini> {
+    if (roll == null || !roll.rolled) return emptyList()
+    val out = mutableListOf<RollMini>()
+    roll.rollIn.getOrNull(p)?.forEachIndexed { r, n -> if (n > 0) out += RollMini(r, n) }
+    roll.rollOut.getOrNull(p)?.forEachIndexed { r, n -> if (n > 0) out += RollMini(r, -n) }
+    roll.steal?.let { st ->
+        val seen = me == st.thief || me == st.victim || me < 0
+        if (p == st.thief) out += RollMini(if (seen) st.card else -1, 1)
+        if (p == st.victim) out += RollMini(if (seen) st.card else -1, -1)
+    }
+    return out
+}
+
+@Composable
+private fun MiniRollCard(m: RollMini) {
+    Box(Modifier.size(width = 21.dp, height = 30.dp), contentAlignment = Alignment.Center) {
+        if (m.card in CARD_ART.indices) androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(CARD_ART[m.card]),
+            RESOURCE_NAMES[m.card], Modifier.fillMaxSize())
+        else Box(Modifier.fillMaxSize().background(Color(0xFF5A4030), RoundedCornerShape(2.dp)).border(1.dp, Color(0xFF8A6A2A), RoundedCornerShape(2.dp)),
+            contentAlignment = Alignment.Center) { Text("?", color = Color(0xFFEFE3C8), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+        // A slim badge on the card's foot, so the card itself stays readable.
+        Text(if (m.n > 0) "+${m.n}" else "${m.n}", color = Color.White, fontSize = 8.sp, lineHeight = 9.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.BottomEnd).background(if (m.n > 0) Color(0xE6388E3C) else Color(0xE6C0392B), RoundedCornerShape(topStart = 3.dp))
+                .padding(horizontal = 2.dp))
+    }
+}

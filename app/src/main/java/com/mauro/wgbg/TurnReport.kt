@@ -23,9 +23,18 @@ data class TurnReport(
     /** Per-player resource changes from the roll (production), or empty on a 7. */
     val production: List<String> = emptyList(),
     val events: List<String> = emptyList(),
+    /** Cards each player got from the roll, by player then resource (#47). */
+    val rollIn: List<IntArray> = emptyList(),
+    /** Cards each player discarded on a 7 (public: they go back to the bank face up). */
+    val rollOut: List<IntArray> = emptyList(),
+    /** The bandit's robbery this turn, if any (which card is secret but to the two players). */
+    val steal: Steal? = null,
 ) {
     val rolled get() = die1 > 0
 }
+
+/** [thief] took one [card] from [victim]. */
+data class Steal(val thief: Int, val victim: Int, val card: Int)
 
 /**
  * Watches every action applied to a game and builds [TurnReport]s. Call [apply] instead of
@@ -65,6 +74,8 @@ class TurnTracker(private val names: List<String>) {
         current = when (action.type) {
             ActionType.ROLL -> r.copy(
                 die1 = d1, die2 = d2, event = ev,
+                rollIn = gained.map { g -> IntArray(g.size) { maxOf(0, g[it]) } },
+                rollOut = List(s.numPlayers) { IntArray(CARD_TYPES) },
                 production = if (d1 + d2 == 7) listOf("Bandit! Players over the limit must discard.")
                 else (0 until s.numPlayers).mapNotNull { p -> changes(gained[p])?.let { "${names[p]} $it" } }
                     .ifEmpty { listOf("Nobody produced anything.") },
@@ -75,9 +86,12 @@ class TurnTracker(private val names: List<String>) {
                 if (phaseBefore == Phase.DECIDE_COUNTER) r.plus("$n traded with ${names[counterer]}: ${tradeText(gained[who])}") else r
             ActionType.MOVE_ROBBER -> {
                 val victim = action.robberVictim
+                val card = if (victim >= 0) gained[victim].indexOfFirst { it < 0 } else -1
                 r.plus(if (victim >= 0) "$n moved the bandit and took a card from ${names[victim]}" else "$n moved the bandit")
+                    .let { if (victim >= 0 && card >= 0) it.copy(steal = Steal(who, victim, card)) else it }
             }
             ActionType.DISCARD -> r.plus("$n discarded " + gained[who].withIndex().filter { it.value < 0 }.joinToString(", ") { "${-it.value} ${RESOURCE_NAMES[it.index]}" })
+                .let { rep -> if (rep.rollOut.size > who) rep.copy(rollOut = rep.rollOut.mapIndexed { p, out -> if (p != who) out else IntArray(out.size) { out[it] + maxOf(0, -gained[who][it]) } }) else rep }
             ActionType.MARITIME_TRADE -> r.plus("$n traded with the bank: ${tradeText(gained[who])}")
             ActionType.OFFER_TRADE -> r.plus("$n offered a trade")
             ActionType.CONFIRM_TRADE -> {
