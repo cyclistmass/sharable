@@ -1394,7 +1394,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         if (bandit != null) {
             // Mauro: the bandit stands ON the number plate and hides it (drawn after the tiles and their tokens).
             val hs = scale * l.hexK(s.robberHex)
-            drawBandit(bandit, l.hexCenter(s.robberHex) + Offset(-0.36f * hs, -0.3f * hs * l.squash), hs, l.tilt)
+            drawBandit(bandit, l.hexCenter(s.robberHex) + Offset(NUMBER_TOKEN_X * hs, NUMBER_TOKEN_Y * hs * l.squash), hs, l.tilt)
         } else {
             val rs = scale * l.hexK(s.robberHex) * stand
             drawRobber(l.hexCenter(s.robberHex) + Offset(0.15f * rs, 0.15f * rs * l.squash), rs)
@@ -1443,7 +1443,7 @@ private fun DrawScope.drawTile(
             filterQuality = FilterQuality.Medium)
         // Tile edges: Thin line = a fine dark outline in a deeper shade of the terrain.
         if (line) drawPath(polygon(top), base.shade(0.55f).copy(alpha = 0.75f), style = Stroke(0.025f * scale))
-        if (number != 0) drawNumberToken(number, c + Offset(-0.36f * scale, -0.3f * scale * squash), scale, measurer, wood)
+        if (number != 0) drawNumberToken(number, c + Offset(NUMBER_TOKEN_X * scale, NUMBER_TOKEN_Y * scale * squash), scale, measurer, wood)
         return
     }
     // Top face lit from the upper left.
@@ -1468,7 +1468,7 @@ private fun DrawScope.drawTile(
     )) {
         drawLine(color, top[i], top[(i + 1) % 6], strokeWidth = bevel, cap = StrokeCap.Round)
     }
-    if (number != 0) drawNumberToken(number, c + Offset(-0.36f * scale, -0.3f * scale * squash), scale, measurer, wood)
+    if (number != 0) drawNumberToken(number, c + Offset(NUMBER_TOKEN_X * scale, NUMBER_TOKEN_Y * scale * squash), scale, measurer, wood)
 }
 
 /** Bandit V1 "skeleton corsair" (Codex 3D model via mauro-7a, #32): one sprite per tilt step 0.96*i/7. */
@@ -1655,6 +1655,13 @@ private fun DrawScope.drawPortToken(type: Int, t: Offset, scale: Float, measurer
  * tile scenery shows round it; Codex's tile art clears a matching 0.31 circle at the same centre.
  */
 internal const val NUMBER_TOKEN_R = 0.27f
+
+/**
+ * Where the number token sits on a tile, in hex sides from its centre (y down, before the tilt squash).
+ * Mauro (2026-10-09): top RIGHT, on a clearing in the painted art (it was top left, -0.36).
+ */
+internal const val NUMBER_TOKEN_X = 0.36f
+internal const val NUMBER_TOKEN_Y = -0.3f
 
 private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer: TextMeasurer, wood: WoodPieces) {
     val r = NUMBER_TOKEN_R * scale
