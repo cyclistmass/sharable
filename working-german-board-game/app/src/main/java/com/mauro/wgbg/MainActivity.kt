@@ -825,7 +825,7 @@ fun WatchGameScreen(
             tick // redraw on every move
             if (!inventory) seaTick // and on every sea frame (the Inventory screen holds still)
             if (inventory) drawInventory(measurer, wood, banditSprites, tileFaces, tileLine,
-                InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide),
+                InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide, buildings),
                 bottomInset = INVENTORY_CARDS_DP.dp.toPx()) else {
                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
                 val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
@@ -1667,7 +1667,7 @@ private fun DrawScope.drawRobber(c: Offset, scale: Float) {
 
 /** Bitmap art the Inventory lays out beside the drawn pieces (knights in the current theme). */
 private class InventoryArt(val knights: List<ImageBitmap>, val raiders: ImageBitmap, val cliffs: List<ImageBitmap>, val boats: List<ImageBitmap>,
-                           val gull: ImageBitmap)
+                           val gull: ImageBitmap, val buildings: BuildingSprites? = null)
 
 /** Height of the Inventory's bottom row of cards and dice (a Compose overlay); the canvas fits above it. */
 private const val INVENTORY_CARDS_DP = 126
@@ -1702,7 +1702,14 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
     for (p in PLAYER_COLORS.indices) {
         val x = left - 0.4f * scale + p * 2.9f * scale
         val y = 6.6f * scale
-        with(wood) {
+        val sprites = art?.buildings
+        // The rendered pieces as the board shows them (slightly tilted), or the drawn ones as a fallback.
+        if (sprites != null) {
+            val unit = scale * 2.2f
+            drawPieceSprite(sprites.roadP30, Offset(x - 0.5f * scale, y), unit, 0.55f, PLAYER_COLORS[p])
+            drawPieceSprite(sprites.homestead, Offset(x + 0.5f * scale, y), unit, 0.55f, PLAYER_COLORS[p])
+            drawPieceSprite(sprites.town, Offset(x + 1.35f * scale, y), unit, 0.55f, PLAYER_COLORS[p])
+        } else with(wood) {
             road(Offset(x - 0.9f * scale, y + 0.2f * scale), Offset(x - 0.1f * scale, y - 0.4f * scale), p, scale * 1.3f)
             settlement(Offset(x + 0.5f * scale, y), p, scale * 1.3f)
             city(Offset(x + 1.35f * scale, y), p, scale * 1.3f)
