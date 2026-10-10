@@ -15,7 +15,7 @@ License: GPL-3.0 (see `LICENSE`).
 
 | Module | Purpose |
 |---|---|
-| `engine/` | Pure Kotlin, deterministic rules engine (base game, then Cities & Knights). Runs on PC. |
+| `engine/` | Pure Kotlin, deterministic rules engine (base game and the Age of Chivalry expansion). Runs on PC. |
 | `ai/` | Pure Kotlin bots: Catanatron-style value function + AlphaBeta, later ONNX-guided search. |
 | `app/` | Android UI (Jetpack Compose). |
 | `trainer/` *(planned)* | PC-side Python training on a Catanatron fork, exports ONNX. |

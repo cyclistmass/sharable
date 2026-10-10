@@ -1707,10 +1707,11 @@ internal const val NUMBER_TOKEN_R = 0.27f
 
 /**
  * Where the number token sits on a tile, in hex sides from its centre (y down, before the tilt squash).
- * Mauro (2026-10-09): top RIGHT, on a clearing in the painted art (it was top left, -0.36).
+ * Mauro (2026-10-10): lower RIGHT, on the clearing every tile keeps for it (docs/design/tile-spec.md).
+ * History: top left (-0.36, -0.3), then top right (0.36, -0.3).
  */
 internal const val NUMBER_TOKEN_X = 0.36f
-internal const val NUMBER_TOKEN_Y = -0.3f
+internal const val NUMBER_TOKEN_Y = 0.3f
 
 private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer: TextMeasurer, wood: WoodPieces) {
     val r = NUMBER_TOKEN_R * scale

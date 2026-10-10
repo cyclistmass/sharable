@@ -29,9 +29,8 @@ __pycache__/
 # Browser automation snapshots (can contain secrets)
 .playwright-mcp/
 
-# Claude Code agent worktrees and local settings
-.claude/worktrees/
-.claude/settings.local.json
+# Our working notes (agent steering, skills, perf reports): local only, never published
+.claude/
 
 # Firebase emulator/test output
 node_modules/
