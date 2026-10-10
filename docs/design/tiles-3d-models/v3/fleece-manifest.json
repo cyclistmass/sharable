@@ -1,0 +1,40 @@
+{
+  "metadata": {
+    "sheep": 7,
+    "small_alpacas": 3,
+    "alpaca_relative_scale": 0.65,
+    "teeny_goats": 2,
+    "token_space": {
+      "token_center": [
+        0.36,
+        0.3
+      ],
+      "token_radius": 0.27,
+      "clearing_radius": 0.31,
+      "upright_plate": true,
+      "foreground_max_tilt_degrees": 55,
+      "pruned_objects": 10,
+      "flattened_surfaces": 1
+    }
+  },
+  "renders": [
+    {
+      "file": "fleece_V3_flat.png",
+      "tilt_radians": 0,
+      "seconds": 19.7
+    },
+    {
+      "file": "fleece_V3_mid.png",
+      "tilt_radians": 0.48,
+      "seconds": 18.72
+    },
+    {
+      "file": "fleece_V3_max.png",
+      "tilt_radians": 0.96,
+      "seconds": 14.12
+    }
+  ],
+  "objects": 209,
+  "samples": 32,
+  "threads": 2
+}

@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "trees": 22,
+    "story": "logging camp, cut logs, stumps, dense flowering understorey",
+    "token_space": {
+      "token_center": [
+        0.36,
+        0.3
+      ],
+      "token_radius": 0.27,
+      "clearing_radius": 0.31,
+      "upright_plate": true,
+      "foreground_max_tilt_degrees": 55,
+      "pruned_objects": 10,
+      "flattened_surfaces": 0
+    }
+  },
+  "renders": [
+    {
+      "file": "timber_V3_flat.png",
+      "tilt_radians": 0,
+      "seconds": 20.2
+    },
+    {
+      "file": "timber_V3_mid.png",
+      "tilt_radians": 0.48,
+      "seconds": 18.5
+    },
+    {
+      "file": "timber_V3_max.png",
+      "tilt_radians": 0.96,
+      "seconds": 14.3
+    }
+  ],
+  "objects": 217,
+  "samples": 32,
+  "threads": 2
+}

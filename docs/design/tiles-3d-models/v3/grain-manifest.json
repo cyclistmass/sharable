@@ -1,0 +1,39 @@
+{
+  "metadata": {
+    "wheat_ears": 2199,
+    "curved_rows": 25,
+    "story": "full fields, harvest path, sheaves, fence and loaded cart",
+    "token_space": {
+      "token_center": [
+        0.36,
+        0.3
+      ],
+      "token_radius": 0.27,
+      "clearing_radius": 0.31,
+      "upright_plate": true,
+      "foreground_max_tilt_degrees": 55,
+      "pruned_objects": 11,
+      "flattened_surfaces": 1
+    }
+  },
+  "renders": [
+    {
+      "file": "grain_V3_flat.png",
+      "tilt_radians": 0,
+      "seconds": 26.25
+    },
+    {
+      "file": "grain_V3_mid.png",
+      "tilt_radians": 0.48,
+      "seconds": 24.34
+    },
+    {
+      "file": "grain_V3_max.png",
+      "tilt_radians": 0.96,
+      "seconds": 18.06
+    }
+  ],
+  "objects": 148,
+  "samples": 32,
+  "threads": 2
+}

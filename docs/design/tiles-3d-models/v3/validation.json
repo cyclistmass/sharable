@@ -1,0 +1,356 @@
+{
+  "terrain_views": 18,
+  "rgba_512px": true,
+  "new_plate_center": [
+    0.36,
+    0.3
+  ],
+  "plate_radius": 0.27,
+  "clearing_radius": 0.31,
+  "neighbour_plate_overlap_pixels": 0,
+  "app_files_unchanged": 146,
+  "historical_assets_unchanged": 35,
+  "geometry_validated_terrains": 6,
+  "opaque_black_pixels_by_view": {
+    "timber_V3_flat.png": 0,
+    "timber_V3_mid.png": 0,
+    "timber_V3_max.png": 1,
+    "stone_V3_flat.png": 0,
+    "stone_V3_mid.png": 0,
+    "stone_V3_max.png": 0,
+    "fleece_V3_flat.png": 0,
+    "fleece_V3_mid.png": 0,
+    "fleece_V3_max.png": 0,
+    "grain_V3_flat.png": 0,
+    "grain_V3_mid.png": 0,
+    "grain_V3_max.png": 0,
+    "clay_V3_flat.png": 0,
+    "clay_V3_mid.png": 0,
+    "clay_V3_max.png": 0,
+    "desert_V3_flat.png": 0,
+    "desert_V3_mid.png": 0,
+    "desert_V3_max.png": 0
+  },
+  "png_bytes": 4241800,
+  "retained_render_seconds": 314.97,
+  "views": [
+    {
+      "file": "timber_V3_flat.png",
+      "sha256": "e7687d9eff5c65aabf8a8a14f08399b753bddc1ae9de963ba7abedcf13bb5ff1",
+      "alpha_bounds": [
+        78,
+        75,
+        415,
+        441
+      ]
+    },
+    {
+      "file": "timber_V3_mid.png",
+      "sha256": "41b20ddebf0c8c3408090d914f428ca02f8a6257c656b5926b3a89c8123e4d5c",
+      "alpha_bounds": [
+        78,
+        78,
+        415,
+        434
+      ]
+    },
+    {
+      "file": "timber_V3_max.png",
+      "sha256": "1e0d13602fdd43f6ec0651ac0da030aa396127c731f9db808e5206ff3b6d37d5",
+      "alpha_bounds": [
+        78,
+        107,
+        414,
+        393
+      ]
+    },
+    {
+      "file": "stone_V3_flat.png",
+      "sha256": "573afc45e7f5cdcef2e165c621bb37f94277bb1bb3afa0b28b9f5eb68144e292",
+      "alpha_bounds": [
+        98,
+        76,
+        415,
+        436
+      ]
+    },
+    {
+      "file": "stone_V3_mid.png",
+      "sha256": "2bad7656277aca434a111d101967ad695c66d77611861bc46c3ddd027bccc655",
+      "alpha_bounds": [
+        98,
+        38,
+        414,
+        434
+      ]
+    },
+    {
+      "file": "stone_V3_max.png",
+      "sha256": "cbae934538381bdcdcdb2afef91c890c07c3f1c73308a24f5f5bfe0d8772706d",
+      "alpha_bounds": [
+        98,
+        8,
+        413,
+        393
+      ]
+    },
+    {
+      "file": "fleece_V3_flat.png",
+      "sha256": "75a54de6fd73baa9f15f2205766ba1fd6104bcb78706a4c2cec7c2174d68ca72",
+      "alpha_bounds": [
+        97,
+        76,
+        415,
+        436
+      ]
+    },
+    {
+      "file": "fleece_V3_mid.png",
+      "sha256": "6e87536d207efcf16ac41ed3af44f2e0061e9c41cf259b77a76201d5d1d43a89",
+      "alpha_bounds": [
+        97,
+        93,
+        415,
+        434
+      ]
+    },
+    {
+      "file": "fleece_V3_max.png",
+      "sha256": "daf81f8d14942a0684b014b9650b335d1933de2a5d0b5a1aae12bade8e5c61de",
+      "alpha_bounds": [
+        98,
+        142,
+        415,
+        393
+      ]
+    },
+    {
+      "file": "grain_V3_flat.png",
+      "sha256": "ec2e7e96eccf827c9c45e8798a44c4e4c3c8ced4cfec3a58842e2be32bc4d171",
+      "alpha_bounds": [
+        98,
+        76,
+        415,
+        436
+      ]
+    },
+    {
+      "file": "grain_V3_mid.png",
+      "sha256": "a22443af921c4c3c15c831f842e69d4bcb17b683509335e92052b963ed86b02c",
+      "alpha_bounds": [
+        97,
+        76,
+        414,
+        434
+      ]
+    },
+    {
+      "file": "grain_V3_max.png",
+      "sha256": "c7d7c26692f872197594bf33afc126d5d0ed36299cfd6c094214982814d74b01",
+      "alpha_bounds": [
+        97,
+        110,
+        414,
+        393
+      ]
+    },
+    {
+      "file": "clay_V3_flat.png",
+      "sha256": "934a3aa2248279d9e75deed533239f73c391462426f75441c865ec0dd63e1ff8",
+      "alpha_bounds": [
+        99,
+        76,
+        414,
+        436
+      ]
+    },
+    {
+      "file": "clay_V3_mid.png",
+      "sha256": "760caa9cc39836ff8ffc9ae735aa384967c7f8471b4aecc2ce3c9f935f88c58f",
+      "alpha_bounds": [
+        99,
+        58,
+        414,
+        434
+      ]
+    },
+    {
+      "file": "clay_V3_max.png",
+      "sha256": "2555f9f7600ce57c46bd87965eb54a50eeea11b930def6659882ad5d541c34a0",
+      "alpha_bounds": [
+        99,
+        35,
+        414,
+        393
+      ]
+    },
+    {
+      "file": "desert_V3_flat.png",
+      "sha256": "57c052125a1794580b91a704f5c6d1bff1e12647811879c8bce0458b44f280ba",
+      "alpha_bounds": [
+        98,
+        76,
+        413,
+        436
+      ]
+    },
+    {
+      "file": "desert_V3_mid.png",
+      "sha256": "543f320d69831441f145f00e9bccae837e984006d27dd7ef70b8ceba3ec83670",
+      "alpha_bounds": [
+        98,
+        89,
+        413,
+        434
+      ]
+    },
+    {
+      "file": "desert_V3_max.png",
+      "sha256": "088a8589943d280c70eb3239d236e041529cec793e9f8bc0358f53412172f428",
+      "alpha_bounds": [
+        98,
+        123,
+        413,
+        393
+      ]
+    }
+  ],
+  "geometry": [
+    {
+      "mesh_vertices_checked": 60356,
+      "prop_vertices_inside_clearing": 0,
+      "foreground_vertices_over_plate_at_eight_steps": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "plate_center": [
+        0.36,
+        0.3
+      ]
+    },
+    {
+      "mesh_vertices_checked": 18593,
+      "prop_vertices_inside_clearing": 0,
+      "foreground_vertices_over_plate_at_eight_steps": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "plate_center": [
+        0.36,
+        0.3
+      ]
+    },
+    {
+      "mesh_vertices_checked": 77021,
+      "prop_vertices_inside_clearing": 0,
+      "foreground_vertices_over_plate_at_eight_steps": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "plate_center": [
+        0.36,
+        0.3
+      ]
+    },
+    {
+      "mesh_vertices_checked": 147063,
+      "prop_vertices_inside_clearing": 0,
+      "foreground_vertices_over_plate_at_eight_steps": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "plate_center": [
+        0.36,
+        0.3
+      ]
+    },
+    {
+      "mesh_vertices_checked": 37625,
+      "prop_vertices_inside_clearing": 0,
+      "foreground_vertices_over_plate_at_eight_steps": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "plate_center": [
+        0.36,
+        0.3
+      ]
+    },
+    {
+      "mesh_vertices_checked": 21957,
+      "prop_vertices_inside_clearing": 0,
+      "foreground_vertices_over_plate_at_eight_steps": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "plate_center": [
+        0.36,
+        0.3
+      ]
+    }
+  ],
+  "trial_lossless_webp_bytes": 1997964,
+  "eight_step_base_only_estimated_webp_bytes": 5327904,
+  "painted_references": [
+    {
+      "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_timber.webp",
+      "sha256": "939b087c9fde4021d90d71057f32d6be59c91e192411104f9fcb5d75da84ad93"
+    },
+    {
+      "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_stone.webp",
+      "sha256": "981a30280d1cffc02eb18bdddd4b35a470d9a778cf4b0625b7567ce13e237d04"
+    },
+    {
+      "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_fleece.webp",
+      "sha256": "ca11f1a5af41d20d1873f44ae31e1e7151441796e205292f957d687041f3805a"
+    },
+    {
+      "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_grain.webp",
+      "sha256": "0bacd228ff6a2339ce9faa79efa0fe4dd8b8056aec18b5a380a9fd7e646ae011"
+    },
+    {
+      "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_clay.webp",
+      "sha256": "a4080fbf5cf198945eb5e22c3cdf43981c7e15b4ee2255ee1e0da95ca0611871"
+    },
+    {
+      "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_desert.webp",
+      "sha256": "a23052cd74c838224bc3b2567e5c80a31a9a9718c8206f3bebc8eca020cb49fd"
+    }
+  ]
+}

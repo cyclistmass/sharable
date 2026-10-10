@@ -1,0 +1,37 @@
+{
+  "metadata": {
+    "story": "sculpted wind-ripple dunes, layered sandstone clusters, dry scrub and dead tree",
+    "token_space": {
+      "token_center": [
+        0.36,
+        0.3
+      ],
+      "token_radius": 0.27,
+      "clearing_radius": 0.31,
+      "upright_plate": true,
+      "foreground_max_tilt_degrees": 55,
+      "pruned_objects": 21,
+      "flattened_surfaces": 1
+    }
+  },
+  "renders": [
+    {
+      "file": "desert_V3_flat.png",
+      "tilt_radians": 0,
+      "seconds": 16.12
+    },
+    {
+      "file": "desert_V3_mid.png",
+      "tilt_radians": 0.48,
+      "seconds": 15.76
+    },
+    {
+      "file": "desert_V3_max.png",
+      "tilt_radians": 0.96,
+      "seconds": 12.02
+    }
+  ],
+  "objects": 76,
+  "samples": 32,
+  "threads": 2
+}

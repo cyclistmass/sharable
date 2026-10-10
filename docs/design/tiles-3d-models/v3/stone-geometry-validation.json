@@ -1,0 +1,18 @@
+{
+  "mesh_vertices_checked": 18593,
+  "prop_vertices_inside_clearing": 0,
+  "foreground_vertices_over_plate_at_eight_steps": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "plate_center": [
+    0.36,
+    0.3
+  ]
+}

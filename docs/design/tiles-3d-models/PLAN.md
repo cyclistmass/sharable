@@ -1,5 +1,7 @@
 # Modelled V2 tiles: density pass and integration plan
 
+Current terrain art: **V3**, with the top-right number clearing and painted-density compositions. See `v3/REPORT.md`, `v3/validation.json`, `palette-v3.png` and `ART_SPEC.md`. Earlier V2 inventories and budgets below are historical; the final V3 section records the current integration differences.
+
 Status: number-clearing palette revision across all six terrains; MainActivity and TileLife unchanged. Current proof and measurements: token-clearing/REPORT.md, token-check.png and ART_SPEC.md. Earlier density/R3 reports are historical.
 
 ## Geometry and projection
@@ -118,3 +120,9 @@ The Timber/Grain proof places its foot at (+0.25,-0.58), keeping the upright rad
 ### Bandit blocking revision (supersedes off-plate placement above)
 
 The approved V1 now anchors at the number centre (-0.36,+0.30), model scale 0.70 and full-round brim diameter 0.644. Its current eight sprites include a radius-0.278 opaque upright shadow seal to hide the complete number/pip face at any angle; preserve the common foot anchor (256,256) and draw the plate underneath it. Never apply the terrain number-exclusion mask to the Bandit. Use premultiplied angle interpolation; the common opaque seal remains unchanged between samples. Current review and evidence are ../bandit/bandit-v1-onplate.png and ../bandit/v1/ONPLATE.md. Earlier off-plate size, location, PNG bytes and portraits are historical. Runtime two-sprite memory remains 2 MiB; no app code was changed.
+
+## V3 painted-density revision (current terrain art)
+
+V3 supersedes V2 terrain composition and token placement: (+0.36,+0.30) y-up, upright plate radius 0.27, empty ground circle radius 0.31. The legacy app position and radius are unchanged. Current eighteen V3 previews are flat/mid/max; the eight production angles remain 0.96*i/7. Use the V3 terrain/anchor metadata and guards at integration, including right-centre Bandit placement. Never reuse V2 left-centre exclusion masks.
+
+Mauro?s painted faces are read-only art references, not geometry-displacement textures. V3 uses richer own noise/bump materials, warm light and geometry AO, full groundcover, logging/mining/harvest/brickmaking props, and a mixed sheep flock with three SMALL alpacas and teeny goats. Existing V2 TileLife remains untouched as a historical preview; V3 animation atlases, motion paths and effect anchors still need regeneration at the eight production angles. The current round requests static terrain proofs only. V3/REPORT.md supplies current measured PNG size and timings; the old V2 shipping budget is historical and must be remeasured with V3 bases and refreshed overlays. Draw-order, premultiplied cross-fade, bounded cache and physical-device acceptance requirements above remain applicable.
