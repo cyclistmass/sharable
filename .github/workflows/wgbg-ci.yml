@@ -136,6 +136,8 @@ jobs:
             SETTLE=1 START=chivalry bash tools/ci_monkey.sh apk/app-debug.apk 3000
             # The app plays itself (#46): bots-only games at Max speed in both rulesets; every game must finish.
             bash tools/ci_selfplay.sh 60 3
+            # A human seat played by tapping the screen like a finger (both rulesets); any crash fails.
+            bash tools/ci_touchplay.sh 150 12
             # Online play end to end (#35): two clients, one room, a whole game on the Firebase emulators.
             bash tools/ci_online.sh apk/app-debug-androidTest.apk demo-wgbg
 
