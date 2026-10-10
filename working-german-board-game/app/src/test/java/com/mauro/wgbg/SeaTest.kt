@@ -43,7 +43,7 @@ class SeaTest {
     }
 
     @Test
-    fun `dragged clouds are kept on the sea`() {
+    fun `clouds may rest over the island, taps there reach the board, and they stay on the table`() {
         val sea = Sea(board)
         val c = sea.clouds.first()
         sea.grab(c, Offset(c.x, c.y))
@@ -51,8 +51,9 @@ class SeaTest {
         repeat(60) { sea.update(dt) }
         assertTrue(hypot(c.x, c.y) < 0.2f, "follows the finger over the island")
         sea.release(c)
-        repeat(60 * 15) { sea.update(dt) }   // let go: it floats back out to sea
-        assertTrue(hypot(c.x, c.y) >= sea.landR, "floated off the island")
+        repeat(60 * 15) { sea.update(dt) }   // let go: clouds may drift over land now (Mauro, 2026-10-10)
+        assertTrue(hypot(c.x, c.y) < sea.landR, "stays over the island")
+        assertTrue(sea.cloudAt(Offset(c.x, c.y)) == null, "a touch on the island goes to the board, not the cloud")
         sea.grab(c, Offset(c.x, c.y))
         sea.move(c, Offset(40f, -40f))       // far off the screen
         repeat(60) { sea.update(dt) }
@@ -93,7 +94,7 @@ class SeaTest {
             assertTrue(hypot(c.vx, c.vy) <= CloudFeel.MAX_SPEED + 1e-3f)
             repeat(20) {
                 sea.update(dt)
-                // Never past the screen edge (over the island it floats back out on its own).
+                // Never past the screen edge (they may cross the island).
                 for (k in sea.clouds) assertTrue(sea.inOpenSea(k.x, k.y, Sea.CLOUD_EDGE - 0.01f), "cloud off the screen at ${k.x},${k.y}")
             }
         }
