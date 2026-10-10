@@ -145,7 +145,9 @@ fun NewGameScreen(
             }
             GoButton("Play", "play", setup.canStart, Modifier.fillMaxWidth().height(48.dp)) { onStart(setup) }
             if ((onOpenLobby != null || onJoinRoom != null) && !onlineName(setup.name))
-                Text("Type your name to play online", style = Wood.sans(12.sp, color = Wood.INK_SOFT), modifier = Modifier.testTag("online-name-hint"))
+                // Online needs a real name (friends see it); say so plainly, it read as "online is broken" when grey.
+                Text("To play online, type your name above (not \"You\")", style = Wood.sans(13.sp, FontWeight.Bold, Wood.WAITING),
+                    modifier = Modifier.testTag("online-name-hint"))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (onOpenLobby != null) Choice("Host online room", false, "open-lobby", Modifier.weight(1f).height(36.dp),
                     radius = 10.dp, enabled = onlineName(setup.name)) { onOpenLobby(setup) }
