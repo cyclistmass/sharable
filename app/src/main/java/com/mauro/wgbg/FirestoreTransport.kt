@@ -70,6 +70,13 @@ class FirestoreTransport(private val auth: FirebaseAuth, private val db: Firebas
             t.set(ref, room.wire() + mapOf("createdAt" to FieldValue.serverTimestamp(), "lastMove" to "")); room
         }.future()
     }
+    /** Adds one crash report to `crashes` (write-only for players; see firestore.rules). */
+    fun sendCrash(report: String): CompletableFuture<Unit> = signIn().thenCompose { uid ->
+        db.collection("crashes").add(mapOf(
+            "uid" to uid, "report" to report.take(19_000), "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+        )).future().thenApply { }
+    }
+
     override fun listOpen() = games.whereEqualTo("status", "lobby").get().future().thenApply { q -> q.documents.map { room(it.id, it.data!!) } }
     private fun change(id: String, f: (Room) -> Room): CompletableFuture<Unit> {
         val ref = games.document(id)

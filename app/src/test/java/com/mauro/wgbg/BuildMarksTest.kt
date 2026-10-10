@@ -26,4 +26,10 @@ class BuildMarksTest {
         assertTrue(maxStep < 0.06f, "no jumps between frames")          // smooth at 60 fps
         assertEquals(targetPulse(0.3f), targetPulse(2.1f), 1e-4f)          // one breath every 1.8 s
     }
+
+    @Test
+    fun `build marks are 25 percent smaller than the first size`() {
+        org.junit.jupiter.api.Assertions.assertEquals(0.26f * 0.75f, BUILD_MARK_R, 1e-6f)
+        org.junit.jupiter.api.Assertions.assertEquals(0.15f * 0.75f, BUILD_MARK_W, 1e-6f)
+    }
 }

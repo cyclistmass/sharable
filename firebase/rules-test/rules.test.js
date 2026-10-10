@@ -88,3 +88,17 @@ test('pending local echoes confirm once and resume query only returns suffix', a
   });
   if(JSON.stringify(suffix)!=='[2]')throw Error('resume reread history');
 });
+
+test('crash reports: a signed-in player can add one; nobody can read, edit or delete; forged or oversized denied', async () => {
+  const add = (uid, data) => setDoc(doc(db(uid), 'crashes/' + Math.random().toString(36).slice(2)), data);
+  await assertSucceeds(add('p1', {uid: 'p1', report: 'WGBG crash report\nerror: boom', createdAt: serverTimestamp()}));
+  await assertFails(add(null, {uid: 'p1', report: 'x', createdAt: serverTimestamp()}));
+  await assertFails(add('p1', {uid: 'p2', report: 'x', createdAt: serverTimestamp()}));
+  await assertFails(add('p1', {uid: 'p1', report: 'x'.repeat(20001), createdAt: serverTimestamp()}));
+  await assertFails(add('p1', {uid: 'p1', report: 'x', createdAt: serverTimestamp(), extra: 1}));
+  await assertFails(getDocs(collection(db('p1'), 'crashes')));
+  await env.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), 'crashes/c1'), {uid: 'p1', report: 'x'}); });
+  await assertFails(getDoc(doc(db('p1'), 'crashes/c1')));
+  await assertFails(updateDoc(doc(db('p1'), 'crashes/c1'), {report: 'y'}));
+  await assertFails(deleteDoc(doc(db('p1'), 'crashes/c1')));
+});

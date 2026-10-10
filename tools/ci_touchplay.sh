@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Touch play (Mauro, 2026-10-10: "test the game better, I crashed it on move 2"): a real human seat played by
+# tapping the screen, in each ruleset. Board moves are tapped at the pixel the app reports for them (the
+# WGBG-TURN line's spots=, debug builds), twice (select, then confirm), exactly like a finger; Roll and
+# End turn are tapped by their labels; only moves with no single tap target (discards, card choices, steals)
+# go through the agent hook. Fails on any crash or ANR, or if the human seat gets stuck.
+# Usage: tools/ci_touchplay.sh [seconds per ruleset] [min human moves per ruleset]
+set -uo pipefail
+SECS="${1:-150}"
+MIN_MOVES="${2:-12}"
+ADB="${ADB:-adb}"
+PKG=com.mauro.wgbg
+export MSYS_NO_PATHCONV=1
+fail=0
+
+tap() { "$ADB" shell input tap "$1" "$2"; }
+tap_text() { # tap the on-screen element whose text is $1; false if it isn't there
+  "$ADB" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+  local B
+  B=$("$ADB" shell cat /sdcard/ui.xml | tr '>' '\n' | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" |
+      grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | head -2 | tr '\n' ' ')
+  [ -n "$B" ] || return 1
+  set -- $B
+  tap $(( (${1%,*} + ${2%,*}) / 2 )) $(( (${1#*,} + ${2#*,}) / 2 ))
+}
+crashed() { [ "$("$ADB" logcat -d -b crash | grep -A8 'FATAL EXCEPTION' | grep -c "$PKG")" != 0 ]; }
+
+for ruleset in base chivalry; do
+  "$ADB" shell am force-stop $PKG
+  "$ADB" shell pm clear $PKG >/dev/null
+  "$ADB" shell cmd connectivity airplane-mode disable >/dev/null 2>&1 || true
+  "$ADB" logcat -c; "$ADB" logcat -b crash -c 2>/dev/null || true
+  "$ADB" shell am start -W --activity-clear-task -n $PKG/.MainActivity --es start "$ruleset" >/dev/null
+  sleep 4
+  moves=0; taps=0; hooks=0; last=""; same=0; start=$(date +%s)
+  while [ $(( $(date +%s) - start )) -lt "$SECS" ]; do
+    if crashed; then echo "touchplay $ruleset: CRASH after $moves moves"; fail=1; break; fi
+    line=$("$ADB" logcat -d -s WGBG-TURN:I | tail -1)
+    if [ -z "$line" ] || [ "$line" = "$last" ]; then
+      same=$((same + 1))
+      # The bots are playing, or a move is animating; a human prompt that never changes means we're stuck.
+      [ "$same" -gt 60 ] && { echo "touchplay $ruleset: stuck at: ${line:0:160}"; fail=1; break; }
+      sleep 1; continue
+    fi
+    same=0; last="$line"
+    legal=$(echo "$line" | sed -n 's/.* legal=\([^ ]*\).*/\1/p' | tr ',' '\n' | grep -v -E '^(OFFER_TRADE|OFFER_TRADE_CK|COUNTER_TRADE)')
+    spots=$(echo "$line" | sed -n 's/.* spots=\([^ ]*\).*/\1/p' | tr ';' '\n')
+    # Prefer what a person does most: build on the board, roll, end the turn.
+    if [ -n "$spots" ] && [ $((RANDOM % 4)) != 0 ]; then
+      pick=$(echo "$spots" | shuf -n 1); xy=${pick#*@}
+      tap "${xy%,*}" "${xy#*,}"; sleep 0.6; tap "${xy%,*}" "${xy#*,}"; taps=$((taps + 1))
+    elif echo "$legal" | grep -q '^ROLL:' && tap_text "Roll"; then taps=$((taps + 1))
+    elif echo "$legal" | grep -q '^END_TURN:' && [ $((RANDOM % 3)) != 0 ] && tap_text "End turn"; then taps=$((taps + 1))
+    else
+      mv=$(echo "$legal" | shuf -n 1)
+      [ -n "$mv" ] && "$ADB" shell am broadcast -a $PKG.MOVE -p $PKG --es move "$mv" >/dev/null && hooks=$((hooks + 1))
+    fi
+    moves=$((moves + 1))
+    sleep 1.2
+  done
+  anr=$("$ADB" logcat -d | grep -c "ANR in $PKG" || true)
+  alive=$("$ADB" shell pidof $PKG | tr -d '\r')
+  echo "touchplay $ruleset: $moves human moves ($taps by touch, $hooks by hook) in ${SECS}s, anr=$anr pid=${alive:-none}"
+  if crashed || [ "$anr" != 0 ] || [ -z "$alive" ] || [ "$moves" -lt "$MIN_MOVES" ]; then
+    echo "TOUCHPLAY FAILED in $ruleset"
+    "$ADB" logcat -d -b crash | grep -A30 "FATAL EXCEPTION" | head -45
+    fail=1
+  fi
+done
+exit $fail

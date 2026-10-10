@@ -17,6 +17,14 @@ service cloud.firestore {
       let k = changed.hasAny(['1']) ? '1' : (changed.hasAny(['2']) ? '2' : '3');
       return changed.size() == 1 && !changed.hasAny(['0']) && selfSeat(k);
     }
+    // Crash reports from players: anyone signed in may add one; nobody can read, change or delete them
+    // (Mauro reads them in the Firebase console).
+    match /crashes/{id} {
+      allow create: if signed() && request.resource.data.keys().hasOnly(['uid','report','createdAt']) &&
+        request.resource.data.uid == request.auth.uid && request.resource.data.report is string &&
+        request.resource.data.report.size() <= 20000 && request.resource.data.createdAt == request.time;
+      allow read, update, delete: if false;
+    }
     match /games/{game} {
       // A missing room is readable (it only says the code is free): creating a room checks that in a transaction.
       allow read: if signed() && (resource == null || resource.data.status == 'lobby' || seated(resource.data));
