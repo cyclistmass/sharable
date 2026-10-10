@@ -14,7 +14,7 @@ class DiceArtTest {
             assertEquals(6, faces.toSet().size, "style $style faces")
             assertTrue(all.addAll(faces), "style $style reuses another style's faces")
             val tumble = DiceArt.eventTumble(true, style)
-            assertTrue(tumble.size >= 2, "style $style has ${tumble.size} tumble frames")
+            assertEquals(10, tumble.size, "style $style tumble frames")
             assertEquals(tumble.size, tumble.toSet().size)
         }
     }
