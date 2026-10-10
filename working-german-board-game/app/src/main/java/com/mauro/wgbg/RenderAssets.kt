@@ -41,23 +41,47 @@ internal fun decodeRenderTexture(resources: Resources, @DrawableRes id: Int, wid
     return scaled
 }
 
-/** Sampled themed art, retained across recomposition at a density-aware size. */
-@Composable
-internal fun rememberDiceBitmap(id: Int, sideDp: Int): ImageBitmap {
-    val resources = LocalContext.current.resources
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val pixels = with(density) { androidx.compose.ui.unit.Dp(sideDp.toFloat()).roundToPx() }.coerceAtLeast(1)
-    return androidx.compose.runtime.remember(resources, id, pixels) {
-        decodeRenderBitmap(resources, id, pixels, pixels).asImageBitmap()
-    }
+/**
+ * Dice images decoded once per (image, pixel size) and shared by every roll. Decoding happens off the main
+ * thread (Mauro's phone froze or crashed on the first roll when 20-30 dice frames were decoded during
+ * composition); until an image is ready the caller gets null and draws without it.
+ */
+internal object DiceImages {
+    private val cache = java.util.concurrent.ConcurrentHashMap<Long, ImageBitmap>()
+    private fun key(id: Int, px: Int) = (id.toLong() shl 20) or px.toLong()
+    fun cached(id: Int, px: Int): ImageBitmap? = cache[key(id, px)]
+
+    /** Decodes [id] at [px] square (null if Android can't decode it, e.g. under memory pressure); never throws. */
+    fun load(resources: Resources, id: Int, px: Int): ImageBitmap? = cache[key(id, px)] ?: runCatching {
+        decodeRenderBitmap(resources, id, px, px).asImageBitmap()
+    }.getOrNull()?.also { cache[key(id, px)] = it }
 }
 
+private fun dicePixels(density: androidx.compose.ui.unit.Density, sideDp: Int) =
+    with(density) { androidx.compose.ui.unit.Dp(sideDp.toFloat()).roundToPx() }.coerceAtLeast(1)
+
+/** Sampled themed art at a density-aware size: from the shared cache, else decoded in the background (null until then). */
+@Composable
+internal fun rememberDiceBitmap(id: Int, sideDp: Int): ImageBitmap? {
+    val resources = LocalContext.current.resources
+    val pixels = dicePixels(androidx.compose.ui.platform.LocalDensity.current, sideDp)
+    val image = androidx.compose.runtime.produceState(DiceImages.cached(id, pixels), resources, id, pixels) {
+        if (value == null) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { DiceImages.load(resources, id, pixels) }
+    }
+    return image.value
+}
+
+/** All of [ids] at a density-aware size, or an empty list until every frame is decoded (in the background). */
 @Composable
 internal fun rememberDiceFrames(ids: List<Int>, sideDp: Int): List<ImageBitmap> {
     val resources = LocalContext.current.resources
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val pixels = with(density) { androidx.compose.ui.unit.Dp(sideDp.toFloat()).roundToPx() }.coerceAtLeast(1)
-    return androidx.compose.runtime.remember(resources, ids, pixels) {
-        ids.map { decodeRenderBitmap(resources, it, pixels, pixels).asImageBitmap() }
+    val pixels = dicePixels(androidx.compose.ui.platform.LocalDensity.current, sideDp)
+    fun ready() = ids.map { DiceImages.cached(it, pixels) }.takeIf { l -> l.all { it != null } }?.map { it!! } ?: emptyList()
+    val frames = androidx.compose.runtime.produceState(ready(), resources, ids, pixels) {
+        if (value.isEmpty() && ids.isNotEmpty()) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val loaded = ids.map { DiceImages.load(resources, it, pixels) }
+            if (loaded.all { it != null }) loaded.map { it!! } else emptyList()
+        }
     }
+    return frames.value
 }
