@@ -637,6 +637,11 @@ fun WatchGameScreen(
     // The view stays where the player puts it (Mauro, 2026-10-10: it used to glide back to the full board
     // after 6 s untouched). Menu > Fit and a double-tap still reset it; Camera.clamped keeps it on screen.
     var boardSize by remember { mutableStateOf(Size.Zero) }
+    // Each player's supply can be slid around the water (#52); a double-tap on it puts it back. Kept per game.
+    var pileOffsets by remember(seed, seats) { mutableStateOf(List(seats) { Offset.Zero }) }
+    val viewer = me.coerceAtLeast(0)
+    val viewerNow by rememberUpdatedState(viewer)
+    val pileOffsetsNow by rememberUpdatedState(pileOffsets)
     var panelOpen by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
@@ -718,10 +723,46 @@ fun WatchGameScreen(
                 .pointerInput(Unit) {
                     fun lattice(p: Offset) = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(p)
                     var dragged: Sea.Cloud? = null
+                    // Supplies (#52): a press on one grabs it; it follows the finger, keeping where it was held.
+                    var pile = -1
+                    var pileGrip = Offset.Zero
+                    var lastPileTap = 0L
+                    var lastPileSeat = -1
+                    fun pileAt(p: Offset): Int = supplyAt(stateNow, viewerNow, pileOffsetsNow,
+                        Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera), p, 48.dp.toPx())
                     boardGestures(
-                        grab = { p -> seaNow.cloudAt(lattice(p))?.also { dragged = it } != null },
-                        onGrabMove = { p -> dragged?.let { seaNow.move(it, lattice(p)) } },
+                        grab = { p ->
+                            val seat = pileAt(p)
+                            if (seat >= 0) {
+                                pile = seat
+                                pileGrip = lattice(p) - supplyCenter(stateNow, seat, viewerNow, pileOffsetsNow)
+                                hostView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                                true
+                            } else seaNow.cloudAt(lattice(p))?.also { dragged = it } != null
+                        },
+                        onGrabMove = { p ->
+                            if (pile >= 0) {
+                                val home = supplyCenter(stateNow, pile, viewerNow, emptyList())
+                                val want = lattice(p) - pileGrip - home
+                                pileOffsets = pileOffsetsNow.mapIndexed { i, o -> if (i == pile) want else o }
+                            } else dragged?.let { seaNow.move(it, lattice(p)) }
+                        },
                         onGrabEnd = { g ->
+                            if (pile >= 0) {
+                                val tap = g.travel < viewConfiguration.touchSlop && g.durationMs < 300
+                                val now = System.currentTimeMillis()
+                                if (tap && pile == lastPileSeat && now - lastPileTap < 350) {
+                                    // Double-tap in the middle of a pile: back to its place in front of its owner.
+                                    pileOffsets = pileOffsetsNow.mapIndexed { i, o -> if (i == pile) Offset.Zero else o }
+                                    hostView.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                                    lastPileTap = 0L
+                                } else {
+                                    if (!tap) hostView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                                    lastPileTap = if (tap) now else 0L
+                                    lastPileSeat = pile
+                                }
+                                pile = -1
+                            }
                             dragged?.let { c ->
                                 seaNow.release(c)
                                 // Screen px/s to lattice units/s, sampled over 0.1 s so zoom and tilt are accounted for.
@@ -772,7 +813,9 @@ fun WatchGameScreen(
                         }
                     }, onDoubleTap = { at ->
                         val sz = Size(size.width.toFloat(), size.height.toFloat())
-                        camera = if (camera.zoom > 1.05f || camera.tilt > 0.01f) Camera.FIT
+                        // A double-tap on a supply resets that pile (handled with its drag); the view stays.
+                        if (supplyAt(stateNow, viewerNow, pileOffsetsNow, Layout.fit(boardNow, sz.width, sz.height, camera), at, 48.dp.toPx()) >= 0) return@detectTapGestures
+                        camera = if (camera.zoom > 1.05f || camera.tilt > 0.01f || camera.pan.getDistance() > 1f) Camera.FIT
                         else camera.transform(at, Offset.Zero, Camera.DOUBLE_TAP_ZOOM / camera.zoom, sz)
                     })
                 },
@@ -794,11 +837,11 @@ fun WatchGameScreen(
                 drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.UNDER, banditSprites)
                 // Re-record the still board only when something on it can have changed: a move, the
                 // camera, the canvas size or a look setting. Otherwise the last recording is replayed.
-                val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff)
+                val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff, viewer, pileOffsets)
                 if (boardLayerKey[0] != key) {
                     // The explicit-density overload gives the layer its own draw scope; recording through
                     // this Canvas's scope makes the two scopes ask each other for density forever.
-                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL, banditSprites) }
+                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL, banditSprites, viewer, pileOffsets) }
                     boardLayerKey[0] = key
                 }
                 drawLayer(boardLayer)
@@ -1270,10 +1313,13 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
         return Camera(z, (pan - f) * k + f + drag, tilt).clamped(size)
     }
 
-    /** At zoom z the fitted board spans z screens, so it may slide by at most (z - 1) / 2 of a screen. */
+    /**
+     * At zoom z the fitted board spans z screens, so it may slide by (z - 1) / 2 of a screen, plus [PAN_EXTRA]
+     * of a (zoomed) screen more so the players' supplies on the water round the board can be reached (#52).
+     */
     fun clamped(size: Size): Camera {
-        val mx = (zoom - 1f) * size.width / 2f
-        val my = (zoom - 1f) * size.height / 2f
+        val mx = ((zoom - 1f) / 2f + PAN_EXTRA * zoom) * size.width
+        val my = ((zoom - 1f) / 2f + PAN_EXTRA * zoom) * size.height
         return copy(pan = Offset(pan.x.coerceIn(-mx, mx), pan.y.coerceIn(-my, my)))
     }
 
@@ -1285,6 +1331,8 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
         const val MIN_ZOOM = 1f
         const val MAX_ZOOM = 4f
         const val DOUBLE_TAP_ZOOM = 2.5f
+        /** Extra pan beyond the board, in screens at the current zoom, to see the supplies off its edges. */
+        const val PAN_EXTRA = 0.4f
         /** Steepest table tilt, in radians (about 55 degrees). */
         const val MAX_TILT = 0.96f
         val FIT = Camera()
@@ -1308,9 +1356,11 @@ private data class WaterLayerKey(val camera: Camera, val size: Size, val step: I
 private data class BoardLayerKey(
     val game: Int, val tick: Int, val camera: Camera, val size: Size, val tileLine: Boolean,
     val knights: List<ImageBitmap>?, val faces: Map<Int, ImageBitmap>?, val cliff: List<ImageBitmap>?,
+    val viewer: Int = 0, val piles: List<Offset> = emptyList(),
 )
 
-private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null, part: BoardPart = BoardPart.ALL, bandit: List<ImageBitmap>? = null) {
+private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null, part: BoardPart = BoardPart.ALL, bandit: List<ImageBitmap>? = null,
+                                viewer: Int = 0, pileOffsets: List<Offset> = emptyList()) {
     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
@@ -1425,7 +1475,61 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             if (s.vertexBuilding[v] == Piece.CITY) city(l.at(v), owner, ps) else settlement(l.at(v), owner, ps)
         }
     }
+    drawSupplies(s, l, wood, stand, viewer, pileOffsets)
     if (part == BoardPart.ALL) over()
+}
+
+/**
+ * The seat whose supply is under screen point [p], or -1: on its rows, or within [minPx] (a thumb's width) of
+ * its middle, whichever is larger.
+ */
+private fun supplyAt(s: GameState, viewer: Int, offsets: List<Offset>, l: Layout, p: Offset, minPx: Float): Int {
+    val q = l.unproject(p)
+    for (seat in 0 until s.numPlayers) {
+        val c = supplyCenter(s, seat, viewer, offsets)
+        val a = Supply.seatAngle(seat, viewer, s.numPlayers)
+        if (Supply.hit(q.x, q.y, c.x, c.y, a) || (l.project(c.x, c.y) - p).getDistance() < minPx) return seat
+    }
+    return -1
+}
+
+/** Island radius for the off-board supplies (#52), from the board's outermost corner. */
+internal fun supplyLandR(board: Board): Float =
+    board.topology.vertexPos.maxOf { kotlin.math.hypot(it.x * sqrt(3f) / 2f, it.y / 2f) }
+
+/** Centre of [seat]'s supply in lattice units, after the player's drag [offsets]. */
+internal fun supplyCenter(s: GameState, seat: Int, viewer: Int, offsets: List<Offset>): Offset {
+    val (x, y) = Supply.home(seat, viewer, s.numPlayers, supplyLandR(s.board))
+    val off = offsets.getOrNull(seat) ?: Offset.Zero
+    return Offset(x + off.x, y + off.y)
+}
+
+/**
+ * Every player's unplayed pieces on the table off the board, at board scale (#52): neat rows in front of
+ * each seat, the viewer's at the bottom, houses turned to face their owner. Drawn back to front.
+ */
+private fun DrawScope.drawSupplies(s: GameState, l: Layout, wood: WoodPieces, stand: Float, viewer: Int, offsets: List<Offset>) {
+    val n = s.numPlayers
+    val me = viewer.coerceIn(0, n - 1)
+    val all = ArrayList<Pair<Int, Supply.Spot>>()
+    for (p in 0 until n) {
+        val c = supplyCenter(s, p, me, offsets)
+        val spots = Supply.layout(Rules.piecesLeft(s, p, Piece.SETTLEMENT), Rules.piecesLeft(s, p, Piece.CITY),
+            Rules.piecesLeft(s, p, Piece.ROAD), Supply.seatAngle(p, me, n), c.x, c.y)
+        for (sp in spots) all += p to sp
+    }
+    all.sortBy { it.second.y }
+    for ((p, sp) in all) {
+        val at = l.project(sp.x, sp.y)
+        val ps = l.scale * l.kAt(sp.y) * stand
+        with(wood) {
+            if (sp.kind == Supply.Kind.ROAD) road(l.project(sp.x - sp.dx, sp.y - sp.dy), l.project(sp.x + sp.dx, sp.y + sp.dy), p, ps)
+            else {
+                val deg = Math.toDegrees((Supply.seatAngle(p, me, n) - Math.PI.toFloat() / 2f).toDouble()).toFloat()
+                withTransform({ rotate(deg, at) }) { if (sp.kind == Supply.Kind.TOWN) city(at, p, ps) else settlement(at, p, ps) }
+            }
+        }
+    }
 }
 
 /** One raised terrain tile (hex side = [scale] px) with its number token. */
