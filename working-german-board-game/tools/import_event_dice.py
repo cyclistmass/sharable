@@ -3,16 +3,20 @@
 Source: C:/Users/mauro/wgbg-art/dice-themed/pirate-event-options/P{n}_event_{1..6}.png and
 P{n}_event_tumble_{k}.png (512x512 RGBA). Same treatment as the approved dice: faces cropped to the
 die body and scaled to 192 px, tumbles scaled to 256 px, saturation -25% (Pip's pass), WebP.
-Writes dice_pe{n}_{1..6}.webp and dice_tumble_pe{n}_{k}.webp and prints the tumble counts.
+Writes dice_pe{n}_{1..6}.webp and dice_tumble_pe{n}_{k}.webp, then rewrites the TUMBLE_PE{n} lists in
+DiceArt.kt to match the frames found.
 
 Usage: py tools/import_event_dice.py [source dir]
 """
+import re
 import sys
 from pathlib import Path
 from PIL import Image, ImageEnhance
 
 SRC = Path(sys.argv[1] if len(sys.argv) > 1 else r"C:/Users/mauro/wgbg-art/dice-themed/pirate-event-options")
-OUT = Path(__file__).resolve().parent.parent / "app/src/main/res/drawable-nodpi"
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "app/src/main/res/drawable-nodpi"
+DICE_ART = ROOT / "app/src/main/java/com/mauro/wgbg/DiceArt.kt"
 SATURATION = 0.75
 
 
@@ -43,3 +47,8 @@ for n in (1, 2, 3):
         img = tone(Image.open(SRC / f"P{n}_event_tumble_{k}.png")).resize((256, 256), Image.LANCZOS)
         img.save(OUT / f"dice_tumble_pe{n}_{k}.webp", quality=90, method=6)
     print(f"P{n}: 6 faces, {k} tumbles")
+    frames = ", ".join(f"R.drawable.dice_tumble_pe{n}_{i}" for i in range(1, k + 1))
+    src = DICE_ART.read_bytes().decode()
+    src, hits = re.subn(rf"val TUMBLE_PE{n} = listOf\([^)]*\)", f"val TUMBLE_PE{n} = listOf({frames})", src)
+    assert hits == 1, f"TUMBLE_PE{n} not found in DiceArt.kt"
+    DICE_ART.write_bytes(src.encode())

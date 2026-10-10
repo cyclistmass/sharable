@@ -34,10 +34,10 @@ object DiceArt {
     val FACES_PE1 = listOf(R.drawable.dice_pe1_1, R.drawable.dice_pe1_2, R.drawable.dice_pe1_3, R.drawable.dice_pe1_4, R.drawable.dice_pe1_5, R.drawable.dice_pe1_6)
     val FACES_PE2 = listOf(R.drawable.dice_pe2_1, R.drawable.dice_pe2_2, R.drawable.dice_pe2_3, R.drawable.dice_pe2_4, R.drawable.dice_pe2_5, R.drawable.dice_pe2_6)
     val FACES_PE3 = listOf(R.drawable.dice_pe3_1, R.drawable.dice_pe3_2, R.drawable.dice_pe3_3, R.drawable.dice_pe3_4, R.drawable.dice_pe3_5, R.drawable.dice_pe3_6)
-    /** Their tumbling frames (Codex is still adding frames; tools/import_event_dice.py brings them in). */
-    val TUMBLE_PE1 = listOf(R.drawable.dice_tumble_pe1_1, R.drawable.dice_tumble_pe1_2)
-    val TUMBLE_PE2 = listOf(R.drawable.dice_tumble_pe2_1, R.drawable.dice_tumble_pe2_2, R.drawable.dice_tumble_pe2_3, R.drawable.dice_tumble_pe2_4)
-    val TUMBLE_PE3 = listOf(R.drawable.dice_tumble_pe3_1, R.drawable.dice_tumble_pe3_2, R.drawable.dice_tumble_pe3_3)
+    /** Their 10 tumbling frames each (tools/import_event_dice.py imports the art and rewrites these lists). */
+    val TUMBLE_PE1 = listOf(R.drawable.dice_tumble_pe1_1, R.drawable.dice_tumble_pe1_2, R.drawable.dice_tumble_pe1_3, R.drawable.dice_tumble_pe1_4, R.drawable.dice_tumble_pe1_5, R.drawable.dice_tumble_pe1_6, R.drawable.dice_tumble_pe1_7, R.drawable.dice_tumble_pe1_8, R.drawable.dice_tumble_pe1_9, R.drawable.dice_tumble_pe1_10)
+    val TUMBLE_PE2 = listOf(R.drawable.dice_tumble_pe2_1, R.drawable.dice_tumble_pe2_2, R.drawable.dice_tumble_pe2_3, R.drawable.dice_tumble_pe2_4, R.drawable.dice_tumble_pe2_5, R.drawable.dice_tumble_pe2_6, R.drawable.dice_tumble_pe2_7, R.drawable.dice_tumble_pe2_8, R.drawable.dice_tumble_pe2_9, R.drawable.dice_tumble_pe2_10)
+    val TUMBLE_PE3 = listOf(R.drawable.dice_tumble_pe3_1, R.drawable.dice_tumble_pe3_2, R.drawable.dice_tumble_pe3_3, R.drawable.dice_tumble_pe3_4, R.drawable.dice_tumble_pe3_5, R.drawable.dice_tumble_pe3_6, R.drawable.dice_tumble_pe3_7, R.drawable.dice_tumble_pe3_8, R.drawable.dice_tumble_pe3_9, R.drawable.dice_tumble_pe3_10)
     /** Settings > Event die names, in style order (0 = the original pirate event die). */
     val EVENT_STYLES = listOf("Classic bone", "Brass-engraved", "Ship-timber", "Brass cage")
     private val PE_FACES = listOf(FACES_PE, FACES_PE1, FACES_PE2, FACES_PE3)
