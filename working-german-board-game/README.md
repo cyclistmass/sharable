@@ -13,9 +13,9 @@ player's colour, the bandit on a number plate, boats and gulls on the sea.*
 
 *Age of Chivalry in the Pirate theme: knights, city walls, the event die and the Raiders' ship.*
 
-**Play it:** [download the Android preview APK](https://github.com/cyclistmass/sharable/releases/download/wgbg-preview-2026-10-10/working-german-board-game-preview-2026-10-10.apk)
-· [1-minute gameplay video](https://github.com/cyclistmass/sharable/releases/download/wgbg-preview-2026-10-10/working-german-board-game-gameplay.mp4)
-· [release notes](https://github.com/cyclistmass/sharable/releases/tag/wgbg-preview-2026-10-10)
+**Play it:** [download the Android preview APK](https://github.com/cyclistmass/sharable/releases/latest/download/working-german-board-game.apk)
+· [1-minute gameplay video](https://github.com/cyclistmass/sharable/releases/latest/download/working-german-board-game-gameplay.mp4)
+· [all releases](https://github.com/cyclistmass/sharable/releases)
 
 ### Screenshots
 

@@ -93,6 +93,11 @@ honestly. Never call something done with failing or skipped tests.
   monkey, bot self-play and a two-client online game on an emulator. A red CI is stop-and-fix.
 - Every push that changes how the game looks re-records the README GIFs (`tools/record_showcase.sh`) and, if
   the screens changed, the gallery (`tools/record_screenshots.sh`), in the same commit.
+- **Each major merge** (a feature or art set landing): bump `versionName` (0.MINOR.PATCH until v1) and
+  `versionCode` in `app/build.gradle.kts`, re-record the showcase (`tools/record_showcase.sh`,
+  `tools/record_screenshots.sh`), push, and once CI is green run `tools/publish_release.sh` to publish
+  release `wgbg-v<version>`. The README's links use `releases/latest/download/…`, so they always serve the
+  newest build.
 - Keep git tidy: no stray files, delete merged branches and worktrees, no machine-specific paths in build
   files or scripts.
 
