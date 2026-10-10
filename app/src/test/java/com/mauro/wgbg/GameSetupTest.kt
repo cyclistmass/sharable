@@ -161,7 +161,9 @@ class GameSetupTest {
     fun `start waits until every person is ready`() {
         val full = lobby.join("Justin")!!
         assertFalse(full.canStart)
-        assertEquals(listOf("Mauro isn't ready", "Justin isn't ready"), full.waitingOn)
+        // The host starts ready (they press Start); only the friend who joined is waited on.
+        assertTrue(full.seats[0].ready)
+        assertEquals(listOf("Justin isn't ready"), full.waitingOn)
         val ready = full.copy(seats = full.seats.map { if (it.isPerson) it.copy(ready = true) else it })
         assertTrue(ready.canStart)
         assertTrue(ready.waitingOn.isEmpty())
@@ -170,7 +172,7 @@ class GameSetupTest {
 
     @Test
     fun `open seats with a bot play, empty open seats drop out, and the count must fit the ruleset`() {
-        val host = lobby.toggleReady()
+        val host = lobby // the host is ready from the start
         assertTrue(host.canStart)
         assertEquals(listOf(0, 1, 2, 3), host.gameSetup().players) // seats 1-2 fall to Greedy bots
         val sparse = host.setBot(1, null).setBot(2, null)
@@ -212,8 +214,9 @@ class GameSetupTest {
 
     @Test
     fun `ready toggles only for a seated person`() {
-        assertTrue(lobby.toggleReady().seats[0].ready)
-        assertFalse(lobby.toggleReady().toggleReady().seats[0].ready)
+        assertTrue(lobby.seats[0].ready, "the host starts ready")
+        assertFalse(lobby.toggleReady().seats[0].ready)
+        assertTrue(lobby.toggleReady().toggleReady().seats[0].ready)
         val ghost = lobby.copy(me = 1) // seat 1 is open
         assertSame(ghost, ghost.toggleReady())
     }

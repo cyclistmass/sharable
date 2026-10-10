@@ -110,7 +110,9 @@ data class Lobby(
             setup = setup,
             seats = setup.seats.mapIndexed { i, s ->
                 when {
-                    i == 0 -> LobbySeat(name = setup.name, photo = setup.photo)
+                    // The host is ready from the start: they press Start themselves (Mauro couldn't start a game
+                    // until he found his own "Not ready" toggle). Friends who join still mark themselves ready.
+                    i == 0 -> LobbySeat(name = setup.name, photo = setup.photo, ready = true)
                     s.kind == SeatKind.BOT -> LobbySeat(bot = s.bot, open = false)
                     s.kind == SeatKind.FRIEND -> LobbySeat(bot = BotLevel.GREEDY)
                     else -> LobbySeat(open = true)
