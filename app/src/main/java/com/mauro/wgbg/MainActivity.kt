@@ -83,6 +83,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.Color
@@ -239,9 +240,6 @@ internal fun pauseAfter(type: wgbg.engine.ActionKind, speed: Int): Long = when (
     ActionType.ROLL -> maxOf(500L / speed, (DiceSprites.FALL_S * 1000 * DiceSprites.HANDOVER).toLong() + 150L)
     else -> 350L / speed
 }
-
-/** How long a zoomed/tilted board waits untouched before gliding back to the full view. */
-private const val RECOVER_AFTER_MS = 6000L
 
 private fun Color.shade(f: Float) = lerp(this, Color.Black, f)
 private fun Color.tint(f: Float) = lerp(this, Color.White, f)
@@ -636,23 +634,9 @@ fun WatchGameScreen(
     // The board fills the screen; controls live in an overlay panel toggled from the corner.
     val players = tick.let { (0 until state.numPlayers).map { PlayerInfo.of(state, it, me) } }
     var camera by remember { mutableStateOf(initialCamera) }
-    var lastTouch by remember { mutableLongStateOf(0L) }
-    // Self-healing view: if the board is left zoomed, panned or tilted with nobody touching it
-    // (e.g. a stray gesture "lost" it), glide back to the full board after a few seconds.
-    // Keyed on touches only: the glide itself changes the camera and must not restart the timer.
-    LaunchedEffect(lastTouch) {
-        if (camera == Camera.FIT) return@LaunchedEffect
-        delay(RECOVER_AFTER_MS)
-        val from = camera
-        val steps = 30
-        for (i in 1..steps) {
-            val t = i / steps.toFloat()
-            val e = 1 - (1 - t) * (1 - t) // ease out
-            camera = Camera(from.zoom + (1f - from.zoom) * e, from.pan * (1 - e), from.tilt * (1 - e))
-            withFrameNanos { }
-        }
-        camera = Camera.FIT
-    }
+    // The view stays where the player puts it (Mauro, 2026-10-10: it used to glide back to the full board
+    // after 6 s untouched). Menu > Fit and a double-tap still reset it; Camera.clamped keeps it on screen.
+    var boardSize by remember { mutableStateOf(Size.Zero) }
     var panelOpen by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
@@ -721,6 +705,7 @@ fun WatchGameScreen(
         val waterLayerKey = remember { arrayOfNulls<WaterLayerKey>(1) }
         Canvas(
             Modifier.fillMaxSize()
+                .onSizeChanged { boardSize = Size(it.width.toFloat(), it.height.toFloat()) }
                 .clipToBounds() // never draw the board under the side panel
                 .pointerInput(Unit) {
                     fun lattice(p: Offset) = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(p)
@@ -747,10 +732,9 @@ fun WatchGameScreen(
                             dragged = null
                         },
                         onTransform = { centroid, pan, zoom ->
-                            lastTouch = System.nanoTime()
                             camera = camera.transform(centroid, pan, zoom, Size(size.width.toFloat(), size.height.toFloat()))
                         },
-                        onTilt = { dy -> lastTouch = System.nanoTime(); camera = camera.tilted(dy, size.height.toFloat()) },
+                        onTilt = { dy -> camera = camera.tilted(dy, size.height.toFloat()) },
                     )
                 }
                 .pointerInput(Unit) {
@@ -761,7 +745,6 @@ fun WatchGameScreen(
                             if (e.type != PointerEventType.Scroll) continue
                             val c = e.changes.firstOrNull() ?: continue
                             val dy = c.scrollDelta.y
-                            lastTouch = System.nanoTime()
                             camera = if (e.keyboardModifiers.isShiftPressed) camera.tilted(-dy * 40f, size.height.toFloat())
                             else camera.transform(c.position, Offset.Zero, if (dy < 0) 1.12f else 1f / 1.12f, Size(size.width.toFloat(), size.height.toFloat()))
                             e.changes.forEach { it.consume() }
@@ -780,7 +763,6 @@ fun WatchGameScreen(
                             !inventory && seaNow.isWater(p) -> seaNow.splash(p)
                         }
                     }, onDoubleTap = { at ->
-                        lastTouch = System.nanoTime()
                         val sz = Size(size.width.toFloat(), size.height.toFloat())
                         camera = if (camera.zoom > 1.05f || camera.tilt > 0.01f) Camera.FIT
                         else camera.transform(at, Offset.Zero, Camera.DOUBLE_TAP_ZOOM / camera.zoom, sz)
@@ -961,6 +943,11 @@ fun WatchGameScreen(
             }
         }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.
+        // Zoom and Tilt bars on the right edge (pinch and two-finger drag do the same).
+        if (!inventory && boardSize.minDimension > 0f) ViewBarsPanel(camera,
+            onZoom = { z -> camera = camera.transform(Offset(boardSize.width / 2f, boardSize.height / 2f), Offset.Zero, z / camera.zoom, boardSize) },
+            onTilt = { t -> camera = camera.copy(tilt = t) },
+            Modifier.align(Alignment.CenterEnd).padding(end = 8.dp))
         if (me >= 0 && !inventory && tick.let { tradeButtonVisible(state) }) TradeToggle(
             open = tradeOpen || tradeNeedsMe(state, me),
             attention = tick.let { tradeNeedsMe(state, me) },
