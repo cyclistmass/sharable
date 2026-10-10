@@ -188,7 +188,9 @@ class MainActivity : ComponentActivity() {
                 val watch = debug && intent.getBooleanExtra("watch", false)
                 // Debug builds: `--ez crash true` crashes on purpose to test the crash reporter.
                 val crashTest = debug && intent.getBooleanExtra("crash", false)
-                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup, watch, crashTest)
+                // Debug builds: `--ei players 3` starts with that many players (you plus bots), like a 3-player setup.
+                val players = if (debug) intent.getIntExtra("players", 0) else 0
+                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup, watch, crashTest, players)
             }
         }
     }
@@ -266,9 +268,14 @@ private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME 
  */
 @Composable
 fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseEmu: Boolean = false, autoplay: Boolean = false, autoSetup: Boolean = false, watch: Boolean = false,
-            crashTest: Boolean = false) {
+            crashTest: Boolean = false, players: Int = 0) {
     var screen by rememberSaveable { mutableStateOf(if (start != null) Screen.GAME else Screen.START) }
-    var setup by remember { mutableStateOf(if (start == "chivalry") GameSetup().withRuleset(Ruleset.CHIVALRY) else GameSetup()) }
+    var setup by remember {
+        val base = if (start == "chivalry") GameSetup().withRuleset(Ruleset.CHIVALRY) else GameSetup()
+        // `--ei players N` (debug): you plus N-1 bots, the other seats empty.
+        mutableStateOf(if (players in 2..GameSetup.MAX_SEATS) base.copy(seats = List(GameSetup.MAX_SEATS) { i ->
+            when { i == 0 -> base.seats[0]; i < players -> SeatSetup(SeatKind.BOT); else -> SeatSetup(SeatKind.EMPTY) } }) else base)
+    }
     var lobby by remember { mutableStateOf<Lobby?>(null) }
     var gameNo by rememberSaveable { mutableIntStateOf(0) }
     val context = LocalContext.current.applicationContext
@@ -478,7 +485,8 @@ fun WatchGameScreen(
     val raiders = ImageBitmap.imageResource(R.drawable.raiders_ship)
     // Retain the list; cover a screen-wide sprite, including inventory and zoom.
     val screen = androidx.compose.ui.platform.LocalConfiguration.current
-    val banditSprites = rememberDiceFrames(BANDIT_SPRITES, maxOf(screen.screenWidthDp, screen.screenHeightDp))
+    // Decoded in the background: until all 8 tilt steps are ready the drawn robber stands in (never a partial set).
+    val banditSprites = rememberDiceFrames(BANDIT_SPRITES, maxOf(screen.screenWidthDp, screen.screenHeightDp)).takeIf { it.size == BANDIT_SPRITES.size }
     // Knight art per theme: index (level - 1) * 2 + (active ? 1 : 0).
     val knightsPirate = KNIGHTS_PIRATE.map { ImageBitmap.imageResource(it) }
     val knightsNormal = KNIGHTS_NORMAL.map { ImageBitmap.imageResource(it) }
@@ -864,7 +872,7 @@ fun WatchGameScreen(
                 drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.UNDER, banditSprites)
                 // Re-record the still board only when something on it can have changed: a move, the
                 // camera, the canvas size or a look setting. Otherwise the last recording is replayed.
-                val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff, viewer, pileOffsets, buildings)
+                val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff, viewer, pileOffsets, buildings, banditSprites != null)
                 if (boardLayerKey[0] != key) {
                     // The explicit-density overload gives the layer its own draw scope; recording through
                     // this Canvas's scope makes the two scopes ask each other for density forever.
@@ -1388,6 +1396,7 @@ private data class BoardLayerKey(
     val game: Int, val tick: Int, val camera: Camera, val size: Size, val tileLine: Boolean,
     val knights: List<ImageBitmap>?, val faces: Map<Int, ImageBitmap>?, val cliff: List<ImageBitmap>?,
     val viewer: Int = 0, val piles: List<Offset> = emptyList(), val buildings: BuildingSprites? = null,
+    val bandit: Boolean = false,
 )
 
 private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null, part: BoardPart = BoardPart.ALL, bandit: List<ImageBitmap>? = null,
@@ -1690,8 +1699,8 @@ private fun DrawScope.drawBandit(sprites: List<ImageBitmap>, at: Offset, hexScal
     val f = pos - a
     fun draw(img: ImageBitmap, alpha: Float) = drawImage(img, IntOffset.Zero, IntSize(img.width, img.height), dst,
         IntSize(side.toInt(), side.toInt()), alpha = alpha, filterQuality = FilterQuality.Medium)
-    draw(sprites[a], 1f)
-    if (f > 0.02f) draw(sprites[b], f)
+    draw(sprites.getOrNull(a) ?: return, 1f)
+    if (f > 0.02f) sprites.getOrNull(b)?.let { draw(it, f) }
 }
 
 private fun DrawScope.drawRobber(c: Offset, scale: Float) {

@@ -134,21 +134,22 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
         val perp = Offset(-dir.y, dir.x)
         drawDie(rest1, slots?.first?.width ?: side, p, start, perp, redTumble, redFace, spin = 1, turns = 1.4f)
         drawDie(rest2, slots?.second?.width ?: side, q, start, perp, ivoryTumble, ivoryFace, spin = 3, turns = -1.6f)
-        if (eventFace != null && eventSlot != null)
+        if (eventSlot != null && showEvent)
             drawDie(eventSlot.center - origin, eventSlot.width, qe, start, -perp, eventTumble, eventFace, spin = 5, turns = 1.2f)
     }
 }
 
 /** One die at animation time [u], flying from [start] to its resting square (drawn as the panel draws it). */
-private fun DrawScope.drawDie(restCenter: Offset, restWidth: Float, u: Float, start: Offset, perp: Offset, tumble: List<ImageBitmap>, face: ImageBitmap,
+private fun DrawScope.drawDie(restCenter: Offset, restWidth: Float, u: Float, start: Offset, perp: Offset, tumble: List<ImageBitmap>, face: ImageBitmap?,
                               spin: Int, turns: Float) {
     val cube = restWidth * DIE_FACE_SHARE                                  // exactly the size Die3d draws it
     val hop = kotlin.math.sin(u.coerceAtMost(DiceSprites.LAND) / DiceSprites.LAND * Math.PI.toFloat())
     val b = DiceSprites.bounce(u)
     val c = start + (restCenter - start) * DiceSprites.fall(u) + perp * (hop * cube * 0.6f) - Offset(0f, b * cube)
     val lift = 1f + 0.35f * hop + 0.3f * b                               // a little bigger in the air: it's up off the table
-    val f = DiceSprites.frame(u, spin, tumble.size)
-    val img = if (f < 0) face else tumble[f]
+    // Frames still decoding in the background: show the face (or nothing yet) rather than index an empty list.
+    val f = if (tumble.isEmpty()) -1 else DiceSprites.frame(u, spin, tumble.size)
+    val img = (if (f < 0) face else tumble.getOrNull(f)) ?: return
     val drawn = cube * lift / (if (f < 0) 1f else DiceSprites.TUMBLE_SHARE)
     rotate(DiceSprites.spin(u, turns), pivot = c) {
         drawImage(img, IntOffset.Zero, IntSize(img.width, img.height),

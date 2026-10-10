@@ -4,7 +4,8 @@
 # WGBG-TURN line's spots=, debug builds), twice (select, then confirm), exactly like a finger; Roll and
 # End turn are tapped by their labels; only moves with no single tap target (discards, card choices, steals)
 # go through the agent hook. Fails on any crash or ANR, or if the human seat gets stuck.
-# Usage: tools/ci_touchplay.sh [seconds per ruleset] [min human moves per ruleset]
+# Covers base and Age of Chivalry with 3 players (how Mauro plays: you + 2 bots) and with 4.
+# Usage: tools/ci_touchplay.sh [seconds per game] [min human moves per game]
 set -uo pipefail
 SECS="${1:-150}"
 MIN_MOVES="${2:-12}"
@@ -25,21 +26,22 @@ tap_text() { # tap the on-screen element whose text is $1; false if it isn't the
 }
 crashed() { [ "$("$ADB" logcat -d -b crash | grep -A8 'FATAL EXCEPTION' | grep -c "$PKG")" != 0 ]; }
 
-for ruleset in base chivalry; do
+for game in base:3 chivalry:3 base:4 chivalry:4; do
+  ruleset=${game%:*}; players=${game#*:}
   "$ADB" shell am force-stop $PKG
   "$ADB" shell pm clear $PKG >/dev/null
   "$ADB" shell cmd connectivity airplane-mode disable >/dev/null 2>&1 || true
   "$ADB" logcat -c; "$ADB" logcat -b crash -c 2>/dev/null || true
-  "$ADB" shell am start -W --activity-clear-task -n $PKG/.MainActivity --es start "$ruleset" >/dev/null
+  "$ADB" shell am start -W --activity-clear-task -n $PKG/.MainActivity --es start "$ruleset" --ei players "$players" >/dev/null
   sleep 4
   moves=0; taps=0; hooks=0; last=""; same=0; start=$(date +%s)
   while [ $(( $(date +%s) - start )) -lt "$SECS" ]; do
-    if crashed; then echo "touchplay $ruleset: CRASH after $moves moves"; fail=1; break; fi
+    if crashed; then echo "touchplay $ruleset/${players}p: CRASH after $moves moves"; fail=1; break; fi
     line=$("$ADB" logcat -d -s WGBG-TURN:I | tail -1)
     if [ -z "$line" ] || [ "$line" = "$last" ]; then
       same=$((same + 1))
       # The bots are playing, or a move is animating; a human prompt that never changes means we're stuck.
-      [ "$same" -gt 60 ] && { echo "touchplay $ruleset: stuck at: ${line:0:160}"; fail=1; break; }
+      [ "$same" -gt 60 ] && { echo "touchplay $ruleset/${players}p: stuck at: ${line:0:160}"; fail=1; break; }
       sleep 1; continue
     fi
     same=0; last="$line"
@@ -60,9 +62,9 @@ for ruleset in base chivalry; do
   done
   anr=$("$ADB" logcat -d | grep -c "ANR in $PKG" || true)
   alive=$("$ADB" shell pidof $PKG | tr -d '\r')
-  echo "touchplay $ruleset: $moves human moves ($taps by touch, $hooks by hook) in ${SECS}s, anr=$anr pid=${alive:-none}"
+  echo "touchplay $ruleset/${players}p: $moves human moves ($taps by touch, $hooks by hook) in ${SECS}s, anr=$anr pid=${alive:-none}"
   if crashed || [ "$anr" != 0 ] || [ -z "$alive" ] || [ "$moves" -lt "$MIN_MOVES" ]; then
-    echo "TOUCHPLAY FAILED in $ruleset"
+    echo "TOUCHPLAY FAILED in $ruleset with $players players"
     "$ADB" logcat -d -b crash | grep -A30 "FATAL EXCEPTION" | head -45
     fail=1
   fi
