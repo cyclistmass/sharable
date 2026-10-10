@@ -1,42 +1,68 @@
 # Credits
 
-## Art
+Working German Board Game is GPL-3.0 (see `LICENSE`). Everything below is either ours (made by or for
+Mauro DiBenedetto) or used under the licence named. Art files are in `app/src/main/res/drawable-nodpi/`
+unless another path is given.
 
-- Wood grain on the player pieces and tokens (`app/src/main/res/drawable-nodpi/wood_grain.png`):
-  "Wood049" from ambientCG (https://ambientcg.com/view?id=Wood049), CC0 1.0 Universal (public domain).
-  Converted to grayscale and stained per player at runtime.
+## Art: textures (ambientCG, CC0)
 
-All other graphics are drawn procedurally in code.
-- Old brass on the lobby and game-start screens (`app/src/main/res/drawable-nodpi/old_brass.jpg`, the
-  1K color map scaled to 512 px): "Metal042B" from ambientCG
-  (https://ambientcg.com/view?id=Metal042B), CC0 1.0 Universal (public domain).
-- Illustrated resource cards (`app/src/main/res/drawable-nodpi/card_*.webp`): made by Mauro
-  DiBenedetto with ChatGPT image generation, retitled with our names (Timber, Clay, Fleece,
-  Grain, Stone) using Georgia Bold.
+- Wood grain on the player pieces, tokens and panels (`wood_grain.png`): "Wood049" from ambientCG
+  (https://ambientcg.com/view?id=Wood049), CC0 1.0 Universal (public domain). Converted to grayscale and
+  stained per player at runtime.
+- Old brass on panel edges and buttons (`old_brass.jpg`, the 1K colour map scaled to 512 px): "Metal042B"
+  from ambientCG (https://ambientcg.com/view?id=Metal042B), CC0 1.0 Universal (public domain).
+
+## Art: made by Mauro DiBenedetto with ChatGPT image generation
+
+- Illustrated resource cards (`card_timber`, `card_clay`, `card_fleece`, `card_grain`, `card_stone`),
+  retitled with our names using Georgia Bold.
+- Painted ocean tile (`ocean_tile.webp`): seamless top-down ocean texture.
+- Painted hex tiles (`tile_*.webp`, framed and unframed), normalised to a standard pointy-top hex.
+- Settings gear and reset arrow icons (`settings_gear*`, `reset_arrow*`).
+- Knight tokens, Pirate themed (`knight_pirate_*`).
+
+## Art: generated with OpenAI Codex for Mauro DiBenedetto
+
+- Knight tokens, Normal (`knight_normal_*`), matched to the pirate set.
+- Raiders ship (`raiders_ship.webp`) and knight cards (`card_knight_*`).
+- Gulls and player sloops (`gull_*`, `boat_*`).
+- Top-down cliff strips (`cliff_top_*`).
+- Brass button plates and road brick texture (`btn_*`, `road_bricks.png`).
+- Dice, Normal and Pirate sets, faces and tumbling frames (`dice_n*`, `dice_p*`, `dice_tumble_*`), with the
+  Antique and Pirate event dice. The pirate event die style options (`dice_pe1_*` Brass-engraved,
+  `dice_pe2_*` Ship-timber, `dice_pe3_*` Brass cage, and their tumbles) are from the same source, imported at
+  −25% saturation by `tools/import_event_dice.py`.
+- Bandit "skeleton corsair" (`bandit_tilt_0..7`): a 3D model rendered in Blender, 8 tilt steps.
+- Tile candidates for Menu › Tiles: compare (`tile3d_v2_*`, `tile_a1_relief_*`): 3D renders and relief faces,
+  for picking only, not on the board yet.
 
 ## Fonts
 
 - Alegreya SC and Alegreya Sans (`app/src/main/res/font/alegreya_*.ttf`), by Huerta Tipográfica
-  (https://github.com/huertatipografica/Alegreya, .../Alegreya-Sans), SIL Open Font License 1.1.
-  Titles and text on the game-start and lobby screens. License texts: `docs/licenses/OFL-Alegreya*.txt`.
+  (https://github.com/huertatipografica/Alegreya, https://github.com/huertatipografica/Alegreya-Sans),
+  SIL Open Font License 1.1. Licence texts: `docs/licenses/OFL-Alegreya*.txt`.
+
+## Sound
+
+- Trade chime (`app/src/main/res/raw/trade_chime.wav`): our own, synthesised in Python (two decaying bell
+  tones, E6 and B6), 2026-10-09.
 
 ## Libraries
 
+- Kotlin standard library (JetBrains), Apache License 2.0.
+- Jetpack Compose, AndroidX Activity, AndroidX ProfileInstaller and AndroidX Test (Google / Android Open
+  Source Project), Apache License 2.0.
+- Firebase Android SDK: Authentication and Cloud Firestore (Google), Apache License 2.0.
 - ZXing core (https://github.com/zxing/zxing), Apache License 2.0: draws the lobby's invite QR code.
-- Painted ocean tile (`res/drawable-nodpi/ocean_tile.webp`): made by Mauro DiBenedetto with ChatGPT
-  image generation (seamless top-down ocean texture).
-- Settings gear icon (`res/drawable-nodpi/settings_gear*.webp`): made by Mauro DiBenedetto with ChatGPT.
-- Painted hex tiles (`res/drawable-nodpi/tile_*.webp`): made by Mauro DiBenedetto with ChatGPT, normalised to a
-  standard pointy-top hex.
-- Reset arrow icon (`res/drawable-nodpi/reset_arrow*.webp`): made by Mauro DiBenedetto with ChatGPT.
-- Cliff strip (`res/drawable-nodpi/cliff_straight.webp`): made by Mauro DiBenedetto with ChatGPT; fringe cleaned.
-- Knight tokens, Pirate themed (`knight_pirate_*`): made by Mauro DiBenedetto with ChatGPT.
-- Knight tokens, Normal (`knight_normal_*`): generated with OpenAI Codex image generation for Mauro, matched to the pirate set.
-- Raiders ship (`raiders_ship.webp`) and knight cards (`card_knight_*`): generated with OpenAI Codex image generation for Mauro.
-- Gulls and player sloops (`gull_*`, `boat_*`): generated with OpenAI Codex image generation for Mauro (via Pip).
-- Frameless tiles and top-down cliff strips (`tile_*`, `cliff_top_*`): generated with OpenAI Codex for Mauro (via Pip).
-- Brass button plates and road brick texture (`btn_*`, `road_bricks.png`): generated with OpenAI Codex for Mauro.
-- Hand-made dice, Normal and Pirate sets (`dice_n*`, `dice_p*`): generated with OpenAI Codex for Mauro (via mauro-7a); the 16 tumbling renders thrown across the screen (`dice_tumble_*`) too. The pirate event die style options (`dice_pe1_*` Brass-engraved, `dice_pe2_*` Ship-timber, `dice_pe3_*` Brass cage, and their tumbles) are from the same source, imported at -25% saturation by `tools/import_event_dice.py`.
-- Trade chime (`res/raw/trade_chime.wav`): our own, synthesised in Python (two decaying bell tones, E6 and B6), 2026-10-09.
-- Bandit V1 "skeleton corsair" (`bandit_tilt_0..7`): a 3D model rendered by OpenAI Codex in Blender for Mauro (via mauro-7a), 8 tilt steps; codex/tiles3d b01ccbb.
-- Tile candidates for Tiles: compare (`tile3d_v2_*`, `tile_a1_relief_*`): Codex 3D renders and relief faces for Mauro (via mauro-7a), wgbg/codex-tiles3d; for picking only, not on the board yet.
+- JUnit 5 (https://junit.org), Eclipse Public License 2.0: tests only, not shipped in the app.
+- Gradle wrapper (`gradle/wrapper/`), Apache License 2.0: build tooling.
+- Firestore rules tests (`firebase/rules-test/`) use `@firebase/rules-unit-testing` and the Firebase JS SDK
+  via npm (Apache License 2.0) with Node's built-in test runner; not shipped in the app.
+
+## References
+
+- Catanatron (https://github.com/bcollazo/catanatron), GPL-3.0: we cross-check our rules against it and map
+  its actions to ours (`engine/CATANATRON_MAPPING.md`) so bots trained there can play here. No Catanatron
+  code is copied into this project.
+- Game rules are compatible with the classic German settlement-building game and its knights expansion.
+  Not affiliated with or endorsed by Catan GmbH; all names, card text and art here are our own.

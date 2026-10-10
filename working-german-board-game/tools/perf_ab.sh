@@ -8,7 +8,7 @@ if [[ $# != 2 || ! -f "$1" || ! -f "$2" ]]; then
 fi
 command -v adb >/dev/null
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-out="${PERF_OUT:-$PWD/perf-results/$(date +%Y%m%d-%H%M%S)}"
+out="${PERF_OUT:-$PWD/.claude/notes/perf/results/$(date +%Y%m%d-%H%M%S)}"
 mkdir -p -- "$out"
 printf 'variant,run,total_frames,janky_frames,janky_percent,p50_ms,p90_ms,p95_ms,slow_ui_thread,framestats_count,framestats_p95_ms,framestats_p99_ms\n' > "$out/summary.csv"
 apk_a=$1
