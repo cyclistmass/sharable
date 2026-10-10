@@ -1,5 +1,7 @@
 package com.mauro.wgbg
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -89,19 +91,46 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
     }
 }
 
-/** Your hand along the bottom edge (no frame): the illustrated cards you hold, each with its count. */
+/** Age of Chivalry deck colours by track: Guilds gold (trade), Crown blue (politics), Academy green (science). */
+internal val TRACK_COLORS = listOf(Color(0xFFE0B23A), Color(0xFF3F7FD6), Color(0xFF4CAF50))
+
+/**
+ * Your hand along the bottom edge (no frame): the illustrated cards you hold, each with its count; in Age of
+ * Chivalry also your commodities and your progress cards (named, edged in their deck's colour) (#4).
+ */
 @Composable
 fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) {
     version // see PlayerStrip
-    Row(modifier.testTag("hand-row"), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+    @Composable
+    fun count(n: Int) = Text("$n", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(2.dp).background(Color(0xE62A1B10), CircleShape).border(1.dp, Color(0xFFC9A04A), CircleShape).padding(horizontal = 6.dp))
+    @Composable
+    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int) = Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.testTag(tag)) {
+        Box(Modifier.size(width = w.dp, height = h.dp).background(Color(0xFFEFE3C8), RoundedCornerShape(5.dp)).border(2.dp, edge, RoundedCornerShape(5.dp)).padding(3.dp),
+            contentAlignment = Alignment.Center) {
+            Text(name, color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold, lineHeight = 9.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+        if (n > 1) count(n)
+    }
+    Row(modifier.testTag("hand-row").horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
         for (r in 0 until CARD_TYPES) {
             val n = s.hand(me, r)
             if (n == 0) continue
             Box(contentAlignment = Alignment.TopEnd) {
                 Image(painterResource(CARD_ART[r]), RESOURCE_NAMES[r], Modifier.size(width = 50.dp, height = 70.dp))
-                Text("$n", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(2.dp).background(Color(0xE62A1B10), CircleShape).border(1.dp, Color(0xFFC9A04A), CircleShape).padding(horizontal = 6.dp))
+                count(n)
             }
+        }
+        val ck = s.ck ?: return@Row
+        // Commodities: Parchment (Academy), Weave (Guilds), Silver (Crown), until their card art lands.
+        val commodityTrack = listOf(wgbg.engine.Track.SCIENCE, wgbg.engine.Track.TRADE, wgbg.engine.Track.POLITICS)
+        for (c in 0 until wgbg.engine.Commodity.COUNT) {
+            val n = s.card(me, CARD_TYPES + c)
+            if (n > 0) namedCard(ALL_CARD_NAMES[CARD_TYPES + c], TRACK_COLORS[commodityTrack[c]], n, "hand-commodity-$c", 50, 70)
+        }
+        for (c in 0 until wgbg.engine.Progress.COUNT) {
+            val n = ck.progressHand[me * wgbg.engine.Progress.COUNT + c]
+            if (n > 0) namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 44, 62)
         }
     }
 }
