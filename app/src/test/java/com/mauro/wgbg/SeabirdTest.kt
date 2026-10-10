@@ -29,4 +29,75 @@ class SeabirdTest {
         val b = Seabird(3, 5f)
         repeat(60 * 30) { b.update(1 / 60f); assertTrue(kotlin.math.abs(b.hinge()) <= 0.56f) }
     }
+
+    @Test
+    fun `paths are slow curves - heading never turns faster than the limit`() {
+        val dt = 1 / 60f
+        for (seed in 0 until 8) {
+            val b = Seabird(seed, 4f)
+            var last = b.heading
+            repeat(60 * 90) {
+                b.update(dt)
+                var d = b.heading - last
+                while (d > Math.PI) d -= (2 * Math.PI).toFloat()
+                while (d < -Math.PI) d += (2 * Math.PI).toFloat()
+                assertTrue(kotlin.math.abs(d) <= Seabird.MAX_TURN * dt + 1e-4f, "turned $d in one frame")
+                assertTrue(kotlin.math.abs(b.bank) <= 0.6f + 1e-4f)
+                last = b.heading
+            }
+        }
+    }
+
+    @Test
+    fun `cruising birds stay near their home ring`() {
+        for (seed in 0 until 8) {
+            val b = Seabird(seed, 4f)
+            repeat(60 * 120) {
+                b.update(1 / 60f)
+                val r = kotlin.math.hypot(b.x, b.y)
+                assertTrue(r in 2.6f..5.6f, "bird $seed wandered to r=$r")
+            }
+        }
+    }
+
+    @Test
+    fun `some birds go and circle a nearby boat, then come back`() {
+        // A boat parked on each bird's ring: every bird should circle it at some point and loop close around it.
+        var circled = 0
+        for (seed in 0 until 8) {
+            val b = Seabird(seed, 4f)
+            val boat = floatArrayOf(4f, 0f, -4f, 0f)
+            var near = 0; var wasCircling = false; var leftAgain = false
+            repeat(60 * 180) {
+                b.update(1 / 60f, boat)
+                if (b.circling >= 0) {
+                    wasCircling = true
+                    val bx = boat[2 * b.circling]; val by = boat[2 * b.circling + 1]
+                    if (kotlin.math.hypot(b.x - bx, b.y - by) < Seabird.CIRCLE_R * 2f) near++
+                } else if (wasCircling) leftAgain = true
+            }
+            if (wasCircling && near > 60 * 5 && leftAgain) circled++
+        }
+        assertTrue(circled >= 6, "only $circled of 8 birds circled a boat and returned")
+    }
+
+    @Test
+    fun `no boats or boats removed mid-circle never crash`() {
+        val b = Seabird(1, 4f)
+        val boats = floatArrayOf(4f, 0f, -4f, 0f)
+        repeat(60 * 60) { b.update(1 / 60f, boats) }
+        repeat(60 * 60) { b.update(1 / 60f, boats, 0); assertTrue(b.circling == -1) }
+        repeat(60) { b.update(0f) }
+        assertTrue(b.x.isFinite() && b.y.isFinite() && b.heading.isFinite())
+    }
+
+    @Test
+    fun `flap frames cover the whole strip at any frame count`() {
+        for (frames in listOf(8, 16)) {
+            val b = Seabird(2, 4f)
+            val seen = HashSet<Int>()
+            repeat(60 * 60) { b.update(1 / 120f); val f = b.flapFrame(frames); if (f >= 0) { assertTrue(f < frames); seen += f } }
+            assertTrue(seen.size == frames, "saw ${seen.size} of $frames frames")
+        }
+    }
 }

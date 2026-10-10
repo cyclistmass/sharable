@@ -11,15 +11,14 @@ import kotlin.math.sin
 /**
  * A small pale seabird seen from above, with articulated wings: each wing hinges at its shoulder,
  * flapping in short bursts (about a quarter of the time) and otherwise gliding with small flexes.
- * Its path curves gently around the island; flap rate, phase, size and speed differ per bird.
+ * Its path curves gently around the island, now and then looping around a passing boat; flap rate, phase, size and speed differ per bird.
  */
 class Seabird(seed: Int, private val ringR: Float) {
     private val rnd = java.util.Random(seed * 7919L + 11)
     private val id = seed
-    /** Angle around the island, turn direction, speed (rad/s) and how far its circle wobbles. */
-    private var a = rnd.nextFloat() * 2 * PI.toFloat()
+    /** Turn direction, flight speed (lattice units/s) and how far its home ring wobbles. */
     private val dir = if (rnd.nextBoolean()) 1f else -1f
-    private val speed = 0.035f + rnd.nextFloat() * 0.03f
+    private val speed = 0.16f + rnd.nextFloat() * 0.12f
     private val wobble = 0.35f + rnd.nextFloat() * 0.5f
     private val wobbleRate = 0.15f + rnd.nextFloat() * 0.15f
     val scale = 0.85f + rnd.nextFloat() * 0.35f
@@ -28,6 +27,11 @@ class Seabird(seed: Int, private val ringR: Float) {
     private val burstLen = 0.24f                                 // share of the cycle spent flapping
     private val phase = rnd.nextFloat() * 10f
     private var t = 0f
+    /** Seconds until the bird next looks for a boat to circle, and how long the current circling lasts. */
+    private var nextCircle = 8f + rnd.nextFloat() * 30f
+    private var circleLeft = 0f
+    /** Index of the boat being circled, or -1 while cruising its home ring. */
+    var circling = -1; private set
 
     var x = 0f; private set
     var y = 0f; private set
@@ -35,21 +39,62 @@ class Seabird(seed: Int, private val ringR: Float) {
     var heading = 0f; private set
     var bank = 0f; private set
 
-    fun update(dt: Float) {
+    init {
+        val a = rnd.nextFloat() * 2 * PI.toFloat()
+        x = cos(a) * ringR; y = sin(a) * ringR
+        heading = a + dir * PI.toFloat() / 2
+    }
+
+    /**
+     * Flies one step: the bird steers toward a point a little ahead on its home ring (or, now and then,
+     * around a nearby boat from [boats], given as x, y pairs), turning at most [MAX_TURN] rad/s so its
+     * path is always a slow curve, never a corner.
+     */
+    fun update(dt: Float, boats: FloatArray = NO_BOATS, nBoats: Int = boats.size / 2) {
         t += dt
-        a += dir * speed * dt
-        val r = ringR + wobble * sin(t * wobbleRate + phase)
-        val nx = cos(a) * r; val ny = sin(a) * r
-        if (x != 0f || y != 0f) heading = kotlin.math.atan2(ny - y, nx - x)
-        bank = (dir * 0.5f + 0.5f * sin(t * wobbleRate + phase)).coerceIn(-1f, 1f) * 0.6f
-        x = nx; y = ny
+        if (circling >= nBoats) circling = -1
+        if (circling >= 0) {
+            circleLeft -= dt
+            if (circleLeft <= 0f) { circling = -1; nextCircle = 20f + rnd.nextFloat() * 40f }
+        } else {
+            nextCircle -= dt
+            if (nextCircle <= 0f) {
+                var best = -1; var bestD = CIRCLE_REACH
+                for (i in 0 until nBoats) {
+                    val d = kotlin.math.hypot(boats[2 * i] - x, boats[2 * i + 1] - y)
+                    if (d < bestD) { bestD = d; best = i }
+                }
+                if (best >= 0) { circling = best; circleLeft = 10f + rnd.nextFloat() * 12f }
+                else nextCircle = 6f + rnd.nextFloat() * 10f
+            }
+        }
+        val gx: Float; val gy: Float
+        if (circling >= 0) {
+            val bx = boats[2 * circling]; val by = boats[2 * circling + 1]
+            val around = kotlin.math.atan2(y - by, x - bx) + dir * LEAD
+            gx = bx + cos(around) * CIRCLE_R; gy = by + sin(around) * CIRCLE_R
+        } else {
+            val around = kotlin.math.atan2(y, x) + dir * LEAD
+            val r = ringR + wobble * sin(t * wobbleRate + phase)
+            gx = cos(around) * r; gy = sin(around) * r
+        }
+        var turn = kotlin.math.atan2(gy - y, gx - x) - heading
+        while (turn > PI) turn -= 2 * PI.toFloat()
+        while (turn < -PI) turn += 2 * PI.toFloat()
+        val step = turn.coerceIn(-MAX_TURN * dt, MAX_TURN * dt)
+        heading += step
+        if (heading > PI) heading -= 2 * PI.toFloat() else if (heading < -PI) heading += 2 * PI.toFloat()
+        // Bank into the turn, eased so it doesn't snap.
+        val want = if (dt > 0f) (step / dt / MAX_TURN).coerceIn(-1f, 1f) * 0.6f else bank
+        bank += (want - bank) * (1f - kotlin.math.exp(-3f * dt))
+        x += cos(heading) * speed * dt; y += sin(heading) * speed * dt
     }
 
     /** True while the bird is in a flapping burst (the rest of the time it glides). */
     val flapping get() = ((t + phase) % burstCycle) / burstCycle < burstLen
 
-    /** Frame of the 8-frame flap strip (10 fps) while flapping, or -1 while gliding. */
-    fun flapFrame(): Int = if (flapping) (((t + phase) * 10f).toInt() % 8 + 8) % 8 else -1
+    /** Frame of a [frames]-frame flap strip while flapping (one stroke cycle per 0.8 s whatever the count), or -1 while gliding. */
+    fun flapFrame(frames: Int = 8): Int = if (flapping) (((t + phase) * frames * 1.25f).toInt() % frames + frames) % frames else -1
 
     /** Wing hinge angle (radians, + = up) for this moment: a full stroke while flapping, a slight flex while gliding. */
     fun hinge(): Float = if (flapping) 0.55f * sin(2 * PI.toFloat() * flapHz * (t + phase)) else 0.06f * sin(0.9f * t + phase)
@@ -59,6 +104,14 @@ class Seabird(seed: Int, private val ringR: Float) {
         private val WING = Color(0xFFE6EBF0)
         private val SHADE = Color(0xFFB9C3CD)
         private val TIP = Color(0xFF8C97A3)
+        /** Fastest turn (rad/s): keeps every path a gentle curve. */
+        const val MAX_TURN = 0.7f
+        /** How far ahead (radians around the ring or boat) the bird aims. */
+        private const val LEAD = 0.6f
+        /** Radius of the loop around a boat, and how near a boat must be for a bird to go and circle it. */
+        const val CIRCLE_R = 0.55f
+        const val CIRCLE_REACH = 2.5f
+        private val NO_BOATS = FloatArray(0)
     }
 
     /**
