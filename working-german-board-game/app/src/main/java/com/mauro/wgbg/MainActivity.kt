@@ -451,6 +451,7 @@ fun WatchGameScreen(
     var speed by remember { mutableIntStateOf(if (human) 2 else MAX_SPEED) }
     val wins = remember { mutableStateListOf(0, 0, 0, 0, 0) } // per seat, last slot = draws
     var inventory by remember { mutableStateOf(false) }
+    var compareTiles by remember { mutableStateOf(false) }
     // Scenery settings (density and motion), kept across restarts; the sea reads them once it supports them.
     val appContext = LocalContext.current.applicationContext
     val env = remember { EnvSettings(PrefsStore(appContext)) }
@@ -784,7 +785,7 @@ fun WatchGameScreen(
         ) {
             tick // redraw on every move
             if (!inventory) seaTick // and on every sea frame (the Inventory screen holds still)
-            if (inventory) drawInventory(measurer, wood, banditSprites) else {
+            if (inventory) drawInventory(measurer, wood, banditSprites, tileFaces, tileLine) else {
                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
                 val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
                 val layerSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt())
@@ -904,6 +905,7 @@ fun WatchGameScreen(
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     WoodButton(if (inventory) "Back to game" else "Inventory", "menu-inventory") { inventory = !inventory }
+                    WoodButton("Tiles: compare", "menu-tile-compare") { compareTiles = true; panelOpen = false }
                     WoodButton("Fit", "menu-fit") { camera = Camera.FIT }
                     if (online == null) WoodButton(if (diceSetting == 0) "Dice: random" else "Dice: ${36 * diceSetting} deck · ${(dice as? DiceDeck)?.remaining ?: ""}", "menu-dice") {
                         diceSetting = (diceSetting + 1) % 5
@@ -922,6 +924,7 @@ fun WatchGameScreen(
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 14.dp, end = 120.dp).background(Color(0xCC2A1B10), RoundedCornerShape(8.dp))
                 .padding(horizontal = 8.dp, vertical = 3.dp).testTag("debug-badge"))
         BrassButton(if (panelOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) { panelOpen = !panelOpen }
+        if (compareTiles) { BackHandler { compareTiles = false }; TileCompare(onBack = { compareTiles = false }) }
         // Settings open from the gear inside the Menu, so the board stays clean.
         if (settingsOpen) SettingsPanel(env, sound, onClose = { settingsOpen = false },
             Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp))
@@ -1501,7 +1504,8 @@ private fun DrawScope.drawRobber(c: Offset, scale: Float) {
 }
 
 /** Every game object side by side, for eyeballing the art. */
-private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, bandit: List<ImageBitmap>? = null) {
+private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, bandit: List<ImageBitmap>? = null,
+                                    faces: Map<Int, ImageBitmap>? = null, tileLine: Boolean = false) {
     if (size.minDimension < 2f) return
     val scale = min(size.width / 13.5f, size.height / 9.6f)
     fun label(text: String, at: Offset) {
@@ -1514,7 +1518,8 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
     val names = listOf("Forest", "Hills", "Pasture", "Fields", "Mountains", "Desert")
     terrains.forEachIndexed { i, (res, n) ->
         val c = Offset(left + i * 2.05f * scale, 1.25f * scale)
-        drawTile(res, n, i, c, scale, measurer, wood)
+        // The same faces and edge setting as the board (it showed the old procedural art before).
+        drawTile(res, n, i, c, scale, measurer, wood, face = faces?.get(res), line = tileLine)
         label(names[i], c + Offset(0f, 1.2f * scale))
     }
     // Row 2: port tokens and the robber.
