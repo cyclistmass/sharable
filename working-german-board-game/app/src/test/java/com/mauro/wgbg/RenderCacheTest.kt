@@ -70,7 +70,9 @@ class RenderCacheTest {
         val elapsed = System.nanoTime() - start
         val bytes = bean.getThreadAllocatedBytes(thread) - before
         println("RENDER_CACHE_BENCH calls=1000000 nsPerPair=${elapsed / 1_000_000.0} allocatedBytes=$bytes")
-        assertEquals(0L, bytes, "Warmed hits must not allocate; this does not measure Android drawing")
+        // A real per-call allocation would be at least 16 MB over a million calls; a few KB is the JVM itself
+        // (JIT or safepoint bookkeeping on a busy CI runner), which made an exact-zero check flaky.
+        assertTrue(bytes < 64 * 1024, "Warmed hits must not allocate per call ($bytes bytes over 1M calls); this does not measure Android drawing")
         assertSame(a, cache.get(512)); assertSame(b, cache.get(1024))
     }
 }
