@@ -49,7 +49,9 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             /** False while thrown dice are still in the air (the resting dice appear when they land). */
             showDice: Boolean = true,
             /** Dice set: false = Normal (carved red + ivory), true = Pirate (ship-timber + bone, dark brass pips). */
-            pirate: Boolean = false) {
+            pirate: Boolean = false,
+            /** Settings > Event die: which pirate event die art (DiceArt.EVENT_STYLES). */
+            eventStyle: Int = 0) {
     if (report == null) return
     // Fixed size, so the dice always sit in the same spot; longer turns scroll inside.
     Column(
@@ -65,7 +67,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
                 var r1 by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
                 Die3d(report.die1, red = true, pirate = pirate, pad = color, visible = showDice && report.rolled, modifier = Modifier.onGloballyPositioned { r1 = it.boundsInRoot() })
                 Die3d(report.die2, red = false, pirate = pirate, pad = color, visible = showDice && report.rolled, modifier = Modifier.onGloballyPositioned { c -> r1?.let { a -> onDiceSlots?.invoke(a, c.boundsInRoot()) } })
-                if (eventDie) EventDie3d(report.event, pirate = pirate, pad = color, visible = showDice && report.rolled && report.event >= 0,
+                if (eventDie) EventDie3d(report.event, pirate = pirate, style = eventStyle, pad = color, visible = showDice && report.rolled && report.event >= 0,
                     modifier = Modifier.onGloballyPositioned { onEventSlot?.invoke(it.boundsInRoot()) })
                 if (report.rolled && showDice) Text("= ${report.die1 + report.die2}", color = HUD_TEXT, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
@@ -155,8 +157,8 @@ private fun Die3d(value: Int, red: Boolean, pirate: Boolean, pad: Color, visible
 
 /** The Age of Chivalry event die resting on its pad: the Raiders' ship or a gate (Guilds, Academy, Crown). */
 @Composable
-private fun EventDie3d(face: Int, pirate: Boolean, pad: Color, visible: Boolean, modifier: Modifier = Modifier) {
-    val img = if (visible) rememberDiceBitmap(DiceArt.eventFace(pirate, face.coerceAtLeast(0)), DIE_DP) else null
+private fun EventDie3d(face: Int, pirate: Boolean, style: Int, pad: Color, visible: Boolean, modifier: Modifier = Modifier) {
+    val img = if (visible) rememberDiceBitmap(DiceArt.eventFace(pirate, face.coerceAtLeast(0), style), DIE_DP) else null
     Canvas(modifier.size(DIE_DP.dp)) {
         val side = size.width * DIE_FACE_SHARE
         val halo = DIE_HALO_DP.dp.toPx()

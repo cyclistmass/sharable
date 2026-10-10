@@ -79,6 +79,8 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
                 slots: Pair<Rect, Rect>? = null,
                 /** Settings > Theme: the Pirate dice instead of the Normal ones. */
                 pirate: Boolean = false,
+                /** Settings > Event die: which pirate event die art (DiceArt.EVENT_STYLES). */
+                eventStyle: Int = 0,
                 /** Age of Chivalry: the event die's face (-1 = none) and the pad it lands on (root coordinates). */
                 event: Int = -1,
                 eventSlot: Rect? = null,
@@ -109,8 +111,8 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
     val redFace = rememberDiceBitmap(diceFace(red = true, pirate, die1), artDp)
     val ivoryFace = rememberDiceBitmap(diceFace(red = false, pirate, die2), artDp)
     val showEvent = event >= 0 && eventSlot != null
-    val eventTumble = if (showEvent) rememberDiceFrames(DiceArt.eventTumble(pirate), artDp) else emptyList()
-    val eventFace = if (showEvent) rememberDiceBitmap(DiceArt.eventFace(pirate, event), artDp) else null
+    val eventTumble = if (showEvent) rememberDiceFrames(DiceArt.eventTumble(pirate, eventStyle), artDp) else emptyList()
+    val eventFace = if (showEvent) rememberDiceBitmap(DiceArt.eventFace(pirate, event, eventStyle), artDp) else null
 
     // Where this roll is thrown from: a direction and distance picked from the roll itself (same roll, same throw).
     val rnd = remember(rollKey) { java.util.Random(rollKey.hashCode().toLong() * 7919L + 17) }

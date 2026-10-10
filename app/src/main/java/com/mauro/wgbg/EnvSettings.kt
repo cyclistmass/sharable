@@ -5,6 +5,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.draw.rotate
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.animation.core.animateFloatAsState
@@ -80,8 +81,15 @@ class EnvSettings(private val store: FloatStore) {
         get() = TileEdge.entries.getOrElse(edge.floatValue.toInt()) { TileEdge.THIN }
         set(v) { edge.floatValue = v.ordinal.toFloat(); store.put(EDGE, edge.floatValue) }
 
+    private val eventDie = mutableFloatStateOf(store.get(EVENT_DIE, 0f))
+
+    /** Pirate event die art, an index into DiceArt.EVENT_STYLES (Mauro: all four as options). Saved. */
+    var eventDieStyle: Int
+        get() = eventDie.floatValue.toInt().coerceIn(0, DiceArt.EVENT_STYLES.size - 1)
+        set(v) { eventDie.floatValue = v.coerceIn(0, DiceArt.EVENT_STYLES.size - 1).toFloat(); store.put(EVENT_DIE, eventDie.floatValue) }
+
     /** Back to the defaults (saved). */
-    fun reset() { for (i in Item.entries) this[i] = DEFAULT; pirateTheme = false; tileEdge = TileEdge.THIN }
+    fun reset() { for (i in Item.entries) this[i] = DEFAULT; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0 }
 
     val clouds get() = this[Item.CLOUDS]
     val birds get() = this[Item.BIRDS]
@@ -92,6 +100,7 @@ class EnvSettings(private val store: FloatStore) {
         const val DEFAULT = 0.5f
         const val THEME = "theme-pirate"
         const val EDGE = "tile-edge"
+        const val EVENT_DIE = "event-die-style"
     }
 }
 
@@ -101,7 +110,9 @@ class EnvSettings(private val store: FloatStore) {
  */
 @Composable
 fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.width(360.dp).brassEdgedWood().padding(16.dp).testTag("settings-panel"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    // Scrolls when the screen is too short for every setting (landscape phones).
+    Column(modifier.width(360.dp).brassEdgedWood().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp).testTag("settings-panel"),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Settings", fontSize = 18.sp, color = Color(0xFFF1D58A), modifier = Modifier.weight(1f))
             ResetButton { env.reset(); sound.reset() }
@@ -114,6 +125,17 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("Normal", selected = !env.pirateTheme, tag = "theme-normal", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.pirateTheme = false }
             Choice("Pirate themed", selected = env.pirateTheme, tag = "theme-pirate", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.pirateTheme = true }
+        }
+        Text("Event die (Pirate theme)", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (pair in DiceArt.EVENT_STYLES.indices.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (i in pair) Choice(DiceArt.EVENT_STYLES[i], selected = env.eventDieStyle == i, tag = "event-die-$i",
+                        modifier = Modifier.height(36.dp).width(122.dp), size = 12.sp) { env.eventDieStyle = i; env.pirateTheme = true }
+                }
+            }
+            // A preview of the chosen style's ship face.
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(DiceArt.eventFace(true, 0, env.eventDieStyle)), null, Modifier.size(56.dp))
         }
         Text("Tile edges", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
