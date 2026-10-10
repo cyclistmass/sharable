@@ -15,6 +15,7 @@ object Rules {
         val b = board ?: when (config.layout) {
             BoardLayout.RANDOM -> BoardGen.random(rng, config.avoidAdjacentRedNumbers)
             BoardLayout.BEGINNER -> BoardGen.beginner()
+            BoardLayout.SPIRAL -> BoardGen.spiral(rng)
         }
         return GameState.initial(config, b, rng)
     }
@@ -346,6 +347,7 @@ object Rules {
                     val r = randomCard(s, victim)
                     s.hands[victim * CARD_TYPES + r]--
                     s.hands[p * CARD_TYPES + r]++
+                    s.unseenSteals[p * s.numPlayers + victim]++
                 }
                 s.phase = Phase.PLAY_TURN
             }

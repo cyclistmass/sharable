@@ -605,7 +605,10 @@ object CitiesAndKnights {
             ActionType.MOVE_ROBBER -> {
                 s.robberHex = a.robberHex
                 val victim = a.robberVictim
-                if (victim >= 0) transfer(s, victim, p, randomCard(s, victim), 1)
+                if (victim >= 0) {
+                    transfer(s, victim, p, randomCard(s, victim), 1)
+                    s.unseenSteals[p * s.numPlayers + victim]++
+                }
                 resume(s)
             }
 
