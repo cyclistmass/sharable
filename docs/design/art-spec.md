@@ -30,7 +30,7 @@ from any artist or AI drop in without rework. Sizes are measured from the shippe
 | Terrain tile, 3D render | `tile3d_*_{flat,mid,max}` | 512 × 512, orthographic scale 2.65 | 1 hex | Hex centred; one render per tilt step |
 | Number plate | drawn by the game | — | radius **0.27**, centre **(+0.36, +0.30)**: **lower right** | Keep a plain clearing of radius 0.31 there; see "Tilt rule" |
 | Bandit | `bandit_tilt_0..7` | 384 × 384 (512 at source) | **2.65** hex units square, standing on the plate | Foot anchor at the image centre; opaque base seal radius 0.278 hides the plate; 8 tilt steps, tilt = 0.96·i/7 |
-| Homestead / town / road | drawn by the game (`WoodPieces.kt`) | — | homestead about 0.5 hex units wide | Stained in the player's colour at runtime |
+| Homestead / town / road | drawn by the game (`WoodPieces.kt`) today | — | homestead about 0.25 wide, town 0.45, road 0.66 × 0.19 | Stained in the player's colour at runtime; see **Buildings and pieces** for the rendered spec |
 | Knight token (Age of Chivalry) | `knight_{normal,pirate}_l{1,2,3}_{active,inactive}` | 256 × 256 | **0.62** hex units, on a ring in the owner's colour | Figure stands on the corner; base at the lower centre |
 | Port token | drawn by the game | — | radius 0.30 | 2:1 tokens show their terrain art |
 | Cliff strip | `cliff_top_1..3` | 768 × 174 | 1.16 along a coast edge × 0.55 deep | Top-down; grass lip at the top edge, surf at the bottom |
@@ -46,6 +46,39 @@ The board tilts up to 55°, so anything in front of (below) the number plate can
 of each tile low: grass, paths, low walls, small animals. Tall things (trees, peaks, kilns, mine towers,
 stooks) go in the upper half and the left side. The plate's clearing (radius 0.31 at +0.36, +0.30) stays plain
 ground on every tile, desert included.
+
+## Buildings and pieces: rendered sprites (proposed, #41)
+
+Today homesteads, towns and roads are drawn in code (`WoodPieces.kt`), and Ramparts and the Capital aren't shown
+on the board yet. This section is the spec for rendered replacements; Codex renders to it only on Mauro's go.
+
+**Frame and scale (shared with the bandit and 3D tiles):** 193 px per hex unit, orthographic, upper-left
+light, transparent PNG. Pieces use a **256 × 256** frame (1.325 hex units across) with the **anchor at the
+frame centre (128, 128)**: the point where the piece touches the board. **8 tilt steps**, tilt = 0.96·i/7, like
+the bandit; files `piece_<name>_tilt_0..7.png`.
+
+**Player colour is applied at runtime, so there is one render set per piece, not one per colour.** Each piece has
+two layers per tilt step:
+- `piece_<name>_tilt_i.png`: the body in **pale, unstained light wood** (grain visible, mid-grey value), which the
+  game multiplies by the player's colour, as it stains the wood today.
+- `piece_<name>_trim_tilt_i.png`: untinted details drawn on top (brass fittings, windows, flags' poles, the
+  Capital's dome), in the rivetless-brass style.
+
+| Piece | Sits on | Footprint on the board | Height | Silhouette |
+|---|---|---|---|---|
+| Homestead | a corner | about **0.25 wide × 0.15 deep** | about 0.20 | one cottage: pitched roof, chimney, door facing the viewer |
+| Town | a corner | about **0.45 wide × 0.25 deep** | tower about 0.37 | a low hall at the back right and a tall tower in front left (today's shape) |
+| Road | an edge | **0.66 long × 0.19 wide**, raised 0.045 | low | a brick-paved plank with a wooden side; render 3 directions: **vertical, +30°, −30°** (the pointy-top hex's three edge directions), files `piece_road_{v,p30,m30}_...` |
+| Ramparts (Age of Chivalry) | under a town | a ring wall about **0.55 across** | about 0.08 | low crenellated wall circling the town's base; drawn before (under) the town |
+| Capital (Age of Chivalry) | on a town | adds about 0.15 on top | about 0.50 total | a crowning brass dome or spire on the town's tower; three trims in the track colours: Guilds gold, Academy green, Crown blue |
+| Knight token | a corner | 0.62 (existing sprites) | — | keep `knight_*`; they already follow this frame idea |
+
+**Draw order (front-most last):** tiles → number plates → roads → Ramparts → homesteads, towns, Capitals, knights
+(back rows first, so nearer pieces overlap farther ones) → the bandit. Corner pieces never reach the number plate
+(its nearest corner is about 0.54 hex units from the plate's centre).
+
+**Checks before they count as done:** every piece on the Inventory screen in all six player colours, and on the
+board flat and fully tilted, at full view and zoomed in. Roads must meet their corners without gaps at every tilt.
 
 ## Cards, dice and UI
 
