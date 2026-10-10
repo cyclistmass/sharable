@@ -43,6 +43,13 @@ jobs:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json; echo "google-services.json written"; else echo "no GOOGLE_SERVICES_JSON secret: offline-only APK"; fi
+      # One signing key for every build (a fresh runner otherwise makes a new debug key each time, and phones
+      # refuse to update an app whose key changed). Same key as local builds.
+      - name: Stable debug signing key
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE_B64" ]; then mkdir -p ~/.android && printf '%s' "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore; echo "debug keystore installed"; else echo "no DEBUG_KEYSTORE_B64 secret: throwaway debug key"; fi
       - name: Build debug APK (and the instrumented test APK)
         run: bash ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
 
