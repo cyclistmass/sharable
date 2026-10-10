@@ -154,6 +154,13 @@ class GameState internal constructor(
     /** Actual points, including hidden VP cards. */
     fun victoryPoints(p: Int) = publicVictoryPoints(p) + devHand[p * DevCard.COUNT + DevCard.VICTORY_POINT]
 
+    /**
+     * Steals that only the thief and the victim saw: `thief * numPlayers + victim` -> count. Search AIs
+     * resample those cards for everyone else ([HiddenInfo.determinize]). Bookkeeping only: it doesn't change
+     * the game, so it isn't part of [stateHash]; replaying the moves rebuilds it.
+     */
+    val unseenSteals = IntArray(config.numPlayers * config.numPlayers)
+
     fun copy(): GameState {
         val s = GameState(
             config, board, rng.copy(),
@@ -179,6 +186,7 @@ class GameState internal constructor(
         s.counterFrom = counterFrom
         s.counterTerms = counterTerms
         s.winner = winner
+        unseenSteals.copyInto(s.unseenSteals)
         return s
     }
 

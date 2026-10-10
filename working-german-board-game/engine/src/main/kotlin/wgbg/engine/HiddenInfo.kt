@@ -95,9 +95,10 @@ object HiddenInfo {
      * card [viewer] cannot see is resampled consistently with public counts,
      * and the RNG (future dice, draws, steals) is reseeded with [seed].
      *
-     * Opponents' unplayed dev cards and the deck order are shuffled together.
-     * Opponents' resource hands are kept as-is: they are mostly derivable by
-     * card counting; TODO track unknown stolen cards and resample those too.
+     * Opponents' unplayed dev cards and the deck order are shuffled together. Resource hands are known by
+     * card counting except for steals the viewer didn't take part in ([GameState.unseenSteals]): for each, a
+     * random card of the thief's is swapped with a random card of the victim's, so the stolen card's type
+     * is resampled while every hand size and the total of each card type stay exact.
      */
     fun determinize(s: GameState, viewer: Int, seed: Long): GameState {
         val d = s.copy()
@@ -129,7 +130,38 @@ object HiddenInfo {
         }
         pool.copyInto(d.devDeck)
         if (d.ck != null) shuffleProgress(d, viewer, rng)
+        resampleSteals(d, viewer, rng)
         return d
+    }
+
+    /** See [determinize]: one thief-victim card swap per steal [viewer] didn't see. */
+    private fun resampleSteals(d: GameState, viewer: Int, rng: Rng) {
+        val n = d.numPlayers
+        val types = if (d.ck != null) CK_CARD_TYPES else Resource.COUNT
+        for (thief in 0 until n) for (victim in 0 until n) {
+            if (thief == viewer || victim == viewer || thief == victim) continue
+            repeat(d.unseenSteals[thief * n + victim]) {
+                val a = pick(d, thief, types, rng) ?: return@repeat
+                val b = pick(d, victim, types, rng) ?: return@repeat
+                if (a == b) return@repeat
+                addCard(d, thief, a, -1); addCard(d, thief, b, 1)
+                addCard(d, victim, b, -1); addCard(d, victim, a, 1)
+            }
+        }
+    }
+
+    /** A random card type from [p]'s hand, weighted by count, or null if the hand is empty. */
+    private fun pick(d: GameState, p: Int, types: Int, rng: Rng): Int? {
+        val total = (0 until types).sumOf { d.card(p, it) }
+        if (total == 0) return null
+        var k = rng.nextInt(total)
+        for (c in 0 until types) { k -= d.card(p, c); if (k < 0) return c }
+        return null
+    }
+
+    private fun addCard(d: GameState, p: Int, c: Int, delta: Int) {
+        if (c < Resource.COUNT) d.hands[p * CARD_TYPES + c] += delta
+        else d.ck!!.commodities[p * Commodity.COUNT + c - Resource.COUNT] += delta
     }
 
     /**

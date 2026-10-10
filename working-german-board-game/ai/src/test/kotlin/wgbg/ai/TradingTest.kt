@@ -77,4 +77,28 @@ class TradingTest {
         assertEquals(ActionType.ACCEPT_TRADE, bot1.choose(s, buf).type, "wood it needs for spare sheep: accept")
         conserved(s)
     }
+
+    @Test
+    fun `greedy bots make counter-offers, and every counter gets an answer`() {
+        var counters = 0
+        var answered = 0
+        for (g in 0 until 60) {
+            val s = Rules.newGame(GameConfig(numPlayers = 4), 1000L + g)
+            val bots = List(4) { GreedyBot(g * 17L + it) }
+            val buf = ActionBuffer()
+            var steps = 0
+            var waiting = false
+            while (!s.isOver && steps++ < 20_000) {
+                Rules.legalActions(s, buf)
+                val a = bots[s.actingPlayer].choose(s, buf)
+                if (waiting && s.phase == Phase.DECIDE_COUNTER &&
+                    (a.type == ActionType.ACCEPT_TRADE || a.type == ActionType.REJECT_TRADE)) { answered++; waiting = false }
+                if (a.type == ActionType.COUNTER_TRADE) { counters++; waiting = true }
+                Rules.applyChecked(s, a) // counters must be legal
+                conserved(s)
+            }
+        }
+        assertTrue(counters >= 10, "greedy bots countered only $counters times in 60 games")
+        assertTrue(answered >= counters - 1, "$counters counters, $answered answered")
+    }
 }

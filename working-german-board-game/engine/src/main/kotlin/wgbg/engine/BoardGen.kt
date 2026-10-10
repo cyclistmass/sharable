@@ -53,6 +53,41 @@ object BoardGen {
         return build(topology, terrain, hexNumber, portTypes)
     }
 
+    /** The official number-token order A to R, laid along the spiral (the desert is skipped). */
+    val SPIRAL_TOKENS = intArrayOf(5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8, 10, 9, 4, 5, 6, 3, 11)
+
+    /** Axial directions, each 60 degrees on from the last, all the same way round. */
+    private val DIRS = listOf(Hex(1, 0), Hex(1, -1), Hex(0, -1), Hex(-1, 0), Hex(-1, 1), Hex(0, 1))
+
+    /**
+     * Hexes of a radius-[radius] board in spiral order: round the outer ring from corner [corner] (0-5), then each
+     * inner ring from its matching corner the same way round, ending at the centre.
+     */
+    fun spiralOrder(radius: Int, corner: Int): List<Hex> = buildList {
+        for (k in radius downTo 1) {
+            val start = DIRS[(corner + 4) % 6]
+            var h = Hex(start.q * k, start.r * k)
+            for (side in 0 until 6) {
+                val d = DIRS[(corner + side) % 6]
+                repeat(k) { add(h); h = Hex(h.q + d.q, h.r + d.r) }
+            }
+        }
+        add(Hex(0, 0))
+    }
+
+    /** The official variable setup: shuffled terrain and ports, tokens A-R in a spiral from a random corner. */
+    fun spiral(rng: Rng, topology: Topology = Topology.hexagon(2)): Board {
+        val terrain = TERRAIN.copyOf().also(rng::shuffle)
+        val hexNumber = IntArray(terrain.size)
+        var k = 0
+        for (hex in spiralOrder(2, rng.nextInt(6))) {
+            val h = topology.hexes.indexOf(hex)
+            if (terrain[h] != NONE) hexNumber[h] = SPIRAL_TOKENS[k++]
+        }
+        val portTypes = PORT_TYPES.copyOf().also(rng::shuffle)
+        return build(topology, terrain, hexNumber, portTypes)
+    }
+
     /**
      * The fixed starting layout from the 5th-edition rulebook (desert in the centre).
      * Port types follow Catanatron's fixed TOURNAMENT map assignment over the

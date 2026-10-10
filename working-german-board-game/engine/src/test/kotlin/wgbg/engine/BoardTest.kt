@@ -87,4 +87,28 @@ class BoardTest {
         // SplitMix64 reference value for seed 0 (first output).
         assertEquals(-2152535657050944081L, Rng(0).nextLong())
     }
+
+    @Test
+    fun `the spiral visits every hex once, each step to a neighbour, from any corner`() {
+        val hexes = Topology.hexagon(2).hexes.toSet()
+        fun adjacent(a: Hex, b: Hex): Boolean { val dq = b.q - a.q; val dr = b.r - a.r; return maxOf(kotlin.math.abs(dq), kotlin.math.abs(dr), kotlin.math.abs(dq + dr)) == 1 }
+        for (corner in 0 until 6) {
+            val order = BoardGen.spiralOrder(2, corner)
+            assertEquals(19, order.size)
+            assertEquals(hexes, order.toSet())
+            for (i in 1 until order.size) assertTrue(adjacent(order[i - 1], order[i]), "corner $corner: ${order[i - 1]} -> ${order[i]}")
+        }
+    }
+
+    @Test
+    fun `spiral boards use the official tokens, skip the desert and are seeded`() {
+        for (seed in 0L until 40L) {
+            val s = Rules.newGame(GameConfig(layout = BoardLayout.SPIRAL), seed)
+            val b = s.board
+            val desert = (0 until b.hexCount).single { b.hexResource[it] == Resource.NONE }
+            assertEquals(0, b.hexNumber[desert])
+            assertEquals(BoardGen.SPIRAL_TOKENS.sorted(), (0 until b.hexCount).filter { it != desert }.map { b.hexNumber[it] }.sorted())
+            assertEquals(s.stateHash(), Rules.newGame(GameConfig(layout = BoardLayout.SPIRAL), seed).stateHash())
+        }
+    }
 }

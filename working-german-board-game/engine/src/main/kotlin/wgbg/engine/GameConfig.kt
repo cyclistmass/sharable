@@ -1,6 +1,10 @@
 package wgbg.engine
 
-enum class BoardLayout { RANDOM, BEGINNER }
+/**
+ * RANDOM: terrain, numbers and ports shuffled (Catanatron's distribution). BEGINNER: the fixed rulebook board.
+ * SPIRAL: the official variable setup: shuffled terrain, number tokens A-R laid in a spiral from an outer corner.
+ */
+enum class BoardLayout { RANDOM, BEGINNER, SPIRAL }
 
 /** Rule set. Cities & Knights is described in CITIES_AND_KNIGHTS.md. */
 enum class Expansion { BASE, CITIES_AND_KNIGHTS }
