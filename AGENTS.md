@@ -30,16 +30,19 @@ standard terms (`CitiesAndKnights.kt`, `Resource.ORE`); player-facing text may n
 ## Look and feel (required on every panel)
 
 Every panel, dialog, HUD box, menu and button uses the tabletop look: **dark wood panels with old-brass
-edges and brass-edged buttons**. Use the shared pieces in `app/.../Tabletop.kt` (`brassEdgedWood()`,
+edges and brass-edged buttons**, in a **rivetless brass, steampunk master-craftsman** style (smooth hand-finished
+brass, fine engraving, no rivets or bolts). Use the shared pieces in `app/.../Tabletop.kt` (`brassEdgedWood()`,
 `brassPlate()`, `BrassButton`, `GoButton`, `Choice`, `WoodButton`) and the Alegreya SC / Alegreya Sans
 fonts. No plain Material grey buttons or black boxes. Action colours: yes/confirm green, no/cancel red,
 counter/primary gold.
 
 ## Graphics workflow
 
-0. Follow **`docs/design/tile-spec.md`** so parts fit: pointy-top hex tiles at 512 px with upper-left light,
-   the number plate in the **lower right** (centre +0.36, +0.30, radius 0.27) on a plain clearing of radius
-   0.31, and nothing tall in front of it, so tilting the board never hides the number.
+0. **Before making or changing any art, read `docs/design/art-spec.md`** (only then; it isn't needed for
+   code work). It has the house style and the file and on-board size of every object: tiles, number plate,
+   bandit, pieces, knights, ports, cliffs, sea, boats, gulls, Raiders, cards, dice, buttons and icons. Key
+   rule: the number plate sits **lower right** on each tile (centre +0.36, +0.30, radius 0.27) on a plain
+   clearing, with nothing tall in front of it, so tilting the board never hides the number.
 1. New or changed art is shown as options side by side for the maintainer to pick from before it goes in.
 2. Approved art goes into `app/src/main/res/drawable-nodpi/` and onto the in-app **Inventory** screen
    (Menu › Inventory, `drawInventory` in `MainActivity.kt`), so every object can be checked together.

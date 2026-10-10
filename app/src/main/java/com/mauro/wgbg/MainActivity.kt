@@ -1694,7 +1694,7 @@ internal const val NUMBER_TOKEN_R = 0.27f
 
 /**
  * Where the number token sits on a tile, in hex sides from its centre (y down, before the tilt squash).
- * Mauro (2026-10-10): lower RIGHT, on the clearing every tile keeps for it (docs/design/tile-spec.md).
+ * Mauro (2026-10-10): lower RIGHT, on the clearing every tile keeps for it (docs/design/art-spec.md).
  * History: top left (-0.36, -0.3), then top right (0.36, -0.3).
  */
 internal const val NUMBER_TOKEN_X = 0.36f

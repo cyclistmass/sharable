@@ -8,7 +8,7 @@ import kotlin.math.hypot
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/** The number plate rules in docs/design/tile-spec.md, so art and code stay compatible. */
+/** The number plate rules in docs/design/art-spec.md, so art and code stay compatible. */
 class TileSpecTest {
     /** Visible hex: pointy-top, side 1, inset to 0.93; its flat sides are sqrt(3)/2 * 0.93 from the centre. */
     private val visibleApothem = sqrt(3f) / 2f * 0.93f
