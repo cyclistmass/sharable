@@ -471,6 +471,8 @@ fun WatchGameScreen(
     val framedFaces = TILE_FACES_FRAMED.withIndex().associate { (r, id) -> r to ImageBitmap.imageResource(id) } + (Resource.NONE to ImageBitmap.imageResource(TILE_DESERT_FRAMED))
     val tileFaces = if (env.tileEdge == EnvSettings.TileEdge.CLASSIC) framedFaces else plainFaces
     val tileLine = env.tileEdge == EnvSettings.TileEdge.THIN
+    // Rendered buildings (#41) for the chosen theme; Age of Chivalry pieces only load in those games.
+    val buildings = remember(env.pirateTheme, state.ck != null) { BuildingSprites(oceanRes, env.pirateTheme, state.ck != null) }
     val gullFlap = ImageBitmap.imageResource(R.drawable.gull_flap)
     val gullGlide = ImageBitmap.imageResource(R.drawable.gull_glide)
     val gullShadow = ImageBitmap.imageResource(R.drawable.gull_shadow)
@@ -837,11 +839,11 @@ fun WatchGameScreen(
                 drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.UNDER, banditSprites)
                 // Re-record the still board only when something on it can have changed: a move, the
                 // camera, the canvas size or a look setting. Otherwise the last recording is replayed.
-                val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff, viewer, pileOffsets)
+                val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff, viewer, pileOffsets, buildings)
                 if (boardLayerKey[0] != key) {
                     // The explicit-density overload gives the layer its own draw scope; recording through
                     // this Canvas's scope makes the two scopes ask each other for density forever.
-                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL, banditSprites, viewer, pileOffsets) }
+                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL, banditSprites, viewer, pileOffsets, buildings) }
                     boardLayerKey[0] = key
                 }
                 drawLayer(boardLayer)
@@ -1356,11 +1358,11 @@ private data class WaterLayerKey(val camera: Camera, val size: Size, val step: I
 private data class BoardLayerKey(
     val game: Int, val tick: Int, val camera: Camera, val size: Size, val tileLine: Boolean,
     val knights: List<ImageBitmap>?, val faces: Map<Int, ImageBitmap>?, val cliff: List<ImageBitmap>?,
-    val viewer: Int = 0, val piles: List<Offset> = emptyList(),
+    val viewer: Int = 0, val piles: List<Offset> = emptyList(), val buildings: BuildingSprites? = null,
 )
 
 private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null, part: BoardPart = BoardPart.ALL, bandit: List<ImageBitmap>? = null,
-                                viewer: Int = 0, pileOffsets: List<Offset> = emptyList()) {
+                                viewer: Int = 0, pileOffsets: List<Offset> = emptyList(), buildings: BuildingSprites? = null) {
     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
@@ -1430,11 +1432,24 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     for (pg in ports) drawPortWater(pg, pg.scale, l.squash)
     for (pg in ports) drawPortPiersAndToken(pg, pg.scale, measurer, wood)
 
-    // Roads.
+    // Roads: rendered sprites (two per edge, overlapping at the middle, per the art report) or drawn planks.
     for (e in 0 until topo.edgeCount) {
         val owner = s.edgeOwner[e]
         if (owner < 0) continue
         val (v1, v2) = topo.edgeVertices[e].let { it[0] to it[1] }
+        if (buildings != null) {
+            val x1 = topo.vertexPos[v1].x * sqrt(3f) / 2f; val y1 = topo.vertexPos[v1].y / 2f
+            val x2 = topo.vertexPos[v2].x * sqrt(3f) / 2f; val y2 = topo.vertexPos[v2].y / 2f
+            val len = kotlin.math.hypot(x2 - x1, y2 - y1).coerceAtLeast(1e-3f)
+            val ux = (x2 - x1) / len; val uy = (y2 - y1) / len
+            val sprite = buildings.roadFor(x2 - x1, y2 - y1)
+            for (side in listOf(-1f, 1f)) {
+                val x = (x1 + x2) / 2f + side * ux * BuildingSprites.ROAD_OFFSET
+                val y = (y1 + y2) / 2f + side * uy * BuildingSprites.ROAD_OFFSET
+                drawPieceSprite(sprite, l.project(x, y), scale * l.kAt(y), l.tilt, PLAYER_COLORS[owner])
+            }
+            continue
+        }
         val a = l.at(v1)
         val b = l.at(v2)
         with(wood) { road(a, b, owner, scale * (l.k(v1) + l.k(v2)) / 2f * stand) }
@@ -1470,12 +1485,26 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     for (v in 0 until topo.vertexCount) {
         val owner = s.vertexOwner[v]
         if (owner < 0) continue
+        if (buildings != null) {
+            // Rendered: Ramparts first, then the town, or the Capital that replaces it on a metropolis.
+            val at = l.at(v); val unit = scale * l.k(v); val color = PLAYER_COLORS[owner]
+            val ckNow = s.ck
+            if (ckNow != null && ckNow.wall[v] == 1) buildings.ramparts?.let { drawPieceSprite(it, at, unit, l.tilt, color) }
+            val metro = ckNow?.metroVertex?.indexOf(v) ?: -1
+            val piece = when {
+                metro >= 0 -> buildings.capital(metro) ?: buildings.town
+                s.vertexBuilding[v] == Piece.CITY -> buildings.town
+                else -> buildings.homestead
+            }
+            drawPieceSprite(piece, at, unit, l.tilt, color)
+            continue
+        }
         with(wood) {
             val ps = scale * l.k(v) * stand
             if (s.vertexBuilding[v] == Piece.CITY) city(l.at(v), owner, ps) else settlement(l.at(v), owner, ps)
         }
     }
-    drawSupplies(s, l, wood, stand, viewer, pileOffsets)
+    drawSupplies(s, l, wood, stand, viewer, pileOffsets, buildings)
     if (part == BoardPart.ALL) over()
 }
 
@@ -1508,7 +1537,7 @@ internal fun supplyCenter(s: GameState, seat: Int, viewer: Int, offsets: List<Of
  * Every player's unplayed pieces on the table off the board, at board scale (#52): neat rows in front of
  * each seat, the viewer's at the bottom, houses turned to face their owner. Drawn back to front.
  */
-private fun DrawScope.drawSupplies(s: GameState, l: Layout, wood: WoodPieces, stand: Float, viewer: Int, offsets: List<Offset>) {
+private fun DrawScope.drawSupplies(s: GameState, l: Layout, wood: WoodPieces, stand: Float, viewer: Int, offsets: List<Offset>, buildings: BuildingSprites? = null) {
     val n = s.numPlayers
     val me = viewer.coerceIn(0, n - 1)
     val all = ArrayList<Pair<Int, Supply.Spot>>()
@@ -1521,6 +1550,17 @@ private fun DrawScope.drawSupplies(s: GameState, l: Layout, wood: WoodPieces, st
     all.sortBy { it.second.y }
     for ((p, sp) in all) {
         val at = l.project(sp.x, sp.y)
+        if (buildings != null) {
+            val a = Supply.seatAngle(p, me, n)
+            val unit = l.scale * l.kAt(sp.y)
+            when (sp.kind) {
+                // The upright road sprite turned to lie along the owner's row.
+                Supply.Kind.ROAD -> drawPieceSprite(buildings.roadV, at, unit, l.tilt, PLAYER_COLORS[p], Math.toDegrees(a.toDouble()).toFloat())
+                Supply.Kind.TOWN -> drawPieceSprite(buildings.town, at, unit, l.tilt, PLAYER_COLORS[p], faceOwnerDegrees(a))
+                Supply.Kind.HOMESTEAD -> drawPieceSprite(buildings.homestead, at, unit, l.tilt, PLAYER_COLORS[p], faceOwnerDegrees(a))
+            }
+            continue
+        }
         val ps = l.scale * l.kAt(sp.y) * stand
         with(wood) {
             if (sp.kind == Supply.Kind.ROAD) road(l.project(sp.x - sp.dx, sp.y - sp.dy), l.project(sp.x + sp.dx, sp.y + sp.dy), p, ps)

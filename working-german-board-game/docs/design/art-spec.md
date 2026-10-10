@@ -47,10 +47,13 @@ of each tile low: grass, paths, low walls, small animals. Tall things (trees, pe
 stooks) go in the upper half and the left side. The plate's clearing (radius 0.31 at +0.36, +0.30) stays plain
 ground on every tile, desert included.
 
-## Buildings and pieces: rendered sprites (proposed, #41)
+## Buildings and pieces: rendered sprites (#41, shipped 2026-10-10)
 
-Today homesteads, towns and roads are drawn in code (`WoodPieces.kt`), and Ramparts and the Capital aren't shown
-on the board yet. This section is the spec for rendered replacements; Codex renders to it only on Mauro's go.
+Homesteads, towns, roads, Ramparts and Capitals are rendered sprites (`bld_*`, listed in the generated
+`BuildingArt.kt`, imported by `tools/import_buildings.py`); `WoodPieces.kt` remains the fallback. Two themes:
+**Default** (plain town, octagonal Ramparts, small-dome Capitals) and **Pirate** (three-building town about twice
+the homestead's mass, stone-and-timber wall with gatehouse, brass-dome keep with deck-colour banners). Homestead
+and roads are shared. Sizes below are Codex's final measurements.
 
 **Frame and scale (shared with the bandit and 3D tiles):** 193 px per hex unit, orthographic, upper-left
 light, transparent PNG. Pieces use a **256 × 256** frame (1.325 hex units across) with the **anchor at the
@@ -66,11 +69,11 @@ two layers per tilt step:
 
 | Piece | Sits on | Footprint on the board | Height | Silhouette |
 |---|---|---|---|---|
-| Homestead | a corner | about **0.25 wide × 0.15 deep** | about 0.20 | one cottage: pitched roof, chimney, door facing the viewer |
-| Town | a corner | about **0.45 wide × 0.25 deep** | tower about 0.37 | a low hall at the back right and a tall tower in front left (today's shape) |
-| Road | an edge | **0.66 long × 0.19 wide**, raised 0.045 | low | a brick-paved plank with a wooden side; render 3 directions: **vertical, +30°, −30°** (the pointy-top hex's three edge directions), files `piece_road_{v,p30,m30}_...` |
-| Ramparts (Age of Chivalry) | under a town | a ring wall about **0.55 across** | about 0.08 | low crenellated wall circling the town's base; drawn before (under) the town |
-| Capital (Age of Chivalry) | on a town | adds about 0.15 on top | about 0.50 total | a crowning brass dome or spire on the town's tower; three trims in the track colours: Guilds gold, Academy green, Crown blue |
+| Homestead | a corner | **0.25 × 0.15** | roof 0.20, chimney 0.23 | one cottage: pitched roof, chimney, door facing the viewer |
+| Town | a corner | **0.45 × 0.25** | tower roof 0.37 | Pirate: back-right hall, front-right workshop, front-left tower (about 2× the homestead's mass) |
+| Road | an edge | **0.66 × 0.19**, raised 0.045 | low | 3 directions (vertical, +30°, −30°); a unit edge takes **two sprites centred ±0.17** from its middle, overlapping |
+| Ramparts (Age of Chivalry) | under a town | Pirate: square ring **0.55 × 0.55** with a gatehouse, total depth 0.58 | curtain 0.078, gatehouse 0.169 | drawn before (under) the town or Capital |
+| Capital (Age of Chivalry) | replaces a town | town cluster plus a central keep 0.215 × 0.195, dome about 0.24 across | dome top 0.475, finial 0.50 | Guilds gold (trade), Academy green (science), Crown blue (politics); never drawn on top of a town |
 | Knight token | a corner | 0.62 (existing sprites) | — | keep `knight_*`; they already follow this frame idea |
 
 **Draw order (front-most last):** tiles → number plates → roads → Ramparts → homesteads, towns, Capitals, knights
