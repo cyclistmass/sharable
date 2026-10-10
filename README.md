@@ -8,8 +8,12 @@ Projects I'm sharing.
 
 ## working-german-board-game
 
-![Four bots playing at 1x speed on the framed deep-sea board](working-german-board-game/docs/gameplay-1x.gif)
+![Four bots playing the base game at 1x on a tilted board](working-german-board-game/docs/gameplay-1x.gif)
+
+![Age of Chivalry in the Pirate theme](working-german-board-game/docs/gameplay-chivalry.gif)
 
 Open-source Android hex-trading board game (base rules + Age of Chivalry expansion) with true-random dice,
-a strong-AI roadmap and play-by-file multiplayer testing. [Project README](working-german-board-game/README.md) ·
+a strong-AI roadmap and play-by-file multiplayer testing. [Download the Android APK](https://github.com/cyclistmass/sharable/releases/download/wgbg-preview-2026-10-10/working-german-board-game-preview-2026-10-10.apk) ·
+[Gameplay video](https://github.com/cyclistmass/sharable/releases/download/wgbg-preview-2026-10-10/working-german-board-game-gameplay.mp4) ·
+[Project README and screenshots](working-german-board-game/README.md) ·
 [Roadmap issues](https://github.com/cyclistmass/sharable/issues)
