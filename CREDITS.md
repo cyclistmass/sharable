@@ -25,7 +25,7 @@ unless another path is given.
 
 - Knight tokens, Normal (`knight_normal_*`), matched to the pirate set.
 - Raiders ship (`raiders_ship.webp`) and knight cards (`card_knight_*`).
-- Gulls and player sloops (`gull_*`, `boat_*`).
+- Gulls and player sloops (`gull_*`, `boat_*`); the 16-frame wingbeat `gull_flap.png` (#45).
 - Top-down cliff strips (`cliff_top_*`).
 - Brass button plates and road brick texture (`btn_*`, `road_bricks.png`).
 - Dice, Normal and Pirate sets, faces and tumbling frames (`dice_n*`, `dice_p*`, `dice_tumble_*`), with the

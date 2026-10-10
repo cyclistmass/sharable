@@ -454,7 +454,7 @@ fun WatchGameScreen(
     var compareTiles by remember { mutableStateOf(false) }
     // Scenery settings (density and motion), kept across restarts; the sea reads them once it supports them.
     val appContext = LocalContext.current.applicationContext
-    val env = remember { EnvSettings(PrefsStore(appContext)) }
+    val env = remember { EnvSettings(PrefsStore(appContext), viewBarsDefault = EnvSettings.isEmulator()) }
     val sound = remember { SoundSettings(PrefsStore(appContext)) }
     // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
     // game starts several times a second, which would otherwise wipe splashes and clouds.
@@ -650,7 +650,15 @@ fun WatchGameScreen(
     val turnHudHeight = with(LocalDensity.current) {
         if (screenHeight <= 0f) 210.dp else ((screenHeight - stripBottom).toDp() - 16.dp).coerceIn(110.dp, 210.dp)
     }
-    BackHandler { confirmExit = !confirmExit }
+    // Back closes whatever is open on top first (Settings, the menu, the Inventory), then asks about leaving.
+    BackHandler {
+        when {
+            settingsOpen -> settingsOpen = false
+            panelOpen -> panelOpen = false
+            inventory -> inventory = false
+            else -> confirmExit = !confirmExit
+        }
+    }
     // What the human may do right now (empty while bots move or in Watch mode).
     val legal = tick.let { if (me >= 0 && !inventory && !state.isOver && state.actingPlayer == me) Rules.legalActions(state) else emptyList() }
     val legalNow by rememberUpdatedState(legal)
@@ -944,7 +952,7 @@ fun WatchGameScreen(
         }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.
         // Zoom and Tilt bars on the right edge (pinch and two-finger drag do the same).
-        if (!inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
+        if (env.viewBars && !inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
             onZoom = { z -> camera = camera.transform(Offset(boardSize.width / 2f, boardSize.height / 2f), Offset.Zero, z / camera.zoom, boardSize) },
             onTilt = { t -> camera = camera.copy(tilt = t) },
             Modifier.align(Alignment.CenterEnd).padding(end = 8.dp))

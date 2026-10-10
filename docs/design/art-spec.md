@@ -14,6 +14,8 @@ from any artist or AI drop in without rework. Sizes are measured from the shippe
   lines, bevelled or rolled edges and inlay. **No rivets, bolts, screw heads or plate seams.** Steampunk in
   craft and materials (gears, filigree, engraved scrollwork, lenses where they fit), never in industrial
   hardware.
+- **Approved exception:** the Brass cage pirate event die (`dice_pe3_*`, `dice_tumble_pe3_*`) keeps its rivets.
+  Mauro, 2026-10-10: "is perfect". Don't "fix" it.
 - Wood: rich grain, hand-rubbed finish, crisp joinery; colour like `wood_grain.png` stained dark (#4A3020).
 - Painted art (tiles, cards) is detailed and warm, like a premium illustrated board game.
 - Light comes from the **upper left** in every picture; shadows fall to the lower right.
@@ -36,7 +38,7 @@ from any artist or AI drop in without rework. Sizes are measured from the shippe
 | Boat (sloop) | `boat_<colour>` | 192 × 192 | **0.95** hex units | Top-down, bow pointing right; sail in a player colour |
 | Boat wake | `boat_wake` | 192 × 96 | 0.7 × 0.3 of the boat | Faint, drawn behind the stern |
 | Raiders ship | `raiders_ship` | 256 × 256 | **1.15** hex units | Top-down, bow pointing right |
-| Gull | `gull_glide`, `gull_flap`, `gull_shadow` | 128 × 128 per frame | **0.6** hex units (bird about 45% of its frame) | Top-down, head pointing right; `gull_flap` is a strip of square frames, count = width ÷ height |
+| Gull | `gull_glide`, `gull_flap` (16 frames), `gull_shadow` | 128 × 128 per frame | **0.6** hex units (bird about 45% of its frame) | Top-down, head pointing right; `gull_flap` is a strip of square frames, count = width ÷ height |
 
 ### Tilt rule (tiles)
 
