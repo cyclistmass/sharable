@@ -1,7 +1,5 @@
 package com.mauro.wgbg
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -87,8 +86,7 @@ fun rememberTexture(res: Int, tileDp: Dp): ShaderBrush {
     val context = LocalContext.current
     val px = with(LocalDensity.current) { tileDp.roundToPx() }.coerceAtLeast(8)
     return remember(res, px) {
-        val src = BitmapFactory.decodeResource(context.resources, res, BitmapFactory.Options().apply { inScaled = false })
-        val scaled = Bitmap.createScaledBitmap(src, px, (px.toLong() * src.height / src.width).toInt().coerceAtLeast(1), true)
+        val scaled = decodeRenderTexture(context.resources, res, px)
         ShaderBrush(ImageShader(scaled.asImageBitmap(), TileMode.Repeated, TileMode.Repeated))
     }
 }
@@ -97,9 +95,12 @@ fun rememberTexture(res: Int, tileDp: Dp): ShaderBrush {
 @Composable
 fun Modifier.tableTop(): Modifier {
     val wood = rememberTexture(R.drawable.wood_grain, 320.dp)
-    return drawBehind {
-        drawRect(wood)
-        drawRect(Brush.verticalGradient(listOf(Color(0xCC140B05), Color(0xE6080402))))
+    return drawWithCache {
+        val wash = Brush.verticalGradient(listOf(Color(0xCC140B05), Color(0xE6080402)))
+        onDrawBehind {
+            drawRect(wood)
+            drawRect(wash)
+        }
     }
 }
 

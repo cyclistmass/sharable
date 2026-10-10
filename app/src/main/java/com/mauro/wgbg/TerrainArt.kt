@@ -44,7 +44,9 @@ object TerrainArt {
     /** Tiles are inset to 93% in the board view; the art is clipped to the same hexagon. */
     private const val INSET = 0.93f
 
-    private class Item(val path: Path, val color: Color, val stroke: Float = 0f, val brush: Brush? = null)
+    private class Item(val path: Path, val color: Color, val stroke: Float = 0f, val brush: Brush? = null) {
+        val style = if (stroke > 0f) Stroke(stroke, cap = StrokeCap.Round, join = StrokeJoin.Round) else Fill
+    }
 
     private val ALL = listOf(Resource.WOOD, Resource.BRICK, Resource.SHEEP, Resource.WHEAT, Resource.ORE, Resource.NONE)
 
@@ -61,33 +63,48 @@ object TerrainArt {
      * Above [MAX_BAKE_PX] (deep zoom: few tiles on screen) the vector art is drawn directly instead,
      * which keeps it sharp without huge bitmaps.
      */
-    private const val LADDER = 1.15
     private const val MAX_BAKE_PX = 340
-    private val tileCache = LinkedHashMap<Int, HashMap<Int, ImageBitmap>>()
-    private val portCache = LinkedHashMap<Int, HashMap<Int, ImageBitmap>>()
+    private val tileCache = RecentRenderSizes<Array<ImageBitmap?>>()
+    private val portCache = RecentRenderSizes<Array<ImageBitmap?>>()
+    private val tileLadder = RenderSizeLadder()
+    private val portLadder = RenderSizeLadder()
+    // Draw calls are synchronous on the render thread; never retain this scratch path in an Item.
+    private val clipScratch by lazy { Path() }
+    // A bounded cache for the port circle geometry, independent of the two bitmap-size slots.
+    // Rect/Path allocation is then restricted to a geometry miss (pan/zoom/new board).
+    private class PortClip(val x: Float, val y: Float, val radius: Float) {
+        val path = Path().apply { addOval(Rect(x - radius, y - radius, x + radius, y + radius)) }
+    }
+    private val portClips = arrayOfNulls<PortClip>(32)
+    private var nextPortClip = 0
 
-    private fun ladderPx(scale: Float): Int {
-        val step = ceil(kotlin.math.ln(scale.coerceAtLeast(1f).toDouble()) / kotlin.math.ln(LADDER))
-        return ceil(Math.pow(LADDER, step)).toInt()
+    private fun portClip(center: Offset, radius: Float): Path {
+        for (i in portClips.indices) {
+            val entry = portClips[i] ?: continue
+            if (entry.x == center.x && entry.y == center.y && entry.radius == radius) return entry.path
+        }
+        val entry = PortClip(center.x, center.y, radius)
+        portClips[nextPortClip] = entry
+        nextPortClip = (nextPortClip + 1) % portClips.size
+        return entry.path
     }
 
-    private fun cacheFor(cache: LinkedHashMap<Int, HashMap<Int, ImageBitmap>>, px: Int): HashMap<Int, ImageBitmap> {
-        cache[px]?.let { cache.remove(px); cache[px] = it; return it } // move to most-recent
-        val fresh = HashMap<Int, ImageBitmap>()
-        cache[px] = fresh
-        while (cache.size > 2) cache.remove(cache.keys.first())
-        return fresh
-    }
+    private fun cacheFor(cache: RecentRenderSizes<Array<ImageBitmap?>>, px: Int): Array<ImageBitmap?> =
+        cache.get(px) ?: arrayOfNulls<ImageBitmap>(ALL.size * VARIANTS).also { cache.put(px, it) }
+
+    private fun bitmapSlot(resource: Int, variant: Int) = ALL.indexOf(resource) * VARIANTS + variant
 
     /** Draws the terrain art for [resource] on the tile centered at [center] (hex side = [scale] px). */
     fun draw(scope: DrawScope, resource: Int, hexIndex: Int, center: Offset, scale: Float) {
         val items = templates.getValue(resource)[hexIndex % VARIANTS]
-        val px = ladderPx(scale)
+        val px = tileLadder.pixels(scale)
         if (px > MAX_BAKE_PX) {
             scope.drawVector(items, center, scale, hexClip(center, INSET * scale))
             return
         }
-        val img = cacheFor(tileCache, px).getOrPut(resource * 16 + hexIndex % VARIANTS) { bake(items, px.toFloat()) }
+        val cache = cacheFor(tileCache, px)
+        val slot = bitmapSlot(resource, hexIndex % VARIANTS)
+        val img = cache[slot] ?: bake(items, px.toFloat()).also { cache[slot] = it }
         scope.drawBaked(img, center, scale / px)
     }
 
@@ -98,14 +115,16 @@ object TerrainArt {
     fun drawPortFill(scope: DrawScope, resource: Int, center: Offset, radius: Float) {
         // Size the tile so its inscribed circle covers the token.
         val scale = radius / (0.8f * INSET)
-        val clip = Path().apply { addOval(Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius)) }
+        val clip = portClip(center, radius)
         val items = templates.getValue(resource)[0]
-        val px = ladderPx(scale)
+        val px = portLadder.pixels(scale)
         if (px > MAX_BAKE_PX) {
             scope.drawVector(items, center, scale, clip)
             return
         }
-        val img = cacheFor(portCache, px).getOrPut(resource) { bake(items, px.toFloat()) }
+        val cache = cacheFor(portCache, px)
+        val slot = bitmapSlot(resource, 0)
+        val img = cache[slot] ?: bake(items, px.toFloat()).also { cache[slot] = it }
         scope.clipPath(clip) { drawBaked(img, center, scale / px) }
     }
 
@@ -129,7 +148,8 @@ object TerrainArt {
         }
     }
 
-    private fun hexClip(center: Offset, r: Float) = Path().apply {
+    private fun hexClip(center: Offset, r: Float) = clipScratch.apply {
+        reset()
         for (i in 0 until 6) {
             val a = (-90 + 60 * i) * PI / 180
             val x = center.x + r * cos(a).toFloat()
@@ -149,9 +169,9 @@ object TerrainArt {
     }
 
     private fun DrawScope.drawItems(items: List<Item>) {
-        for (it in items) {
-            val style = if (it.stroke > 0f) Stroke(it.stroke, cap = StrokeCap.Round, join = StrokeJoin.Round) else Fill
-            if (it.brush != null) drawPath(it.path, it.brush, style = style) else drawPath(it.path, it.color, style = style)
+        for (i in items.indices) {
+            val it = items[i]
+            if (it.brush != null) drawPath(it.path, it.brush, style = it.style) else drawPath(it.path, it.color, style = it.style)
         }
     }
 

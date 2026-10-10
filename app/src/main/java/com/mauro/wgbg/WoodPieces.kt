@@ -25,7 +25,12 @@ import kotlin.math.hypot
  * each player's color, then shaded per face for a light source at the upper left.
  */
 class WoodPieces(res: Resources, colors: List<Color>) {
-    private val stains: List<Brush> = colors.map { stain(res, it) }
+    private val stains: List<Brush> = run {
+        val grain = BitmapFactory.decodeResource(res, R.drawable.wood_grain, BitmapFactory.Options().apply { inScaled = false })
+        try { colors.map { stain(grain, it) } } finally { grain.recycle() }
+    }
+    private val polygon = Path() // Synchronous draw calls only; never retain in a scene.
+    private val edgeStroke = Stroke(width = 1.4f, join = StrokeJoin.Round)
     private val bases = colors
     /** Micro-brick paving for road tops (Codex art): long brick edges run across the road. */
     private val bricks: android.graphics.BitmapShader = android.graphics.BitmapShader(
@@ -110,14 +115,15 @@ class WoodPieces(res: Resources, colors: List<Color>) {
 
     private fun DrawScope.edge(pts: List<Offset>, player: Int) {
         val ink = lerpBlack(bases[player], 0.65f).copy(alpha = 0.7f)
-        drawPath(poly(pts), ink, style = Stroke(width = 1.4f, join = StrokeJoin.Round))
+        drawPath(poly(pts), ink, style = edgeStroke)
     }
 
     private fun DrawScope.shadow(at: Offset, w: Float, h: Float) {
         drawOval(Color.Black.copy(alpha = 0.28f), at + Offset(-0.35f * w, 0.1f * h), Size(w, h))
     }
 
-    private fun poly(pts: List<Offset>) = Path().apply {
+    private fun poly(pts: List<Offset>) = polygon.apply {
+        reset()
         moveTo(pts[0].x, pts[0].y)
         for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y)
         close()
@@ -127,8 +133,7 @@ class WoodPieces(res: Resources, colors: List<Color>) {
 
     companion object {
         /** Stains the grayscale grain with [color]: dark grain lines stay visible through the paint. */
-        private fun stain(res: Resources, color: Color): Brush {
-            val grain = BitmapFactory.decodeResource(res, R.drawable.wood_grain, BitmapFactory.Options().apply { inScaled = false })
+        private fun stain(grain: Bitmap, color: Color): Brush {
             val out = grain.copy(Bitmap.Config.ARGB_8888, true)
             val px = IntArray(out.width * out.height)
             out.getPixels(px, 0, out.width, 0, 0, out.width, out.height)

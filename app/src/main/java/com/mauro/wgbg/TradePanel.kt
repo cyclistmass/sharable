@@ -27,7 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -148,20 +148,28 @@ private val COUNTER = Color(0xFFE0B23A)
 
 /** A dark wooden chest with brass bands, corners and rivets; shared by the trade and other prompts. */
 fun Modifier.chest(): Modifier = this
-    .drawBehind {
+    .drawWithCache {
         val r = CornerRadius(14.dp.toPx())
-        drawRoundRect(Brush.verticalGradient(listOf(WOOD_MID, WOOD_DARK, WOOD_MID, WOOD_DARK)), cornerRadius = r)
+        val wood = Brush.verticalGradient(listOf(WOOD_MID, WOOD_DARK, WOOD_MID, WOOD_DARK))
+        val brass = Brush.linearGradient(listOf(BRASS_DARK, BRASS_LIGHT, BRASS, BRASS_DARK), Offset.Zero, Offset(size.width, size.height))
+        val rim = Stroke(4.dp.toPx())
+        val c = 18.dp.toPx()
+        val corner = CornerRadius(4.dp.toPx())
+        val rivet = 2.5.dp.toPx()
+        onDrawBehind {
+        drawRoundRect(wood, cornerRadius = r)
         // Planks.
         val plank = size.height / 5
         for (i in 1 until 5) drawLine(Color.Black.copy(alpha = 0.35f), Offset(8f, plank * i), Offset(size.width - 8f, plank * i), 2f)
         // Brass bands and rim.
-        val brass = Brush.linearGradient(listOf(BRASS_DARK, BRASS_LIGHT, BRASS, BRASS_DARK), Offset.Zero, Offset(size.width, size.height))
-        drawRoundRect(brass, cornerRadius = r, style = Stroke(4.dp.toPx()))
+        drawRoundRect(brass, cornerRadius = r, style = rim)
         // Corner plates and rivets.
-        val c = 18.dp.toPx()
-        for (x in listOf(0f, size.width - c)) for (y in listOf(0f, size.height - c)) {
-            drawRoundRect(brass, Offset(x, y), Size(c, c), CornerRadius(4.dp.toPx()))
-            drawCircle(BRASS_DARK, 2.5.dp.toPx(), Offset(x + c / 2, y + c / 2))
+        for (ix in 0..1) for (iy in 0..1) {
+            val x = if (ix == 0) 0f else size.width - c
+            val y = if (iy == 0) 0f else size.height - c
+            drawRoundRect(brass, Offset(x, y), Size(c, c), corner)
+            drawCircle(BRASS_DARK, rivet, Offset(x + c / 2, y + c / 2))
+        }
         }
     }
     .padding(horizontal = 14.dp, vertical = 8.dp)

@@ -18,9 +18,22 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs.getByName("debug") {
+        storeFile = file("C:/Users/mauro/.android/debug.keystore")
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+        }
+        create("perf") {
+            initWith(getByName("release"))
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            matchingFallbacks += listOf("release")
         }
     }
 
@@ -35,6 +48,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation(project(":net"))
     implementation(project(":engine"))
     implementation(project(":ai"))

@@ -32,13 +32,13 @@ object DiceArt {
     val TUMBLE_PE = listOf(R.drawable.dice_tumble_pe_1, R.drawable.dice_tumble_pe_2, R.drawable.dice_tumble_pe_3, R.drawable.dice_tumble_pe_4, R.drawable.dice_tumble_pe_5, R.drawable.dice_tumble_pe_6, R.drawable.dice_tumble_pe_7, R.drawable.dice_tumble_pe_8, R.drawable.dice_tumble_pe_9, R.drawable.dice_tumble_pe_10)
 
     /** The face image for a production die: [red] or ivory/bone, Normal or [pirate] set, showing [value]. */
-    fun face(red: Boolean, pirate: Boolean, value: Int): Int = set(red, pirate).first[value.coerceIn(1, 6) - 1]
+    fun face(red: Boolean, pirate: Boolean, value: Int): Int = faces(red, pirate)[value.coerceIn(1, 6) - 1]
 
     /** The tumbling frames for a production die. */
-    fun tumble(red: Boolean, pirate: Boolean): List<Int> = set(red, pirate).second
+    fun tumble(red: Boolean, pirate: Boolean): List<Int> = when { pirate && red -> TUMBLE_PR; pirate -> TUMBLE_PB; red -> TUMBLE_NR; else -> TUMBLE_NI }
 
-    private fun set(red: Boolean, pirate: Boolean) = when {
-        pirate && red -> FACES_PR to TUMBLE_PR; pirate -> FACES_PB to TUMBLE_PB; red -> FACES_NR to TUMBLE_NR; else -> FACES_NI to TUMBLE_NI
+    private fun faces(red: Boolean, pirate: Boolean) = when {
+        pirate && red -> FACES_PR; pirate -> FACES_PB; red -> FACES_NR; else -> FACES_NI
     }
 
     /**
