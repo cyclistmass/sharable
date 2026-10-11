@@ -67,7 +67,7 @@ if [ "$MODE" = local ]; then
   done; tap_text "Hide"
 fi
 
-start=$(date +%s); moves=0; last=""; same=0
+start=$(date +%s); moves=0; last=""; prev=""; same=0
 while true; do
   [ $(( $(date +%s) - start )) -gt $((MINUTES * 60)) ] && fail "game not over after $MINUTES minutes ($moves moves)"
   crashed && fail "crash after $moves moves"
@@ -84,7 +84,7 @@ while true; do
     if [ -n "$legal" ] && [ $((same % 6)) = 5 ]; then last=""; fi
     sleep 1; continue
   fi
-  same=0; last="$line"
+  [ "$line" = "$prev" ] || same=0; last="$line"; prev="$line"
   spots=$(echo "$line" | sed -n 's/.* spots=\([^ ]*\).*/\1/p' | tr ';' '\n')
   d=$(dump)
   if [ -n "$spots" ] && [ $((RANDOM % 5)) != 0 ]; then
@@ -101,7 +101,7 @@ while true; do
   elif tap_text "Roll" "$d"; then :
   else
     # Any other on-screen choice (pickers, victims, Age of Chivalry buttons), else End turn.
-    opts=$(echo "$d" | grep -o 'text="[^"]\+"' | cut -d'"' -f2 | grep -v -x -E 'Menu|Trade|Hide|Exit|Leave|Settings|End turn|Roll|You|Blue|Orange|White|Red|Your turn|[0-9/ ]+|.*turn.*|.*Tap .*|.*built.*|.*rolled.*|.*\+[0-9].*|Raiders|Zoom|Tilt' | head -12)
+    opts=$(echo "$d" | grep -o 'text="[^"]\+"' | cut -d'"' -f2 | grep -v -x -E 'Menu|Trade|Hide|Exit|Leave|Settings|End turn|Roll|Counter|Offer|You|Blue|Orange|White|Red|Your turn|[0-9/ ]+|.*turn.*|.*Tap .*|.*built.*|.*rolled.*|.*\+[0-9].*|Raiders|Zoom|Tilt' | head -12)
     if [ -n "$opts" ] && [ $((RANDOM % 3)) != 0 ]; then tap_text "$(echo "$opts" | shuf -n 1)" "$d" || true
     else tap_text "End turn" "$d" || { [ -n "$opts" ] && tap_text "$(echo "$opts" | shuf -n 1)" "$d"; } || true; fi
   fi

@@ -38,7 +38,7 @@ for game in $GAMES; do
   "$ADB" logcat -c; "$ADB" logcat -b crash -c 2>/dev/null || true
   "$ADB" shell am start -W --activity-clear-task -n $PKG/.MainActivity --es start "$ruleset" --ei players "$players" >/dev/null
   sleep 4
-  moves=0; taps=0; hooks=0; last=""; same=0; start=$(date +%s)
+  moves=0; taps=0; hooks=0; last=""; prev=""; same=0; start=$(date +%s)
   while [ $(( $(date +%s) - start )) -lt "$SECS" ]; do
     if crashed; then echo "touchplay $ruleset/${players}p: CRASH after $moves moves"; fail=1; break; fi
     over=$("$ADB" logcat -d -s WGBG-GAME:I | grep -o 'over.*' | tail -1)
@@ -47,10 +47,13 @@ for game in $GAMES; do
     if [ -z "$line" ] || [ "$line" = "$last" ]; then
       same=$((same + 1))
       # The bots are playing, or a move is animating; a human prompt that never changes means we're stuck.
-      [ "$same" -gt 60 ] && { echo "touchplay $ruleset/${players}p: stuck at: ${line:0:160}"; fail=1; break; }
+      [ "$same" -gt 60 ] && { echo "touchplay $ruleset/${players}p: stuck at: ${line:0:600}"; fail=1; break; }
+      # My move that didn't take (a drifting cloud caught the tap, or a move was still animating): a player taps
+      # again, so try another move every 6 s.
+      [ -n "$line" ] && [ $((same % 6)) = 5 ] && last=""
       sleep 1; continue
     fi
-    same=0; last="$line"
+    [ "$line" = "$prev" ] || same=0; last="$line"; prev="$line"
     legal=$(echo "$line" | sed -n 's/.* legal=\([^ ]*\).*/\1/p' | tr ',' '\n' | grep -v -E '^(OFFER_TRADE|OFFER_TRADE_CK|COUNTER_TRADE)')
     spots=$(echo "$line" | sed -n 's/.* spots=\([^ ]*\).*/\1/p' | tr ';' '\n')
     # Prefer what a person does most: build on the board, roll, end the turn.
