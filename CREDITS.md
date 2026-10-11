@@ -55,6 +55,8 @@ unless another path is given.
 
 - Trade chime (`app/src/main/res/raw/trade_chime.wav`): our own, synthesised in Python (two decaying bell
   tones, E6 and B6), 2026-10-09.
+- Carnival of Venice (`app/src/main/res/raw/tune_carnival_of_venice.ogg`): public-domain melody (after James
+  Kerr, "Merry Melodies"); our own arrangement and synthesis via `tools/make_sounds.py`.
 
 ## Libraries
 

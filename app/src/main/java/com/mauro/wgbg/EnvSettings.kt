@@ -221,7 +221,7 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
         SliderRow("Music", sound.musicVolume, "vol-music") { sound.musicVolume = it }
         SliderRow("Sounds", sound.soundVolume, "vol-sounds") { sound.soundVolume = it }
         Text("Songs", fontSize = 13.sp, color = Color(0xFFD9B865))
-        if (SoundSettings.SONGS.isEmpty()) Text("No songs yet: the sea-shanty set is on the way (#17)", fontSize = 12.sp, color = Color(0xFFCDBFA6))
+        for (song in SoundSettings.SONGS) Text("♪ ${song.title}", fontSize = 12.sp, color = Color(0xFFCDBFA6))
     }
 }
 
@@ -272,8 +272,11 @@ class SoundSettings(private val store: FloatStore) {
         const val DEFAULT_SOUNDS = 0.8f
         const val MUSIC = "vol-music"
         const val SOUNDS = "vol-sounds"
-        /** The planned set list (#17); empty until the recordings exist. */
-        val SONGS: List<String> = emptyList()
+        /** The set list (#17, #58), our own recordings; more shanties to come. */
+        val SONGS: List<Song> = listOf(
+            Song("Drunken Sailor", R.raw.tune_drunken_sailor),
+            Song("Carnival of Venice", R.raw.tune_carnival_of_venice),
+        )
     }
 }
 
@@ -300,7 +303,7 @@ fun SoundControls(sound: SoundSettings) {
                 Slider(sound.soundVolume, { sound.soundVolume = it }, Modifier.width(200.dp).testTag("vol-sounds"), colors = brassSlider())
             }
             Text("Songs", fontSize = 12.sp)
-            if (SoundSettings.SONGS.isEmpty()) Text("No songs yet: the sea-shanty set is on the way (#17)", fontSize = 12.sp, color = Color(0xFFCDBFA6))
+            for (song in SoundSettings.SONGS) Text("♪ ${song.title}", fontSize = 12.sp, color = Color(0xFFCDBFA6))
         }
     }
 }

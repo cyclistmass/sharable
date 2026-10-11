@@ -236,6 +236,60 @@ def drunken_sailor():
     return track * fade
 
 
+def carnival_of_venice():
+    """Carnival of Venice (Il carnevale di Venezia), G major, 6/8. Melody after James Kerr, "Merry Melodies" v.3
+    p.29 #2 (public domain), ABC by John Chambers:
+    https://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/book/Kerr/MM3-V1/0525
+    Each strain twice (AABB), the whole tune twice. Accordion melody over a gently arpeggiated 12-string; second
+    time round a soft harmonica doubles strain A an octave up and the accordion takes strain B an octave up."""
+    # Each strain: the one-eighth pickup, then 8 bars of 6 eighths whose last note leaves room for the next pickup.
+    strain_a = ("d e:2 d c:2 B d:2 c A:2 B c B c e:2 d B:5 d "
+                "e:2 d c:2 B d:2 c A:2 B c B c e:2 d G:5")
+    strain_b = ("d d c B B A G F#:2 A e:2 d c#:2 d c:2 A B:5 d "
+                "d c B B A G F#:2 A e:2 d f# e d c B A G:5")
+    # One chord per bar (two for a split bar), the same both times through each strain.
+    bars = {"A": ["C", "D7", "D7", "G", "C", "D7", "D7", "G"],
+            "B": ["G", "D7", "A7 D7", "G", "G", "D7", "D7", "G"]}
+    chords = {"G": [43, 47, 50, 55], "C": [48, 52, 55, 60], "D7": [50, 54, 57, 60], "A7": [45, 49, 52, 55]}
+    e = 0.24                                            # the same easy pace as Drunken Sailor
+    form = ["A", "A", "B", "B"]
+    total_eighths = 2 * len(form) * 48
+    track = np.zeros((int((total_eighths * e + 5) * SR), 2))
+    t = 0.0
+    for r in range(2):
+        for s_i, s in enumerate(form):
+            start = t
+            octave = 5 if (r == 1 and s == "B") else 4
+            notes = parse(strain_a if s == "A" else strain_b, octave=octave)
+            for n_i, (midi, ln) in enumerate(notes):
+                last = r == 1 and s_i == len(form) - 1 and n_i == len(notes) - 1
+                hold = 3.0 if last else 0.92                # the very last note rings on
+                if midi is not None:
+                    place(track, accordion(midi, ln * e * hold, 0.9), t, pan=-0.15)
+                    if r == 1 and s == "A":
+                        place(track, harmonica(midi + 12, ln * e * hold, 0.3), t, pan=0.2)
+                t += ln * e
+            # 12-string: an unhurried arpeggio, one note per eighth (root, 3rd, 5th, octave, 5th, 3rd).
+            for b, bar in enumerate(bars[s]):
+                names = bar.split()
+                for k in range(6):
+                    nm = names[0] if len(names) == 1 or k < 3 else names[1]
+                    ch = chords[nm]
+                    nn = ch[[0, 1, 2, 3, 2, 1][k]]
+                    vel = 0.32 if k in (0, 3) else 0.2
+                    at = start + (1 + b * 6 + k) * e
+                    if r == 1 and s_i == len(form) - 1 and b == 7:   # final bar: one soft strum that rings out
+                        if k == 0:
+                            for j, cn in enumerate(ch):
+                                place(track, guitar12(cn, 6 * e, 0.3), at + j * 0.03, pan=0.25)
+                        continue
+                    place(track, guitar12(nn, 2 * e, vel), at, pan=0.25)
+    end = int((t + 2.5) * SR)
+    track = track[:end]
+    fade = np.minimum(1, (end - np.arange(end)) / (2.5 * SR))[:, None]
+    return track * fade
+
+
 # ------------------------------------------------------------------ main
 
 def main(what):
@@ -245,6 +299,7 @@ def main(what):
         write_ogg("raiders_clonk", raiders_clonk(), quality=5)
     if what in ("tunes", "all"):
         write_ogg("tune_drunken_sailor", drunken_sailor())
+        write_ogg("tune_carnival_of_venice", carnival_of_venice())
 
 
 if __name__ == "__main__":

@@ -521,6 +521,20 @@ fun WatchGameScreen(
     val appContext = LocalContext.current.applicationContext
     val env = remember { EnvSettings(PrefsStore(appContext), viewBarsDefault = EnvSettings.isEmulator()) }
     val sound = remember { SoundSettings(PrefsStore(appContext)) }
+    // Music (#58): the set list at the Music volume; it pauses while the app is in the background.
+    val music = remember { MusicPlayer(appContext, SoundSettings.SONGS) }
+    LaunchedEffect(sound.musicVolume) { music.setVolume(sound.musicVolume) }
+    val gameLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(gameLifecycle) {
+        val o = androidx.lifecycle.LifecycleEventObserver { _, ev ->
+            when (ev) {
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> music.pause()
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> music.resume()
+                else -> {}
+            }
+        }
+        gameLifecycle.addObserver(o); onDispose { gameLifecycle.removeObserver(o); music.close() }
+    }
     // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
     // game starts several times a second, which would otherwise wipe splashes and clouds.
     val oceanRes = LocalContext.current.resources
