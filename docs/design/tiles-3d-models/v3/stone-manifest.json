@@ -53,6 +53,10 @@
     "mirrored_R3": true,
     "periodic_erosion_amplitude": 0.036,
     "story": "mirrored R3 Alpine chain, pine fringes, mine hoist, rails and quarried blocks",
+    "finish": {
+      "readable_story_details": 57,
+      "material_pass": "single pigment, warm key, cool fill, local AO"
+    },
     "token_space": {
       "token_center": [
         0.36,
@@ -62,36 +66,25 @@
       "clearing_radius": 0.31,
       "upright_plate": true,
       "foreground_max_tilt_degrees": 55,
-      "pruned_objects": 43,
+      "pruned_objects": 45,
       "flattened_surfaces": 1
     }
   },
   "renders": [
     {
-      "file": "stone_V3_flat.png",
-      "tilt_radians": 0,
-      "seconds": 55.0,
-      "sha256": "fd33c7da06107c47bd6cfdfe8f5c39f31865d04b1f77d85663790912ea82e904"
-    },
-    {
       "file": "stone_V3_mid.png",
       "tilt_radians": 0.48,
-      "seconds": 55.19,
-      "sha256": "bc29879d57bc0b5a26571d687e06fba50632217e9bf5eb1eb887ec69b91bdbd8"
-    },
-    {
-      "file": "stone_V3_max.png",
-      "tilt_radians": 0.96,
-      "seconds": 44.02,
-      "sha256": "c6ab1a4fcb2e5565c4f03ad65f586f934da19ee028a5c62f893c4d45afc12f24"
+      "seconds": 26.06,
+      "sha256": "bac0d8f86b5c707abe2cfc6fc8048062e062f2d1dc7b0bc0d23f4aabb6a28a9e"
     }
   ],
-  "objects": 353,
-  "samples": 48,
+  "objects": 415,
+  "samples": 32,
   "threads": 2,
   "source_hashes": {
-    "render_v3.py": "f2f806aea229528c3616ce8f5ac1f1aa6c2819e4f23ebd89b7ae0e3618285be2",
+    "render_v3.py": "84de0682ea07a29d2d733e81c436b6c3b25f7795bffe9c9c43953baa2fe72681",
     "v3_art.py": "553c72f17bb2e0fc362ddaaee21b6e0c76ead8471c6b13328b34da4b42b136f7",
+    "v3_finish.py": "de7f4edfde2aa023c3fa6301661604119784201e201a15abe2282adf044f797a",
     "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
     "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
     "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",

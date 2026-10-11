@@ -30,12 +30,12 @@ def pit(x,y):
         t=max(0,min(1,(d-a)/(b-a)));return t*t*(3-2*t)
     return -.145+.080*smooth(.28,.31)+.080*smooth(.54,.57)+.085*smooth(.79,.82)+.031*smooth(.99,1.12)
 def dunes(x,y):
-    u=.86*x+.51*y+.045*math.sin(y*6)+.025*math.sin(x*4);q=max(abs(x)/(.93*math.sqrt(3)/2),(abs(y)+abs(x)/math.sqrt(3))/.93)
+    u=.86*x+.51*y+.095*math.sin(y*4)+.035*math.sin(x*5);q=max(abs(x)/(.93*math.sqrt(3)/2),(abs(y)+abs(x)/math.sqrt(3))/.93)
     taper=1-.55*max(0,min(1,(q-.75)/.25))
     phase=(u*1.60+.32)%1
     # Broad windward slope, sharp crest and steeper leeward slip face.
     wave=(phase/.72)**1.45 if phase<.72 else ((1-phase)/.28)**.85
-    return .042+(.34*wave+.040*math.exp(-((x+.4)**2+(y+.45)**2)/.10))*taper
+    return .042+(.28*wave+.040*math.exp(-((x+.4)**2+(y+.45)**2)/.10))*taper
 
 def zfn(terrain):
     return {'timber':lambda x,y:0,'fleece':meadow,'grain':wheat_ground,'clay':pit,'desert':dunes,'stone':density.alpine_height_v3}[terrain]
@@ -201,11 +201,11 @@ def grain():
         edge=.93-abs(y)-abs(x)/math.sqrt(3);side=.93*math.sqrt(3)/2-abs(x)
         edge_mask=max(0,min(1,min(edge,side)/.045))
         circle=max(0,min(1,(token.distance(x,y)-.355)/.095))
-        path=max(0,min(1,(abs(y+.36-x*.20)-.028)/.045))
+        path=max(0,min(1,(abs(y+.36-x*.20)-.050)/.035))
         cart=max(0,min(1,max(abs(x+.48)/.15,abs(y+.34)/.14)-1))
         cap=token.front_cap(x,y)-wheat_ground(x,y)-.045
         harvested=min(max(0,min(1,(math.hypot(x-sx,y-sy)-.060)/.070)) for sx,sy in stooks)
-        return max(0,min(.205+.015*math.sin(y*90+x*5),cap))*edge_mask*circle*path*cart*harvested
+        return max(0,min(.205+.021*math.sin(y*90+x*5),cap))*edge_mask*circle*path*cart*harvested
     skin=v2.field('rolling field ground continuous wheat canopy',lambda x,y:wheat_ground(x,y)+.001+crop_height(x,y),mat('V3 soft wheat leaf mass',(.67,.37,.025),.28),True,76,256)
     skin.data.materials.append(mat('V3 threshed field soil',(.43,.22,.024),.35))
     for poly in skin.data.polygons:
@@ -217,15 +217,15 @@ def grain():
             x=-.79+col*.020;y=-.88+row*.050+.040*math.sin(x*3+row*.04)
             if not inside(x,y,.915) or crop_height(x,y)<.018:continue
             for j in range(1):
-                xx=x+rng.uniform(-.009,.009);yy=y+rng.uniform(-.025,.025);z=wheat_ground(xx,yy);h=crop_height(xx,yy)
+                xx=x+rng.uniform(-.009,.009);yy=y+rng.uniform(-.012,.012);z=wheat_ground(xx,yy);h=crop_height(xx,yy)
                 if h<.018:continue
-                hh=h+rng.uniform(.006,.022);b=batches[(row+col+j)%3]
+                hh=h+rng.uniform(.025,.065);b=batches[(row+col+j)%3]
                 bend=.015+.012*math.sin(xx*12+yy*9)
                 b.rod((xx,yy,z),(xx+bend*.3,yy,z+hh*.6),.0018,4)
                 b.rod((xx+bend*.3,yy,z+hh*.6),(xx+bend,yy,z+hh),.0015,4)
                 for k in range(5):
                     for sign in [-1,1]:
-                        b.ellipsoid((xx+bend+sign*.006,yy,z+hh-.022+k*.011),(.0075,.006,.010),n=5,rings=3)
+                        b.ellipsoid((xx+bend+sign*.007,yy,z+hh-.022+k*.013),(.009,.007,.012),n=5,rings=3)
                         b.rod((xx+bend+sign*.003,yy,z+hh-.020+k*.010),(xx+bend+sign*.016,yy+.002,z+hh+.004+k*.010),.00065,3)
                 b.blade(xx,yy,z+hh*.36,hh*.48,rng.random()*TAU,.008)
                 ears+=1
@@ -357,7 +357,7 @@ def desert():
     bark=mat('V3 bleached dead tree wood',(.42,.27,.10),.32);x=-.36;y=.14;z=dunes(x,y)
     pole('V3 bare dead tree trunk',(x,y,z),(x+.018,y,z+.30),.019,bark,7)
     for a,b in [((x,y,z+.10),(x-.10,y+.02,z+.23)),((x-.10,y+.02,z+.23),(x-.13,y+.03,z+.29)),((x+.01,y,z+.19),(x+.10,y-.01,z+.25)),((x+.10,y-.01,z+.25),(x+.12,y+.01,z+.32)),((x+.01,y,z+.28),(x-.03,y-.02,z+.36))]:pole('V3 dead tree fork',a,b,.009,bark,5)
-    plants(dunes,920,230,flowers=False,dry=True);rubble(dunes,682,110,(.53,.32,.11),.017)
+    plants(dunes,920,95,flowers=False,dry=True);rubble(dunes,682,70,(.53,.32,.11),.017)
     return {'story':'sculpted wind-ripple dunes, layered sandstone clusters, dry scrub and dead tree'}
 
 def rich_materials(scene):
@@ -411,27 +411,29 @@ def validate_geometry(scene):
             'foreground_vertices_over_plate_at_eight_steps':counts,'plate_center':[token.CX,token.CY]}
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--terrain',required=True,choices=['timber','stone','fleece','grain','clay','desert']);parser.add_argument('--validate-only',action='store_true');args=parser.parse_args(sys.argv[sys.argv.index('--')+1:]);name=args.terrain
+    parser=argparse.ArgumentParser();parser.add_argument('--terrain',required=True,choices=['timber','stone','fleece','grain','clay','desert']);parser.add_argument('--validate-only',action='store_true');parser.add_argument('--views',nargs='+',choices=['flat','mid','max'],default=['flat','mid','max']);parser.add_argument('--samples',type=int,default=64);args=parser.parse_args(sys.argv[sys.argv.index('--')+1:]);name=args.terrain
     import v3_art
     v3_art.install(sys.modules[__name__])
     global ACTIVE_TERRAIN
     ACTIVE_TERRAIN=name
-    scene,cam=setup();scene.cycles.samples=48;scene.render.threads_mode='FIXED';scene.render.threads=2
+    import v3_finish
+    scene,cam=setup();scene.cycles.samples=args.samples;scene.render.threads_mode='FIXED';scene.render.threads=2
     density.alpine_height_v3=lambda x,y:0
-    metadata=globals()[name]();v3_art.enhance(name);bpy.context.view_layer.update();metadata['token_space']=token.prepare_scene(name);v3_art.ground_inlay(name);rich_materials(scene);v3_art.materials(scene,name)
+    metadata=globals()[name]();v3_art.enhance(name);metadata['finish']=v3_finish.enrich(name,sys.modules[__name__]);bpy.context.view_layer.update();metadata['token_space']=token.prepare_scene(name);v3_art.ground_inlay(name);rich_materials(scene);v3_art.materials(scene,name);v3_finish.materials(scene,name)
     folder=OUT/'v3';folder.mkdir(exist_ok=True);result=validate_geometry(scene)
-    sources=['render_v3.py','v3_art.py','render_density.py','render_v2_set.py','render_models.py','token_space.py','alpine_chain.py','alpacas.py']
+    sources=['render_v3.py','v3_art.py','v3_finish.py','render_density.py','render_v2_set.py','render_models.py','token_space.py','alpine_chain.py','alpacas.py']
     source_hashes={s:hashlib.sha256((Path(__file__).parent/s).read_bytes()).hexdigest() for s in sources}
     result['source_hashes']=source_hashes
     (folder/f'{name}-geometry-validation.json').write_text(json.dumps(result,indent=2));print('V3_GEOMETRY_OK',name,json.dumps(result),flush=True)
     if args.validate_only:return
     records=[]
     for angle,t in v2.angles:
+        if angle not in args.views:continue
         v2.camera(cam,t);scene.render.filepath=str(OUT/f'{name}_V3_{angle}.png');start=time.monotonic();bpy.ops.render.render(write_still=True)
         records.append({'file':f'{name}_V3_{angle}.png','tilt_radians':t,'seconds':round(time.monotonic()-start,2),
                         'sha256':hashlib.sha256(Path(scene.render.filepath).read_bytes()).hexdigest()})
         print('V3_RENDER',records[-1],flush=True)
     folder=OUT/'v3';folder.mkdir(exist_ok=True)
-    (folder/f'{name}-manifest.json').write_text(json.dumps({'metadata':metadata,'renders':records,'objects':len(scene.objects),'samples':48,'threads':2,'source_hashes':source_hashes},indent=2))
+    (folder/f'{name}-manifest.json').write_text(json.dumps({'metadata':metadata,'renders':records,'objects':len(scene.objects),'samples':args.samples,'threads':2,'source_hashes':source_hashes},indent=2))
 
 if __name__=='__main__':main()

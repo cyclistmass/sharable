@@ -1,5 +1,5 @@
 {
-  "mesh_vertices_checked": 299438,
+  "mesh_vertices_checked": 308038,
   "prop_vertices_inside_clearing": 0,
   "foreground_vertices_over_plate_at_eight_steps": [
     0,
@@ -16,8 +16,9 @@
     0.3
   ],
   "source_hashes": {
-    "render_v3.py": "f2f806aea229528c3616ce8f5ac1f1aa6c2819e4f23ebd89b7ae0e3618285be2",
+    "render_v3.py": "84de0682ea07a29d2d733e81c436b6c3b25f7795bffe9c9c43953baa2fe72681",
     "v3_art.py": "553c72f17bb2e0fc362ddaaee21b6e0c76ead8471c6b13328b34da4b42b136f7",
+    "v3_finish.py": "de7f4edfde2aa023c3fa6301661604119784201e201a15abe2282adf044f797a",
     "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
     "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
     "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",

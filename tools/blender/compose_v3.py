@@ -34,8 +34,21 @@ def patch():
     im.convert('RGB').save(OUT/'token-check-v3-patch-max.png');im.resize((375,250),Image.Resampling.LANCZOS).convert('RGB').save(DETAIL/'patch-phone-25pct.png');return im,overlaps
 
 def main():
+    # Reject an interrupted/mixed-generation batch before publishing review sheets.
+    # The earlier continuation could overwrite the palette before discovering a
+    # stale manifest. Images, geometry proofs and source hashes must agree first.
+    for name in NAMES:
+        manifest=json.loads((DETAIL/f'{name}-manifest.json').read_text())
+        geometry=json.loads((DETAIL/f'{name}-geometry-validation.json').read_text())
+        hashes=manifest.get('source_hashes')
+        assert hashes and hashes==geometry.get('source_hashes'),('stale geometry proof',name)
+        for source,digest in hashes.items():
+            assert hashlib.sha256((ROOT/'tools/blender'/source).read_bytes()).hexdigest()==digest,('stale render',name,source)
+        assert [(r['file'],r['tilt_radians']) for r in manifest['renders']]==[(f'{name}_V3_{angle}.png',t) for angle,t in ANGLES],('incomplete render batch',name)
+        for render in manifest['renders']:
+            assert hashlib.sha256((OUT/render['file']).read_bytes()).hexdigest()==render.get('sha256'),('changed render image',render['file'])
     DETAIL.mkdir(exist_ok=True);palette=Image.new('RGBA',(2180,3500),WOOD);d=ImageDraw.Draw(palette)
-    d.text((22,16),'V3 | second modelling pass | painted reference and real geometry at equal hex width',font=font(28),fill=GOLD)
+    d.text((22,16),'V3 | finished density pass | painted reference and real geometry at equal hex width',font=font(28),fill=GOLD)
     for i,label in enumerate(['Painted reference','V3 flat | 0 degrees','V3 mid | 27.5 degrees','V3 max | 55 degrees']):d.text((100+i*520,70),label,font=font(20),fill='#efe3c8')
     check=Image.new('RGBA',(1750,3500),WOOD);cd=ImageDraw.Draw(check);cd.text((22,15),'V3 | top-right clearing | centre (+0.36,+0.30) | plate 0.27 | clearing 0.31',font=font(25),fill=GOLD)
     sizes=[];views=[];geometry=[];black_pixels={};webp_bytes=0
@@ -89,6 +102,8 @@ Second modelling pass: `v3_art.py` supplies branch-by-branch conifers, folded le
 
 Continuation refinements after the first full phone review: angled logging stacks and a sawbuck, brighter botanical tips, irregular wool locks, larger wheat kernels and raised fencing with flowering margins, finer actual mountain erosion with continuous mineral joints/strata, contour-aligned clay cuts, shorter kiln platforms with handrails and volumetric smoke, quieter sand colour and grouped thorn scrub. `iteration-1-palette.png` and `iteration-1-phone.png` retain the intermediate comparison. Each final image hash is checked against its render manifest.
 
+Final continuation: `v3_finish.py` adds fuller emerald/sunlit conifer fans, peeled sapwood on logging stacks, granite anchors, limestone ribs and mine deck railings, deliberate daisy/buttercup drifts, a field boundary and poppy groups, narrow vertical clay joints, a pit ladder and wagon ruts, asymmetric sandstone flanks and a small sunbleached skull. Wheat has larger heads above the canopy and a wider harvest lane. Dunes have curved crests, less scattered scrub and a quieter sand pigment. A single world-space pigment/AO shader replaces repeated darkening layers. The preserved starting comparison is in `continuation-start/`; the final manual review is in ART_REVIEW.md. Review composition now rejects stale or incomplete render manifests before publishing any new sheet.
+
 Fleece retains seven sheep, three small alpacas at 65% of the previous model scale and two tiny horned goats. Stone retains the selected R3 chain and snow, with added surface buttresses. Clay retains its red-orange identity and wet red-brown bottom. Desert stays cactus-free. See ART_REVIEW.md for the initial per-terrain gaps and final visual judgement; `before-push/` preserves the prior V3 renders.
 
 The only reserved empty ground circle is TOP RIGHT: (+0.36,+0.30), radius 0.31, upright plate radius 0.27. The left-hand V2 clearing is filled by new scenery. Low foreground and rear-neighbour guards are applied before rendering. V2 outputs/scripts retain their historical left clearing; V3 overrides the shared centre within its own process. There are no new animations in this static V3 art pass; historical V2 motion masks must not be used with the moved plate until their anchors/guards and scenery paths are rebuilt. Bandit V1 will likewise need a right-centre placement at integration; its source foot anchor remains unchanged.
@@ -106,7 +121,7 @@ Compression trial: the 18 lossless WebP encodes total {webp_bytes:,} bytes (meas
 Reproduce: `powershell -NoProfile -ExecutionPolicy Bypass -File tools/blender/run_v3.ps1`. Validation scope: geometry/token guards, complete animal assemblies, transparent sprite bounds, same-scale visual comparison, phone inspection, neighbour overdraw and unchanged app hashes. Rules/unit/fuzz/on-device tests do not apply to this art-only change and no app/device validation is claimed.
 ''',encoding='utf-8')
     inventory=sorted(p.relative_to(ROOT).as_posix() for p in OUT.glob('*V3*.png'))+sorted(p.relative_to(ROOT).as_posix() for p in [OUT/'palette-v3.png',OUT/'token-check-v3.png',OUT/'token-check-v3-patch-max.png'])+sorted(p.relative_to(ROOT).as_posix() for p in DETAIL.iterdir() if p.is_file())
-    inventory+=['tools/blender/render_v3.py','tools/blender/v3_art.py','tools/blender/compose_v3.py','tools/blender/run_v3.ps1','docs/design/tiles-3d-models/ART_SPEC.md','docs/design/tiles-3d-models/PLAN.md','CREDITS.md','docs/design/tiles-3d-models/painted-reference-v3.png']
+    inventory+=['tools/blender/render_v3.py','tools/blender/v3_art.py','tools/blender/v3_finish.py','tools/blender/compose_v3.py','tools/blender/run_v3.ps1','docs/design/tiles-3d-models/ART_SPEC.md','docs/design/tiles-3d-models/PLAN.md','CREDITS.md','docs/design/tiles-3d-models/painted-reference-v3.png']
     (DETAIL/'FILES.txt').write_text('\n'.join(sorted(set(inventory)))+'\n',encoding='utf-8')
 
 if __name__=='__main__':main()

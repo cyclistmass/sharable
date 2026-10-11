@@ -4,6 +4,10 @@
     "small_alpacas": 3,
     "alpaca_relative_scale": 0.65,
     "teeny_goats": 2,
+    "finish": {
+      "readable_story_details": 100,
+      "material_pass": "single pigment, warm key, cool fill, local AO"
+    },
     "token_space": {
       "token_center": [
         0.36,
@@ -19,30 +23,19 @@
   },
   "renders": [
     {
-      "file": "fleece_V3_flat.png",
-      "tilt_radians": 0,
-      "seconds": 61.89,
-      "sha256": "0ae78a52e23c4e8e637ef515539d885a66b261583602124997d935391bcb7470"
-    },
-    {
       "file": "fleece_V3_mid.png",
       "tilt_radians": 0.48,
-      "seconds": 56.27,
-      "sha256": "fd8766d37bd877e882767f08ae70fce6347d8ca4742106eb3164d5238c72f0fd"
-    },
-    {
-      "file": "fleece_V3_max.png",
-      "tilt_radians": 0.96,
-      "seconds": 39.3,
-      "sha256": "10f3f5f447cfd67a195109e7ba7214bc96c12302624caa85a42bc4ad8517c782"
+      "seconds": 34.02,
+      "sha256": "3f7cc1486413461d7de87718f08f66ed818fdca1284b78312c42b1ed667fe7f7"
     }
   ],
-  "objects": 117,
-  "samples": 48,
+  "objects": 119,
+  "samples": 32,
   "threads": 2,
   "source_hashes": {
-    "render_v3.py": "f2f806aea229528c3616ce8f5ac1f1aa6c2819e4f23ebd89b7ae0e3618285be2",
+    "render_v3.py": "84de0682ea07a29d2d733e81c436b6c3b25f7795bffe9c9c43953baa2fe72681",
     "v3_art.py": "553c72f17bb2e0fc362ddaaee21b6e0c76ead8471c6b13328b34da4b42b136f7",
+    "v3_finish.py": "de7f4edfde2aa023c3fa6301661604119784201e201a15abe2282adf044f797a",
     "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
     "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
     "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
