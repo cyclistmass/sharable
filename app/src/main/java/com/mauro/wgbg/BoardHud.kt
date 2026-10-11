@@ -1,5 +1,8 @@
 package com.mauro.wgbg
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.Image
@@ -104,15 +107,22 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
     @Composable
     fun count(n: Int) = Text("$n", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(2.dp).background(Color(0xE62A1B10), CircleShape).border(1.dp, Color(0xFFC9A04A), CircleShape).padding(horizontal = 6.dp))
+    // Tap a progress card to see what it does (Mauro: "add some hints on what a card does").
+    var hint by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay(5000); hint = null } }
     @Composable
-    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int) = Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.testTag(tag)) {
+    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, onTap: (() -> Unit)? = null) = Box(contentAlignment = Alignment.TopEnd,
+        modifier = Modifier.testTag(tag).then(if (onTap != null) Modifier.clickable { onTap() } else Modifier)) {
         Box(Modifier.size(width = w.dp, height = h.dp).background(Color(0xFFEFE3C8), RoundedCornerShape(5.dp)).border(2.dp, edge, RoundedCornerShape(5.dp)).padding(3.dp),
             contentAlignment = Alignment.Center) {
             Text(name, color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold, lineHeight = 9.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
         if (n > 1) count(n)
     }
-    Row(modifier.testTag("hand-row").horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+    Column(modifier) {
+    hint?.let { Text(it, color = Color(0xFFEDE6D8), fontSize = 13.sp,
+        modifier = Modifier.padding(bottom = 4.dp).brassEdgedWood(2.dp).padding(horizontal = 10.dp, vertical = 6.dp).testTag("card-hint")) }
+    Row(Modifier.testTag("hand-row").horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
         for (r in 0 until CARD_TYPES) {
             val n = s.hand(me, r)
             if (n == 0) continue
@@ -130,8 +140,11 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
         }
         for (c in 0 until wgbg.engine.Progress.COUNT) {
             val n = ck.progressHand[me * wgbg.engine.Progress.COUNT + c]
-            if (n > 0) namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 44, 62)
+            if (n > 0) namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 44, 62) {
+                hint = "${PROGRESS_NAMES.getOrElse(c) { "Progress" }}: ${progressHint(c)}"
+            }
         }
+    }
     }
 }
 

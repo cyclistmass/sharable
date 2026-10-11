@@ -22,6 +22,59 @@ val PROGRESS_NAMES = listOf(
     "Abbot", "Charter of Rights", "Turncoat", "Envoy", "Plot", "Wrecker", "Informer", "Marshal", "Feast",
 )
 
+/** What each progress card does, in one line (engine order, matching [PROGRESS_NAMES]). */
+val PROGRESS_HINTS = listOf(
+    // Academy
+    "Before you roll: choose what the two number dice show.",
+    "Improve a town upgrade (Guilds, Academy or Crown) for one commodity less.",
+    "Build Ramparts on one of your towns for free.",
+    "Swap the numbers on two tiles (not 2, 12, 6 or 8).",
+    "Take 2 Grain for every field tile next to your homesteads and towns.",
+    "Turn a homestead into a town for 2 Stone and 1 Grain.",
+    "Take 2 Stone for every mountain tile next to your homesteads and towns.",
+    "Worth 1 point; played at once.",
+    "Build 2 roads for free.",
+    "Promote up to 2 of your knights for free.",
+    // Guilds
+    "Offer each other player a resource; each must give you a commodity back.",
+    "Look at the hand of a player with more points and take 2 cards.",
+    "Put the merchant on a tile next to you: trade its resource 2 for 1, and hold 1 point while it's yours.",
+    "This turn, trade one card type with the bank 2 for 1.",
+    "Name a resource: every other player gives you up to 2 of it.",
+    "Name a commodity: every other player gives you 1 of it.",
+    // Crown
+    "Move the bandit and take a random card from each player on that tile.",
+    "Worth 1 point; played at once.",
+    "A player removes one of their knights; you place one of the same strength.",
+    "Remove an open road (or move one of your own).",
+    "Knock an enemy knight off one of your roads.",
+    "Every player with as many points as you or more discards half their cards.",
+    "Look at a player's progress cards and take one.",
+    "Rouse all your knights for free.",
+    "Every player with more points than you gives you 2 cards.",
+)
+
+/** What a progress card's choice points at on the board: a corner, an edge or a tile; null if it isn't a board spot. */
+enum class CardSpot { VERTEX, EDGE, HEX }
+fun cardSpotKind(card: Int): CardSpot? = when (card) {
+    Progress.ENGINEER, Progress.MEDICINE, Progress.INTRIGUE -> CardSpot.VERTEX
+    Progress.DIPLOMAT -> CardSpot.EDGE
+    Progress.MERCHANT, Progress.BISHOP, Progress.INVENTOR -> CardSpot.HEX
+    else -> null
+}
+
+/** True when every one of [acts] is a progress card played on a board spot (so it's picked on the board, not from a list). */
+fun isBoardCard(acts: List<Action>) = acts.isNotEmpty() && acts.all { it.type == CkActionType.PLAY_PROGRESS && cardSpotKind(it.a) != null }
+
+/**
+ * The board spot (corner, edge or tile index) for a board card's choice [a]; the Inventor picks two tiles, the
+ * first tap choosing [a]'s first tile and, with [second], the second tap its other tile.
+ */
+fun cardSpotIndex(a: Action, second: Boolean = false): Int = if (second && a.a == Progress.INVENTOR) a.c else a.b
+
+/** The hint for progress card [i], or empty. */
+fun progressHint(i: Int) = PROGRESS_HINTS.getOrElse(i) { "" }
+
 /** C&K actions that are a tap on a board corner, and the corner each one means. */
 val CK_VERTEX_KINDS: Set<ActionKind> = setOf(
     CkActionType.BUILD_KNIGHT, CkActionType.ACTIVATE_KNIGHT, CkActionType.PROMOTE_KNIGHT, CkActionType.MOVE_KNIGHT,
@@ -63,11 +116,13 @@ fun ckLabel(s: GameState, a: Action, names: List<String>): String? = when (a.typ
     else -> null
 }
 
-/** Detail for one choice of a progress card with several ways to play it (its arguments). */
-fun progressOption(a: Action): String {
+/** Detail for one choice of a progress card with several ways to play it, in words (never bare numbers). */
+fun progressOption(s: GameState, a: Action, names: List<String>): String {
     val c = a.a
     return when (c) {
         Progress.RESOURCE_MONOPOLY, Progress.TRADE_MONOPOLY, Progress.MERCHANT_FLEET -> card(a.b)
+        Progress.MASTER_MERCHANT, Progress.DESERTER, Progress.SPY -> names.getOrElse(a.b) { "Player ${a.b + 1}" }
+        Progress.CRANE -> "Improve ${deck(a.b)}"
         else -> if (a.c != 0) "${a.b} / ${a.c}" else "${a.b}"
     }
 }

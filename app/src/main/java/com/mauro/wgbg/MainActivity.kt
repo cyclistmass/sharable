@@ -732,7 +732,13 @@ fun WatchGameScreen(
             onDispose { if (AgentHooks.sink === mine) AgentHooks.sink = null }
         }
     }
-    val targets = Targets.of(legal)
+    // A board card being aimed (Envoy, Abbot, Tinkerer...): its spots glow and a board tap picks one (Mauro, 2026-10-11).
+    var cardPick by remember { mutableStateOf<List<Action>>(emptyList()) }
+    var cardSecond by remember { mutableStateOf(false) }   // the Tinkerer's second tile
+    if (cardPick.isNotEmpty() && cardPick.any { it !in legal }) { cardPick = emptyList(); cardSecond = false } // the turn moved on
+    val cardPickNow by rememberUpdatedState(cardPick)
+    val cardSecondNow by rememberUpdatedState(cardSecond)
+    val targets = if (cardPick.isNotEmpty()) Targets.ofCards(cardPick, cardSecond) else Targets.of(legal)
     val chosen = pending.filter { it in legal } // a stale pick (the turn moved on) is dropped
     // Turn and trade alerts (#44): a tick when it becomes your move, a chime when an offer asks for cards you
     // hold, and an offer you can't pay is declined for you after a short countdown so turns keep flowing.
@@ -858,7 +864,12 @@ fun WatchGameScreen(
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { at ->
                         val p = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(at)
-                        val moves = if (inventory) emptyList() else movesAt(boardNow, legalNow, p)
+                        val picking = cardPickNow.isNotEmpty()
+                        val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else movesAt(boardNow, legalNow, p)
+                        // The Tinkerer swaps two tiles: the first tap narrows to that tile's swaps, the second picks the other tile.
+                        if (picking && !cardSecondNow && moves.size > 1 && moves.all { it.a == wgbg.engine.Progress.INVENTOR }) {
+                            cardPick = moves; cardSecond = true; return@detectTapGestures
+                        }
                         when {
                             moves.isNotEmpty() && moves == pending && moves.size == 1 -> { pending = emptyList(); humanMoves.trySend(moves[0]) }
                             moves.isNotEmpty() -> pending = moves
@@ -956,7 +967,20 @@ fun WatchGameScreen(
             // The trade chest docks where the move buttons sit and takes their place while it is open.
             if (chestOpen) TradePanel(state, me, legal, names, send, onClose = { tradeOpen = false }, responses = responses, version = tick, autoNoSeconds = autoNo,
                 modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
-            else if (legal.isNotEmpty()) HumanControls(state, me, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp))
+            else if (cardPick.isNotEmpty() && chosen.isEmpty()) Column(
+                // Aiming a board card: say what to tap, with a way out.
+                Modifier.align(Alignment.BottomEnd).padding(8.dp).width(260.dp).brassEdgedWood().padding(12.dp).testTag("card-pick"),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                val card = cardPick[0].a
+                Text("${PROGRESS_NAMES.getOrElse(card) { "Card" }}: ${progressHint(card)}", color = Color(0xFFEDE6D8), fontSize = 12.sp)
+                Text(if (card == wgbg.engine.Progress.INVENTOR) (if (cardSecond) "Now tap the other tile" else "Tap the first tile")
+                    else "Tap a glowing ${when (cardSpotKind(card)) { CardSpot.EDGE -> "road"; CardSpot.HEX -> "tile"; else -> "corner" }}",
+                    color = Color(0xFFF1D58A), fontWeight = FontWeight.Bold)
+                ColorButton("Cancel", Color(0xFFC0392B), "card-pick-cancel") { cardPick = emptyList(); cardSecond = false }
+            }
+            else if (legal.isNotEmpty()) HumanControls(state, me, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp),
+                onBoardPick = { cardPick = it; cardSecond = false; pending = emptyList() })
             if (chosen.isNotEmpty()) Column(
                 Modifier.align(Alignment.TopCenter).padding(top = 8.dp).chest(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -966,7 +990,7 @@ fun WatchGameScreen(
                 confirmWarning(state, me, chosen[0])?.let { Text(it, color = Color(0xFFFFB4A0), fontSize = 13.sp) }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (a in chosen) ColorButton(confirmLabel(state, a, names), Color(0xFF3E9B4F), "confirm") { send(a) }
-                    ColorButton("Cancel", Color(0xFFC0392B), "cancel") { pending = emptyList() }
+                    ColorButton("Cancel", Color(0xFFC0392B), "cancel") { pending = emptyList(); if (cardSecond) { cardPick = emptyList(); cardSecond = false } }
                 }
             }
             if (tick.let { state.isOver }) Column(

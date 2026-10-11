@@ -53,6 +53,12 @@ class Targets(val vertices: Set<Int>, val edges: Set<Int>, val hexes: Set<Int>) 
     val isEmpty get() = vertices.isEmpty() && edges.isEmpty() && hexes.isEmpty()
 
     companion object {
+        /** The glowing spots for a board card's choices (see [cardSpotIndex]). */
+        fun ofCards(acts: List<Action>, second: Boolean = false): Targets {
+            fun idx(k: CardSpot) = acts.filter { cardSpotKind(it.a) == k }.map { cardSpotIndex(it, second) }.toSet()
+            return Targets(idx(CardSpot.VERTEX), idx(CardSpot.EDGE), idx(CardSpot.HEX))
+        }
+
         fun of(legal: List<Action>) = Targets(
             vertices = legal.filter { it.type == ActionType.BUILD_SETTLEMENT || it.type == ActionType.BUILD_CITY }.map { it.payload.toInt() }.toSet() +
                 legal.filter { it.type in CK_VERTEX_KINDS }.map { ckVertex(it) }.filter { it >= 0 },
@@ -75,7 +81,11 @@ fun hexLattice(b: Board, h: Int) = b.topology.hexVertices[h].map { vertexLattice
  * tap is not near any target.
  */
 /** Where on the board (lattice units) a player taps for move [a], or null for moves that aren't board taps. */
-fun spotOf(b: Board, a: Action): Offset? = when (a.type) {
+fun spotOf(b: Board, a: Action, second: Boolean = false): Offset? = when (a.type) {
+    wgbg.engine.CkActionType.PLAY_PROGRESS -> cardSpotKind(a.a)?.let { k ->
+        val i = cardSpotIndex(a, second)
+        when (k) { CardSpot.VERTEX -> vertexLattice(b, i); CardSpot.EDGE -> edgeLattice(b, i); CardSpot.HEX -> hexLattice(b, i) }
+    }
     ActionType.BUILD_SETTLEMENT, ActionType.BUILD_CITY -> vertexLattice(b, a.payload.toInt())
     ActionType.BUILD_ROAD -> edgeLattice(b, a.payload.toInt())
     ActionType.MOVE_ROBBER -> hexLattice(b, a.robberHex)
@@ -83,12 +93,13 @@ fun spotOf(b: Board, a: Action): Offset? = when (a.type) {
     else -> null
 }
 
-fun movesAt(b: Board, legal: List<Action>, p: Offset): List<Action> {
+fun movesAt(b: Board, legal: List<Action>, p: Offset, second: Boolean = false): List<Action> {
     var best: List<Action> = emptyList()
     var bestD = 0.42f // hex sides; generous enough for fingers, tight enough to be unambiguous
     for (a in legal) {
-        val at = spotOf(b, a) ?: continue
-        val d = hypot(at.x - p.x, at.y - p.y) * if (a.type == ActionType.MOVE_ROBBER) 0.5f else 1f // tiles are big targets
+        val at = spotOf(b, a, second) ?: continue
+        val tile = a.type == ActionType.MOVE_ROBBER || (a.type == wgbg.engine.CkActionType.PLAY_PROGRESS && cardSpotKind(a.a) == CardSpot.HEX)
+        val d = hypot(at.x - p.x, at.y - p.y) * if (tile) 0.5f else 1f // tiles are big targets
         if (d < bestD - 1e-4f) { bestD = d; best = listOf(a) }
         else if (kotlin.math.abs(d - bestD) < 1e-4f) best = best + a
     }
@@ -99,6 +110,15 @@ fun movesAt(b: Board, legal: List<Action>, p: Offset): List<Action> {
 
 private val RES = RESOURCE_NAMES
 private val FORTUNE = listOf("Sentinel", "Windfall", "Corner the Market", "Trailblazers", "Landmark")
+
+/** What each Fortune card does (same order as [FORTUNE]). */
+val FORTUNE_HINTS = listOf(
+    "Move the bandit and take a card from a player next to it. Three or more make your Army.",
+    "Take any 2 resources from the bank.",
+    "Name a resource: everyone gives you all of theirs.",
+    "Build 2 roads for free.",
+    "Worth 1 point (kept hidden until the end).",
+)
 private val PANEL = Color(0xE6141210)
 private val INK_LIGHT = Color(0xFFEDE6D8)
 
@@ -143,6 +163,8 @@ fun HumanControls(
     names: List<String>,
     onMove: (Action) -> Unit,
     modifier: Modifier = Modifier,
+    /** A board card's choices: picked by tapping the board instead of from a list (Mauro, 2026-10-11). */
+    onBoardPick: (List<Action>) -> Unit = {},
 ) {
     var sheet by remember { mutableStateOf<String?>(null) } // which picker is open
     var ckChoices by remember { mutableStateOf<Pair<String, List<Action>>?>(null) }
@@ -157,14 +179,17 @@ fun HumanControls(
             Modifier.widthIn(max = 300.dp).brassEdgedWood().padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            if (fortune.isNotEmpty()) Text("Fortune cards: " + fortune.joinToString(", ") { "${s.devHand[me * DevCard.COUNT + it]} ${FORTUNE[it]}" }, color = INK_LIGHT, fontSize = 12.sp)
+            // Each Fortune card you hold, with what it does (Mauro: "add some hints on what a card does").
+            if (fortune.isNotEmpty() && sheet == null) for (c in fortune) Text("${s.devHand[me * DevCard.COUNT + c]} ${FORTUNE[c]}: ${FORTUNE_HINTS[c]}",
+                color = INK_LIGHT, fontSize = 12.sp, modifier = Modifier.testTag("fortune-hint-$c"))
             when (sheet) {
-                "yop" -> Picker("Windfall: take", legal.filter { it.type == ActionType.PLAY_YEAR_OF_PLENTY }
+                "yop" -> Picker("Windfall: ${FORTUNE_HINTS[DevCard.YEAR_OF_PLENTY]} Take", legal.filter { it.type == ActionType.PLAY_YEAR_OF_PLENTY }
                     .map { a -> (RES[a.yopFirst] + if (a.yopSecond >= 0) " + ${RES[a.yopSecond]}" else "") to a }, onMove) { sheet = null }
-                "mono" -> Picker("Corner the Market: everyone hands you all their", legal.filter { it.type == ActionType.PLAY_MONOPOLY }
+                "mono" -> Picker("Corner the Market: everyone hands you all of the one you name:", legal.filter { it.type == ActionType.PLAY_MONOPOLY }
                     .map { a -> RES[a.payload.toInt()] to a }, onMove) { sheet = null }
                 "ck" -> ckChoices?.let { (label, acts) ->
-                    Picker(label, acts.map { a -> (if (a.type == wgbg.engine.CkActionType.PLAY_PROGRESS) progressOption(a) else if (a.type == ActionType.MARITIME_TRADE) bankLabel(a) else ckLabel(s, a, names) ?: a.toString()) to a }, onMove) { sheet = null }
+                    val hint = acts.firstOrNull { it.type == wgbg.engine.CkActionType.PLAY_PROGRESS }?.let { progressHint(it.a) }
+                    Picker(if (hint.isNullOrEmpty()) label else "$label: $hint", acts.map { a -> (if (a.type == wgbg.engine.CkActionType.PLAY_PROGRESS) progressOption(s, a, names) else if (a.type == ActionType.MARITIME_TRADE) bankLabel(a) else ckLabel(s, a, names) ?: a.toString()) to a }, onMove) { sheet = null }
                 }
             }
         }
@@ -188,7 +213,8 @@ fun HumanControls(
             if (ActionType.PLAY_MONOPOLY in types) MoveButton("Play Corner the Market…") { sheet = "mono" }
             // Age of Chivalry moves that aren't board taps: one button per kind (or card), a picker if it has choices.
             for ((label, acts) in ckButtonGroups(s, legal, names)) {
-                if (acts.size == 1) MoveButton(label) { onMove(acts[0]) }
+                if (acts.size == 1 && !isBoardCard(acts)) MoveButton(label) { onMove(acts[0]) }
+                else if (isBoardCard(acts)) MoveButton("$label…") { onBoardPick(acts) }
                 else MoveButton("$label…") { ckChoices = label to acts; sheet = "ck" }
             }
             // The main move last, in the bottom-right corner.
@@ -283,6 +309,7 @@ fun confirmTitle(s: GameState, a: Action): String = when (a.type) {
     ActionType.BUILD_CITY -> "Upgrade this homestead to a town?"
     ActionType.BUILD_ROAD -> if (s.phase == Phase.BUILD_INITIAL_ROAD || s.freeRoads > 0) "Place a free road here?" else "Build a road here?"
     ActionType.MOVE_ROBBER -> "Move the bandit here?"
+    wgbg.engine.CkActionType.PLAY_PROGRESS -> "Play ${PROGRESS_NAMES.getOrElse(a.a) { "this card" }} here?"
     else -> "Choose what to do here"
 }
 
