@@ -150,7 +150,7 @@ private val YES = Color(0xFF3E9B4F)
 private val NO = Color(0xFFC0392B)
 private val COUNTER = Color(0xFFE0B23A)
 
-/** A dark wooden chest with brass bands, corners and rivets; shared by the trade and other prompts. */
+/** A dark wooden chest with brass bands and press-fit corners; shared by the trade and other prompts. */
 fun Modifier.chest(): Modifier = this
     .drawWithCache {
         val r = CornerRadius(14.dp.toPx())
@@ -159,7 +159,6 @@ fun Modifier.chest(): Modifier = this
         val rim = Stroke(4.dp.toPx())
         val c = 18.dp.toPx()
         val corner = CornerRadius(4.dp.toPx())
-        val rivet = 2.5.dp.toPx()
         onDrawBehind {
         drawRoundRect(wood, cornerRadius = r)
         // Planks.
@@ -167,12 +166,12 @@ fun Modifier.chest(): Modifier = this
         for (i in 1 until 5) drawLine(Color.Black.copy(alpha = 0.35f), Offset(8f, plank * i), Offset(size.width - 8f, plank * i), 2f)
         // Brass bands and rim.
         drawRoundRect(brass, cornerRadius = r, style = rim)
-        // Corner plates and rivets.
+        // Corner plates, press-fit: no rivets (Mauro: "no rivets, screws if you need them").
         for (ix in 0..1) for (iy in 0..1) {
             val x = if (ix == 0) 0f else size.width - c
             val y = if (iy == 0) 0f else size.height - c
             drawRoundRect(brass, Offset(x, y), Size(c, c), corner)
-            drawCircle(BRASS_DARK, rivet, Offset(x + c / 2, y + c / 2))
+            drawRoundRect(BRASS_DARK.copy(alpha = 0.5f), Offset(x, y), Size(c, c), corner, style = Stroke(1.dp.toPx()))
         }
         }
     }
