@@ -1096,7 +1096,7 @@ fun WatchGameScreen(
                     color = Color(0xFFF1D58A), fontWeight = FontWeight.Bold)
                 ColorButton("Cancel", Color(0xFFC0392B), "card-pick-cancel") { cardPick = emptyList(); cardSecond = false }
             }
-            else if (legal.isNotEmpty()) HumanControls(state, me, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp),
+            else if (legal.isNotEmpty()) HumanControls(state, me, legal, names, send, Modifier.fillMaxSize().padding(start = panelEdge, end = 8.dp, bottom = 8.dp),
                 onBoardPick = { cardPick = it; cardSecond = false; pending = emptyList() })
             if (chosen.isNotEmpty()) Column(
                 Modifier.align(Alignment.TopCenter).padding(top = 8.dp).chest(),

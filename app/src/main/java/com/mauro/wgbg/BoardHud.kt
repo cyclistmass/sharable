@@ -63,6 +63,11 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                 )
                 Text("${raidersStepsLeft(ck.barbarianPos)}", color = Color(0xFFE57373), fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
+            // Who wins if they land now: the Raiders' strength (every town) against all active knights (Mauro).
+            val raiders = wgbg.engine.CitiesAndKnights.barbarianStrength(s)
+            val knights = (0 until s.numPlayers).sumOf { wgbg.engine.CitiesAndKnights.activeKnightStrength(s, it) }
+            Text("Raiders $raiders vs knights $knights", fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("raiders-vs-knights"),
+                color = if (knights >= raiders) Color(0xFF8BD18B) else Color(0xFFFF6B5E))
         }
         for (p in 0 until s.numPlayers) {
             val turn = !s.isOver && p == s.currentPlayer

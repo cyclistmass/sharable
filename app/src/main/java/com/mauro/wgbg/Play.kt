@@ -2,6 +2,7 @@ package com.mauro.wgbg
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -170,21 +171,23 @@ fun HumanControls(
     var sheet by remember { mutableStateOf<String?>(null) } // which picker is open
     var ckChoices by remember { mutableStateOf<Pair<String, List<Action>>?>(null) }
     val types = legal.map { it.type }.toSet()
-    // Info on the left, the buttons in a column hugging the right edge with the main one (Roll /
-    // End turn) at the very bottom: everything within reach of a right thumb.
-    Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // The buttons in a column hugging the right edge with the main one (Roll / End turn) at the very bottom, within
+    // reach of a right thumb. Every card sheet (pick, give, discard, name a card) sits in one place: bottom centre,
+    // the lower third of the screen, like the trade chest (Mauro: "same card puller/giver ... for thumb reach").
+    Box(modifier) {
         // Board A: the prompt, points and hand live elsewhere (TurnPrompt, PlayerStrip, HandRow); this
         // panel only appears for Fortune cards and the pickers.
         val fortune = (0 until DevCard.COUNT).filter { s.devHand[me * DevCard.COUNT + it] > 0 }
         if (fortune.isNotEmpty() || sheet != null) Column(
-            Modifier.widthIn(max = 300.dp).brassEdgedWood().padding(12.dp),
+            (if (sheet != null) Modifier.align(Alignment.BottomCenter).widthIn(max = 560.dp).chest()
+            else Modifier.align(Alignment.BottomEnd).padding(end = 184.dp).widthIn(max = 300.dp).brassEdgedWood().padding(12.dp)).testTag("card-sheet"),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             // Each Fortune card you hold, with what it does (Mauro: "add some hints on what a card does").
             if (fortune.isNotEmpty() && sheet == null) for (c in fortune) Text("${s.devHand[me * DevCard.COUNT + c]} ${FORTUNE[c]}: ${FORTUNE_HINTS[c]}",
                 color = INK_LIGHT, fontSize = 12.sp, modifier = Modifier.testTag("fortune-hint-$c"))
             when (sheet) {
-                "yop" -> Picker("Windfall: ${FORTUNE_HINTS[DevCard.YEAR_OF_PLENTY]} Take", legal.filter { it.type == ActionType.PLAY_YEAR_OF_PLENTY }
+                "yop" -> Picker("Windfall: ${FORTUNE_HINTS[DevCard.YEAR_OF_PLENTY]}", legal.filter { it.type == ActionType.PLAY_YEAR_OF_PLENTY }
                     .map { a -> (RES[a.yopFirst] + if (a.yopSecond >= 0) " + ${RES[a.yopSecond]}" else "") to a }, onMove) { sheet = null }
                 "mono" -> Picker("Corner the Market: everyone hands you all of the one you name:", legal.filter { it.type == ActionType.PLAY_MONOPOLY }
                     .map { a -> RES[a.payload.toInt()] to a }, onMove) { sheet = null }
@@ -196,12 +199,14 @@ fun HumanControls(
         }
         // On a 7: pick all the cards first, then discard them with one press (playtest: a tap per card,
         // on buttons that moved as card types ran out, lost the wrong card with no undo).
-        if (ActionType.DISCARD in types) { DiscardSheet(s, me, legal, onMove); return@Row }
-        if (wgbg.engine.CkActionType.CHOOSE_CARD in types) { CardChoiceSheet(s, me, legal.filter { it.type == wgbg.engine.CkActionType.CHOOSE_CARD }, names, onMove); return@Row }
+        if (ActionType.DISCARD in types) { Box(Modifier.align(Alignment.BottomCenter)) { DiscardSheet(s, me, legal, onMove) }; return@Box }
+        if (wgbg.engine.CkActionType.CHOOSE_CARD in types) {
+            CardChoiceSheet(s, me, legal.filter { it.type == wgbg.engine.CkActionType.CHOOSE_CARD }, names, onMove, Modifier.align(Alignment.BottomCenter)); return@Box
+        }
         val buttonTypes = setOf(ActionType.ROLL, ActionType.END_TURN, ActionType.BUY_DEVELOPMENT_CARD,
             ActionType.PLAY_KNIGHT_CARD, ActionType.PLAY_ROAD_BUILDING, ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY)
         if (sheet == null && (types.any { it in buttonTypes } || ckButtonGroups(s, legal, names).isNotEmpty())) Column(
-            Modifier.width(176.dp).testTag("thumb-buttons"),
+            Modifier.align(Alignment.BottomEnd).width(176.dp).testTag("thumb-buttons"),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -296,12 +301,33 @@ private fun MoveButton(label: String, primary: Boolean = false, onClick: () -> U
 
 @Composable
 private fun Picker(title: String, options: List<Pair<String, Action>>, onMove: (Action) -> Unit, close: () -> Unit) {
-    Text(title, color = INK_LIGHT, fontSize = 13.sp)
+    Text(title, color = INK_LIGHT, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    // Choices that are cards show the card art, as in the trade chest; the rest stay worded buttons.
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((label, a) in options) MoveButton(label) { close(); onMove(a) }
-        MoveButton("Back") { close() }
+        for ((label, a) in options) {
+            val cards = optionCards(a)
+            if (cards != null) Column(horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable { close(); onMove(a) }.testTag("pick-$label")) {
+                Row(horizontalArrangement = Arrangement.spacedBy((-14).dp)) {
+                    for (c in cards) Image(painterResource(ALL_CARD_ART[c]), ALL_CARD_NAMES[c], Modifier.size(width = 42.dp, height = 60.dp))
+                }
+                Text(label, color = INK_LIGHT, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            } else MoveButton(label) { close(); onMove(a) }
+        }
     }
+    WoodButton("Back", "pick-back") { close() }
 }
+
+/** The cards a picker choice stands for (Windfall's two, the card a Corner names), or null if it isn't cards. */
+internal fun optionCards(a: Action): List<Int>? = when (a.type) {
+    ActionType.PLAY_YEAR_OF_PLENTY -> listOfNotNull(a.yopFirst, a.yopSecond.takeIf { it >= 0 })
+    ActionType.PLAY_MONOPOLY -> listOf(a.payload.toInt())
+    wgbg.engine.CkActionType.PLAY_PROGRESS -> when (a.a) {
+        wgbg.engine.Progress.RESOURCE_MONOPOLY, wgbg.engine.Progress.TRADE_MONOPOLY, wgbg.engine.Progress.MERCHANT_FLEET -> listOf(a.b)
+        else -> null
+    }
+    else -> null
+}.takeIf { cs -> cs != null && cs.all { it in ALL_CARD_ART.indices } }
 
 // ------------------------------------------------------------------ confirming board taps
 
