@@ -11,6 +11,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,7 +37,7 @@ import wgbg.engine.GameState
 import wgbg.engine.Track
 
 /** Town-improvement bars in the order and colours of the design: Guilds (gold), Academy (green), Crown (blue). */
-internal val IMPROVEMENT_BARS = listOf(Track.TRADE to Color(0xFFE0B23A), Track.SCIENCE to Color(0xFF4CAF50), Track.POLITICS to Color(0xFF3F7FD6))
+internal val IMPROVEMENT_BARS get() = listOf(Track.TRADE to TRACK_COLORS[Track.TRADE], Track.SCIENCE to TRACK_COLORS[Track.SCIENCE], Track.POLITICS to TRACK_COLORS[Track.POLITICS])
 
 /** Segments filled on a 4-segment improvement bar for an engine level 0..5. */
 fun barSegments(level: Int) = level.coerceIn(0, 4)
@@ -113,8 +115,13 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
 private val MINI_SLOT = 72.dp
 private const val MINI_MAX = 3
 
+/** A progress card's art: its deck's commodity card (Guilds Weave, Crown Silver, Academy Parchment). */
+fun progressArt(card: Int): Int = ALL_CARD_ART[wgbg.engine.Track.commodity(wgbg.engine.Progress.track(card))]
+
 /** Age of Chivalry deck colours by track: Guilds gold (trade), Crown blue (politics), Academy green (science). */
-internal val TRACK_COLORS = listOf(Color(0xFFE0B23A), Color(0xFF3F7FD6), Color(0xFF4CAF50))
+// Mauro: themed by commodity and its land. Guilds / Weave (pasture) pale white-green, Crown / Silver (mountains)
+// blue-grey, Academy / Parchment (forest) forest green.
+internal val TRACK_COLORS = listOf(Color(0xFFD3E8C4), Color(0xFF8A9FB2), Color(0xFF3E8E48))
 
 /**
  * Your hand along the bottom edge (no frame): the illustrated cards you hold, each with its count; in Age of
@@ -130,14 +137,20 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
     var hint by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     androidx.compose.runtime.LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay(5000); hint = null } }
     @Composable
-    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, small: String? = null, onTap: (() -> Unit)? = null) = Box(contentAlignment = Alignment.TopEnd,
+    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, small: String? = null, art: Int? = null, onTap: (() -> Unit)? = null) = Box(contentAlignment = Alignment.TopEnd,
         modifier = Modifier.testTag(tag).then(if (onTap != null) Modifier.clickable { onTap() } else Modifier)) {
-        Column(Modifier.size(width = w.dp, height = h.dp).background(Color(0xFFEFE3C8), RoundedCornerShape(5.dp)).border(2.dp, edge, RoundedCornerShape(5.dp)).padding(3.dp),
-            horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(name, color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold, lineHeight = 9.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            // What it does, in small print on the card itself (Mauro); a tap still shows it large.
-            if (small != null) Text(small, color = Color(0xFF4A3B2C), fontSize = 6.5.sp, lineHeight = 7.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.padding(top = 2.dp))
+        Box(Modifier.size(width = w.dp, height = h.dp).background(Color(0xFFEFE3C8), RoundedCornerShape(5.dp))
+            .clip(RoundedCornerShape(5.dp)).border(2.dp, edge, RoundedCornerShape(5.dp))) {
+            // Themed by its deck's commodity (Mauro): Guilds on Weave, Crown on Silver, Academy on Parchment.
+            if (art != null) Image(painterResource(art), null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(3.dp)
+                .background(Color(0xE6EFE3C8), RoundedCornerShape(3.dp)).padding(2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(name, color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold, lineHeight = 9.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                // What it does, in small print on the card itself (Mauro); a tap still shows it large.
+                if (small != null) Text(small, color = Color(0xFF4A3B2C), fontSize = 6.5.sp, lineHeight = 7.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(top = 1.dp))
+            }
         }
         if (n > 1) count(n)
     }
@@ -164,7 +177,8 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
         }
         for (c in 0 until wgbg.engine.Progress.COUNT) {
             val n = ck.progressHand[me * wgbg.engine.Progress.COUNT + c]
-            if (n > 0) namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 66, 92, small = progressHint(c)) {
+            if (n > 0) namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 66, 92, small = progressHint(c),
+                art = progressArt(c)) {
                 hint = "${PROGRESS_NAMES.getOrElse(c) { "Progress" }}: ${progressHint(c)}"
             }
         }

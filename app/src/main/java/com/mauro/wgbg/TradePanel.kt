@@ -139,7 +139,8 @@ fun bankRate(s: GameState, p: Int, r: Int): Int {
 // ------------------------------------------------------------------ the chest
 
 /** Parchment, Weave, Silver edge colours (Academy green, Guilds gold, Crown blue). */
-private val COMMODITY_COLORS = listOf(Color(0xFF4CAF50), Color(0xFFE0B23A), Color(0xFF3F7FD6))
+/** Parchment, Weave, Silver: their deck colours (forest green, pale white-green, blue-grey). */
+private val COMMODITY_COLORS = listOf(TRACK_COLORS[wgbg.engine.Track.SCIENCE], TRACK_COLORS[wgbg.engine.Track.TRADE], TRACK_COLORS[wgbg.engine.Track.POLITICS])
 
 /** Illustrated resource cards (Mauro's art), indexed like RESOURCE_NAMES. */
 val CARD_ART = listOf(R.drawable.card_timber, R.drawable.card_clay, R.drawable.card_fleece, R.drawable.card_grain, R.drawable.card_stone)

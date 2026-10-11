@@ -97,7 +97,10 @@ fun CardGuide(chivalry: Boolean, onClose: () -> Unit, modifier: Modifier = Modif
                 color = GUIDE_INK.copy(alpha = 0.85f), fontSize = 12.sp)
             heading("Progress cards")
             for ((deck, track, range) in DECKS) {
-                Text(deck, color = TRACK_COLORS[track], fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                    card(Track.commodity(track), 26)
+                    Text("$deck · ${ALL_CARD_NAMES[Track.commodity(track)]}", color = TRACK_COLORS[track], fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
                 for (c in range) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(PROGRESS_NAMES[c], color = GUIDE_INK, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(150.dp))
                     Text(progressHint(c), color = GUIDE_INK.copy(alpha = 0.85f), fontSize = 12.sp)
