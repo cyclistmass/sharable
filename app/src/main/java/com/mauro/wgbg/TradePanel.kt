@@ -135,6 +135,10 @@ private val COMMODITY_COLORS = listOf(Color(0xFF4CAF50), Color(0xFFE0B23A), Colo
 
 /** Illustrated resource cards (Mauro's art), indexed like RESOURCE_NAMES. */
 val CARD_ART = listOf(R.drawable.card_timber, R.drawable.card_clay, R.drawable.card_fleece, R.drawable.card_grain, R.drawable.card_stone)
+/** Age of Chivalry commodities, in ALL_CARD_NAMES order: Parchment, Weave, Silver (Crest's still lifes, #62). */
+val COMMODITY_ART = listOf(R.drawable.card_parchment, R.drawable.card_weave, R.drawable.card_silver)
+/** Every card's art in ALL_CARD_NAMES order: the five resources, then the three commodities. */
+val ALL_CARD_ART = CARD_ART + COMMODITY_ART
 
 private val WOOD_DARK = Color(0xFF2A1B10)
 private val WOOD_MID = Color(0xFF4A3020)
@@ -361,7 +365,7 @@ private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, under:
                 contentAlignment = Alignment.Center,
             ) {
                 // The illustrated card; dimmed until it is part of the trade.
-                if (r < CARD_ART.size) Image(painterResource(CARD_ART[r]), RESOURCE_NAMES[r], Modifier.fillMaxSize(), alpha = if (lit) 1f else 0.5f)
+                if (r < ALL_CARD_ART.size) Image(painterResource(ALL_CARD_ART[r]), ALL_CARD_NAMES[r], Modifier.fillMaxSize())   // bright: no reason to dim them (Mauro)
                 else Box(Modifier.fillMaxSize().background(Color(0xFFEFE3C8).copy(alpha = if (lit) 1f else 0.5f), RoundedCornerShape(5.dp))
                     .border(2.dp, COMMODITY_COLORS[r - CARD_ART.size], RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
                     // Commodities (Age of Chivalry) until their card art lands.
@@ -373,7 +377,8 @@ private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, under:
                 if (offered > 0) Text("−$offered", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.align(Alignment.BottomCenter).background(Color(0xE0C0392B), CircleShape).padding(horizontal = 6.dp))
             }
-            under(r)?.let { Text(it, color = INK.copy(alpha = 0.6f), fontSize = 9.sp) }
+            // How many you hold (or the bank rate), big enough to read at a glance (#66).
+            under(r)?.let { Text(it, color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }
         }
     }
 }
@@ -392,7 +397,7 @@ private fun CardRow(counts: IntArray, editable: Boolean, single: Boolean, badge:
                 contentAlignment = Alignment.Center,
             ) {
                 // The illustrated card; dimmed until it is part of the trade.
-                if (r < CARD_ART.size) Image(painterResource(CARD_ART[r]), RESOURCE_NAMES[r], Modifier.fillMaxSize(), alpha = if (lit) 1f else 0.45f)
+                if (r < ALL_CARD_ART.size) Image(painterResource(ALL_CARD_ART[r]), ALL_CARD_NAMES[r], Modifier.fillMaxSize())
                 else Box(Modifier.fillMaxSize().background(Color(0xFFEFE3C8).copy(alpha = if (lit) 1f else 0.45f), RoundedCornerShape(5.dp))
                     .border(2.dp, COMMODITY_COLORS[r - CARD_ART.size], RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
                     // Commodities (Age of Chivalry) until their card art lands.

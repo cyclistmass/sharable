@@ -260,14 +260,14 @@ private fun DiscardSheet(s: GameState, me: Int, legal: List<Action>, onMove: (Ac
                             }.testTag("discard-card-$r"),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (r < CARD_ART.size) Image(painterResource(CARD_ART[r]), ALL_CARD_NAMES[r], Modifier.fillMaxSize(), alpha = if (pile[r] > 0) 1f else 0.8f)
+                        if (r < ALL_CARD_ART.size) Image(painterResource(ALL_CARD_ART[r]), ALL_CARD_NAMES[r], Modifier.fillMaxSize())
                         else Box(Modifier.fillMaxSize().background(Color(0xFFEFE3C8), RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
                             Text(ALL_CARD_NAMES[r], color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold)
                         }
                         if (pile[r] > 0) Text("−${pile[r]}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.align(Alignment.BottomCenter).background(Color(0xE0C0392B), CircleShape).padding(horizontal = 6.dp))
                     }
-                    Text("have $have", color = INK_LIGHT.copy(alpha = 0.7f), fontSize = 9.sp)
+                    Text("have $have", color = INK_LIGHT, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
             }
         }

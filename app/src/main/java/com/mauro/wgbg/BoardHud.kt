@@ -132,11 +132,13 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
             }
         }
         val ck = s.ck ?: return@Row
-        // Commodities: Parchment (Academy), Weave (Guilds), Silver (Crown), until their card art lands.
-        val commodityTrack = listOf(wgbg.engine.Track.SCIENCE, wgbg.engine.Track.TRADE, wgbg.engine.Track.POLITICS)
+        // Commodities: Parchment, Weave, Silver, with their card art (#62).
         for (c in 0 until wgbg.engine.Commodity.COUNT) {
             val n = s.card(me, CARD_TYPES + c)
-            if (n > 0) namedCard(ALL_CARD_NAMES[CARD_TYPES + c], TRACK_COLORS[commodityTrack[c]], n, "hand-commodity-$c", 50, 70)
+            if (n > 0) Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.testTag("hand-commodity-$c")) {
+                Image(painterResource(COMMODITY_ART[c]), ALL_CARD_NAMES[CARD_TYPES + c], Modifier.size(width = 50.dp, height = 70.dp))
+                count(n)
+            }
         }
         for (c in 0 until wgbg.engine.Progress.COUNT) {
             val n = ck.progressHand[me * wgbg.engine.Progress.COUNT + c]
