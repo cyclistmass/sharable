@@ -5,16 +5,38 @@
 # discard cards and Discard, pickers, Age of Chivalry buttons). No debug launch flags and no move hooks; the
 # game's log is only read to know what is on screen and when the game is over.
 # Fails on a crash, an ANR, a turn that never moves on, or a game that doesn't end in time.
-# Usage: tools/userplay.sh <base|chivalry> <local|online> [players=3] [minutes=40]
+# Two people on two phones (Mauro, 2026-10-11): run "host" on one emulator and "join" on another at the same
+# time; the host hosts a room with seat 2 as a Friend, the joiner opens Join a room and types the room code,
+# both by taps, and each plays its own seat to the end on the real server.
+# Each run drives only its own device (ANDROID_SERIAL is required) and keeps its own folder, so two runs at
+# once never share files or taps.
+# Usage: ANDROID_SERIAL=emulator-5554 tools/userplay.sh <base|chivalry> <local|online|host|join> [players=3] [minutes=40]
+#   host/join meet through ROOM_FILE (default $TEMP/wgbg-userplay/room-code); start the host first.
 set -uo pipefail
 RULESET="$1"; MODE="$2"; PLAYERS="${3:-3}"; MINUTES="${4:-40}"
+: "${ANDROID_SERIAL:?set ANDROID_SERIAL to the device to drive (lane 1 emulator-5554, lane 2 emulator-5556)}"
+export ANDROID_SERIAL
 ADB="${ADB:-adb}"
 PKG=com.mauro.wgbg
 export MSYS_NO_PATHCONV=1
-OUT="${OUT:-$TEMP/wgbg-userplay}"; mkdir -p "$OUT"
+OUT="${OUT:-$TEMP/wgbg-userplay/$ANDROID_SERIAL}"; mkdir -p "$OUT"
+ROOM_FILE="${ROOM_FILE:-$TEMP/wgbg-userplay/room-code}"
 TAG="$RULESET-$MODE-${PLAYERS}p"
+# One run per device: a second run on the same device would tap over this one.
+if [ -f "$OUT/run.pid" ] && kill -0 "$(cat "$OUT/run.pid")" 2>/dev/null; then
+  echo "USERPLAY: another run (pid $(cat "$OUT/run.pid")) is already driving $ANDROID_SERIAL; stop it first"; exit 1
+fi
+echo $$ > "$OUT/run.pid"; trap 'rm -f "$OUT/run.pid"' EXIT
 
-dump() { "$ADB" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; "$ADB" shell cat /sdcard/ui.xml | tr '>' '\n'; }
+# The screen's text. A uiautomator left over from a stopped run blocks new ones ("already registered"): clear it and retry.
+dump() {
+  local x
+  for _ in 1 2 3; do
+    "$ADB" shell rm -f /sdcard/ui.xml; "$ADB" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+    x=$("$ADB" shell cat /sdcard/ui.xml 2>/dev/null); case "$x" in *hierarchy*) echo "$x" | tr '>' '\n'; return;; esac
+    "$ADB" shell pkill -f uiautomator 2>/dev/null; sleep 1
+  done
+}
 # Centre of the first on-screen text exactly $1 (optionally in $2 = a dump already taken).
 find_text() {
   local d="${2:-$(dump)}"
@@ -26,6 +48,12 @@ tap() { "$ADB" shell input tap "$1" "$2"; }
 shot() { "$ADB" exec-out screencap -p > "$OUT/$TAG-$1.png"; }
 crashed() { [ "$("$ADB" logcat -d -b crash | grep -A8 'FATAL EXCEPTION' | grep -c "$PKG")" != 0 ]; }
 fail() { echo "USERPLAY $TAG FAILED: $1"; shot fail; "$ADB" logcat -d -b crash | grep -A30 "FATAL EXCEPTION" | head -40; exit 1; }
+# Centres of every element with text $1, left to right.
+all_text() { echo "$2" | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | grep -o 'bounds=.*' | tr -c '0-9\n' ' ' |
+  awk '{print int(($1+$3)/2), int(($2+$4)/2)}' | sort -n -k1,1; }
+# Type into a text box (tap it, clear it, type).
+type_into() { tap $1 $2; sleep 0.5; "$ADB" shell input keyevent KEYCODE_MOVE_END; for _ in $(seq 1 14); do "$ADB" shell input keyevent KEYCODE_DEL; done
+  "$ADB" shell input text "$3"; sleep 0.5; }
 
 # A fresh install state, then in through the start screen like a player.
 "$ADB" shell am force-stop $PKG
@@ -36,28 +64,60 @@ sleep 5
 # First launch plays the intro fly-over; a player taps to skip it.
 if dump | grep -q 'text="Tap to skip"'; then tap 1200 540; sleep 2; fi
 d=$(dump)
-# Seats: you plus bots; empty the last seats down to the player count.
-if [ "$PLAYERS" -lt 4 ]; then
-  # Seat columns are left to right (Seat 2, 3, 4); each has its own "Empty" button, in that order.
-  # One line per Empty button, sorted left to right (the dump's order isn't guaranteed).
-  empties=$(echo "$d" | grep -o 'text="Empty"[^/]*bounds="\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]' | grep -o 'bounds=.*' | tr -c '0-9\n' ' ' |
-    awk '{print int(($1+$3)/2), int(($2+$4)/2)}' | sort -n -k1,1)
-  for n in $(seq 4 -1 $((PLAYERS + 1))); do xy=$(echo "$empties" | sed -n "$((n - 1))p"); [ -n "$xy" ] && tap $xy && sleep 0.6; done
-fi
-[ "$RULESET" = chivalry ] && { tap_text "Age of Chivalry" || fail "no ruleset button"; }
-if [ "$MODE" = online ]; then
-  xy=$(find_text "You") || true; [ -n "$xy" ] && { tap $xy; sleep 0.5; "$ADB" shell input keyevent KEYCODE_MOVE_END; for _ in 1 2 3; do "$ADB" shell input keyevent KEYCODE_DEL; done
-    "$ADB" shell input text "Tester"; "$ADB" shell input keyevent 66; sleep 1; }
-  tap_text "Host online room" || fail "no Host online room button"
-  sleep 8
-  tap_text "Start game" || fail "no Start game (lobby: $(dump | grep -o 'text="[^"]*ready[^"]*"' | head -2))"
+if [ "$MODE" = join ]; then
+  # The friend: Join a room, their name and the code the host read out, Join, then mark themselves ready.
+  for _ in $(seq 1 90); do [ -s "$ROOM_FILE" ] && break; sleep 2; done
+  code=$(cat "$ROOM_FILE" 2>/dev/null); [ -n "$code" ] || fail "no room code from the host in $ROOM_FILE"
+  # Online needs a name first (the buttons stay off for "You").
+  xy=$(find_text "You" "$d") || true; [ -n "$xy" ] && { type_into $xy "Duo"; "$ADB" shell input keyevent 66; sleep 1; }
+  tap_text "Join a room" || fail "no Join a room button"
+  sleep 1.5; d=$(dump)
+  # Text boxes top to bottom: name, code. The keyboard moves things, so close it and look again before each box.
+  boxes() { dump | grep 'class="android.widget.EditText"' | grep -o 'bounds="[^"]*"' | tr -c '0-9
+' ' ' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}' | sort -n -k2,2; }
+  [ "$(boxes | grep -c .)" -ge 2 ] || fail "the join screen has no name and code boxes"
+  type_into $(boxes | sed -n 1p) "Duo"; "$ADB" shell input keyevent KEYCODE_BACK; sleep 1
+  type_into $(boxes | sed -n 2p) "$code"; "$ADB" shell input keyevent KEYCODE_BACK; sleep 1
+  dump | grep -q "text=\"$code\"" || fail "the code didn't go into the code box"
+  tap_text "Join" || fail "no Join button"
+  for _ in $(seq 1 30); do sleep 1; tap_text "Not ready" && break; done || fail "joined $code but never saw my Not ready toggle"
+  shot lobby
 else
-  tap_text "Play" || fail "no Play button"
+  # Seats: you plus bots; empty the last seats down to the player count. Seat columns are left to right
+  # (Seat 2, 3, 4), each with its own Friend / Bot / Empty buttons.
+  if [ "$PLAYERS" -lt 4 ]; then
+    empties=$(all_text Empty "$d")
+    for n in $(seq 4 -1 $((PLAYERS + 1))); do xy=$(echo "$empties" | sed -n "$((n - 1))p"); [ -n "$xy" ] && tap $xy && sleep 0.6; done
+  fi
+  # Hosting for a friend: seat 2 becomes a Friend seat.
+  [ "$MODE" = host ] && { xy=$(all_text Friend "$(dump)" | head -1); [ -n "$xy" ] || fail "no Friend seat button"; tap $xy; sleep 0.6; }
+  [ "$RULESET" = chivalry ] && { tap_text "Age of Chivalry" || fail "no ruleset button"; }
+  if [ "$MODE" = online ] || [ "$MODE" = host ]; then
+    xy=$(find_text "You") || true; [ -n "$xy" ] && { type_into $xy "Tester"; "$ADB" shell input keyevent 66; sleep 1; }
+    tap_text "Host online room" || fail "no Host online room button"
+    sleep 8
+    if [ "$MODE" = host ]; then
+      # Read the room code off the lobby and hand it to the friend; Start game once they're in and ready.
+      code=$(dump | grep -o 'text="[^"]*"' | grep -o '[A-Z]\{3,\}-[1-9][0-9]' | head -1)
+      [ -n "$code" ] || fail "no room code on the lobby screen"
+      mkdir -p "$(dirname "$ROOM_FILE")"; echo "$code" > "$ROOM_FILE"; echo "USERPLAY $TAG: hosting $code"
+      shot lobby
+      for _ in $(seq 1 90); do
+        "$ADB" logcat -d -s WGBG-TURN:I | grep -q 'phase=' && break
+        d=$(dump); echo "$d" | grep -q 'text="Duo"' && tap_text "Start game" "$d"; sleep 3
+      done
+      rm -f "$ROOM_FILE"
+    else
+      tap_text "Start game" || fail "no Start game (lobby: $(dump | grep -o 'text="[^"]*ready[^"]*"' | head -2))"
+    fi
+  else
+    tap_text "Play" || fail "no Play button"
+  fi
 fi
 sleep 6
 shot start
-# The game must actually be on: the board asks for the first placement.
-for _ in $(seq 1 20); do "$ADB" logcat -d -s WGBG-TURN:I | grep -q 'phase=' && break; sleep 1; done
+# The game must actually be on: the board asks for the first placement (the joiner waits for the host's Start).
+for _ in $(seq 1 120); do "$ADB" logcat -d -s WGBG-TURN:I | grep -q 'phase=' && break; sleep 1; done
 "$ADB" logcat -d -s WGBG-TURN:I | grep -q 'phase=' || fail "the game never started (still on the start screen?)"
 # Local games: speed the bots up from the menu like a player can (Menu, tap the speed button to 8x, Hide).
 if [ "$MODE" = local ]; then
