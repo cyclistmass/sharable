@@ -359,4 +359,14 @@ class SeaTest {
         }
         for (n in turns) assertTrue(n < 25, "a boat turned $n times in 2 minutes")
     }
+
+    @Test
+    fun `the whole sea survives backwards and empty frame steps`() {
+        val sea = Sea(board)
+        sea.birds01 = 1f; sea.boats01 = 1f; sea.clouds01 = 1f
+        repeat(60) { sea.update(dt) }
+        for (step in listOf(-1.6353329E-4f, -0.02f, 0f, Float.NaN)) sea.update(step)
+        repeat(60) { sea.update(dt) }
+        assertTrue(sea.birds.all { it.x.isFinite() && it.y.isFinite() })
+    }
 }

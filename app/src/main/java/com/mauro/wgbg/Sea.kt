@@ -285,6 +285,7 @@ class Sea(board: Board, seed: Int = 1) {
 
     /** Advances the animation by [dt] seconds. */
     fun update(dt: Float) {
+        if (!(dt > 0f)) return // zero, negative or NaN steps: nothing moves (and nothing divides by them)
         // Passive animation (waves, glints, drift, gulls) runs faster or slower with the Motion setting;
         // touch physics on clouds uses real time and is unaffected.
         val pdt = dt * (0.25f + 1.5f * motion)

@@ -24,8 +24,8 @@ object Supply {
     /** Gap from the island's edge to the supply's centre line. */
     const val REACH = 1.8f
     const val ROAD_ROWS = 3
-    private const val HOME_GAP = 0.55f
-    private const val TOWN_GAP = 0.78f
+    private const val HOME_GAP = 0.85f
+    private const val TOWN_GAP = 1.15f
     private const val ROAD_GAP = 0.55f
     private const val ROAD_HALF = 0.3f
 
@@ -73,8 +73,8 @@ object Supply {
             row(n, ROAD_GAP, -0.75f + r * 0.25f, Kind.ROAD)
             left -= n
         }
-        row(towns.coerceAtLeast(0), TOWN_GAP, 0.2f, Kind.TOWN)
-        row(homesteads.coerceAtLeast(0), HOME_GAP, 0.85f, Kind.HOMESTEAD)
+        row(towns.coerceAtLeast(0), TOWN_GAP, 0.35f, Kind.TOWN)
+        row(homesteads.coerceAtLeast(0), HOME_GAP, 1.2f, Kind.HOMESTEAD)
         return out
     }
 
@@ -89,7 +89,7 @@ object Supply {
         val dx = x - cx; val dy = y - cy
         val u = dx * sin(angle) - dy * cos(angle)   // along the rows
         val v = dx * cos(angle) + dy * sin(angle)   // toward the owner
-        return kotlin.math.abs(u) <= 1.6f && v in -0.95f..1.15f
+        return kotlin.math.abs(u) <= 2.4f && v in -0.95f..1.6f
     }
 
 }

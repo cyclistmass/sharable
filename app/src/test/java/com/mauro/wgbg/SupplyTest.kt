@@ -76,7 +76,7 @@ class SupplyTest {
         assertTrue(Supply.hit(cx, cy, cx, cy, a))
         assertTrue(Supply.hit(cx + 1.2f, cy + 0.5f, cx, cy, a))
         assertFalse(Supply.hit(cx, cy - 1.3f, cx, cy, a), "toward the coast")
-        assertFalse(Supply.hit(cx + 2f, cy, cx, cy, a), "past the end of the rows")
+        assertFalse(Supply.hit(cx + 2.6f, cy, cx, cy, a), "past the end of the rows")
         // Same shape turned for a side seat.
         val side = PI.toFloat()
         assertTrue(Supply.hit(-6f + 0.5f * cos(side), 1.2f, -6f, 0f, side))

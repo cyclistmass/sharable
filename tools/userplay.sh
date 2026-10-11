@@ -33,6 +33,8 @@ fail() { echo "USERPLAY $TAG FAILED: $1"; shot fail; "$ADB" logcat -d -b crash |
 "$ADB" logcat -c; "$ADB" logcat -b crash -c 2>/dev/null || true
 "$ADB" shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1   # the launcher icon
 sleep 5
+# First launch plays the intro fly-over; a player taps to skip it.
+if dump | grep -q 'text="Tap to skip"'; then tap 1200 540; sleep 2; fi
 d=$(dump)
 # Seats: you plus bots; empty the last seats down to the player count.
 if [ "$PLAYERS" -lt 4 ]; then

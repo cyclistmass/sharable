@@ -340,6 +340,9 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     crash?.let { report -> CrashReportScreen(report) { crash = null }; return }
     // Debug builds: `--ez crash true` throws a test crash to exercise the reporter.
     if (crashTest) LaunchedEffect(Unit) { kotlinx.coroutines.delay(1500); throw IllegalStateException("test crash (debug --ez crash true)") }
+    // The intro fly-over, the first time the app opens (never over a debug start or a rejoin).
+    var intro by remember { mutableStateOf(start == null && !Intro.seen(ctx)) }
+    if (intro && screen == Screen.START) { IntroScreen { intro = false }; return }
     Box(Modifier.fillMaxSize()) {
         // Which build this is, for testers (bumped with each major merge).
         if (screen == Screen.START) Text("v${appVersion()}", color = Color(0xFFD9B865), fontSize = 12.sp,
@@ -531,7 +534,9 @@ fun WatchGameScreen(
         var last = 0L
         while (true) withFrameNanos { now ->
             sea.clouds01 = env.clouds; sea.birds01 = env.birds; sea.boats01 = env.boats; sea.waves01 = env.waves; sea.density01 = env.density
-            if (last != 0L) sea.update(((now - last) / 1e9f).coerceAtMost(0.05f))
+            // Clamp both ends: on some phones (Pixel 9/10, Android 17) the frame clock can step back a little,
+            // and a negative step crashed the gulls' turn limit (crash reports 2026-10-11).
+            if (last != 0L) sea.update(((now - last) / 1e9f).coerceIn(0f, 0.05f))
             last = now
             seaTick++
         }
@@ -1541,7 +1546,8 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         if (owner < 0) continue
         if (buildings != null) {
             // Rendered: Ramparts first, then the town, or the Capital that replaces it on a metropolis.
-            val at = l.at(v); val unit = scale * l.k(v); val color = PLAYER_COLORS[owner]
+            // Mauro, 2026-10-10: "make the houses twice as large, I can't see the buildings".
+            val at = l.at(v); val unit = scale * l.k(v) * BUILDING_SCALE; val color = PLAYER_COLORS[owner]
             val ckNow = s.ck
             if (ckNow != null && ckNow.wall[v] == 1) buildings.ramparts?.let { drawPieceSprite(it, at, unit, l.tilt, color) }
             val metro = ckNow?.metroVertex?.indexOf(v) ?: -1
@@ -1623,8 +1629,8 @@ private fun DrawScope.drawSupplies(s: GameState, l: Layout, wood: WoodPieces, st
             when (sp.kind) {
                 // The upright road sprite turned to lie along the owner's row.
                 Supply.Kind.ROAD -> drawPieceSprite(buildings.roadV, at, unit, l.tilt, PLAYER_COLORS[p], Math.toDegrees(a.toDouble()).toFloat())
-                Supply.Kind.TOWN -> drawPieceSprite(buildings.town, at, unit, l.tilt, PLAYER_COLORS[p], faceOwnerDegrees(a))
-                Supply.Kind.HOMESTEAD -> drawPieceSprite(buildings.homestead, at, unit, l.tilt, PLAYER_COLORS[p], faceOwnerDegrees(a))
+                Supply.Kind.TOWN -> drawPieceSprite(buildings.town, at, unit * BUILDING_SCALE, l.tilt, PLAYER_COLORS[p], faceOwnerDegrees(a))
+                Supply.Kind.HOMESTEAD -> drawPieceSprite(buildings.homestead, at, unit * BUILDING_SCALE, l.tilt, PLAYER_COLORS[p], faceOwnerDegrees(a))
             }
             continue
         }
@@ -1920,6 +1926,9 @@ internal const val NUMBER_TOKEN_R = 0.27f
 
 /** Number size on the plate, in hex units (the font size for a side-1 hex); Mauro: bigger, ~60% over the first 0.264. */
 internal const val NUMBER_TEXT = 0.46f
+
+/** Homesteads, towns, Ramparts and Capitals drawn this many times the art spec's size (roads stay as they are). */
+internal const val BUILDING_SCALE = 3f
 
 /**
  * Where the number token sits on a tile, in hex sides from its centre (y down, before the tilt squash).
