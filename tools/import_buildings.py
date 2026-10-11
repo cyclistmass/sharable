@@ -3,7 +3,7 @@ app/src/main/java/com/mauro/wgbg/BuildingArt.kt with the resource lists.
 
 Every piece is per theme (the Pirate harbour set has its own porch-house homestead and boardwalk roads):
   Default: C:/Users/mauro/wgbg-art/buildings/default/piece_<name>[_trim]_tilt_<0..7>.png
-  Pirate:  C:/Users/mauro/wgbg-art/buildings-pirate-astra/pirate_piece_<name>[_trim]_tilt_<0..7>.png
+  Pirate:  C:/Users/mauro/wgbg-art/buildings-pirate-astra/steps8/pirate_piece_<name>[_trim]_tilt8_<0..7>.png
 All are 256x256 RGBA at 193 px per hex unit with the contact point at the centre. Old imported files are
 removed first so nothing stale stays in res/.
 
@@ -17,8 +17,9 @@ OUT = ROOT / "app/src/main/res/drawable-nodpi"
 KT = ROOT / "app/src/main/java/com/mauro/wgbg/BuildingArt.kt"
 PIECES = ["homestead", "town", "road_v", "road_p30", "road_m30", "ramparts", "capital_guilds", "capital_academy", "capital_crown"]
 THEMES = {
-    "default": (Path(r"C:/Users/mauro/wgbg-art/buildings/default"), "piece_"),
-    "pirate": (Path(r"C:/Users/mauro/wgbg-art/buildings-pirate-astra"), "pirate_piece_"),
+    "default": (Path(r"C:/Users/mauro/wgbg-art/buildings/default"), "piece_", "tilt"),
+    # The corrected set: its flat view (step 0) was rotated 180 degrees in the first harbour render.
+    "pirate": (Path(r"C:/Users/mauro/wgbg-art/buildings-pirate-astra/steps8"), "pirate_piece_", "tilt8"),
 }
 STEPS = 8
 
@@ -26,13 +27,13 @@ for old in OUT.glob("bld_*.webp"):
     old.unlink()
 
 sets = {}
-for theme, (folder, prefix) in THEMES.items():
+for theme, (folder, prefix, tilt) in THEMES.items():
     for piece in PIECES:
         for layer, mid in (("body", ""), ("trim", "_trim")):
             names = []
             for i in range(STEPS):
                 name = f"bld_{theme}_{piece}{mid}_tilt_{i}"
-                Image.open(folder / f"{prefix}{piece}{mid}_tilt_{i}.png").convert("RGBA").save(OUT / f"{name}.webp", quality=90, method=6)
+                Image.open(folder / f"{prefix}{piece}{mid}_{tilt}_{i}.png").convert("RGBA").save(OUT / f"{name}.webp", quality=90, method=6)
                 names.append(name)
             sets[(theme, piece, layer)] = names
 

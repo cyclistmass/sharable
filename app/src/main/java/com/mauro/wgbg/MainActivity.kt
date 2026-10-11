@@ -217,8 +217,8 @@ private val KNIGHTS_NORMAL = listOf(
 private val KNIGHT_CARDS_NORMAL = listOf(R.drawable.card_knight_normal_1, R.drawable.card_knight_normal_2, R.drawable.card_knight_normal_3)
 private val KNIGHT_CARDS_PIRATE = listOf(R.drawable.card_knight_pirate_1, R.drawable.card_knight_pirate_2, R.drawable.card_knight_pirate_3)
 
-/** How thick a tile stands, in hex sides (frame option B). */
-private const val TILE_THICKNESS = 0.26f
+/** How thick a tile stands, in hex sides (frame option B was 0.26; Mauro 2026-10-11: "too thick", halved). */
+private const val TILE_THICKNESS = 0.13f
 
 private val TERRAIN_COLORS = mapOf(
     Resource.WOOD to Color(0xFF2E7D32),
@@ -514,6 +514,8 @@ fun WatchGameScreen(
     val tileLine = env.tileEdge == EnvSettings.TileEdge.THIN
     // Rendered buildings (#41) for the chosen theme; Age of Chivalry pieces only load in those games.
     val buildings = remember(env.pirateTheme, state.ck != null) { BuildingSprites(oceanRes, env.pirateTheme, state.ck != null) }
+    // The V3 3D tiles (Settings › Tiles › 3D preview): loaded only when chosen.
+    val tiles3d = remember(env.tiles3d) { if (env.tiles3d) Tile3dArt.TERRAINS.map { t -> t.map { ImageBitmap.imageResource(oceanRes, it) } } else null }
     val gullFlap = ImageBitmap.imageResource(R.drawable.gull_flap)
     val gullGlide = ImageBitmap.imageResource(R.drawable.gull_glide)
     val gullShadow = ImageBitmap.imageResource(R.drawable.gull_shadow)
@@ -903,11 +905,11 @@ fun WatchGameScreen(
                 drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.UNDER, banditSprites)
                 // Re-record the still board only when something on it can have changed: a move, the
                 // camera, the canvas size or a look setting. Otherwise the last recording is replayed.
-                val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff, viewer, pileOffsets, buildings, banditSprites != null)
+                val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff, viewer, pileOffsets, buildings, banditSprites != null, tiles3d)
                 if (boardLayerKey[0] != key) {
                     // The explicit-density overload gives the layer its own draw scope; recording through
                     // this Canvas's scope makes the two scopes ask each other for density forever.
-                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL, banditSprites, viewer, pileOffsets, buildings) }
+                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL, banditSprites, viewer, pileOffsets, buildings, tiles3d) }
                     boardLayerKey[0] = key
                 }
                 drawLayer(boardLayer)
@@ -1443,11 +1445,12 @@ private data class BoardLayerKey(
     val game: Int, val tick: Int, val camera: Camera, val size: Size, val tileLine: Boolean,
     val knights: List<ImageBitmap>?, val faces: Map<Int, ImageBitmap>?, val cliff: List<ImageBitmap>?,
     val viewer: Int = 0, val piles: List<Offset> = emptyList(), val buildings: BuildingSprites? = null,
-    val bandit: Boolean = false,
+    val bandit: Boolean = false, val tiles3d: List<List<ImageBitmap>>? = null,
 )
 
 private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null, part: BoardPart = BoardPart.ALL, bandit: List<ImageBitmap>? = null,
-                                viewer: Int = 0, pileOffsets: List<Offset> = emptyList(), buildings: BuildingSprites? = null) {
+                                viewer: Int = 0, pileOffsets: List<Offset> = emptyList(), buildings: BuildingSprites? = null,
+                                tiles3d: List<List<ImageBitmap>>? = null) {
     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
@@ -1502,7 +1505,13 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         // Zoomed in, skip tiles that are entirely off screen.
         val m = 1.2f * scale
         if (c.x < -m || c.y < -m || c.x > size.width + m || c.y > size.height + m) continue
-        drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]), tileLine)
+        val r3d = tiles3d?.getOrNull(if (board.hexResource[h] in 0 until 5) board.hexResource[h] else 5)
+        if (r3d != null) {
+            // 3D preview: the rendered tile (base and thickness baked in) at this tilt, then our number plate on top.
+            val hs = scale * l.hexK(h)
+            drawSteppedSprite(r3d, c, Tile3dArt.FRAME_UNITS * hs, l.tilt)
+            if (board.hexNumber[h] != 0) drawNumberToken(board.hexNumber[h], c + Offset(NUMBER_TOKEN_X * hs, NUMBER_TOKEN_Y * hs * l.squash), hs, measurer, wood)
+        } else drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]), tileLine)
     }
 
     // Ports: water patch and wooden piers first, then the raised trade-rate tokens.
@@ -1541,9 +1550,11 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     }
 
     // Robber.
-    // Age of Chivalry knights: the theme's token at each corner, on a ring in the owner's colour.
+    // Age of Chivalry knights, old flat tokens (only until the rendered knights are loaded; those are drawn with the
+    // buildings below): the theme's token at each corner, on a ring in the owner's colour.
     val ck = s.ck
-    if (ck != null && knights != null) for (v in 0 until board.topology.vertexCount) {
+    val rendered3dKnights = buildings != null && buildings.knights.isNotEmpty()
+    if (ck != null && knights != null && !rendered3dKnights) for (v in 0 until board.topology.vertexCount) {
         val owner = ck.knightOwner[v]
         if (owner < 0) continue
         val level = ck.knightLevel[v].coerceIn(1, 3)
@@ -1566,8 +1577,17 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         }
     }
 
-    // Settlements and cities.
-    for (v in 0 until topo.vertexCount) {
+    // Settlements, cities and (rendered) knights, back to front by screen depth so the nearer piece is always drawn
+    // on top: big houses no longer swallow a seated knight behind them (Mauro: "knights disappear when inactive").
+    for (v in cornerDrawOrder(topo.vertexCount) { l.at(it).y }) {
+        val kOwner = ck?.knightOwner?.get(v) ?: -1
+        if (kOwner >= 0 && rendered3dKnights) {
+            val level = ck!!.knightLevel[v].coerceIn(1, 3)
+            val color = PLAYER_COLORS[kOwner]
+            drawPieceSprite(buildings!!.knights[level - 1], l.at(v), scale * l.k(v) * KNIGHT_SCALE / BuildingSprites.FRAME_UNITS, l.tilt, color,
+                bodyFilter = knightBodyFilter(color, ck.isActive(v)))
+            continue
+        }
         val owner = s.vertexOwner[v]
         if (owner < 0) continue
         if (buildings != null) {
@@ -1825,7 +1845,14 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
     }
     // Row 4: Age of Chivalry knights (levels 1-3, idle and active), the Raiders' ship, a cliff strip, boats and a gull.
     val y4 = 8.75f * scale
-    art.knights.forEachIndexed { i, k ->
+    val knights3d = art.buildings?.knights.orEmpty()
+    if (knights3d.isNotEmpty()) for (i in 0 until 6) {
+        // The 3D knights (Age of Chivalry games): levels 1-3, idle (dimmed) then active, in the owner colours.
+        val c = Offset(left - 0.6f * scale + i * 0.95f * scale, y4)
+        val color = PLAYER_COLORS[(i / 2) % PLAYER_COLORS.size]
+        drawPieceSprite(knights3d[i / 2], c + Offset(0f, 0.15f * scale), scale * 1.5f, 0.55f, color, bodyFilter = knightBodyFilter(color, i % 2 == 1))
+        label("L${i / 2 + 1}${if (i % 2 == 1) " on" else ""}", c + Offset(0f, 0.5f * scale))
+    } else art.knights.forEachIndexed { i, k ->
         val c = Offset(left - 0.6f * scale + i * 0.95f * scale, y4)
         image(k, c, 0.9f)
         label("L${i / 2 + 1}${if (i % 2 == 1) " on" else ""}", c + Offset(0f, 0.5f * scale))
@@ -1955,6 +1982,19 @@ internal const val NUMBER_TEXT = 0.46f
 
 /** Homesteads, towns, Ramparts and Capitals drawn this many times the art spec's size (roads stay as they are). */
 internal const val BUILDING_SCALE = 2.4f
+
+/** Draws the tilt-stepped sprite [frames] centred on [c], [side] px square, cross-fading the two nearest steps. */
+private fun DrawScope.drawSteppedSprite(frames: List<ImageBitmap>, c: Offset, side: Float, tilt: Float) {
+    if (side < 2f || !side.isFinite()) return
+    val (a, b, f) = banditSteps(tilt)
+    val dst = IntOffset((c.x - side / 2).toInt(), (c.y - side / 2).toInt()); val sz = IntSize(side.toInt(), side.toInt())
+    frames.getOrNull(a)?.let { drawImage(it, IntOffset.Zero, IntSize(it.width, it.height), dst, sz, filterQuality = FilterQuality.Medium) }
+    if (f > 0.02f) frames.getOrNull(b)?.let { drawImage(it, IntOffset.Zero, IntSize(it.width, it.height), dst, sz, alpha = f, filterQuality = FilterQuality.Medium) }
+}
+
+/** Corners 0 until [count] ordered back to front: by [screenY] (smaller is farther away), ties by index. */
+internal fun cornerDrawOrder(count: Int, screenY: (Int) -> Float): List<Int> =
+    (0 until count).sortedWith(compareBy<Int>({ screenY(it) }, { it }))
 
 /** Age of Chivalry knight size in hex units (Mauro, 2026-10-11: 3x the first 0.62, then 30% smaller). */
 internal const val KNIGHT_SCALE = 1.30f
