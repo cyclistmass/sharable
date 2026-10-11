@@ -231,8 +231,8 @@ private val TERRAIN_COLORS = mapOf(
     Resource.NONE to Color(0xFFE8D9A8),
 )
 
-/** Seat colours. Mauro's pick (#59, 2026-10-11): a brighter scarlet and a copper orange so red and orange never blur. */
-internal val PLAYER_COLORS = listOf(Color(0xFFFF2420), Color(0xFF1E63C6), Color(0xFFFF6600), Color(0xFFF5F5F5))
+/** Seat colours. Mauro's pick (#59, 2026-10-11): scarlet and a hue-29 orange, both 20% lighter, so red and orange never blur. */
+internal val PLAYER_COLORS = listOf(Color(0xFFFF5C59), Color(0xFF1E63C6), Color(0xFFFF9B3E), Color(0xFFF5F5F5))
 /** The brown (tan) for boat sails and the extra seats of six-player games (v3). */
 internal val PLAYER_BROWN = Color(0xFF8D6E63)
 internal val PLAYER_NAMES = listOf("Red", "Blue", "Orange", "White")
@@ -1684,14 +1684,18 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             // Mauro, 2026-10-10: "make the houses twice as large, I can't see the buildings".
             val at = l.at(v); val unit = scale * l.k(v) * BUILDING_SCALE; val color = PLAYER_COLORS[owner]
             val ckNow = s.ck
-            if (ckNow != null && ckNow.wall[v] == 1) buildings.ramparts?.let { drawPieceSprite(it, at, unit, l.tilt, color) }
+            // Ramparts (Mauro's pick C): the walls at 65%, the town perched on top of them, a little smaller and lifted.
+            val walled = ckNow != null && ckNow.wall[v] == 1
+            if (walled) buildings.ramparts?.let { drawPieceSprite(it, at, unit * RAMPARTS_SCALE, l.tilt, color) }
+            val perch = if (walled) Offset(0f, -RAMPARTS_PERCH_LIFT * BuildingSprites.FRAME_UNITS * unit) else Offset.Zero
+            val townUnit = if (walled) unit * RAMPARTS_TOWN_SCALE else unit
             val metro = ckNow?.metroVertex?.indexOf(v) ?: -1
             val piece = when {
                 metro >= 0 -> buildings.capital(metro) ?: buildings.town
                 s.vertexBuilding[v] == Piece.CITY -> buildings.town
                 else -> buildings.homestead
             }
-            drawPieceSprite(piece, at, unit, l.tilt, color)
+            drawPieceSprite(piece, at + perch, townUnit, l.tilt, color)
             continue
         }
         with(wood) {
@@ -2080,7 +2084,12 @@ internal const val NUMBER_TEXT_RAISE = 0.56f
 internal const val NUMBER_PIPS_DOWN = 0.72f
 
 /** Homesteads, towns, Ramparts and Capitals drawn this many times the art spec's size (roads stay as they are). */
-internal const val BUILDING_SCALE = 2.4f
+internal const val BUILDING_SCALE = 1.8f   // Mauro 2026-10-11: 25% smaller than 2.4
+
+/** Ramparts under a town (pick C): the walls this share of a building, the town on top this share, lifted by this share of a frame. */
+internal const val RAMPARTS_SCALE = 0.65f
+internal const val RAMPARTS_TOWN_SCALE = 0.88f
+internal const val RAMPARTS_PERCH_LIFT = 12f / 256f
 
 /** Draws the tilt-stepped sprite [frames] centred on [c], [side] px square, cross-fading the two nearest steps. */
 private fun DrawScope.drawSteppedSprite(frames: List<ImageBitmap>, c: Offset, side: Float, tilt: Float) {
