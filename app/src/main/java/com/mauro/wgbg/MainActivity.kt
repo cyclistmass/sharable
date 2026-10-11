@@ -775,7 +775,7 @@ fun WatchGameScreen(
     var screenHeight by remember { mutableStateOf(0f) }
     val turnHudHeight = with(LocalDensity.current) {
         // The dice sit right under the player list and the history takes the rest of the side (Mauro: "raise it up").
-        if (screenHeight <= 0f) 210.dp else ((screenHeight - stripBottom).toDp() - 16.dp).coerceAtLeast(110.dp)
+        if (screenHeight <= 0f) 210.dp else ((screenHeight - stripBottom).toDp() - 10.dp).coerceAtLeast(110.dp)
     }
     // Back closes whatever is open on top first (Settings, the menu, the Inventory), then asks about leaving.
     BackHandler {

@@ -57,7 +57,7 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                 /** False inside the one left side panel (#73), which draws the frame for both halves. */
                 framed: Boolean = true) {
     version // the state object is mutated in place; this changing value makes the strip redraw after each move
-    Column((if (framed) modifier.brassEdgedWood() else modifier).padding(horizontal = 12.dp, vertical = 8.dp).testTag("player-strip"), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+    Column((if (framed) modifier.brassEdgedWood() else modifier).padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 2.dp).testTag("player-strip"), verticalArrangement = Arrangement.spacedBy(1.dp)) {
         // Age of Chivalry: how near the Raiders are (a ship marker on a 7-step track).
         s.ck?.let { ck ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.testTag("raiders-track")) {

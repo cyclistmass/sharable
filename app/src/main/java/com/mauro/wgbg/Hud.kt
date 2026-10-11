@@ -77,7 +77,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
     Column(
         modifier.size(width = width, height = height)
             .then(if (framed) Modifier.brassEdgedWood() else Modifier)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(start = 14.dp, end = 14.dp, top = 2.dp, bottom = 10.dp),   // the dice sit right under the players (Mauro)
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
