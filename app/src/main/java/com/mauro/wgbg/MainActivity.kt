@@ -1610,10 +1610,11 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         val mid = Offset((a.x + b.x) / 2, (a.y + b.y) / 2)
         val n = (mid - l.center).let { it / it.getDistance() }
         val ps = scale * (l.k(p.v1) + l.k(p.v2)) / 2f
-        PortGeom(p.type, a, b, mid, n, mid + Offset(n.x, n.y * l.squash) * (0.58f * ps), ps)
+        // The rendered buoys are 1.5x the old token, so they sit a little further out (Mauro, 2026-10-11).
+        PortGeom(p.type, a, b, mid, n, mid + Offset(n.x, n.y * l.squash) * ((if (buildings != null) PORT_BUOY_OUT else 0.58f) * ps), ps)
     }
     for (pg in ports) drawPortWater(pg, pg.scale, l.squash)
-    for (pg in ports) drawPortPiersAndToken(pg, pg.scale, measurer, wood)
+    for (pg in ports) drawPortPiersAndToken(pg, pg.scale, measurer, wood, buildings?.ports?.getOrNull(PortArt.index(pg.type)), l.tilt)
 
     // Roads: rendered sprites (two per edge, overlapping at the middle, per the art report) or drawn planks.
     for (e in 0 until topo.edgeCount) {
@@ -1994,7 +1995,8 @@ private fun DrawScope.drawPortWater(pg: PortGeom, scale: Float, squash: Float = 
     drawPath(polygon(listOf(boat + Offset(-0.08f * u, -1.5f * u), boat + Offset(-0.08f * u, -0.15f * u), boat + Offset(-0.8f * u, -0.15f * u))), Color(0xFFE8E2D0))
 }
 
-private fun DrawScope.drawPortPiersAndToken(pg: PortGeom, scale: Float, measurer: TextMeasurer, wood: WoodPieces) {
+private fun DrawScope.drawPortPiersAndToken(pg: PortGeom, scale: Float, measurer: TextMeasurer, wood: WoodPieces,
+                                            buoy: List<ImageBitmap>? = null, tilt: Float = 0f) {
     // Wooden plank walkways from each coast intersection to the token.
     for (v in listOf(pg.a, pg.b)) {
         // 15% longer than the original 0.12..0.75 span, extended at the coast end so the token stays put.
@@ -2029,7 +2031,18 @@ private fun DrawScope.drawPortPiersAndToken(pg: PortGeom, scale: Float, measurer
             k += 0.22f * scale
         }
     }
-    drawPortToken(pg.type, pg.token, scale, measurer, wood)
+    // Crest's bell buoy with the trade good on deck (3:1 an anchor); the old wooden token if the art isn't loaded.
+    if (buoy != null) {
+        drawSteppedSprite(buoy, pg.token, BuildingSprites.FRAME_UNITS * scale, tilt)
+        // The rate on a little worn-wood tag at the buoy's foot, so you never have to remember which is which.
+        val label = measurer.measure(if (pg.type == Port.GENERIC) "3:1" else "2:1",
+            TextStyle(fontSize = (0.17f * scale / density).sp, fontWeight = FontWeight.Bold, color = Color(0xFFF6EBD2)))
+        val at = pg.token + Offset(0f, 0.30f * scale)
+        val w = label.size.width + 0.10f * scale; val h = label.size.height.toFloat()
+        drawRoundRect(Color(0xE6372312), Offset(at.x - w / 2, at.y - h / 2), Size(w, h), androidx.compose.ui.geometry.CornerRadius(h / 3, h / 3))
+        drawRoundRect(Color(0xFFA9863F), Offset(at.x - w / 2, at.y - h / 2), Size(w, h), androidx.compose.ui.geometry.CornerRadius(h / 3, h / 3), style = Stroke(0.012f * scale))
+        drawText(label, topLeft = at - Offset(label.size.width / 2f, label.size.height / 2f))
+    } else drawPortToken(pg.type, pg.token, scale, measurer, wood)
 }
 
 /** Raised trade-rate token: wood with an anchor for 3:1, terrain art for 2:1. */
@@ -2088,6 +2101,8 @@ internal const val BUILDING_SCALE = 1.8f   // Mauro 2026-10-11: 25% smaller than
 
 /** Ramparts under a town (pick C): the walls this share of a building, the town on top this share, lifted by this share of a frame. */
 internal const val RAMPARTS_SCALE = 0.65f
+/** How far out to sea a port buoy sits from the coast edge's middle, in hex units (the old token sat at 0.58). */
+internal const val PORT_BUOY_OUT = 0.70f
 internal const val RAMPARTS_TOWN_SCALE = 0.88f
 internal const val RAMPARTS_PERCH_LIFT = 12f / 256f
 

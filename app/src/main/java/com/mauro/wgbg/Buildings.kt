@@ -35,6 +35,8 @@ class BuildingSprites(res: Resources, pirate: Boolean, chivalry: Boolean) {
     val roadM30 = load(res, BuildingArt.roadM30(pirate))
     val ramparts = if (chivalry) load(res, BuildingArt.ramparts(pirate)) else null
     private val capitals = if (chivalry) BuildingArt.capitals(pirate).map { load(res, it) } else emptyList()
+    /** The bell-buoy ports (PortArt.index order), 8 tilt steps each. */
+    val ports: List<List<ImageBitmap>> = PortArt.TYPES.map { t -> t.map { ImageBitmap.imageResource(res, it) } }
     /** The 3D knights, levels 1 to 3 (Age of Chivalry only). */
     val knights: List<Piece> = if (chivalry) KnightArt.levels(pirate).map { load(res, it) } else emptyList()
 
