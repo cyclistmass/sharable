@@ -776,6 +776,20 @@ fun WatchGameScreen(
     val hostView = androidx.compose.ui.platform.LocalView.current
     val sounds = remember { GameSounds(appContext) }
     androidx.compose.runtime.DisposableEffect(sounds) { onDispose { sounds.close() } }
+    // Dice (#57): every roll is heard; your own roll you also feel. The roll already showing when the screen opens
+    // (a rejoin, a new game) isn't replayed.
+    val lastRoll = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
+    val rollKey = lastRoll?.let { it.turn * 8 + it.player }
+    val firstRollKey = remember { rollKey }
+    LaunchedEffect(rollKey) {
+        if (rollKey == null || rollKey == firstRollKey || lastRoll == null) return@LaunchedEffect
+        sounds.diceRoll(sound.soundVolume)
+        if (lastRoll.player == me) Haptics.diceRattle(appContext)
+        // Age of Chivalry: the Raiders' ship on the event die gets a wooden clonk as the dice settle, for everyone.
+        if (lastRoll.event in 0 until wgbg.engine.EventDie.SHIP_FACES) {
+            delay(650); sounds.raidersClonk(sound.soundVolume); Haptics.raidersClonk(appContext)
+        }
+    }
     val myMoveKey = tick.let { if (me >= 0 && !state.isOver && state.actingPlayer == me) listOf(state.turn, state.phase) else null }
     LaunchedEffect(myMoveKey) { if (myMoveKey != null) hostView.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY) }
     val offerKey = tick.let { if (me >= 0 && tradeMode(state, me) == TradeMode.RESPOND) listOf(state.turn, state.currentPlayer, state.tradeOffer.contentHashCode()) else null }
@@ -902,8 +916,13 @@ fun WatchGameScreen(
                             cardPick = moves; cardSecond = true; return@detectTapGestures
                         }
                         when {
-                            moves.isNotEmpty() && moves == pending && moves.size == 1 -> { pending = emptyList(); humanMoves.trySend(moves[0]) }
-                            moves.isNotEmpty() -> pending = moves
+                            moves.isNotEmpty() && moves == pending && moves.size == 1 -> {
+                                // The second tap places it: a firm confirm you can feel (#57).
+                                hostView.performHapticFeedback(if (android.os.Build.VERSION.SDK_INT >= 30) android.view.HapticFeedbackConstants.CONFIRM
+                                    else android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                                pending = emptyList(); humanMoves.trySend(moves[0])
+                            }
+                            moves.isNotEmpty() -> { pending = moves; hostView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
                             pending.isNotEmpty() -> pending = emptyList() // tapping elsewhere cancels
                             !inventory && boardTapHint(boardNow, legalNow, stateNow.robberHex, p) != null -> tapHint = boardTapHint(boardNow, legalNow, stateNow.robberHex, p)
                             !inventory && seaNow.isWater(p) -> seaNow.splash(p)
