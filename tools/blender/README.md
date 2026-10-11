@@ -64,3 +64,42 @@ done
 
 Rules for every render (sizes, anchors, the number-plate clearing, light, tilt convention):
 `docs/design/tiles-3d-models/ART_SPEC.md` and `docs/design/art-spec.md` on main.
+
+## Building pieces at N tilt steps (`render_pieces_steps.py`)
+
+Renders saved piece scenes (`.blend`) at any step count, as separate **body** (tinted in game) and **trim** (brass,
+untinted) layers. It works for any `.blend` whose meshes carry `layer` (body|trim) and `original` or
+`original_material` (material name) custom properties: the default and pirate building sets, and the knights.
+
+```bash
+$B -b -P tools/blender/gpu_on.py -P tools/blender/render_pieces_steps.py -- \
+   --src C:/Users/mauro/wgbg-art/buildings/default --steps 16
+$B -b -P tools/blender/gpu_on.py -P tools/blender/render_pieces_steps.py -- \
+   --src C:/Users/mauro/wgbg-art/buildings-pirate-astra --blend-prefix pirate_ --file-prefix pirate_piece_ --steps 8 16
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--src DIR` | (required) | folder of piece `.blend` files |
+| `--steps N [N ...]` | `16` | step counts |
+| `--max-tilt RAD` | `0.96` | tilt of the last step |
+| `--names NAME ...` | all | only these pieces (`.blend` stem without the prefix) |
+| `--blend-prefix STR` | `''` | e.g. `pirate_` |
+| `--file-prefix STR` | `piece_` | e.g. `pirate_piece_` |
+| `--out DIR` | `--src` | files go to `<out>/steps<N>/<file-prefix><name>_[trim_]tilt<N>_<i>.png` |
+
+Measured (RTX 4070 SUPER): a full building set (9 pieces × 16 steps × 2 layers = 288 frames) in ~100–130 s.
+Checked against the shipped 8-step sprites: the default set matches pixel for pixel. The pirate set matches at every
+step except the shipped flat `tilt_0`, which was rendered with the camera rolled 180° (a straight-down camera has an
+ambiguous roll). These renders are consistent at every step and fix it.
+
+## Bandit at N steps
+
+`wgbg-art/bandit-v2/render_bandit_final_steps.py` (step count from the `WGBG_STEPS` env var, default 16) renders the
+shipped bandit to `raw/steps<N>/`, and `check_bandit_steps.py` verifies that no number-plate digit shows at any step:
+
+```bash
+cd C:/Users/mauro/wgbg-art/bandit-v2
+WGBG_STEPS=16 $B -b -P <repo>/tools/blender/gpu_on.py -P render_bandit_final_steps.py
+WGBG_STEPS=16 python check_bandit_steps.py
+```
