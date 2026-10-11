@@ -19,29 +19,13 @@ class KnightArtTest {
         }
     }
 
-    /** Applies the 4x5 matrix [m] (values 0..1, offsets in column 4) to an RGBA colour. */
-    private fun apply(m: FloatArray, c: FloatArray) = FloatArray(4) { r -> (0 until 4).sumOf { k -> (m[r * 5 + k] * c[k]).toDouble() }.toFloat() + m[r * 5 + 4] }
-
     @Test
-    fun `an inactive knight's body is its tint dimmed toward grey, alpha untouched`() {
-        for (color in listOf(Color(0xFFD03030), Color(0xFF3060D0), Color(0xFFE08A20), Color(0xFFF0F0F0))) {
-            val p = floatArrayOf(color.red, color.green, color.blue)
-            for (body in listOf(floatArrayOf(1f, 1f, 1f, 1f), floatArrayOf(0.8f, 0.6f, 0.4f, 0.5f))) {
-                val tinted = FloatArray(3) { body[it] * p[it] }
-                val luma = 0.299f * tinted[0] + 0.587f * tinted[1] + 0.114f * tinted[2]
-                val out = apply(knightInactiveMatrix(color), body)
-                for (ch in 0 until 3) assertEquals(KNIGHT_IDLE_VALUE * (KNIGHT_IDLE_SAT * tinted[ch] + (1 - KNIGHT_IDLE_SAT) * luma), out[ch], 1e-5f)
-                assertEquals(body[3], out[3], 1e-6f)
-            }
-        }
-    }
-
-    @Test
-    fun `idle knights of different players stay different colours`() {
-        val white = floatArrayOf(1f, 1f, 1f, 1f)
-        val red = apply(knightInactiveMatrix(Color(0xFFD03030)), white)
-        val blue = apply(knightInactiveMatrix(Color(0xFF3060D0)), white)
-        assertTrue(red[0] > red[2] + 0.1f && blue[2] > blue[0] + 0.1f, "red ${red.toList()} blue ${blue.toList()}")
+    fun `an active knight's flag stands upright just right of it, the pennant pointing outward`() {
+        val (foot, top, tip) = knightFlagPoints(100f)
+        assertEquals(foot.x, top.x, 1e-4f)
+        assertTrue(top.y < foot.y - 30f, "the pole rises")
+        assertTrue(foot.x > 18f, "clear of the knight's base (it spans about +-22% of the frame)")
+        assertTrue(tip.x > top.x && tip.y > top.y, "the pennant flies out and down from the top")
     }
 
     @Test

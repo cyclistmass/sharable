@@ -1739,8 +1739,8 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         if (kOwner >= 0 && rendered3dKnights) {
             val level = ck!!.knightLevel[v].coerceIn(1, 3)
             val color = PLAYER_COLORS[kOwner]
-            drawPieceSprite(buildings!!.knights[level - 1], l.at(v), scale * l.k(v) * KNIGHT_SCALE / BuildingSprites.FRAME_UNITS, l.tilt, color,
-                bodyFilter = knightBodyFilter(color, ck.isActive(v)))
+            drawPieceSprite(buildings!!.knights[level - 1], l.at(v), scale * l.k(v) * KNIGHT_SCALE / BuildingSprites.FRAME_UNITS, l.tilt, color)
+            if (ck.isActive(v)) drawKnightFlag(l.at(v), scale * l.k(v) * KNIGHT_SCALE, color)
             continue
         }
         val owner = s.vertexOwner[v]
@@ -2013,10 +2013,11 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
     val y4 = 8.75f * scale
     val knights3d = art.buildings?.knights.orEmpty()
     if (knights3d.isNotEmpty()) for (i in 0 until 6) {
-        // The 3D knights (Age of Chivalry games): levels 1-3, idle (dimmed) then active, in the owner colours.
+        // The 3D knights (Age of Chivalry games): levels 1-3, idle then active (flying its flag), in the owner colours.
         val c = Offset(left - 0.6f * scale + i * 0.95f * scale, y4)
         val color = PLAYER_COLORS[(i / 2) % PLAYER_COLORS.size]
-        drawPieceSprite(knights3d[i / 2], c + Offset(0f, 0.15f * scale), scale * 1.5f, 0.55f, color, bodyFilter = knightBodyFilter(color, i % 2 == 1))
+        drawPieceSprite(knights3d[i / 2], c + Offset(0f, 0.15f * scale), scale * 1.5f, 0.55f, color)
+        if (i % 2 == 1) drawKnightFlag(c + Offset(0f, 0.15f * scale), BuildingSprites.FRAME_UNITS * scale * 1.5f, color)
         label("L${i / 2 + 1}${if (i % 2 == 1) " on" else ""}", c + Offset(0f, 0.5f * scale))
     } else art.knights.forEachIndexed { i, k ->
         val c = Offset(left - 0.6f * scale + i * 0.95f * scale, y4)
