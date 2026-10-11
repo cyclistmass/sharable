@@ -44,6 +44,8 @@ private val HUD_TEXT = Color(0xFFEDE6D8)
 /** The roll and what came of it, pinned to a corner of the board. */
 @Composable
 fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PLAYER_NAMES, modifier: Modifier = Modifier,
+            /** This phone's player (their turns read "Your turn"), or -1 when only bots play. */
+            me: Int = -1,
             /** Earlier turns, newest first: shown below this turn so you can scroll back to see what everyone did (#65). */
             history: List<TurnReport> = emptyList(),
             /** Reports where the two dice are (root coordinates), so thrown dice can fly to them. */
@@ -83,7 +85,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
                     modifier = Modifier.onGloballyPositioned { onEventSlot?.invoke(it.boundsInRoot()) })
                 if (report.rolled && showDice) Text("= ${report.die1 + report.die2}", color = HUD_TEXT, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
-            Text(if (names[report.player] == "You") "Your turn" else "${names[report.player]}'s turn", color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            // No "X's turn" here: that player's row is already highlighted above (Mauro).
         }
         val scroll = androidx.compose.foundation.rememberScrollState()
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -96,7 +98,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             for (t in earlier) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    (if (names[t.player] == "You") "Your turn" else "${names[t.player]}'s turn") +
+                    (if (t.player == me) "Your turn" else "${names[t.player]}'s turn") +
                         (if (t.rolled) " · rolled ${t.die1 + t.die2}" else "") + " · turn ${t.turn + 1}",
                     color = PLAYER_COLORS[t.player].copy(alpha = 0.9f), fontWeight = FontWeight.Bold, fontSize = 12.sp,
                 )

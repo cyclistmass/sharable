@@ -128,11 +128,11 @@ class OnlineSeats(room: Room, uid: String) {
     val isHost: Boolean = room.host == uid
     val config: wgbg.engine.GameConfig = room.config.copy(numPlayers = players.size)
     val seed: Long = room.seed
-    /** Names by engine player; this phone's own seat reads "You" (so the panel says "Your turn"). */
+    /** Names by engine player; your own seat shows the name you typed (Mauro: it said "You" instead of my name). */
     val names: List<String> = players.mapIndexed { i, s ->
         val seat = room.seats[s]
         when {
-            i == me -> "You"
+            i == me -> seat.name.ifBlank { "You" }
             seat.uid != null -> seat.name.ifBlank { PLAYER_NAMES[i] }
             else -> "${PLAYER_NAMES[i]} (${seat.bot?.let { b -> BotLevel.valueOf(b).label } ?: "bot"})"
         }

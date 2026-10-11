@@ -498,7 +498,7 @@ fun WatchGameScreen(
     // Play mode: you are seat 0 ("You"); Watch mode: bots in every seat at full speed. Online: your seat.
     var human by remember { mutableStateOf(!startWatching) }
     val me = net?.me ?: if (human) 0 else -1
-    val names = net?.names ?: if (human) listOf("You") + PLAYER_NAMES.drop(1) else PLAYER_NAMES
+    val names = net?.names ?: if (human) listOf(setup.name.ifBlank { "You" }) + PLAYER_NAMES.drop(1) else PLAYER_NAMES
     val seats = net?.players?.size ?: setup.players.size
     // Online, a rejected move rolls the room back: the screen then rebuilds its game from the room's moves.
     var epoch by remember { mutableIntStateOf(0) }
@@ -771,7 +771,8 @@ fun WatchGameScreen(
     var stripWidth by remember { mutableStateOf(0f) }
     var screenHeight by remember { mutableStateOf(0f) }
     val turnHudHeight = with(LocalDensity.current) {
-        if (screenHeight <= 0f) 210.dp else ((screenHeight - stripBottom).toDp() - 16.dp).coerceIn(110.dp, 210.dp)
+        // The dice sit right under the player list and the history takes the rest of the side (Mauro: "raise it up").
+        if (screenHeight <= 0f) 210.dp else ((screenHeight - stripBottom).toDp() - 16.dp).coerceAtLeast(110.dp)
     }
     // Back closes whatever is open on top first (Settings, the menu, the Inventory), then asks about leaving.
     BackHandler {
@@ -1041,7 +1042,7 @@ fun WatchGameScreen(
             if (stripWidth > 0f) Box(Modifier.align(Alignment.TopStart).padding(8.dp).width(sideWidth).fillMaxHeight()
                 .brassEdgedWood(woodAlpha = if (env.seeThrough) 0.4f else 1f))
             if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
-                TurnHud(report, previous, names, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
+                TurnHud(report, previous, names, me = me, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
                     eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight,
                     width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f)
             }
@@ -1954,7 +1955,7 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
     ports.forEachIndexed { i, type ->
         val c = Offset(left + i * 2.05f * scale, 4.0f * scale)
         val buoy = art?.buildings?.ports?.getOrNull(PortArt.index(type))
-        if (buoy != null) drawSteppedSprite(buoy, c, BuildingSprites.FRAME_UNITS * scale * 1.4f, 0.55f)
+        if (buoy != null) drawSteppedSprite(buoy, c, BuildingSprites.FRAME_UNITS * scale * 1.4f * PORT_BUOY_SCALE, 0.55f)
         else drawPortToken(type, c, scale * 1.4f, measurer, wood)
         label(if (type == Port.GENERIC) "3:1 port" else "2:1 port", c + Offset(0f, 0.6f * scale))
     }
@@ -2088,11 +2089,11 @@ private fun DrawScope.drawPortPiersAndToken(pg: PortGeom, scale: Float, measurer
     }
     // Crest's bell buoy with the trade good on deck (3:1 an anchor); the old wooden token if the art isn't loaded.
     if (buoy != null) {
-        drawSteppedSprite(buoy, pg.token, BuildingSprites.FRAME_UNITS * scale, tilt)
+        drawSteppedSprite(buoy, pg.token, BuildingSprites.FRAME_UNITS * scale * PORT_BUOY_SCALE, tilt)
         // The rate on a little worn-wood tag at the buoy's foot, so you never have to remember which is which.
         val label = measurer.measure(if (pg.type == Port.GENERIC) "3:1" else "2:1",
-            TextStyle(fontSize = (0.17f * scale / density).sp, fontWeight = FontWeight.Bold, color = Color(0xFFF6EBD2)))
-        val at = pg.token + Offset(0f, 0.30f * scale)
+            TextStyle(fontSize = (0.17f * PORT_BUOY_SCALE * scale / density).sp, fontWeight = FontWeight.Bold, color = Color(0xFFF6EBD2)))
+        val at = pg.token + Offset(0f, 0.30f * PORT_BUOY_SCALE * scale)
         val w = label.size.width + 0.10f * scale; val h = label.size.height.toFloat()
         drawRoundRect(Color(0xE6372312), Offset(at.x - w / 2, at.y - h / 2), Size(w, h), androidx.compose.ui.geometry.CornerRadius(h / 3, h / 3))
         drawRoundRect(Color(0xFFA9863F), Offset(at.x - w / 2, at.y - h / 2), Size(w, h), androidx.compose.ui.geometry.CornerRadius(h / 3, h / 3), style = Stroke(0.012f * scale))
@@ -2157,7 +2158,9 @@ internal const val BUILDING_SCALE = 1.8f   // Mauro 2026-10-11: 25% smaller than
 /** Ramparts under a town (pick C): the walls this share of a building, the town on top this share, lifted by this share of a frame. */
 internal const val RAMPARTS_SCALE = 0.65f
 /** How far out to sea a port buoy sits from the coast edge's middle, in hex units (the old token sat at 0.58). */
-internal const val PORT_BUOY_OUT = 0.70f
+internal const val PORT_BUOY_OUT = 0.80f   // 0.70 before the buoys grew 30%
+/** Port buoys this many times their art-spec size (Mauro, 2026-10-11: "ports need to be 30% bigger"). */
+internal const val PORT_BUOY_SCALE = 1.3f
 internal const val RAMPARTS_TOWN_SCALE = 0.88f
 
 /**

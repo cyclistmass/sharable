@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -69,7 +70,12 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                 Modifier.then(if (turn) Modifier.border(1.dp, Color(0xFFC9A04A), RoundedCornerShape(8.dp)) else Modifier).padding(horizontal = 6.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Box(Modifier.size(14.dp).background(PLAYER_COLORS[p], CircleShape).border(1.dp, Color(0xFFF1D58A), CircleShape))
+                // The score sits in the player's colour dot, so the strip needs no score column (Mauro).
+                Box(Modifier.size(26.dp).background(PLAYER_COLORS[p], CircleShape).border(1.dp, Color(0xFFF1D58A), CircleShape).testTag("score-$p"),
+                    contentAlignment = Alignment.Center) {
+                    Text("${if (p == me) s.victoryPoints(p) else s.publicVictoryPoints(p)}", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        color = if (PLAYER_COLORS[p].luminance() > 0.5f) Color(0xFF2B2118) else Color.White)
+                }
                 Column(Modifier.width(74.dp)) {
                     Text(names[p], color = Color(0xFFEDE6D8), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     val ck = s.ck
@@ -83,18 +89,24 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                     Box(Modifier.size(width = 10.dp, height = 14.dp).background(Color(0xFFEFE3C8), RoundedCornerShape(2.dp))
                         .border(1.dp, Color(0xFFC9A04A), RoundedCornerShape(2.dp)))
                     Spacer(Modifier.width(4.dp))
-                    Text(cardsLabel(s, p), color = Color(0xFFEDE6D8), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    // Red when a rolled 7 would make them discard half (Mauro).
+                    Text(cardsLabel(s, p), color = if (overCardLimit(s, p)) Color(0xFFFF6B5E) else Color(0xFFEDE6D8), fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.testTag("cards-$p"))
                 }
-                Text("${if (p == me) s.victoryPoints(p) else s.publicVictoryPoints(p)}", color = Color(0xFFF1D58A), fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(24.dp))
                 // What this player got (+) and lost (-) on the last roll, as tiny cards (#47).
+                // A fixed slot, so the panel keeps one width whether or not anyone got cards (they used to poke out of the frame).
                 val minis = rollMinis(roll, p, me)
-                if (minis.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.testTag("roll-minis-$p")) {
-                    for (m in minis) MiniRollCard(m)
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.width(MINI_SLOT).testTag("roll-minis-$p")) {
+                    for (m in minis.take(MINI_MAX)) MiniRollCard(m)
                 }
             }
         }
     }
 }
+
+/** Room for the last roll's mini cards beside each player (3 of them; more are left out, the history has them all). */
+private val MINI_SLOT = 72.dp
+private const val MINI_MAX = 3
 
 /** Age of Chivalry deck colours by track: Guilds gold (trade), Crown blue (politics), Academy green (science). */
 internal val TRACK_COLORS = listOf(Color(0xFFE0B23A), Color(0xFF3F7FD6), Color(0xFF4CAF50))
@@ -113,11 +125,14 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
     var hint by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     androidx.compose.runtime.LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay(5000); hint = null } }
     @Composable
-    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, onTap: (() -> Unit)? = null) = Box(contentAlignment = Alignment.TopEnd,
+    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, small: String? = null, onTap: (() -> Unit)? = null) = Box(contentAlignment = Alignment.TopEnd,
         modifier = Modifier.testTag(tag).then(if (onTap != null) Modifier.clickable { onTap() } else Modifier)) {
-        Box(Modifier.size(width = w.dp, height = h.dp).background(Color(0xFFEFE3C8), RoundedCornerShape(5.dp)).border(2.dp, edge, RoundedCornerShape(5.dp)).padding(3.dp),
-            contentAlignment = Alignment.Center) {
+        Column(Modifier.size(width = w.dp, height = h.dp).background(Color(0xFFEFE3C8), RoundedCornerShape(5.dp)).border(2.dp, edge, RoundedCornerShape(5.dp)).padding(3.dp),
+            horizontalAlignment = Alignment.CenterHorizontally) {
             Text(name, color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold, lineHeight = 9.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            // What it does, in small print on the card itself (Mauro); a tap still shows it large.
+            if (small != null) Text(small, color = Color(0xFF4A3B2C), fontSize = 6.5.sp, lineHeight = 7.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(top = 2.dp))
         }
         if (n > 1) count(n)
     }
@@ -144,7 +159,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
         }
         for (c in 0 until wgbg.engine.Progress.COUNT) {
             val n = ck.progressHand[me * wgbg.engine.Progress.COUNT + c]
-            if (n > 0) namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 44, 62) {
+            if (n > 0) namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 66, 92, small = progressHint(c)) {
                 hint = "${PROGRESS_NAMES.getOrElse(c) { "Progress" }}: ${progressHint(c)}"
             }
         }
@@ -163,6 +178,10 @@ fun TurnPrompt(text: String, modifier: Modifier = Modifier) {
 fun raidersStepsLeft(pos: Int) = (wgbg.engine.CkPiece.BARBARIAN_TRACK - pos).coerceAtLeast(0)
 
 /** Hand size for the player list: "8", or "8/3" (cards / progress cards) in Age of Chivalry. */
+/** True if [p] holds more cards than a rolled 7 allows (they would discard half): the engine's own limit and count. */
+fun overCardLimit(s: GameState, p: Int): Boolean =
+    if (s.ck != null) s.cardCount(p) > wgbg.engine.CitiesAndKnights.discardLimit(s, p) else s.handSize(p) > s.config.discardLimit
+
 fun cardsLabel(s: GameState, p: Int): String = s.ck?.let { "${s.cardCount(p)}/${it.progressCount(p)}" } ?: "${s.cardCount(p)}"
 
 /** One mini card in the player list: [card] (-1 = face down, a robbery others can't see) and [n] (+ got, - lost). */

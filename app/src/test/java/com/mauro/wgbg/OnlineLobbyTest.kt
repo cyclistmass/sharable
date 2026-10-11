@@ -39,7 +39,7 @@ class OnlineLobbyTest {
         org.junit.jupiter.api.Assertions.assertEquals(listOf(0, 2, 3), guest.players)   // the empty open seat doesn't play
         org.junit.jupiter.api.Assertions.assertEquals(2, guest.me)
         org.junit.jupiter.api.Assertions.assertEquals(3, guest.config.numPlayers)
-        org.junit.jupiter.api.Assertions.assertEquals(listOf("Mauro", "Blue (Easy)", "You"), guest.names)
+        org.junit.jupiter.api.Assertions.assertEquals(listOf("Mauro", "Blue (Easy)", "Erin"), guest.names)  // your own seat shows your name
         org.junit.jupiter.api.Assertions.assertEquals(BotLevel.EASY, guest.bot(1))
         org.junit.jupiter.api.Assertions.assertNull(guest.bot(0)); org.junit.jupiter.api.Assertions.assertNull(guest.bot(2))
         org.junit.jupiter.api.Assertions.assertEquals(3, guest.seatOf(2))
