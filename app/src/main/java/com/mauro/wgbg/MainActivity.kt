@@ -2062,6 +2062,12 @@ internal const val NUMBER_TOKEN_R = 0.27f
 /** Number size on the plate, in hex units (the font size for a side-1 hex); Mauro: bigger, ~60% over the first 0.264. */
 internal const val NUMBER_TEXT = 0.46f
 
+/** How far up the number sits: its top is this share of its height above the plate centre (was 0.66; lower now). */
+internal const val NUMBER_TEXT_RAISE = 0.56f
+
+/** The probability dots, this far below the plate centre in plate radii (was 0.55). */
+internal const val NUMBER_PIPS_DOWN = 0.72f
+
 /** Homesteads, towns, Ramparts and Capitals drawn this many times the art spec's size (roads stay as they are). */
 internal const val BUILDING_SCALE = 2.4f
 
@@ -2114,11 +2120,12 @@ private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer:
         // Mauro, 2026-10-10: bigger numbers, same disc (0.264 -> 0.34 hex units, about 30% larger).
         TextStyle(fontSize = (NUMBER_TEXT * k * scale / density).sp, fontWeight = FontWeight.Bold, color = ink),
     )
-    drawText(text, topLeft = t - Offset(text.size.width / 2f, text.size.height * 0.66f))
+    // Mauro (#61): number and dots sit lower on the plate.
+    drawText(text, topLeft = t - Offset(text.size.width / 2f, text.size.height * NUMBER_TEXT_RAISE))
     val dots = pips(n)
     val gap = 0.12f * r
     for (d in 0 until dots) {
-        drawCircle(ink, 0.05f * r, Offset(t.x + (d - (dots - 1) / 2f) * gap, t.y + 0.55f * r))
+        drawCircle(ink, 0.05f * r, Offset(t.x + (d - (dots - 1) / 2f) * gap, t.y + NUMBER_PIPS_DOWN * r))
     }
 }
 
