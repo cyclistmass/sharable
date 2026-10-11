@@ -114,7 +114,7 @@ else
     sleep 8
     if [ "$MODE" = host ]; then
       # Read the room code off the lobby and hand it to the friend; Start game once they're in and ready.
-      code=$(dump | grep -o 'text="[^"]*"' | grep -o '[A-Z]\{3,\}-[1-9][0-9]' | head -1)
+      code=$(dump | grep -o 'text="[^"]*"' | grep -o '[A-Z]\{3,\}-[1-9][0-9]\{1,2\}' | head -1)
       [ -n "$code" ] || fail "no room code on the lobby screen"
       mkdir -p "$(dirname "$ROOM_FILE")"; echo "$code" > "$ROOM_FILE"; echo "USERPLAY $TAG: hosting $code"
       shot lobby

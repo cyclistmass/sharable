@@ -144,6 +144,12 @@ class GameSetupTest {
         assertNull(Lobby.normalizeCode("BANANA-42")) // not one of our words
         assertNull(Lobby.normalizeCode(""))
         assertFalse(Lobby.isValidCode("rover-42"))
+        // New rooms get three digits (#80); two-digit codes of older rooms still join.
+        assertEquals("ROVER-427", Lobby.normalizeCode("rover 427"))
+        assertNull(Lobby.normalizeCode("ROVER-4270"))
+        assertNull(Lobby.normalizeCode("ROVER-042"))
+        val r3 = kotlin.random.Random(5)
+        assertTrue((1..500).all { Lobby.newCode(r3).substringAfter('-').length == 3 })
     }
 
     @Test
