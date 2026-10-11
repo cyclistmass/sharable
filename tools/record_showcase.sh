@@ -28,9 +28,13 @@ settings() {
 
 # Taps the on-screen element whose text is $1 (found with uiautomator).
 tap_text() {
-  "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-  local B
-  B=$("$A" shell cat /sdcard/ui.xml | tr '>' '\n' | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]" | grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | head -1)
+  local B="" try
+  # Retry for up to 10 s: a cold start after pm clear can take longer than the sleep before the tap.
+  for try in 1 2 3 4 5 6 7 8 9 10; do
+    "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+    B=$("$A" shell cat /sdcard/ui.xml | tr '>' '\n' | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]" | grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | head -1 || true)
+    [ -n "$B" ] && break; sleep 1
+  done
   [ -n "$B" ] || { echo "'$1' not found on screen"; exit 1; }
   "$A" shell input tap $(( ${B%,*} + 20 )) $(( ${B#*,} + 20 ))
   sleep 0.8
@@ -43,7 +47,7 @@ watch() {
   sleep 3
   tap_text "Menu"
   for _ in $(seq 1 "$2"); do "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-    local label; label=$("$A" shell cat /sdcard/ui.xml | grep -o 'text="\(Max\|[0-9]*×\)"' | head -1 | cut -d'"' -f2)
+    local label; label=$("$A" shell cat /sdcard/ui.xml | grep -o 'text="\(Max\|[0-9]*×\)"' | head -1 | cut -d'"' -f2 || true)
     tap_text "$label"; done
   tap_text "Hide"
 }
@@ -70,7 +74,7 @@ settings "view-bars=0.0" "theme-pirate=1.0" "event-die-style=3.0"
 watch chivalry 4 0.55 1.5
 sleep 120
 tap_text "Menu"; for _ in 1 2 3 4; do "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-  label=$("$A" shell cat /sdcard/ui.xml | grep -o 'text="\(Max\|[0-9]*×\)"' | head -1 | cut -d'"' -f2)
+  label=$("$A" shell cat /sdcard/ui.xml | grep -o 'text="\(Max\|[0-9]*×\)"' | head -1 | cut -d'"' -f2 || true)
   [ "$label" = "1×" ] && break; tap_text "$label"; done
 tap_text "Hide"
 sleep 2

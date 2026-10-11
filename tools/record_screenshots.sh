@@ -21,9 +21,13 @@ settings() { # fresh app with these saved settings (run-as works on debug builds
   "$A" shell "run-as $PKG sh -c 'mkdir -p shared_prefs && cp /data/local/tmp/wgbg-prefs.xml shared_prefs/wgbg-settings.xml'"
 }
 tap_text() { # tap the on-screen element whose text is $1
-  "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-  local B
-  B=$("$A" shell cat /sdcard/ui.xml | tr '>' '\n' | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]" | grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | head -1)
+  local B="" try
+  # Retry for up to 10 s: a cold start after pm clear can take longer than the sleep before the tap.
+  for try in 1 2 3 4 5 6 7 8 9 10; do
+    "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+    B=$("$A" shell cat /sdcard/ui.xml | tr '>' '\n' | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]" | grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | head -1 || true)
+    [ -n "$B" ] && break; sleep 1
+  done
   [ -n "$B" ] || { echo "'$1' not found on screen"; exit 1; }
   "$A" shell input tap $(( ${B%,*} + 20 )) $(( ${B#*,} + 20 ))
   sleep 0.8
@@ -72,6 +76,13 @@ play_setup
 shot your-pieces
 # 4. The trade chest after rolling.
 "$A" shell am broadcast -a $PKG.MOVE -p $PKG --es move ROLL:0 >/dev/null; sleep 4
+# A 7 means the Bandit (and maybe discards and a steal) first: play those out until the turn is back to trading.
+for _ in $(seq 1 12); do
+  legal=$("$A" logcat -d -s WGBG-TURN:I | tail -1 | sed -n 's/.* legal=\([^ ]*\).*/\1/p')
+  echo "$legal" | grep -q 'END_TURN' && break
+  mv=$(echo "$legal" | tr ',' '\n' | head -1 || true)
+  [ -n "$mv" ] && "$A" shell am broadcast -a $PKG.MOVE -p $PKG --es move "$mv" >/dev/null; sleep 2
+done
 "$A" shell input tap 1200 540 >/dev/null 2>&1 || true
 tap_text "Trade"; sleep 1
 shot trade-chest

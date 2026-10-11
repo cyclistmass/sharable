@@ -62,8 +62,8 @@ for _ in $(seq 1 20); do "$ADB" logcat -d -s WGBG-TURN:I | grep -q 'phase=' && b
 # Local games: speed the bots up from the menu like a player can (Menu, tap the speed button to 8x, Hide).
 if [ "$MODE" = local ]; then
   tap_text "Menu" && for _ in 1 2 3 4 5; do
-    lbl=$(dump | grep -o 'text="\(Max\|[0-9]*×\)"' | head -1 | cut -d'"' -f2)
-    [ "$lbl" = "8×" ] && break; [ -n "$lbl" ] && tap_text "$lbl"
+    lbl=$(dump | grep -o 'text="\(Max\|[0-9]*Ã—\)"' | head -1 | cut -d'"' -f2)
+    [ "$lbl" = "8Ã—" ] && break; [ -n "$lbl" ] && tap_text "$lbl"
   done; tap_text "Hide"
 fi
 
