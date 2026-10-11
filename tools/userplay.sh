@@ -71,9 +71,11 @@ type_into() { tap $1 $2; sleep 0.5; "$ADB" shell input keyevent KEYCODE_MOVE_END
 sleep 2
 for _ in 1 2 3; do
   "$ADB" shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1; sleep 3
-  [ -n "$("$ADB" shell pidof $PKG | tr -d '')" ] && break
+  [ -n "$("$ADB" shell pidof $PKG | tr -d '
+')" ] && break
 done
-[ -n "$("$ADB" shell pidof $PKG | tr -d '')" ] || fail "the app wouldn't start"
+[ -n "$("$ADB" shell pidof $PKG | tr -d '
+')" ] || fail "the app wouldn't start"
 # Wait for the app to open (a slow phone shows the launch splash for a while): the intro or the start screen.
 for _ in $(seq 1 15); do d=$(dump); echo "$d" | grep -q 'text="Tap to skip"\|text="Play"' && break; sleep 2; done
 # First launch plays the intro fly-over; a player taps to skip it.
@@ -188,7 +190,7 @@ while true; do
     # The discard sheet, the way a person does it: look once, tap cards you hold until enough are chosen, press
     # Discard. ("choose 5 to discard (2 chosen)"; each card shows "have N" under it.)
     echo "$(date +%T) discard sheet seen (${phase})" >&2
-    read -r owed chosen < <(echo "$d" | grep -o 'choose [0-9]* to discard ([0-9]* chosen)' | head -1 | sed 's/choose \([0-9]*\) to discard (\([0-9]*\) chosen)/\1 \2/')
+    read -r owed chosen < <(echo "$d" | grep -o '[Cc]hoose [0-9]* to discard ([0-9]* chosen)' | head -1 | sed 's/[Cc]hoose \([0-9]*\) to discard (\([0-9]*\) chosen)/\1 \2/')
     need=$(( ${owed:-0} - ${chosen:-0} ))
     # Two quick taps on one card count as one, so tap at a person's pace and look again until enough are chosen.
     for _round in 1 2 3; do
@@ -201,7 +203,7 @@ while true; do
              END{for(i=1;i<=n;i++){cx=(x1[i]+x2[i])/2; for(k=1;k<=m;k++) if(hx[k]>=x1[i] && hx[k]<=x2[i] && hy[k]>=y2[i]-10 && hy[k]<=y2[i]+60) for(c=0;c<h[k];c++) print int(cx), int((y1[i]+y2[i])/2)}}' |
         shuf | head -n "$need" | while read -r x y; do tap "$x" "$y"; sleep 0.6; done
       d=$(dump)
-      read -r owed chosen < <(echo "$d" | grep -o 'choose [0-9]* to discard ([0-9]* chosen)' | head -1 | sed 's/choose \([0-9]*\) to discard (\([0-9]*\) chosen)/\1 \2/')
+      read -r owed chosen < <(echo "$d" | grep -o '[Cc]hoose [0-9]* to discard ([0-9]* chosen)' | head -1 | sed 's/[Cc]hoose \([0-9]*\) to discard (\([0-9]*\) chosen)/\1 \2/')
       need=$(( ${owed:-0} - ${chosen:-0} ))
     done
     tap_text "$(echo "$d" | grep -o 'text="Discard [0-9]*"' | head -1 | cut -d'"' -f2)" "$d" || true
