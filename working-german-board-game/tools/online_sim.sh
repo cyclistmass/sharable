@@ -51,11 +51,11 @@ sleep 5
 tap_text $GUEST "Got it" 2>/dev/null || true
 
 # Host: name, a Friend seat for the guest, the ruleset, then open the room.
-wait_for $HOST "Host online room" 20
+wait_for $HOST "Host a room" 20
 fill $HOST 1 Mauro
 tap_text $HOST "Friend" 1
 [ "$RULESET" = chivalry ] && tap_text $HOST "Age of Chivalry"
-tap_text $HOST "Host online room"
+tap_text $HOST "Host a room"
 wait_for $HOST "Room [A-Z]*-[0-9]*" 20
 CODE=$(texts $HOST | grep -o 'Room [A-Z]*-[0-9]*' | head -1 | cut -d' ' -f2)
 echo "Room $CODE"

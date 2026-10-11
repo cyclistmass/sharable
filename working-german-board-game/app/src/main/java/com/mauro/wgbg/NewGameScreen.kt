@@ -78,6 +78,9 @@ fun NewGameScreen(
     onOpenLobby: ((GameSetup) -> Unit)? = null,
     /** When given, shows "Join a room" (by code); gets these settings for your name. */
     onJoinRoom: ((GameSetup) -> Unit)? = null,
+    /** An online game you left for now (room code): shows a green Resume button until it ends or is deleted. */
+    resumeRoom: String? = null,
+    onResume: (() -> Unit)? = null,
 ) {
     var setup by remember { mutableStateOf(initial) }
     // The deck size to come back to when switching Random -> Card deck (72 by default, as drawn).
@@ -148,11 +151,19 @@ fun NewGameScreen(
                 // Online needs a real name (friends see it); say so plainly, it read as "online is broken" when grey.
                 Text("To play online, type your name above (not \"You\")", style = Wood.sans(13.sp, FontWeight.Bold, Wood.WAITING),
                     modifier = Modifier.testTag("online-name-hint"))
+            if (resumeRoom != null && onResume != null)
+                GoButton("Resume online game $resumeRoom", "resume-room", true, Modifier.fillMaxWidth().height(40.dp)) { onResume() }
+            // Online buttons turn green (go) once online is possible, i.e. you've typed a name (Mauro, 2026-10-11).
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (onOpenLobby != null) Choice("Host online room", false, "open-lobby", Modifier.weight(1f).height(36.dp),
-                    radius = 10.dp, enabled = onlineName(setup.name)) { onOpenLobby(setup) }
-                if (onJoinRoom != null) Choice("Join a room", false, "join-room", Modifier.weight(1f).height(36.dp),
-                    radius = 10.dp, enabled = onlineName(setup.name)) { onJoinRoom(setup) }
+                val ready = onlineName(setup.name)
+                if (onOpenLobby != null) {
+                    if (ready) GoButton("Host a room", "open-lobby", true, Modifier.weight(1f).height(40.dp)) { onOpenLobby(setup) }
+                    else Choice("Host a room", false, "open-lobby", Modifier.weight(1f).height(36.dp), radius = 10.dp, enabled = false) { }
+                }
+                if (onJoinRoom != null) {
+                    if (ready) GoButton("Join a room", "join-room", true, Modifier.weight(1f).height(40.dp)) { onJoinRoom(setup) }
+                    else Choice("Join a room", false, "join-room", Modifier.weight(1f).height(36.dp), radius = 10.dp, enabled = false) { }
+                }
             }
         }
     }

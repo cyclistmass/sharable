@@ -25,13 +25,28 @@ class LobbySession(val transport: GameTransport, val setup: GameSetup, val id: S
     fun onChange(lobby: Lobby, room: Room): CompletableFuture<Unit> = transport.editLobby(id,
         lobby.seats.mapIndexed { i, s -> room.seats[i].copy(bot = s.bot?.name, ready = s.ready) }, room.seats)
     companion object {
-        fun host(transport: GameTransport, setup: GameSetup, seed: Long, code: String = Lobby.newCode()): CompletableFuture<LobbySession> =
-            transport.signIn().thenCompose { uid ->
-                val lobby = Lobby.host(setup, code)
-                val seats = lobby.seats.mapIndexed { i, s -> Seat(if (i == 0) uid else null, s.name ?: "", s.bot?.name, s.open, s.ready) }
-                transport.create(Room(code, uid, setup.config(), seed, seats, decks = setup.decks))
-                    .thenApply { LobbySession(transport, setup, code, uid) }
-            }
+        /**
+         * Hosts a new room. Codes are short (ROVER-42) and rooms are kept after their games, so a fresh code can belong
+         * to an old room; the server then refuses (in use, or not even readable): try another code, up to [attempts].
+         */
+        fun host(transport: GameTransport, setup: GameSetup, seed: Long, code: String = Lobby.newCode(), attempts: Int = 8,
+                 nextCode: () -> String = { Lobby.newCode() }): CompletableFuture<LobbySession> =
+            transport.signIn().thenCompose { uid -> create(transport, setup, seed, uid, code, attempts, nextCode) }
+
+        private fun create(transport: GameTransport, setup: GameSetup, seed: Long, uid: String, code: String, attempts: Int,
+                           nextCode: () -> String): CompletableFuture<LobbySession> {
+            val lobby = Lobby.host(setup, code)
+            val seats = lobby.seats.mapIndexed { i, s -> Seat(if (i == 0) uid else null, s.name ?: "", s.bot?.name, s.open, s.ready) }
+            return transport.create(Room(code, uid, setup.config(), seed, seats, decks = setup.decks))
+                .handle { _, e -> e }
+                .thenCompose { e ->
+                    when {
+                        e == null -> CompletableFuture.completedFuture(LobbySession(transport, setup, code, uid))
+                        attempts > 1 -> create(transport, setup, seed, uid, nextCode(), attempts - 1, nextCode)
+                        else -> CompletableFuture<LobbySession>().also { it.completeExceptionally(e) }
+                    }
+                }
+        }
         fun join(transport: GameTransport, setup: GameSetup, code: String, seat: Int): CompletableFuture<LobbySession> =
             transport.signIn().thenCompose { uid -> transport.join(code, seat, setup.name).thenApply { LobbySession(transport, setup, code, uid) } }
 

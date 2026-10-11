@@ -5,6 +5,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -34,6 +35,8 @@ class BuildingSprites(res: Resources, pirate: Boolean, chivalry: Boolean) {
     val roadM30 = load(res, BuildingArt.roadM30(pirate))
     val ramparts = if (chivalry) load(res, BuildingArt.ramparts(pirate)) else null
     private val capitals = if (chivalry) BuildingArt.capitals(pirate).map { load(res, it) } else emptyList()
+    /** The 3D knights, levels 1 to 3 (Age of Chivalry only). */
+    val knights: List<Piece> = if (chivalry) KnightArt.levels(pirate).map { load(res, it) } else emptyList()
 
     /** The Capital for a metropolis on [track]: Guilds for trade, Crown for politics, Academy for science. */
     fun capital(track: Int): Piece? = capitals.getOrNull(capitalIndex(track))
@@ -71,13 +74,14 @@ class BuildingSprites(res: Resources, pirate: Boolean, chivalry: Boolean) {
  * Draws [piece] with its contact point at [at], [unitPx] screen px per hex unit, the board tilted [tilt] radians
  * (neighbouring tilt steps cross-fade, like the bandit), its body tinted [color], turned [degrees] about [at].
  */
-internal fun DrawScope.drawPieceSprite(piece: BuildingSprites.Piece, at: Offset, unitPx: Float, tilt: Float, color: Color, degrees: Float = 0f) {
+internal fun DrawScope.drawPieceSprite(piece: BuildingSprites.Piece, at: Offset, unitPx: Float, tilt: Float, color: Color, degrees: Float = 0f,
+                                       bodyFilter: ColorFilter? = null) {
     val side = BuildingSprites.FRAME_UNITS * unitPx
     if (side < 2f || !side.isFinite()) return
     val (a, b, f) = banditSteps(tilt)
     val dst = IntOffset((at.x - side / 2).toInt(), (at.y - side / 2).toInt())
     val size = IntSize(side.toInt(), side.toInt())
-    val tint = ColorFilter.tint(color, BlendMode.Modulate)
+    val tint = bodyFilter ?: ColorFilter.tint(color, BlendMode.Modulate)
     fun layer(i: Int, alpha: Float) {
         val body = piece.body[i]; val trim = piece.trim[i]
         drawImage(body, IntOffset.Zero, IntSize(body.width, body.height), dst, size, alpha = alpha, colorFilter = tint, filterQuality = FilterQuality.Medium)
@@ -86,6 +90,29 @@ internal fun DrawScope.drawPieceSprite(piece: BuildingSprites.Piece, at: Offset,
     if (degrees == 0f) {
         layer(a, 1f); if (f > 0.02f) layer(b, f)
     } else rotate(degrees, at) { layer(a, 1f); if (f > 0.02f) layer(b, f) }
+}
+
+/**
+ * A knight's body colour: the player's colour multiplied in, and for an inactive knight a dimming on top,
+ * inactive = [KNIGHT_IDLE_VALUE] * ([KNIGHT_IDLE_SAT] * tinted + (1 - [KNIGHT_IDLE_SAT]) * luma), folded into one colour
+ * matrix. The knights contract asks 20% / 50%; that left every player's idle knights the same dark grey on the board,
+ * so we keep enough colour to tell whose they are.
+ */
+internal fun knightBodyFilter(color: Color, active: Boolean): ColorFilter =
+    if (active) ColorFilter.tint(color, BlendMode.Modulate) else ColorFilter.colorMatrix(ColorMatrix(knightInactiveMatrix(color)))
+
+/** How much of the player's colour an inactive knight keeps, and how bright it is. */
+internal const val KNIGHT_IDLE_SAT = 0.5f
+internal const val KNIGHT_IDLE_VALUE = 0.6f
+
+/** The 4x5 colour matrix (row-major, values 0..1) for an inactive knight's body in [color]; see [knightBodyFilter]. */
+internal fun knightInactiveMatrix(color: Color): FloatArray {
+    val p = floatArrayOf(color.red, color.green, color.blue)
+    val luma = floatArrayOf(0.299f, 0.587f, 0.114f)
+    val m = FloatArray(20)
+    for (r in 0 until 3) for (c in 0 until 3) m[r * 5 + c] = KNIGHT_IDLE_VALUE * ((if (r == c) KNIGHT_IDLE_SAT else 0f) + (1f - KNIGHT_IDLE_SAT) * luma[c]) * p[c]
+    m[18] = 1f // alpha unchanged
+    return m
 }
 
 /** Degrees to turn a supply's pieces so they face their owner at [seatAngle] (radians; the viewer's seat is 90 degrees). */

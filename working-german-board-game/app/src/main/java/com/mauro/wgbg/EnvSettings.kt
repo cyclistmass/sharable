@@ -80,6 +80,26 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         get() = viewBarsState.floatValue > 0.5f
         set(v) { viewBarsState.floatValue = if (v) 1f else 0f; store.put(VIEW_BARS, viewBarsState.floatValue) }
 
+    private val animationsState = mutableFloatStateOf(store.get(ANIMATIONS, 1f))
+
+    /**
+     * Scenery animations (sea, clouds, birds, boats, the rolling dice). Off, or Density at 0, and none of that code
+     * runs at all, so a bug in it can't stop a game (Mauro, 2026-10-11). Saved.
+     */
+    var animations: Boolean
+        get() = animationsState.floatValue > 0.5f
+        set(v) { animationsState.floatValue = if (v) 1f else 0f; store.put(ANIMATIONS, animationsState.floatValue) }
+
+    /** True when the scenery animates: the switch is on and Density is above 0. */
+    val animating: Boolean get() = animations && density > 0f
+
+    private val tiles3dState = mutableFloatStateOf(store.get(TILES_3D, 0f))
+
+    /** Board tiles: the painted faces (default) or the rendered 3D tiles (V3, a preview to try). Saved. */
+    var tiles3d: Boolean
+        get() = tiles3dState.floatValue > 0.5f
+        set(v) { tiles3dState.floatValue = if (v) 1f else 0f; store.put(TILES_3D, tiles3dState.floatValue) }
+
     private val pirate = mutableFloatStateOf(store.get(THEME, 0f))
 
     /** Knight art: Normal (armoured knights) or Pirate themed (afro skeleton crew). Saved. */
@@ -103,7 +123,7 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         set(v) { eventDie.floatValue = v.coerceIn(0, DiceArt.EVENT_STYLES.size - 1).toFloat(); store.put(EVENT_DIE, eventDie.floatValue) }
 
     /** Back to the defaults (saved). */
-    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0 }
+    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0 }
 
     val clouds get() = this[Item.CLOUDS]
     val birds get() = this[Item.BIRDS]
@@ -117,6 +137,8 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         const val EVENT_DIE = "event-die-style"
         const val DENSITY = "env-density"
         const val VIEW_BARS = "view-bars"
+        const val TILES_3D = "tiles-3d"
+        const val ANIMATIONS = "animations"
 
         /** True on an Android emulator (where there's no pinch), from the build's hardware and product names. */
         fun isEmulator(): Boolean {
@@ -140,6 +162,11 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
             ResetButton { env.reset(); sound.reset() }
             Spacer(Modifier.width(8.dp))
             WoodButton("Done", "settings-done", onClick = onClose)
+        }
+        Text("Animations (off, or Density at 0: nothing moves)", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("On", selected = env.animations, tag = "animations-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.animations = true }
+            Choice("Off", selected = !env.animations, tag = "animations-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.animations = false }
         }
         Text("Scenery", fontSize = 13.sp, color = Color(0xFFD9B865))
         // The four kinds on the left; the upright Density bar beside them scales them all together.
@@ -170,6 +197,11 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("Show", selected = env.viewBars, tag = "view-bars-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.viewBars = true }
             Choice("Hide", selected = !env.viewBars, tag = "view-bars-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.viewBars = false }
+        }
+        Text("Tiles", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Painted", selected = !env.tiles3d, tag = "tiles-painted", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.tiles3d = false }
+            Choice("3D (preview)", selected = env.tiles3d, tag = "tiles-3d", modifier = Modifier.height(36.dp).width(130.dp), size = 13.sp) { env.tiles3d = true }
         }
         Text("Intro", fontSize = 13.sp, color = Color(0xFFD9B865))
         val ctx = androidx.compose.ui.platform.LocalContext.current

@@ -34,6 +34,7 @@ private val COMPARE_ROWS = listOf(
     "V2 3D · flat" to listOf(R.drawable.tile3d_v2_timber_flat, R.drawable.tile3d_v2_clay_flat, R.drawable.tile3d_v2_fleece_flat, R.drawable.tile3d_v2_grain_flat, R.drawable.tile3d_v2_stone_flat, R.drawable.tile3d_v2_desert_flat),
     "V2 3D · mid tilt" to listOf(R.drawable.tile3d_v2_timber_mid, R.drawable.tile3d_v2_clay_mid, R.drawable.tile3d_v2_fleece_mid, R.drawable.tile3d_v2_grain_mid, R.drawable.tile3d_v2_stone_mid, R.drawable.tile3d_v2_desert_mid),
     "V2 3D · max tilt" to listOf(R.drawable.tile3d_v2_timber_max, R.drawable.tile3d_v2_clay_max, R.drawable.tile3d_v2_fleece_max, R.drawable.tile3d_v2_grain_max, R.drawable.tile3d_v2_stone_max, R.drawable.tile3d_v2_desert_max),
+    "V3 3D · mid tilt (preview)" to listOf(R.drawable.t3d_timber_tilt_4, R.drawable.t3d_clay_tilt_4, R.drawable.t3d_fleece_tilt_4, R.drawable.t3d_grain_tilt_4, R.drawable.t3d_stone_tilt_4, R.drawable.t3d_desert_tilt_4),
 )
 
 @Composable

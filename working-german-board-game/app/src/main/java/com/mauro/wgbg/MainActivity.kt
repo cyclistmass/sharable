@@ -217,8 +217,8 @@ private val KNIGHTS_NORMAL = listOf(
 private val KNIGHT_CARDS_NORMAL = listOf(R.drawable.card_knight_normal_1, R.drawable.card_knight_normal_2, R.drawable.card_knight_normal_3)
 private val KNIGHT_CARDS_PIRATE = listOf(R.drawable.card_knight_pirate_1, R.drawable.card_knight_pirate_2, R.drawable.card_knight_pirate_3)
 
-/** How thick a tile stands, in hex sides (frame option B). */
-private const val TILE_THICKNESS = 0.26f
+/** How thick a tile stands, in hex sides (frame option B was 0.26; Mauro 2026-10-11: "too thick", halved). */
+private const val TILE_THICKNESS = 0.13f
 
 private val TERRAIN_COLORS = mapOf(
     Resource.WOOD to Color(0xFF2E7D32),
@@ -295,32 +295,50 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
         screen = Screen.ONLINE_LOBBY
     }
     fun failed(e: Throwable) { busy = false; problem = onlineProblem(e) }
+    // The room to offer on the start screen ("Resume"), kept until the game ends or the host deletes it.
+    var resumeCode by remember { mutableStateOf(savedRoom.getString("room", null)) }
+    fun forgetRoom() { savedRoom.edit().remove("room").remove("paused").apply(); resumeCode = null }
     fun leaveRoom() {
         session?.let { s ->
-            if (!s.client.view().let { it.room?.host == s.uid } && s.client.view().room?.status == Status.lobby) s.transport.leave(s.id)
+            // A guest leaving the lobby frees the seat; quitting a running game hands it to a bot.
+            val room = s.client.view().room
+            if (room != null && room.host != s.uid && (room.status == Status.lobby || room.status == Status.playing)) s.transport.leave(s.id)
             s.close()
         }
-        savedRoom.edit().remove("room").apply()
+        forgetRoom()
         session = null; screen = Screen.START
     }
-    // Back after the app was closed or killed while in a room: rejoin it (the game catches up from its moves).
-    // Only a recent room (ROOM_REJOIN_MS): an old one is forgotten, because dropping into a long-dead room looks
-    // like a game that never gets past the first roll (it waits on players who are gone).
-    LaunchedEffect(Unit) {
-        val code = savedRoom.getString("room", null) ?: return@LaunchedEffect
-        if (start != null || session != null || inviteCode != null) return@LaunchedEffect
-        if (!rejoinRecent(savedRoom.getLong("at", 0L), System.currentTimeMillis())) { savedRoom.edit().remove("room").apply(); return@LaunchedEffect }
+    // Leaving a running online game is "for now" (Mauro: online games resume until the host deletes them): the
+    // room is kept and the start screen offers Resume; the app doesn't drop you back in by itself after this.
+    fun pauseRoom() {
+        val id = session?.id
+        session?.close(); session = null
+        if (id != null) { savedRoom.edit().putString("room", id).putBoolean("paused", true).apply(); resumeCode = id }
+        screen = Screen.START
+    }
+    // The host ends the room for everyone (marks it done; every phone then forgets it).
+    fun deleteRoom() {
+        session?.let { s -> s.transport.finish(s.id) }
+        leaveRoom()
+    }
+    fun rejoin(code: String) {
         setup = setup.copy(name = savedRoom.getString("name", null) ?: setup.name)
         busy = true; problem = "Rejoining room $code…"
         LobbySession.rejoin(transport.value, setup, code).whenComplete { r, e ->
             scope.launch {
                 busy = false
-                if (e != null) { savedRoom.edit().remove("room").apply(); problem = "Couldn't rejoin $code: ${onlineProblem(e)}" }
-                // A finished game isn't worth going back to.
-                else if (r.client.view().room?.status == Status.done) { r.close(); savedRoom.edit().remove("room").apply(); problem = null }
-                else { problem = null; enterRoom(r) }
+                if (e != null) { forgetRoom(); problem = "Couldn't rejoin $code: ${onlineProblem(e)}" }
+                // A finished (or deleted) game isn't worth going back to.
+                else if (r.client.view().room?.status == Status.done) { r.close(); forgetRoom(); problem = "Room $code has ended." }
+                else { problem = null; savedRoom.edit().remove("paused").apply(); enterRoom(r) }
             }
         }
+    }
+    // Back after the app was closed or killed while in a game: rejoin it (the game catches up from its moves), for
+    // as long as the room lives; a room you chose to leave for now waits for Resume on the start screen instead.
+    LaunchedEffect(Unit) {
+        val code = savedRoom.getString("room", null)
+        if (code != null && autoRejoin(code, savedRoom.getBoolean("paused", false), start != null || session != null || inviteCode != null)) rejoin(code)
     }
     // While in a room, keep its "last here" time fresh so a long game is still rejoined after Android closes the app.
     LaunchedEffect(screen) {
@@ -360,6 +378,8 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                     }
                 },
                 onJoinRoom = { s -> setup = s; problem = null; screen = Screen.JOIN },
+                resumeRoom = resumeCode.takeIf { session == null && !busy },
+                onResume = { resumeCode?.let { rejoin(it) } },
             )
             Screen.JOIN -> {
                 BackHandler { screen = Screen.START }
@@ -381,7 +401,8 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             } ?: run { screen = Screen.START }
             Screen.ONLINE_GAME -> session?.let { s ->
                 key(gameNo) {
-                    WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { leaveRoom() }, online = s, autoplay = autoplay)
+                    WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { pauseRoom() }, online = s, autoplay = autoplay,
+                        onDeleteRoom = { deleteRoom() }, onQuitRoom = { leaveRoom() })
                 }
             } ?: run { screen = Screen.START }
             Screen.GAME -> key(gameNo) {
@@ -444,6 +465,10 @@ fun WatchGameScreen(
     onExit: () -> Unit = {},
     /** An online room (#7): its moves drive the game, yours go through it, and the host's phone plays its bots. */
     online: LobbySession? = null,
+    /** Online, host only: end the room for everyone. */
+    onDeleteRoom: (() -> Unit)? = null,
+    /** Online, a guest: leave for good (the room is forgotten, never rejoined by itself). */
+    onQuitRoom: (() -> Unit)? = null,
     /** Debug: a bot plays your seat in an online game (two-phone simulations). */
     autoplay: Boolean = false,
     /** Debug: a bot places your opening homesteads and roads, then you play. */
@@ -514,6 +539,8 @@ fun WatchGameScreen(
     val tileLine = env.tileEdge == EnvSettings.TileEdge.THIN
     // Rendered buildings (#41) for the chosen theme; Age of Chivalry pieces only load in those games.
     val buildings = remember(env.pirateTheme, state.ck != null) { BuildingSprites(oceanRes, env.pirateTheme, state.ck != null) }
+    // The V3 3D tiles (Settings › Tiles › 3D preview): loaded only when chosen.
+    val tiles3d = remember(env.tiles3d) { if (env.tiles3d) Tile3dArt.TERRAINS.map { t -> t.map { ImageBitmap.imageResource(oceanRes, it) } } else null }
     val gullFlap = ImageBitmap.imageResource(R.drawable.gull_flap)
     val gullGlide = ImageBitmap.imageResource(R.drawable.gull_glide)
     val gullShadow = ImageBitmap.imageResource(R.drawable.gull_shadow)
@@ -534,13 +561,17 @@ fun WatchGameScreen(
     var seaTick by remember { mutableIntStateOf(0) }
     LaunchedEffect(sea) { // the sea keeps moving even when the game is paused
         var last = 0L
-        while (true) withFrameNanos { now ->
+        while (true) {
+            // Animations off (or Density 0): the scenery code doesn't run at all, so it can't take a game down.
+            if (!env.animating) { last = 0L; delay(300); continue }
+            withFrameNanos { now ->
             sea.clouds01 = env.clouds; sea.birds01 = env.birds; sea.boats01 = env.boats; sea.waves01 = env.waves; sea.density01 = env.density
             // Clamp both ends: on some phones (Pixel 9/10, Android 17) the frame clock can step back a little,
             // and a negative step crashed the gulls' turn limit (crash reports 2026-10-11).
             if (last != 0L) sea.update(((now - last) / 1e9f).coerceIn(0f, 0.05f))
             last = now
             seaTick++
+            }
         }
     }
 
@@ -662,7 +693,7 @@ fun WatchGameScreen(
                         views.onReceive { it }
                         humanMoves.onReceive { a -> if (Rules.isLegal(state, a) && send(who, a)) views.receive() else v }
                     }
-                    (n.isHost && n.bot(who) != null) || (autoplay && who == n.me) -> {
+                    (n.isHost && (n.bot(who) != null || quitToBot(v.room, n.seatOf(who)))) || (autoplay && who == n.me) -> {
                         // The host's phone plays the room's bots, at a watchable pace (dice land first).
                         delay(if (rolled) pauseAfter(ActionType.ROLL, 1) else 450L)
                         val fresh = views.tryReceive().getOrNull()
@@ -732,7 +763,13 @@ fun WatchGameScreen(
             onDispose { if (AgentHooks.sink === mine) AgentHooks.sink = null }
         }
     }
-    val targets = Targets.of(legal)
+    // A board card being aimed (Envoy, Abbot, Tinkerer...): its spots glow and a board tap picks one (Mauro, 2026-10-11).
+    var cardPick by remember { mutableStateOf<List<Action>>(emptyList()) }
+    var cardSecond by remember { mutableStateOf(false) }   // the Tinkerer's second tile
+    if (cardPick.isNotEmpty() && cardPick.any { it !in legal }) { cardPick = emptyList(); cardSecond = false } // the turn moved on
+    val cardPickNow by rememberUpdatedState(cardPick)
+    val cardSecondNow by rememberUpdatedState(cardSecond)
+    val targets = if (cardPick.isNotEmpty()) Targets.ofCards(cardPick, cardSecond) else Targets.of(legal)
     val chosen = pending.filter { it in legal } // a stale pick (the turn moved on) is dropped
     // Turn and trade alerts (#44): a tick when it becomes your move, a chime when an offer asks for cards you
     // hold, and an offer you can't pay is declined for you after a short countdown so turns keep flowing.
@@ -793,7 +830,7 @@ fun WatchGameScreen(
                                 pileGrip = lattice(p) - supplyCenter(stateNow, seat, viewerNow, pileOffsetsNow)
                                 hostView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
                                 true
-                            } else seaNow.cloudAt(lattice(p))?.also { dragged = it } != null
+                            } else env.animating && seaNow.cloudAt(lattice(p))?.also { dragged = it } != null
                         },
                         onGrabMove = { p ->
                             if (pile >= 0) {
@@ -858,7 +895,12 @@ fun WatchGameScreen(
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { at ->
                         val p = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(at)
-                        val moves = if (inventory) emptyList() else movesAt(boardNow, legalNow, p)
+                        val picking = cardPickNow.isNotEmpty()
+                        val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else movesAt(boardNow, legalNow, p)
+                        // The Tinkerer swaps two tiles: the first tap narrows to that tile's swaps, the second picks the other tile.
+                        if (picking && !cardSecondNow && moves.size > 1 && moves.all { it.a == wgbg.engine.Progress.INVENTOR }) {
+                            cardPick = moves; cardSecond = true; return@detectTapGestures
+                        }
                         when {
                             moves.isNotEmpty() && moves == pending && moves.size == 1 -> { pending = emptyList(); humanMoves.trySend(moves[0]) }
                             moves.isNotEmpty() -> pending = moves
@@ -889,18 +931,18 @@ fun WatchGameScreen(
                     waterLayerKey[0] = waterKey
                 }
                 drawLayer(waterLayer)
-                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.UNDER, banditSprites)
+                drawGame(state, measurer, wood, camera, sea.takeIf { env.animating }, tileFaces, cliff, tileLine, knights, raiders, BoardPart.UNDER, banditSprites)
                 // Re-record the still board only when something on it can have changed: a move, the
                 // camera, the canvas size or a look setting. Otherwise the last recording is replayed.
-                val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff, viewer, pileOffsets, buildings, banditSprites != null)
+                val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff, viewer, pileOffsets, buildings, banditSprites != null, tiles3d)
                 if (boardLayerKey[0] != key) {
                     // The explicit-density overload gives the layer its own draw scope; recording through
                     // this Canvas's scope makes the two scopes ask each other for density forever.
-                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL, banditSprites, viewer, pileOffsets, buildings) }
+                    boardLayer.record(layerDensity, layoutDirection, layerSize) { drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.STILL, banditSprites, viewer, pileOffsets, buildings, tiles3d) }
                     boardLayerKey[0] = key
                 }
                 drawLayer(boardLayer)
-                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER, banditSprites)
+                drawGame(state, measurer, wood, camera, sea.takeIf { env.animating }, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER, banditSprites)
                 if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me))
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
@@ -932,7 +974,7 @@ fun WatchGameScreen(
                 TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
                     eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight)
             }
-            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
+            if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
@@ -956,7 +998,20 @@ fun WatchGameScreen(
             // The trade chest docks where the move buttons sit and takes their place while it is open.
             if (chestOpen) TradePanel(state, me, legal, names, send, onClose = { tradeOpen = false }, responses = responses, version = tick, autoNoSeconds = autoNo,
                 modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
-            else if (legal.isNotEmpty()) HumanControls(state, me, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp))
+            else if (cardPick.isNotEmpty() && chosen.isEmpty()) Column(
+                // Aiming a board card: say what to tap, with a way out.
+                Modifier.align(Alignment.BottomEnd).padding(8.dp).width(260.dp).brassEdgedWood().padding(12.dp).testTag("card-pick"),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                val card = cardPick[0].a
+                Text("${PROGRESS_NAMES.getOrElse(card) { "Card" }}: ${progressHint(card)}", color = Color(0xFFEDE6D8), fontSize = 12.sp)
+                Text(if (card == wgbg.engine.Progress.INVENTOR) (if (cardSecond) "Now tap the other tile" else "Tap the first tile")
+                    else "Tap a glowing ${when (cardSpotKind(card)) { CardSpot.EDGE -> "road"; CardSpot.HEX -> "tile"; else -> "corner" }}",
+                    color = Color(0xFFF1D58A), fontWeight = FontWeight.Bold)
+                ColorButton("Cancel", Color(0xFFC0392B), "card-pick-cancel") { cardPick = emptyList(); cardSecond = false }
+            }
+            else if (legal.isNotEmpty()) HumanControls(state, me, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp),
+                onBoardPick = { cardPick = it; cardSecond = false; pending = emptyList() })
             if (chosen.isNotEmpty()) Column(
                 Modifier.align(Alignment.TopCenter).padding(top = 8.dp).chest(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -966,7 +1021,7 @@ fun WatchGameScreen(
                 confirmWarning(state, me, chosen[0])?.let { Text(it, color = Color(0xFFFFB4A0), fontSize = 13.sp) }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (a in chosen) ColorButton(confirmLabel(state, a, names), Color(0xFF3E9B4F), "confirm") { send(a) }
-                    ColorButton("Cancel", Color(0xFFC0392B), "cancel") { pending = emptyList() }
+                    ColorButton("Cancel", Color(0xFFC0392B), "cancel") { pending = emptyList(); if (cardSecond) { cardPick = emptyList(); cardSecond = false } }
                 }
             }
             if (tick.let { state.isOver }) Column(
@@ -1044,10 +1099,16 @@ fun WatchGameScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("Leave this game?", color = Color(0xFFF1D58A), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(if (online != null) "You'll leave the room; the others can't continue without you yet." else "It won't be saved.", color = Color(0xFFEDE6D8), fontSize = 13.sp)
+            Text(if (online != null) "Leave for now: Resume from the start screen any time, until the host deletes the game. " +
+                    (if (net?.isHost == true) "Delete game ends it for everyone." else "Quit: leave for good.")
+                else "It won't be saved.", color = Color(0xFFEDE6D8), fontSize = 13.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 WoodButton("Keep playing", "exit-no") { confirmExit = false }
-                ColorButton("Leave", Color(0xFFC0392B), "exit-yes") { confirmExit = false; onExit() }
+                ColorButton(if (online != null) "Leave for now" else "Leave", Color(0xFFC0392B), "exit-yes") { confirmExit = false; onExit() }
+                if (online != null && onDeleteRoom != null && net?.isHost == true)
+                    ColorButton("Delete game", Color(0xFFC0392B), "exit-delete") { confirmExit = false; onDeleteRoom() }
+                if (online != null && onQuitRoom != null && net?.isHost != true)
+                    ColorButton("Quit", Color(0xFFC0392B), "exit-quit") { confirmExit = false; onQuitRoom() }
             }
         }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.
@@ -1419,11 +1480,12 @@ private data class BoardLayerKey(
     val game: Int, val tick: Int, val camera: Camera, val size: Size, val tileLine: Boolean,
     val knights: List<ImageBitmap>?, val faces: Map<Int, ImageBitmap>?, val cliff: List<ImageBitmap>?,
     val viewer: Int = 0, val piles: List<Offset> = emptyList(), val buildings: BuildingSprites? = null,
-    val bandit: Boolean = false,
+    val bandit: Boolean = false, val tiles3d: List<List<ImageBitmap>>? = null,
 )
 
 private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodPieces, camera: Camera, sea: Sea? = null, faces: Map<Int, ImageBitmap>? = null, cliff: List<ImageBitmap>? = null, tileLine: Boolean = false, knights: List<ImageBitmap>? = null, raiders: ImageBitmap? = null, part: BoardPart = BoardPart.ALL, bandit: List<ImageBitmap>? = null,
-                                viewer: Int = 0, pileOffsets: List<Offset> = emptyList(), buildings: BuildingSprites? = null) {
+                                viewer: Int = 0, pileOffsets: List<Offset> = emptyList(), buildings: BuildingSprites? = null,
+                                tiles3d: List<List<ImageBitmap>>? = null) {
     if (size.minDimension < 2f) return // not laid out yet (or squeezed to nothing): gradients need real sizes
     val board = s.board
     val l = Layout.fit(board, size.width, size.height, camera)
@@ -1478,7 +1540,13 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         // Zoomed in, skip tiles that are entirely off screen.
         val m = 1.2f * scale
         if (c.x < -m || c.y < -m || c.x > size.width + m || c.y > size.height + m) continue
-        drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]), tileLine)
+        val r3d = tiles3d?.getOrNull(if (board.hexResource[h] in 0 until 5) board.hexResource[h] else 5)
+        if (r3d != null) {
+            // 3D preview: the rendered tile (base and thickness baked in) at this tilt, then our number plate on top.
+            val hs = scale * l.hexK(h)
+            drawSteppedSprite(r3d, c, Tile3dArt.FRAME_UNITS * hs, l.tilt)
+            if (board.hexNumber[h] != 0) drawNumberToken(board.hexNumber[h], c + Offset(NUMBER_TOKEN_X * hs, NUMBER_TOKEN_Y * hs * l.squash), hs, measurer, wood)
+        } else drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]), tileLine)
     }
 
     // Ports: water patch and wooden piers first, then the raised trade-rate tokens.
@@ -1517,15 +1585,17 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     }
 
     // Robber.
-    // Age of Chivalry knights: the theme's token at each corner, on a ring in the owner's colour.
+    // Age of Chivalry knights, old flat tokens (only until the rendered knights are loaded; those are drawn with the
+    // buildings below): the theme's token at each corner, on a ring in the owner's colour.
     val ck = s.ck
-    if (ck != null && knights != null) for (v in 0 until board.topology.vertexCount) {
+    val rendered3dKnights = buildings != null && buildings.knights.isNotEmpty()
+    if (ck != null && knights != null && !rendered3dKnights) for (v in 0 until board.topology.vertexCount) {
         val owner = ck.knightOwner[v]
         if (owner < 0) continue
         val level = ck.knightLevel[v].coerceIn(1, 3)
         val img = knights[(level - 1) * 2 + if (ck.isActive(v)) 1 else 0]
         val at = l.at(v)
-        val size = 0.62f * scale * l.k(v)
+        val size = KNIGHT_SCALE * scale * l.k(v)
         drawOval(PLAYER_COLORS[owner], at + Offset(-size * 0.42f, -size * 0.12f), Size(size * 0.84f, size * 0.3f * l.squash))
         drawOval(Color.Black.copy(alpha = 0.5f), at + Offset(-size * 0.42f, -size * 0.12f), Size(size * 0.84f, size * 0.3f * l.squash), style = Stroke(size * 0.03f))
         drawImage(img, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size * 0.92f).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
@@ -1542,8 +1612,17 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         }
     }
 
-    // Settlements and cities.
-    for (v in 0 until topo.vertexCount) {
+    // Settlements, cities and (rendered) knights, back to front by screen depth so the nearer piece is always drawn
+    // on top: big houses no longer swallow a seated knight behind them (Mauro: "knights disappear when inactive").
+    for (v in cornerDrawOrder(topo.vertexCount) { l.at(it).y }) {
+        val kOwner = ck?.knightOwner?.get(v) ?: -1
+        if (kOwner >= 0 && rendered3dKnights) {
+            val level = ck!!.knightLevel[v].coerceIn(1, 3)
+            val color = PLAYER_COLORS[kOwner]
+            drawPieceSprite(buildings!!.knights[level - 1], l.at(v), scale * l.k(v) * KNIGHT_SCALE / BuildingSprites.FRAME_UNITS, l.tilt, color,
+                bodyFilter = knightBodyFilter(color, ck.isActive(v)))
+            continue
+        }
         val owner = s.vertexOwner[v]
         if (owner < 0) continue
         if (buildings != null) {
@@ -1591,11 +1670,15 @@ internal fun appVersion(): String {
     return remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "?" }
 }
 
-/** How long after you were last in an online room the app still rejoins it on launch. */
-internal const val ROOM_REJOIN_MS = 2 * 60 * 60 * 1000L
+/**
+ * On launch, go straight back into saved room [code]? Yes while the room lives (no time limit: online games resume
+ * until the host deletes them), unless you left it for now ([paused]: the start screen offers Resume instead) or the
+ * app was opened for something else ([busyElsewhere]: a debug start, an invite link).
+ */
+/** True when room seat [seat] was a person who quit the running game: a bot now holds it, played by the host. */
+internal fun quitToBot(room: wgbg.net.Room?, seat: Int): Boolean = room?.seats?.getOrNull(seat)?.let { it.uid == null && it.bot != null } ?: false
 
-/** True when a room saved at [savedAt] (ms) is recent enough to rejoin at [now]; unknown or future times are not. */
-internal fun rejoinRecent(savedAt: Long, now: Long): Boolean = savedAt in 1..now && now - savedAt <= ROOM_REJOIN_MS
+internal fun autoRejoin(code: String?, paused: Boolean, busyElsewhere: Boolean): Boolean = code != null && !paused && !busyElsewhere
 
 /** Island radius for the off-board supplies (#52), from the board's outermost corner. */
 internal fun supplyLandR(board: Board): Float =
@@ -1801,7 +1884,14 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
     }
     // Row 4: Age of Chivalry knights (levels 1-3, idle and active), the Raiders' ship, a cliff strip, boats and a gull.
     val y4 = 8.75f * scale
-    art.knights.forEachIndexed { i, k ->
+    val knights3d = art.buildings?.knights.orEmpty()
+    if (knights3d.isNotEmpty()) for (i in 0 until 6) {
+        // The 3D knights (Age of Chivalry games): levels 1-3, idle (dimmed) then active, in the owner colours.
+        val c = Offset(left - 0.6f * scale + i * 0.95f * scale, y4)
+        val color = PLAYER_COLORS[(i / 2) % PLAYER_COLORS.size]
+        drawPieceSprite(knights3d[i / 2], c + Offset(0f, 0.15f * scale), scale * 1.5f, 0.55f, color, bodyFilter = knightBodyFilter(color, i % 2 == 1))
+        label("L${i / 2 + 1}${if (i % 2 == 1) " on" else ""}", c + Offset(0f, 0.5f * scale))
+    } else art.knights.forEachIndexed { i, k ->
         val c = Offset(left - 0.6f * scale + i * 0.95f * scale, y4)
         image(k, c, 0.9f)
         label("L${i / 2 + 1}${if (i % 2 == 1) " on" else ""}", c + Offset(0f, 0.5f * scale))
@@ -1931,6 +2021,22 @@ internal const val NUMBER_TEXT = 0.46f
 
 /** Homesteads, towns, Ramparts and Capitals drawn this many times the art spec's size (roads stay as they are). */
 internal const val BUILDING_SCALE = 2.4f
+
+/** Draws the tilt-stepped sprite [frames] centred on [c], [side] px square, cross-fading the two nearest steps. */
+private fun DrawScope.drawSteppedSprite(frames: List<ImageBitmap>, c: Offset, side: Float, tilt: Float) {
+    if (side < 2f || !side.isFinite()) return
+    val (a, b, f) = banditSteps(tilt)
+    val dst = IntOffset((c.x - side / 2).toInt(), (c.y - side / 2).toInt()); val sz = IntSize(side.toInt(), side.toInt())
+    frames.getOrNull(a)?.let { drawImage(it, IntOffset.Zero, IntSize(it.width, it.height), dst, sz, filterQuality = FilterQuality.Medium) }
+    if (f > 0.02f) frames.getOrNull(b)?.let { drawImage(it, IntOffset.Zero, IntSize(it.width, it.height), dst, sz, alpha = f, filterQuality = FilterQuality.Medium) }
+}
+
+/** Corners 0 until [count] ordered back to front: by [screenY] (smaller is farther away), ties by index. */
+internal fun cornerDrawOrder(count: Int, screenY: (Int) -> Float): List<Int> =
+    (0 until count).sortedWith(compareBy<Int>({ screenY(it) }, { it }))
+
+/** Age of Chivalry knight size in hex units (Mauro, 2026-10-11: 3x the first 0.62, then 30% smaller). */
+internal const val KNIGHT_SCALE = 1.30f
 
 /** Roads drawn at this share of the art-spec size (Mauro: narrower), two per edge, centred ROAD_SPREAD from the middle. */
 internal const val ROAD_SCALE = 0.8f

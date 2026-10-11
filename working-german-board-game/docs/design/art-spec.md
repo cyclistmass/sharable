@@ -31,7 +31,7 @@ from any artist or AI drop in without rework. Sizes are measured from the shippe
 | Number plate | drawn by the game | — | radius **0.27**, centre **(+0.36, +0.30)**: **lower right** | Keep a plain clearing of radius 0.31 there; see "Tilt rule" |
 | Bandit | `bandit_tilt_0..7` | 384 × 384 (512 at source) | **2.65** hex units square, standing on the plate | Foot anchor at the image centre; opaque base seal radius 0.278 hides the plate; 8 tilt steps, tilt = 0.96·i/7 |
 | Homestead / town / road | drawn by the game (`WoodPieces.kt`) today | — | homestead about 0.25 wide, town 0.45, road 0.66 × 0.19 | Stained in the player's colour at runtime; see **Buildings and pieces** for the rendered spec |
-| Knight token (Age of Chivalry) | `knight_{normal,pirate}_l{1,2,3}_{active,inactive}` | 256 × 256 | **0.62** hex units, on a ring in the owner's colour | Figure stands on the corner; base at the lower centre |
+| Knight token (Age of Chivalry) | `knight_{normal,pirate}_l{1,2,3}_{active,inactive}` | 512 × 512 (256 until re-rendered) | **1.30** hex units (3× the first 0.62, then 30% smaller), on a ring in the owner's colour | Figure stands on the corner; base at the lower centre |
 | Port token | drawn by the game | — | radius 0.30 | 2:1 tokens show their terrain art |
 | Cliff strip | `cliff_top_1..3` | 768 × 174 | 1.16 along a coast edge × 0.55 deep | Top-down; grass lip at the top edge, surf at the bottom |
 | Ocean | `ocean_tile.webp` | 768 × 768 | tiled under the board | Seamless on all four sides |
@@ -74,7 +74,7 @@ two layers per tilt step:
 | Road | an edge | **0.66 × 0.19**, raised 0.045 | low | 3 directions (vertical, +30°, −30°); a unit edge takes **two sprites centred ±0.17** from its middle, overlapping |
 | Ramparts (Age of Chivalry) | under a town | Pirate: square ring **0.55 × 0.55** with a gatehouse, total depth 0.58 | curtain 0.078, gatehouse 0.169 | drawn before (under) the town or Capital |
 | Capital (Age of Chivalry) | replaces a town | town cluster plus a central keep 0.215 × 0.195, dome about 0.24 across | dome top 0.475, finial 0.50 | Guilds gold (trade), Academy green (science), Crown blue (politics); never drawn on top of a town |
-| Knight token | a corner | 0.62 (existing sprites) | — | keep `knight_*`; they already follow this frame idea |
+| Knight token | a corner | 1.30 (3× the first 0.62, then 30% smaller) | — | keep `knight_*`; they already follow this frame idea |
 
 **Draw order (front-most last):** tiles → number plates → roads → Ramparts → homesteads, towns, Capitals, knights
 (back rows first, so nearer pieces overlap farther ones) → the bandit. Corner pieces never reach the number plate
