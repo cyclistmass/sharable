@@ -331,6 +331,14 @@ class SoundSettings(private val store: FloatStore) {
         val SONGS: List<Song> = listOf(
             Song("Drunken Sailor", R.raw.tune_drunken_sailor),
             Song("Carnival of Venice", R.raw.tune_carnival_of_venice),
+            Song("Blow the Man Down", R.raw.tune_blow_the_man_down),
+            Song("Haul Away Joe", R.raw.tune_haul_away_joe),
+            Song("Leave Her Johnny", R.raw.tune_leave_her_johnny),
+            Song("Spanish Ladies", R.raw.tune_spanish_ladies),
+            Song("South Australia", R.raw.tune_south_australia),
+            Song("Rio Grande", R.raw.tune_rio_grande),
+            Song("Shenandoah", R.raw.tune_shenandoah),
+            Song("Wellerman", R.raw.tune_wellerman),
         )
     }
 }
