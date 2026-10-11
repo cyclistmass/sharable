@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -110,8 +111,12 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                         StatBadge(StatIcon.SHIELD, knightsShown(s, p), s.ck == null && s.largestArmyOwner == p, "army-$p")
                     }
                 }
-                // The last roll's cards per player are in the history right below; showing them here too either made the
-                // panel jump or left a third of it empty (Mauro), so the rows keep to score, cards, road and knights.
+                // The last roll's cards, each overlapping the one before by half in one fixed slot, so the frame never
+                // stretches or jumps however many came in (Mauro); past four, the rest are in the history.
+                val minis = rollMinis(roll, p, me)
+                Box(Modifier.size(width = MINI_SLOT, height = 30.dp).testTag("roll-minis-$p")) {
+                    minis.take(MINI_MAX).forEachIndexed { i, m -> Box(Modifier.offset(x = MINI_STEP * i)) { MiniRollCard(m) } }
+                }
             }
         }
     }
@@ -157,6 +162,11 @@ fun cardDetail(card: Int, chivalry: Boolean): CardDetail {
 /** A progress card: its deck and its full meaning. */
 fun progressDetail(c: Int): CardDetail = CardDetail(progressArt(c), PROGRESS_NAMES.getOrElse(c) { "Progress card" },
     "${DECK_NAMES[wgbg.engine.Progress.track(c)]} progress card", listOf(progressHint(c)))
+
+/** The roll cards beside each player: up to [MINI_MAX], each overlapping the one before by half. */
+private val MINI_STEP = 10.5.dp
+private const val MINI_MAX = 4
+private val MINI_SLOT = 21.dp + MINI_STEP * (MINI_MAX - 1)
 
 /** A progress card's art: its deck's commodity card (Guilds Weave, Crown Silver, Academy Parchment). */
 fun progressArt(card: Int): Int = ALL_CARD_ART[wgbg.engine.Track.commodity(wgbg.engine.Progress.track(card))]
@@ -290,9 +300,9 @@ private fun MiniRollCard(m: RollMini) {
             RESOURCE_NAMES[m.card], Modifier.fillMaxSize())
         else Box(Modifier.fillMaxSize().background(Color(0xFF5A4030), RoundedCornerShape(2.dp)).border(1.dp, Color(0xFF8A6A2A), RoundedCornerShape(2.dp)),
             contentAlignment = Alignment.Center) { Text("?", color = Color(0xFFEFE3C8), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-        // A slim badge on the card's foot, so the card itself stays readable.
+        // A slim badge on the card's left foot (the next card covers its right half), so the count stays readable.
         Text(if (m.n > 0) "+${m.n}" else "${m.n}", color = Color.White, fontSize = 8.sp, lineHeight = 9.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.align(Alignment.BottomEnd).background(if (m.n > 0) Color(0xE6388E3C) else Color(0xE6C0392B), RoundedCornerShape(topStart = 3.dp))
+            modifier = Modifier.align(Alignment.BottomStart).background(if (m.n > 0) Color(0xE6388E3C) else Color(0xE6C0392B), RoundedCornerShape(topEnd = 3.dp))
                 .padding(horizontal = 2.dp))
     }
 }
