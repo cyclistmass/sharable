@@ -538,6 +538,12 @@ fun WatchGameScreen(
     // Music (#58): the set list at the Music volume; it pauses while the app is in the background.
     val music = remember { MusicPlayer(appContext, SoundSettings.SONGS) }
     LaunchedEffect(sound.musicVolume) { music.setVolume(sound.musicVolume) }
+    LaunchedEffect(sound.musicPaused) { music.hold(sound.musicPaused) }
+    LaunchedEffect(music) {
+        music.onSong = { sound.nowPlaying = it }
+        sound.onPlay = { music.play(it) }
+        sound.onNext = { music.next() }
+    }
     val gameLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     androidx.compose.runtime.DisposableEffect(gameLifecycle) {
         val o = androidx.lifecycle.LifecycleEventObserver { _, ev ->
@@ -578,6 +584,7 @@ fun WatchGameScreen(
         .map { ImageBitmap.imageResource(it) }
     val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile); it.boatColors = PLAYER_COLORS } }
     sea.gullFlap = gullFlap; sea.gullGlide = gullGlide; sea.gullShadow = gullShadow; sea.boatWake = boatWake; sea.boatSprites = boatSprites
+    if (sea.sprites3d == null) sea.sprites3d = SeaSprites3d(oceanRes)
     // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
     // read the current game's sea and board through these.
     val seaNow by rememberUpdatedState(sea)
@@ -1579,14 +1586,18 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             val at = l.project(pose.x, pose.y)
             val size = 1.15f * scale * l.kAt(pose.y)
             val right = kotlin.math.cos(pose.heading) >= 0f
-            sea?.boatWake?.let { wake ->
+            val s3d = sea?.sprites3d
+            // The 3D ship (#63), bow-first along its course; the painted side view while it isn't loaded.
+            if (s3d != null) drawSeaProp(s3d, at, SeaSprites3d.RAIDERS_FRAME * scale * l.kAt(pose.y), SeaSprites3d.headingIndex(pose.heading, l.squash),
+                SeaSprites3d.tiltStep(l.tilt), SeaArt.raiders, wake = SeaArt.raidersWake)
+            else sea?.boatWake?.let { wake ->
                 val stern = l.project(pose.x - kotlin.math.cos(pose.heading) * 0.35f, pose.y - kotlin.math.sin(pose.heading) * 0.35f)
                 withTransform({ rotate(Math.toDegrees(pose.heading.toDouble()).toFloat(), stern) }) {
                     drawImage(wake, dstOffset = IntOffset((stern.x - size * 0.6f).toInt(), (stern.y - size * 0.15f).toInt()),
                         dstSize = IntSize((size * 0.7f).toInt(), (size * 0.3f).toInt()), alpha = 0.4f)
                 }
             }
-            withTransform({ if (!right) scale(-1f, 1f, at) }) {
+            if (s3d == null) withTransform({ if (!right) scale(-1f, 1f, at) }) {
                 drawImage(raiders, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
                     filterQuality = FilterQuality.Medium)
             }

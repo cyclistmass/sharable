@@ -25,6 +25,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -319,6 +320,17 @@ class SoundSettings(private val store: FloatStore) {
         get() = sounds.floatValue
         set(v) { sounds.floatValue = v.coerceIn(0f, 1f); store.put(SOUNDS, sounds.floatValue) }
 
+    private val held = mutableFloatStateOf(store.get(MUSIC_PAUSED, 0f))
+    /** The Pause button (saved, so paused music stays paused next time). */
+    var musicPaused: Boolean
+        get() = held.floatValue > 0.5f
+        set(v) { held.floatValue = if (v) 1f else 0f; store.put(MUSIC_PAUSED, held.floatValue) }
+    /** The index in [SONGS] of the song playing now, or -1 (set by the game's music player). */
+    var nowPlaying by mutableIntStateOf(-1)
+    /** Wired to the music player by the game screen: play song i, skip to the next. */
+    var onPlay: (Int) -> Unit = {}
+    var onNext: () -> Unit = {}
+
     /** Back to the defaults (saved). */
     fun reset() { musicVolume = DEFAULT_MUSIC; soundVolume = DEFAULT_SOUNDS }
 
@@ -327,6 +339,7 @@ class SoundSettings(private val store: FloatStore) {
         const val DEFAULT_SOUNDS = 0.8f
         const val MUSIC = "vol-music"
         const val SOUNDS = "vol-sounds"
+        const val MUSIC_PAUSED = "music-paused"
         /** The set list (#17, #58), our own recordings; more shanties to come. */
         val SONGS: List<Song> = listOf(
             Song("Drunken Sailor", R.raw.tune_drunken_sailor),
@@ -365,8 +378,19 @@ fun SoundControls(sound: SoundSettings) {
                 Text("Sounds ${(sound.soundVolume * 100).roundToInt()}%", fontSize = 12.sp, modifier = Modifier.width(96.dp))
                 VolumeSlider(sound.soundVolume, "vol-sounds", 200.dp) { sound.soundVolume = it }
             }
-            Text("Songs", fontSize = 12.sp)
-            for (song in SoundSettings.SONGS) Text("♪ ${song.title}", fontSize = 12.sp, color = Color(0xFFCDBFA6))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Choice(if (sound.musicPaused) "▶ Play" else "⏸ Pause", selected = sound.musicPaused, tag = "music-pause",
+                    modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { sound.musicPaused = !sound.musicPaused }
+                Choice("⏭ Next", selected = false, tag = "music-next", modifier = Modifier.height(36.dp).width(100.dp), size = 13.sp) {
+                    sound.musicPaused = false; sound.onNext()
+                }
+            }
+            Text("Songs (tap one to play it)", fontSize = 12.sp)
+            SoundSettings.SONGS.forEachIndexed { i, song ->
+                val now = i == sound.nowPlaying && !sound.musicPaused
+                Text((if (now) "▶ " else "♪ ") + song.title, fontSize = 12.sp, color = if (now) Color(0xFFD9B865) else Color(0xFFCDBFA6),
+                    modifier = Modifier.clickable { sound.musicPaused = false; sound.onPlay(i) }.testTag("song-$i").padding(vertical = 3.dp))
+            }
         }
     }
 }

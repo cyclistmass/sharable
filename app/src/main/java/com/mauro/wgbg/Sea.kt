@@ -239,6 +239,8 @@ class Sea(board: Board, seed: Int = 1) {
     var gullShadow: ImageBitmap? = null
     var boatSprites: List<ImageBitmap>? = null
     var boatWake: ImageBitmap? = null
+    /** The 3D sloops and Raiders' ship (#63); null in tests and until loaded, when the painted sprites draw. */
+    var sprites3d: SeaSprites3d? = null
     private var oceanBrushes: List<Pair<BitmapShader, ShaderBrush>>? = null
     private val oceanMatrix = Matrix()
     private val patchMatrix = Matrix()
@@ -518,7 +520,9 @@ class Sea(board: Board, seed: Int = 1) {
         for (i in 0 until boatCount) {
             val bt = boats[i]
             if (!onScreen(at(bt.x, bt.y), 1.2f * s)) continue
-            if (sprites != null) drawBoatSprite(this, at, s, bt, sprites) else drawBoat(this, at, s, bt)
+            val s3d = sprites3d
+            if (s3d != null) drawBoat3d(this, at, s, squash, bt, s3d)
+            else if (sprites != null) drawBoatSprite(this, at, s, bt, sprites) else drawBoat(this, at, s, bt)
         }
         for (r in rings) {
             val t = ((r.age - r.delay) / 1.2f).coerceIn(0f, 1f)
@@ -589,6 +593,15 @@ class Sea(board: Board, seed: Int = 1) {
             drawImage(img, dstOffset = IntOffset((p.x - size / 2).toInt(), (p.y - size * 0.7f + bob).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
                 filterQuality = FilterQuality.Medium)
         }
+    }
+
+    /** A 3D sloop (#63): bow-first along its course, its sail in its player's colour, bobbing on the swell. */
+    private fun drawBoat3d(ds: DrawScope, at: (Float, Float) -> Offset, s: Float, squash: Float, b: Boat, s3d: SeaSprites3d) = with(ds) {
+        val bob = sin(time * 2.2f + b.phase) * 0.02f * s
+        val p = at(b.x, b.y) + Offset(0f, bob)
+        val tilt = kotlin.math.acos(squash.coerceIn(0f, 1f))
+        drawSeaProp(s3d, p, SeaSprites3d.SLOOP_FRAME * s, SeaSprites3d.headingIndex(b.heading, squash), SeaSprites3d.tiltStep(tilt),
+            SeaArt.sloop, SeaArt.sloopTrim, SeaArt.sloopWake, tint = boatColors[b.color % boatColors.size])
     }
 
     private fun drawBoat(ds: DrawScope, at: (Float, Float) -> Offset, s: Float, b: Boat) = with(ds) {
