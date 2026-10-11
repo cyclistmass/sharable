@@ -57,6 +57,10 @@
       "readable_story_details": 57,
       "material_pass": "single pigment, warm key, cool fill, local AO"
     },
+    "story_pass": {
+      "large_mineral_slabs": 45,
+      "broad_leaf_islands": 3
+    },
     "token_space": {
       "token_center": [
         0.36,
@@ -66,25 +70,38 @@
       "clearing_radius": 0.31,
       "upright_plate": true,
       "foreground_max_tilt_degrees": 55,
-      "pruned_objects": 45,
+      "pruned_objects": 48,
       "flattened_surfaces": 1
     }
   },
   "renders": [
     {
+      "file": "stone_V3_flat.png",
+      "tilt_radians": 0,
+      "seconds": 68.03,
+      "sha256": "788ac6df9d01a753d5736fa71d6bd5d48d96f99b74073b2505be6bbf8afcff84"
+    },
+    {
       "file": "stone_V3_mid.png",
       "tilt_radians": 0.48,
-      "seconds": 26.06,
-      "sha256": "bac0d8f86b5c707abe2cfc6fc8048062e062f2d1dc7b0bc0d23f4aabb6a28a9e"
+      "seconds": 68.06,
+      "sha256": "5a9adf7289cfcd9dc35449c828fe5a81253eb9eafc6fef8ca6eaba64ce92a089"
+    },
+    {
+      "file": "stone_V3_max.png",
+      "tilt_radians": 0.96,
+      "seconds": 54.73,
+      "sha256": "efd324e892957993039da9f4ef645972abf1b65fc856766daedb6067563a2bec"
     }
   ],
-  "objects": 415,
-  "samples": 32,
+  "objects": 468,
+  "samples": 64,
   "threads": 2,
   "source_hashes": {
-    "render_v3.py": "84de0682ea07a29d2d733e81c436b6c3b25f7795bffe9c9c43953baa2fe72681",
-    "v3_art.py": "553c72f17bb2e0fc362ddaaee21b6e0c76ead8471c6b13328b34da4b42b136f7",
-    "v3_finish.py": "de7f4edfde2aa023c3fa6301661604119784201e201a15abe2282adf044f797a",
+    "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+    "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+    "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+    "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
     "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
     "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
     "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",

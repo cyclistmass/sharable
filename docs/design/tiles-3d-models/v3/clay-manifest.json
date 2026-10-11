@@ -1,6 +1,14 @@
 {
   "metadata": {
     "story": "red terraced excavation, round kiln with smoke, hoist crane, rail line, brick pallets and drying racks",
+    "finish": {
+      "readable_story_details": 109,
+      "material_pass": "single pigment, warm key, cool fill, local AO"
+    },
+    "story_pass": {
+      "terrace_fractures": 23,
+      "broad_leaf_islands": 4
+    },
     "token_space": {
       "token_center": [
         0.36,
@@ -10,7 +18,7 @@
       "clearing_radius": 0.31,
       "upright_plate": true,
       "foreground_max_tilt_degrees": 55,
-      "pruned_objects": 37,
+      "pruned_objects": 55,
       "flattened_surfaces": 1
     }
   },
@@ -18,25 +26,30 @@
     {
       "file": "clay_V3_flat.png",
       "tilt_radians": 0,
-      "seconds": 31.44
+      "seconds": 64.33,
+      "sha256": "b18af8032b40bdb4d2e66102af0700a3c77ce290a13ab4d6252565fc59d0cb05"
     },
     {
       "file": "clay_V3_mid.png",
       "tilt_radians": 0.48,
-      "seconds": 29.2
+      "seconds": 60.83,
+      "sha256": "36ac6ee116a6536c7759fb8a83a21968120b645f93df93a442baadad59c0f453"
     },
     {
       "file": "clay_V3_max.png",
       "tilt_radians": 0.96,
-      "seconds": 22.44
+      "seconds": 45.28,
+      "sha256": "44594de561118f413a2cf49b5387e4f649b6e7b0b9335315489015fe30d11ee7"
     }
   ],
-  "objects": 542,
-  "samples": 48,
+  "objects": 612,
+  "samples": 64,
   "threads": 2,
   "source_hashes": {
-    "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
-    "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+    "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+    "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+    "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+    "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
     "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
     "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
     "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",

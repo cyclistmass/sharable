@@ -18,6 +18,23 @@ def leaf(b,a,c,width,fold=.004):
     mid=a+d*.55
     b.add([tuple(a),tuple(mid+side),tuple(c),tuple(mid-side),tuple(mid+Vector((0,0,fold)))],[(4,1,0),(4,2,1),(4,3,2),(4,0,3)])
 
+
+def wheat_ear(batch, base, heading, scale=1):
+    """A tapered ear with alternate almond grains and fine awns, leaning in 3D."""
+    origin=Vector(base)
+    axis=Vector((.52*math.cos(heading),.52*math.sin(heading),1)).normalized()
+    rotation=Vector((0,0,1)).rotation_difference(axis)
+    start=len(batch.v)
+    for k in range(6):
+        taper=math.sin((k+1)*math.pi/8)**.55
+        for side in [-1,1]:
+            z=(k*.011+side*.0015)*scale
+            batch.ellipsoid((side*.005*taper*scale,0,z),
+                            (.006*taper*scale,.0045*taper*scale,.010*scale),n=6,rings=4)
+            batch.rod((side*.006*taper*scale,0,z),
+                      (side*.020*taper*scale,.002*scale,z+.027*scale),.0006*scale,3)
+    for i in range(start,len(batch.v)):batch.v[i]=tuple(origin+rotation@Vector(batch.v[i]))
+
 def pine(x,y,h,style,rng,mats):
     """Seven open branch whorls, individual needle sprays, bright new growth."""
     bark,greens=mats
@@ -63,6 +80,10 @@ def plants(fn,seed,count,flowers=True,dry=False):
             ax,ay=anchors[i%len(anchors)];x=ax+rng.gauss(0,.045 if dry else .10);y=ay+rng.gauss(0,.040 if dry else .09)
         else:x=rng.uniform(-.80,.80);y=rng.uniform(-.92,.92)
         if not inside(x,y,.919) or token.distance(x,y)<.347:continue
+        if V.ACTIVE_TERRAIN=='fleece':
+            # Let the flock read as whole silhouettes within the flower meadow.
+            animals=[(-.45,.08),(-.28,.18),(-.13,-.08),(-.41,-.31),(-.24,-.45),(-.04,-.40),(.17,-.70),(-.18,.48),(-.54,-.14),(-.05,-.59),(-.56,-.53),(-.54,.56)]
+            if any(((x-ax)/.115)**2+((y-ay)/.080)**2<1 for ax,ay in animals):continue
         if V.ACTIVE_TERRAIN=='timber' and abs(x+.28+.025*math.sin(y*9))<.047 and -.70<y<.46:continue
         if V.ACTIVE_TERRAIN=='grain' and inside(x,y,.78) and abs(y+.36-x*.20)>.10:continue
         z=fn(x,y)
@@ -196,8 +217,8 @@ def fence(fn,a,b,n=9,stone=False,gate=False):
         wood=V.mat('V3 harvest fence sunlit oak',(.38,.20,.057),.3)
         for i in range(0,n,2):
             t=i/(n-1);x=a[0]+(b[0]-a[0])*t;y=a[1]+(b[1]-a[1])*t
-            V.pole('V3 tall harvest fence post',(x,y,fn(x,y)),(x,y,fn(x,y)+.31),.014,wood,6)
-        for h in [.13,.26]:V.pole('V3 tall harvest fence rail',(*a,fn(*a)+h),(*b,fn(*b)+h),.011,wood,6)
+            V.pole('V3 tall harvest fence post',(x,y,fn(x,y)),(x,y,fn(x,y)+.41),.014,wood,6)
+        for h in [.20,.35]:V.pole('V3 tall harvest fence rail',(*a,fn(*a)+h),(*b,fn(*b)+h),.011,wood,6)
         return
     V.original_fence(fn,a,b,n,stone,gate)
     iron=V.mat('V3 fence iron nails',(.075,.045,.014),.1)
@@ -359,7 +380,7 @@ def enhance(name):
         for o in list(bpy.context.scene.objects):
             if o.type=='MESH' and any(m and m.name.startswith('V3 layered sandstone ') for m in o.data.materials):bpy.data.objects.remove(o,do_unlink=True)
         rocks=[V.mat('V3 sedimentary sandstone '+str(i),c,.28) for i,c in enumerate([(.37,.17,.042),(.54,.29,.076),(.75,.43,.14),(.43,.22,.058)])]
-        for k,(x,y,s) in enumerate([(-.56,.37,.13),(-.51,-.31,.11),(-.24,-.61,.12),(.43,-.48,.12),(.60,-.10,.09),(-.02,.68,.11),(-.64,.04,.07)]):
+        for k,(x,y,s) in enumerate([(-.56,.37,.17),(-.51,-.31,.14),(-.24,-.61,.15),(.43,-.48,.12),(.60,-.10,.09),(-.02,.68,.13),(-.64,.04,.08)]):
             crag('V3 sandstone layered outcrop',x,y,fn(x,y)-.014,s,s*.75,s*1.45,rocks,k)
             for j in range(4):
                 xx=x+rng.uniform(-.11,.11);yy=y+rng.uniform(-.09,.09)

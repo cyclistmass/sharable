@@ -159,17 +159,23 @@ def materials(scene,terrain):
         o.data.color=(1,.93,.78)
         if o.data.type=='SUN':o.data.energy=2.35;o.data.angle=.08
         else:o.data.energy=330;o.data.size=2.0
-    ground={'timber':(.085,.255,.016),'fleece':(.14,.36,.013),'grain':(.72,.38,.035),
+    ground={'timber':(.075,.255,.010),'fleece':(.15,.39,.009),'grain':(.82,.43,.035),
             'clay':(.76,.125,.022),'desert':(.84,.53,.19),'stone':(.43,.43,.34)}
     mineral={'R3 warm dark bedrock':(.40,.47,.52),'R3 warm cleft shading':(.21,.28,.34),
              'R3 warm scree':(.51,.52,.46),'R3 warm lit crags':(.69,.72,.68),
              'R3 pine foothill earth':(.18,.28,.029),'V3 cut quarry block pale rock':(.71,.71,.59),
              'V3 angular protruding alpine crags':(.52,.57,.55),
              'V3 dark wet red clay':(.37,.055,.018),'V3 orange red pit faces':(.65,.083,.014),
-             'V3 soft wheat leaf mass':(.76,.405,.025),'V3 sheaf warm full centres':(.95,.64,.105),
+             'V3 soft wheat leaf mass':(.68,.31,.014),'V3 sheaf warm full centres':(1,.69,.105),
              'V3 deeply furrowed log bark':(.28,.115,.034),'V3 golden exposed end grain':(.84,.51,.18),
              'V3 sheep warm ivory fleece':(.92,.86,.66),'V3 sheep charcoal face and hooves':(.038,.029,.019),
-             'V3 warm worn working timber':(.43,.215,.056)}
+             'V3 warm worn working timber':(.49,.265,.077),
+             'V3 rusty rail iron':(.31,.34,.31),
+             'V3 wall weathered stone 0':(.39,.43,.36),
+             'V3 wall weathered stone 1':(.58,.61,.49),
+             'V3 wall weathered stone 2':(.28,.33,.27),
+             'V3 wall weathered stone 3':(.68,.65,.48),
+             'V3 fired orange brick':(.73,.13,.022)}
     used={m for o in scene.objects if o.type=='MESH' for m in o.data.materials if m}
     for m in used:
         label=m.name;low=label.lower()
@@ -185,7 +191,7 @@ def materials(scene,terrain):
         if label.startswith('V3 rich forest canopy'):
             c=[(.018,.17,.035),(.050,.32,.026),(.23,.49,.022),(.49,.67,.075)][int(label.split()[-1])%4]
         if label.startswith('V3 dense wheat honey'):
-            c=[(.93,.49,.021),(1,.68,.07),(1,.84,.20)][int(label.split()[-1])%3]
+            c=[(.93,.42,.008),(1,.65,.035),(1,.84,.17)][int(label.split()[-1])%3]
         if 'sedimentary sandstone' in low:
             c=[(.53,.235,.060),(.69,.37,.115),(.88,.58,.265),(.60,.28,.073)][int(label.split()[-1])%4]
         ns=m.node_tree.nodes;ls=m.node_tree.links;ns.clear()
@@ -211,7 +217,7 @@ def materials(scene,terrain):
             ls.new(pos.outputs['Position'],wave.inputs['Vector'])
             bands=ns.new('ShaderNodeValToRGB');bands.color_ramp.elements[0].position=.28;bands.color_ramp.elements[0].color=(.59,.55,.46,1)
             bands.color_ramp.elements[1].position=.43;bands.color_ramp.elements[1].color=(1,1,1,1)
-            ls.new(wave.outputs['Fac'],bands.inputs[0]);mix=ns.new('ShaderNodeMixRGB');mix.blend_type='MULTIPLY';mix.inputs[0].default_value=.32
+            ls.new(wave.outputs['Fac'],bands.inputs[0]);mix=ns.new('ShaderNodeMixRGB');mix.blend_type='MULTIPLY';mix.inputs[0].default_value=.16 if terrain=='stone' else .32
             ls.new(source,mix.inputs[1]);ls.new(bands.outputs[0],mix.inputs[2]);source=mix.outputs[0]
         ao=ns.new('ShaderNodeAmbientOcclusion');ao.inputs['Distance'].default_value=.045 if botanical or wheat else .11
         mix=ns.new('ShaderNodeMixRGB');mix.blend_type='MULTIPLY';mix.inputs[0].default_value=.22 if botanical or wheat else .34
@@ -219,6 +225,21 @@ def materials(scene,terrain):
         fine=ns.new('ShaderNodeTexNoise');fine.inputs['Scale'].default_value=120 if soil else 72;fine.inputs['Detail'].default_value=2
         ls.new(mapping.outputs[0],fine.inputs['Vector']);bump=ns.new('ShaderNodeBump');bump.inputs['Strength'].default_value=.19;bump.inputs['Distance'].default_value=.0035
         ls.new(fine.outputs['Fac'],bump.inputs['Height']);ls.new(bump.outputs[0],p.inputs['Normal'])
+        if (terrain=='stone' and rock) or (terrain=='clay' and not clearing and ('rich earth' in low or 'pit faces' in low or 'clay cut' in low)):
+            # Angular vertical joints break up the smooth reservation shoulder.
+            # They are world-scale mineral relief, independent of camera/view.
+            stretch=ns.new('ShaderNodeVectorMath');stretch.operation='MULTIPLY';stretch.inputs[1].default_value=(1,1,.34)
+            ls.new(pos.outputs['Position'],stretch.inputs[0])
+            joints=ns.new('ShaderNodeTexVoronoi');joints.feature='DISTANCE_TO_EDGE';joints.inputs['Scale'].default_value=17 if terrain=='stone' else 25
+            ls.new(stretch.outputs[0],joints.inputs['Vector'])
+            cracks=ns.new('ShaderNodeValToRGB');cracks.color_ramp.elements[0].position=.013;cracks.color_ramp.elements[0].color=(.30,.34,.35,1) if terrain=='stone' else (.40,.22,.12,1)
+            cracks.color_ramp.elements[1].position=.080;cracks.color_ramp.elements[1].color=(1,1,1,1)
+            ls.new(joints.outputs['Distance'],cracks.inputs[0])
+            old=p.inputs['Base Color'].links[0].from_socket
+            tint=ns.new('ShaderNodeMixRGB');tint.blend_type='MULTIPLY';tint.inputs[0].default_value=.38 if terrain=='stone' else .24
+            ls.new(old,tint.inputs[1]);ls.new(cracks.outputs[0],tint.inputs[2]);ls.new(tint.outputs[0],p.inputs['Base Color'])
+            relief=ns.new('ShaderNodeBump');relief.inputs['Strength'].default_value=.42;relief.inputs['Distance'].default_value=.014 if terrain=='stone' else .009
+            ls.new(cracks.outputs[0],relief.inputs['Height']);ls.new(bump.outputs[0],relief.inputs['Normal']);ls.new(relief.outputs[0],p.inputs['Normal'])
         if terrain=='desert' and soil:
             wave=ns.new('ShaderNodeTexWave');wave.wave_type='BANDS';wave.bands_direction='DIAGONAL'
             wave.inputs['Scale'].default_value=48;wave.inputs['Distortion'].default_value=4;wave.inputs['Detail Scale'].default_value=.8

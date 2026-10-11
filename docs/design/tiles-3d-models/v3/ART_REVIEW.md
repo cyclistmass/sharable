@@ -33,3 +33,32 @@ Reviewed the six-terrain mid sheet, individual mid/max images and the exact 545x
 - Desert: real dune height reads at tilt, but the sand is too mottled and plants are too dispersed. Narrow the sand's pigment range, group the scrub tightly, and emphasize sediment bands on the outcrops.
 
 The phone proof still exposes the compositional cost of the existing upper-right clearing and its low foreground apron. Their position and footprint are deliberately preserved; relocating them belongs to the deferred game-v2 recut.
+
+
+## Completion baseline, October 11
+
+The worktree arrived clean at WIP commit b9b30f0. Its changes relative to be65eea preserve the interrupted refinement pass. Only the mid renders of Timber, Stone and Fleece had the latest finish pass; the other views and comparison sheets were older. The actual incoming images are composed at equal hex width in resume-baseline.png, with a 25% proof in resume-baseline-phone.png. No prior working changes were discarded.
+
+| Terrain | Remaining gap visible in the actual incoming renders | Completion direction |
+|---|---|---|
+| Timber | Narrow crowns, dark parallel log piles, sparse camp; broad bare apron | Wider folded sprays, pale upper log scars, loaded hauling sled, broad-leaf islands |
+| Stone | Smooth dominant peak and bowl around the clearing; small mineral planes; subdued rails | Larger upright split slabs, visible suspended block, brighter rails and fractured mineral shading |
+| Fleece | Fine flowers become noise; flock blends into vegetation; pasture lacks distinct clusters | Keep tall plants away from animal silhouettes, lighter wall stones, flower islands, gate and hayrack |
+| Grain | Crop reads as a flat mat; tied sheaves sink into it; weak harvest lane | Lower the crop underlayer, vary taller ears, widen stook gaps, enlarge whole tied bundles and brighten gold |
+| Clay | Rubble hides terraces; kiln smoke and yard are from the older render generation | Complete volume smoke, expose taller red cuts, add drying-brick pallet and narrower cut joints |
+| Desert | Overly mottled sand, small outcrops and dispersed vegetation; excessively steep dune around clearing | Complete quiet sand shader, gentler real dunes, larger ledged outcrops/crowns and clustered scrub |
+
+The clearing remains (+0.36,+0.30), radius 0.31, with the unchanged upright-plate and neighbor guards. Base geometry, camera framing, three proof views and eight production tilt steps remain unchanged. No app code, emulator, commit or push.
+
+
+### Completion iteration review
+
+Reviewed the six revised mid PNGs at 512px and the exact 25% story-iteration-phone.png. Timber's split log tops and sled now read; the flock has clearer space around its bodies; Grain's larger sheaves separate from the field; Clay's excavation is exposed; Desert's sand is much quieter. Remaining issues from that inspection drove another edit before the final batch:
+
+- Grain ears looked like blunt stacked kernels. Replace them with tapered alternate almond grains on a leaning axis, including finer awns; raise the fence above the canopy.
+- Clay cuts looked rounded and the smoke exposed its sphere boundaries. Use flat terrain normals, fine vertical fracture shading and density that fades toward puff edges.
+- Stone's inner slope remained smooth. Add vertical world-space joint relief and reduce the broad horizontal band contrast.
+- Low foreground micro-markings disappeared at phone scale. Add larger flat leaf, straw and stone/clay patterns outside the original clearing, beneath the inherited ground-height tolerance. A separate coordinate check caught one straw tip inside the safety margin; increase the straw pattern's placement margin before its final render.
+- Desert's enlarged outcrops hid some scrub. Add small leaf islands at separate sites, keeping the open dune faces quiet.
+
+Final renders use 64 samples, two CPU threads and one Blender process at a time. Each terrain produces all three views; no review sheet may be published from a partial manifest.

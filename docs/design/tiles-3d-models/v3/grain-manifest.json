@@ -1,8 +1,16 @@
 {
   "metadata": {
-    "wheat_ears": 3533,
+    "wheat_ears": 1231,
     "curved_rows": 36,
     "story": "full fields, harvest path, cinched fanning sheaves, fence and loaded cart",
+    "finish": {
+      "readable_story_details": 0,
+      "material_pass": "single pigment, warm key, cool fill, local AO"
+    },
+    "story_pass": {
+      "enlarged_tied_sheaves": 4,
+      "broad_leaf_islands": 4
+    },
     "token_space": {
       "token_center": [
         0.36,
@@ -12,7 +20,7 @@
       "clearing_radius": 0.31,
       "upright_plate": true,
       "foreground_max_tilt_degrees": 55,
-      "pruned_objects": 16,
+      "pruned_objects": 22,
       "flattened_surfaces": 1
     }
   },
@@ -20,25 +28,30 @@
     {
       "file": "grain_V3_flat.png",
       "tilt_radians": 0,
-      "seconds": 63.03
+      "seconds": 127.61,
+      "sha256": "85d355f10bf02247c35d41eb8c8944a2e6c7151729b36497a00cbbb0f8d02dd3"
     },
     {
       "file": "grain_V3_mid.png",
       "tilt_radians": 0.48,
-      "seconds": 50.2
+      "seconds": 119.67,
+      "sha256": "a378f83cf8bb5fb33de5851c024c24be67d00f69762902a17ac2f08539392ff3"
     },
     {
       "file": "grain_V3_max.png",
       "tilt_radians": 0.96,
-      "seconds": 35.17
+      "seconds": 87.34,
+      "sha256": "700d171622c6f5ed64e241425a132cff8dc15e464f67bf5c2fb5ac2177e24c9d"
     }
   ],
-  "objects": 406,
-  "samples": 48,
+  "objects": 405,
+  "samples": 64,
   "threads": 2,
   "source_hashes": {
-    "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
-    "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+    "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+    "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+    "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+    "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
     "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
     "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
     "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",

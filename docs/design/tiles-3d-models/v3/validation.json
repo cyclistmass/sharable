@@ -24,21 +24,21 @@
     "grain_V3_flat.png": 0,
     "grain_V3_mid.png": 0,
     "grain_V3_max.png": 0,
-    "clay_V3_flat.png": 38,
-    "clay_V3_mid.png": 30,
-    "clay_V3_max.png": 9,
+    "clay_V3_flat.png": 0,
+    "clay_V3_mid.png": 0,
+    "clay_V3_max.png": 0,
     "desert_V3_flat.png": 0,
     "desert_V3_mid.png": 0,
     "desert_V3_max.png": 0
   },
-  "png_bytes": 4564461,
-  "retained_render_seconds": 585.78,
+  "png_bytes": 4474135,
+  "retained_render_seconds": 1315.76,
   "views": [
     {
       "file": "timber_V3_flat.png",
-      "sha256": "cc584c30b6cd394d9d900f64b841056c3e2ef94864e6f060f9e2aa2edf0641a0",
+      "sha256": "f160d3ad0c578a929e2e34abd233f50d4afcb62dcb46f2a9d01f116f38730d02",
       "alpha_bounds": [
-        77,
+        76,
         76,
         417,
         441
@@ -46,47 +46,47 @@
     },
     {
       "file": "timber_V3_mid.png",
-      "sha256": "fd030af48e863abf6255e872e69b9feb71f967c7a279af9fe3dbfb14da5b5c27",
+      "sha256": "11c2f1ce5e4ca08e86ac32bc1d838a05d51ec77c3b3fcacf74a39c13f773eb6d",
       "alpha_bounds": [
         77,
         94,
-        417,
+        418,
         434
       ]
     },
     {
       "file": "timber_V3_max.png",
-      "sha256": "03902c3d5dba322123a975b512cf954eb53fdc5d75dcba1e38138b9677c607cb",
+      "sha256": "3b546c28e6b5b888c46ff85b7589aa87061c82fbaadca30df1078b5dbab4366b",
       "alpha_bounds": [
         77,
-        109,
+        110,
         417,
         393
       ]
     },
     {
       "file": "stone_V3_flat.png",
-      "sha256": "61721c195d7ebd8d8f9bcf9262bb12339d702f274b8e4c294b408be68ac961f0",
+      "sha256": "788ac6df9d01a753d5736fa71d6bd5d48d96f99b74073b2505be6bbf8afcff84",
       "alpha_bounds": [
         95,
         76,
         416,
-        436
+        437
       ]
     },
     {
       "file": "stone_V3_mid.png",
-      "sha256": "0ba35efa414f14108aaf2f196aa493ffe1957ee3c32a39f88e6a5d3ec379f5c2",
+      "sha256": "5a9adf7289cfcd9dc35449c828fe5a81253eb9eafc6fef8ca6eaba64ce92a089",
       "alpha_bounds": [
         94,
         33,
-        417,
+        416,
         434
       ]
     },
     {
       "file": "stone_V3_max.png",
-      "sha256": "87b1d4f0ac2883d5a13f440c6f49ad351bfdd341a8bf0a9c54e0e74415f07033",
+      "sha256": "efd324e892957993039da9f4ef645972abf1b65fc856766daedb6067563a2bec",
       "alpha_bounds": [
         95,
         2,
@@ -96,128 +96,128 @@
     },
     {
       "file": "fleece_V3_flat.png",
-      "sha256": "17e7cc7d7438ea6d929f09b837512991bb005dc4c4a583bab32f9ebc35fc689f",
+      "sha256": "c9cd10b085ed8db37359181115f2b1d506fab25e3c024b04cdaf4b0696334cba",
       "alpha_bounds": [
-        93,
-        76,
+        95,
+        75,
         417,
-        436
+        437
       ]
     },
     {
       "file": "fleece_V3_mid.png",
-      "sha256": "9920e6b67f58e98a8233113716f84741b3374e5c3c372d2e28781a768f6ebad2",
+      "sha256": "77cb1fe07b874a0303758b072f54caba9b193b3dfe0a41d1de7c8fa9c8002376",
       "alpha_bounds": [
-        93,
+        95,
         88,
-        418,
+        417,
         434
       ]
     },
     {
       "file": "fleece_V3_max.png",
-      "sha256": "aadde39e93aac41c6148207868bfc86bb6fb46c955fd2c1fbba8c7d657d8ef40",
+      "sha256": "968a2a058b20c2973c20de949c0b5a34260982f4b2183c5859c5e40678dd9466",
       "alpha_bounds": [
-        93,
-        138,
+        95,
+        132,
         417,
         393
       ]
     },
     {
       "file": "grain_V3_flat.png",
-      "sha256": "a636e6d9654e3116d4749f951979053dc867e321b250443071cac2fc6051083f",
+      "sha256": "85d355f10bf02247c35d41eb8c8944a2e6c7151729b36497a00cbbb0f8d02dd3",
       "alpha_bounds": [
-        97,
-        74,
-        419,
+        94,
+        75,
+        427,
         438
       ]
     },
     {
       "file": "grain_V3_mid.png",
-      "sha256": "527ce2fa0b06b513bced6616434299e51e80994afaf707e83ebd2bf1ec363505",
+      "sha256": "a378f83cf8bb5fb33de5851c024c24be67d00f69762902a17ac2f08539392ff3",
       "alpha_bounds": [
-        97,
-        75,
-        419,
+        94,
+        69,
+        427,
         434
       ]
     },
     {
       "file": "grain_V3_max.png",
-      "sha256": "4eae063ee527ff80de92d4198a55b71a83e3569bbee83dc6fb9491c0085cb7f5",
+      "sha256": "700d171622c6f5ed64e241425a132cff8dc15e464f67bf5c2fb5ac2177e24c9d",
       "alpha_bounds": [
-        97,
-        107,
-        419,
+        94,
+        89,
+        427,
         393
       ]
     },
     {
       "file": "clay_V3_flat.png",
-      "sha256": "4c34b90a343501e47233ef101a77d1c89b4a429473057f804fd692312abc9cd8",
+      "sha256": "b18af8032b40bdb4d2e66102af0700a3c77ce290a13ab4d6252565fc59d0cb05",
       "alpha_bounds": [
-        94,
-        74,
-        416,
-        436
+        99,
+        76,
+        413,
+        437
       ]
     },
     {
       "file": "clay_V3_mid.png",
-      "sha256": "45018e06e84e44277595d851af503a187eb06abdbd6358e508b42efcc6b6fe8f",
+      "sha256": "36ac6ee116a6536c7759fb8a83a21968120b645f93df93a442baadad59c0f453",
       "alpha_bounds": [
-        94,
-        58,
-        416,
+        99,
+        51,
+        413,
         434
       ]
     },
     {
       "file": "clay_V3_max.png",
-      "sha256": "fb5bdc4681ea6d64cf02f807fc526b797790c9628cae04fb99c32125cf914310",
+      "sha256": "44594de561118f413a2cf49b5387e4f649b6e7b0b9335315489015fe30d11ee7",
       "alpha_bounds": [
-        94,
-        35,
-        416,
+        99,
+        21,
+        413,
         393
       ]
     },
     {
       "file": "desert_V3_flat.png",
-      "sha256": "67235f120dbaf407e3ea377387e3c41acabe28ab6aee9bdf37b4ae2e9ced8318",
+      "sha256": "40f5842049345b92e9dc8d6f11ac644bf58f5053c52a6cf8bab53965ef0b238a",
       "alpha_bounds": [
-        94,
-        69,
-        419,
-        436
+        99,
+        76,
+        413,
+        437
       ]
     },
     {
       "file": "desert_V3_mid.png",
-      "sha256": "d3b9a443a37856cccea9bc35f5deac5b155fa7de5b96ef70faee1cc6cbee31c6",
+      "sha256": "935fb25ce3898edadcbe408a26af424d0b680cd1a19756cd441ed8ab93d75144",
       "alpha_bounds": [
-        94,
-        77,
-        419,
+        99,
+        92,
+        413,
         434
       ]
     },
     {
       "file": "desert_V3_max.png",
-      "sha256": "9d085022a8d476fe243e3c584ecc5cc198beac4a5942098f861230d4cafd5a83",
+      "sha256": "1a9d649525ca5e2cd165c7eedae15dc3aefa9071dc6dd75b14be72e3a0f2ff9e",
       "alpha_bounds": [
-        95,
-        103,
-        419,
+        99,
+        126,
+        413,
         393
       ]
     }
   ],
   "geometry": [
     {
-      "mesh_vertices_checked": 299438,
+      "mesh_vertices_checked": 319734,
       "prop_vertices_inside_clearing": 0,
       "foreground_vertices_over_plate_at_eight_steps": [
         0,
@@ -234,8 +234,10 @@
         0.3
       ],
       "source_hashes": {
-        "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
-        "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+        "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+        "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+        "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+        "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
         "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
         "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
         "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
@@ -245,7 +247,7 @@
       }
     },
     {
-      "mesh_vertices_checked": 101020,
+      "mesh_vertices_checked": 117905,
       "prop_vertices_inside_clearing": 0,
       "foreground_vertices_over_plate_at_eight_steps": [
         0,
@@ -262,8 +264,10 @@
         0.3
       ],
       "source_hashes": {
-        "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
-        "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+        "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+        "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+        "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+        "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
         "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
         "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
         "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
@@ -273,7 +277,7 @@
       }
     },
     {
-      "mesh_vertices_checked": 144365,
+      "mesh_vertices_checked": 145365,
       "prop_vertices_inside_clearing": 0,
       "foreground_vertices_over_plate_at_eight_steps": [
         0,
@@ -290,8 +294,10 @@
         0.3
       ],
       "source_hashes": {
-        "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
-        "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+        "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+        "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+        "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+        "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
         "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
         "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
         "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
@@ -301,7 +307,7 @@
       }
     },
     {
-      "mesh_vertices_checked": 762094,
+      "mesh_vertices_checked": 439462,
       "prop_vertices_inside_clearing": 0,
       "foreground_vertices_over_plate_at_eight_steps": [
         0,
@@ -318,8 +324,10 @@
         0.3
       ],
       "source_hashes": {
-        "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
-        "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+        "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+        "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+        "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+        "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
         "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
         "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
         "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
@@ -329,7 +337,7 @@
       }
     },
     {
-      "mesh_vertices_checked": 63288,
+      "mesh_vertices_checked": 61312,
       "prop_vertices_inside_clearing": 0,
       "foreground_vertices_over_plate_at_eight_steps": [
         0,
@@ -346,8 +354,10 @@
         0.3
       ],
       "source_hashes": {
-        "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
-        "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+        "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+        "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+        "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+        "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
         "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
         "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
         "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
@@ -357,7 +367,7 @@
       }
     },
     {
-      "mesh_vertices_checked": 29812,
+      "mesh_vertices_checked": 26783,
       "prop_vertices_inside_clearing": 0,
       "foreground_vertices_over_plate_at_eight_steps": [
         0,
@@ -374,8 +384,10 @@
         0.3
       ],
       "source_hashes": {
-        "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
-        "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+        "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+        "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+        "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+        "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
         "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
         "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
         "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
@@ -385,8 +397,8 @@
       }
     }
   ],
-  "trial_lossless_webp_bytes": 2293046,
-  "eight_step_base_only_estimated_webp_bytes": 6114789,
+  "trial_lossless_webp_bytes": 2231868,
+  "eight_step_base_only_estimated_webp_bytes": 5951648,
   "painted_references": [
     {
       "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_timber.webp",

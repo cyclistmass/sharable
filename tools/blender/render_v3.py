@@ -18,7 +18,7 @@ mat=v2.mat;cube=v2.cube;pole=v2.pole
 
 def land(terrain,fn,color,name):
     density.terrain_base(terrain,color,terrain=='clay')
-    return v2.field(name,fn,mat('V3 '+terrain+' rich earth',color,.35),True,64,192)
+    return v2.field(name,fn,mat('V3 '+terrain+' rich earth',color,.35),terrain!='clay',64,192)
 
 def meadow(x,y):return .025+.10*math.exp(-((x+.38)**2+(y-.24)**2)/.18)+.055*math.exp(-((x-.35)**2+(y+.38)**2)/.15)
 def wheat_ground(x,y):return .050+.035*math.sin(x*2.4+.5)*math.cos(y*2)
@@ -28,14 +28,14 @@ def pit(x,y):
     d*=1+.045*math.sin(7*a)+.029*math.sin(13*a+.7)
     def smooth(a,b):
         t=max(0,min(1,(d-a)/(b-a)));return t*t*(3-2*t)
-    return -.145+.080*smooth(.28,.31)+.080*smooth(.54,.57)+.085*smooth(.79,.82)+.031*smooth(.99,1.12)
+    return -.145+.105*smooth(.28,.31)+.105*smooth(.54,.57)+.110*smooth(.79,.82)+.040*smooth(.99,1.12)
 def dunes(x,y):
     u=.86*x+.51*y+.095*math.sin(y*4)+.035*math.sin(x*5);q=max(abs(x)/(.93*math.sqrt(3)/2),(abs(y)+abs(x)/math.sqrt(3))/.93)
     taper=1-.55*max(0,min(1,(q-.75)/.25))
     phase=(u*1.60+.32)%1
     # Broad windward slope, sharp crest and steeper leeward slip face.
     wave=(phase/.72)**1.45 if phase<.72 else ((1-phase)/.28)**.85
-    return .042+(.28*wave+.040*math.exp(-((x+.4)**2+(y+.45)**2)/.10))*taper
+    return .042+(.22*wave+.040*math.exp(-((x+.4)**2+(y+.45)**2)/.10))*taper
 
 def zfn(terrain):
     return {'timber':lambda x,y:0,'fleece':meadow,'grain':wheat_ground,'clay':pit,'desert':dunes,'stone':density.alpine_height_v3}[terrain]
@@ -193,6 +193,7 @@ def fleece():
     bush.finish();return {'sheep':7,'small_alpacas':3,'alpaca_relative_scale':.65,'teeny_goats':2}
 
 def grain():
+    from v3_art import wheat_ear
     density.field_ground=wheat_ground;ground=land('grain',wheat_ground,(.43,.22,.024),'rolling field ground');rng=random.Random(1309)
     bpy.data.objects.remove(ground,do_unlink=True)
     gold=[mat('V3 dense wheat honey '+str(i),c,.18) for i,c in enumerate([(.95,.53,.035),(1,.72,.085),(1,.86,.20)])]
@@ -204,9 +205,9 @@ def grain():
         path=max(0,min(1,(abs(y+.36-x*.20)-.050)/.035))
         cart=max(0,min(1,max(abs(x+.48)/.15,abs(y+.34)/.14)-1))
         cap=token.front_cap(x,y)-wheat_ground(x,y)-.045
-        harvested=min(max(0,min(1,(math.hypot(x-sx,y-sy)-.060)/.070)) for sx,sy in stooks)
+        harvested=min(max(0,min(1,(math.hypot(x-sx,y-sy)-.080)/.075)) for sx,sy in stooks)
         return max(0,min(.205+.021*math.sin(y*90+x*5),cap))*edge_mask*circle*path*cart*harvested
-    skin=v2.field('rolling field ground continuous wheat canopy',lambda x,y:wheat_ground(x,y)+.001+crop_height(x,y),mat('V3 soft wheat leaf mass',(.67,.37,.025),.28),True,76,256)
+    skin=v2.field('rolling field ground continuous wheat canopy',lambda x,y:wheat_ground(x,y)+.001+crop_height(x,y)*.78,mat('V3 soft wheat leaf mass',(.67,.37,.025),.28),True,76,256)
     skin.data.materials.append(mat('V3 threshed field soil',(.43,.22,.024),.35))
     for poly in skin.data.polygons:
         x,y=[sum(skin.data.vertices[i].co[k] for i in poly.vertices)/len(poly.vertices) for k in range(2)]
@@ -219,14 +220,11 @@ def grain():
             for j in range(1):
                 xx=x+rng.uniform(-.009,.009);yy=y+rng.uniform(-.012,.012);z=wheat_ground(xx,yy);h=crop_height(xx,yy)
                 if h<.018:continue
-                hh=h+rng.uniform(.025,.065);b=batches[(row+col+j)%3]
+                hh=h+rng.uniform(.030,.095);b=batches[(row+col+j)%3]
                 bend=.015+.012*math.sin(xx*12+yy*9)
                 b.rod((xx,yy,z),(xx+bend*.3,yy,z+hh*.6),.0018,4)
                 b.rod((xx+bend*.3,yy,z+hh*.6),(xx+bend,yy,z+hh),.0015,4)
-                for k in range(5):
-                    for sign in [-1,1]:
-                        b.ellipsoid((xx+bend+sign*.007,yy,z+hh-.022+k*.013),(.009,.007,.012),n=5,rings=3)
-                        b.rod((xx+bend+sign*.003,yy,z+hh-.020+k*.010),(xx+bend+sign*.016,yy+.002,z+hh+.004+k*.010),.00065,3)
+                wheat_ear(b,(xx+bend,yy,z+hh-.015),rng.uniform(-.8,.8),rng.uniform(.86,1.12))
                 b.blade(xx,yy,z+hh*.36,hh*.48,rng.random()*TAU,.008)
                 ears+=1
     for b in batches:b.finish()
@@ -282,8 +280,14 @@ def clay():
     for link in list(output.inputs['Surface'].links):ls.remove(link)
     volume=ns.new('ShaderNodeVolumePrincipled');volume.inputs['Color'].default_value=(.72,.70,.66,1)
     noise=ns.new('ShaderNodeTexNoise');noise.inputs['Scale'].default_value=4;noise.inputs['Detail'].default_value=2
-    density_node=ns.new('ShaderNodeMath');density_node.operation='MULTIPLY';density_node.inputs[1].default_value=13
+    density_node=ns.new('ShaderNodeMath');density_node.operation='MULTIPLY';density_node.inputs[1].default_value=6
     ls.new(noise.outputs['Fac'],density_node.inputs[0]);ls.new(density_node.outputs[0],volume.inputs['Density']);ls.new(volume.outputs[0],output.inputs['Volume'])
+    # Fade density toward each puff's boundary instead of exposing sphere edges.
+    coord=ns.new('ShaderNodeTexCoord');distance=ns.new('ShaderNodeVectorMath');distance.operation='DISTANCE';distance.inputs[1].default_value=(.5,.5,.5)
+    ls.new(coord.outputs['Generated'],distance.inputs[0])
+    fade=ns.new('ShaderNodeMapRange');fade.inputs['From Min'].default_value=.16;fade.inputs['From Max'].default_value=.51;fade.inputs['To Min'].default_value=1;fade.inputs['To Max'].default_value=0
+    ls.new(distance.outputs['Value'],fade.inputs['Value']);multiply=ns.new('ShaderNodeMath');multiply.operation='MULTIPLY'
+    ls.new(fade.outputs[0],multiply.inputs[0]);ls.new(density_node.outputs[0],multiply.inputs[1]);ls.new(multiply.outputs[0],volume.inputs['Density'])
     for i in range(7):pebble((x+.02*math.sin(i*.9),y+.014*i,z+.54+i*.039),(.025+i*.004,.026+i*.003,.047),smoke,True)
     for bx,by,rows in [(-.56,-.41,4),(-.29,-.60,5),(.05,-.62,3),(-.07,.62,3),(.64,-.19,3)]:
         for layer in range(rows):
@@ -416,12 +420,12 @@ def main():
     v3_art.install(sys.modules[__name__])
     global ACTIVE_TERRAIN
     ACTIVE_TERRAIN=name
-    import v3_finish
+    import v3_finish, v3_story
     scene,cam=setup();scene.cycles.samples=args.samples;scene.render.threads_mode='FIXED';scene.render.threads=2
     density.alpine_height_v3=lambda x,y:0
-    metadata=globals()[name]();v3_art.enhance(name);metadata['finish']=v3_finish.enrich(name,sys.modules[__name__]);bpy.context.view_layer.update();metadata['token_space']=token.prepare_scene(name);v3_art.ground_inlay(name);rich_materials(scene);v3_art.materials(scene,name);v3_finish.materials(scene,name)
+    metadata=globals()[name]();v3_art.enhance(name);metadata['finish']=v3_finish.enrich(name,sys.modules[__name__]);metadata['story_pass']=v3_story.enrich(name,sys.modules[__name__]);bpy.context.view_layer.update();metadata['token_space']=token.prepare_scene(name);v3_art.ground_inlay(name);v3_story.apron(name,sys.modules[__name__]);rich_materials(scene);v3_art.materials(scene,name);v3_finish.materials(scene,name)
     folder=OUT/'v3';folder.mkdir(exist_ok=True);result=validate_geometry(scene)
-    sources=['render_v3.py','v3_art.py','v3_finish.py','render_density.py','render_v2_set.py','render_models.py','token_space.py','alpine_chain.py','alpacas.py']
+    sources=['render_v3.py','v3_art.py','v3_finish.py','v3_story.py','render_density.py','render_v2_set.py','render_models.py','token_space.py','alpine_chain.py','alpacas.py']
     source_hashes={s:hashlib.sha256((Path(__file__).parent/s).read_bytes()).hexdigest() for s in sources}
     result['source_hashes']=source_hashes
     (folder/f'{name}-geometry-validation.json').write_text(json.dumps(result,indent=2));print('V3_GEOMETRY_OK',name,json.dumps(result),flush=True)

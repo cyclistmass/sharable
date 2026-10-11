@@ -1,6 +1,14 @@
 {
   "metadata": {
     "story": "sculpted wind-ripple dunes, layered sandstone clusters, dry scrub and dead tree",
+    "finish": {
+      "readable_story_details": 5,
+      "material_pass": "single pigment, warm key, cool fill, local AO"
+    },
+    "story_pass": {
+      "sandstone_crowns": 3,
+      "broad_leaf_islands": 5
+    },
     "token_space": {
       "token_center": [
         0.36,
@@ -10,7 +18,7 @@
       "clearing_radius": 0.31,
       "upright_plate": true,
       "foreground_max_tilt_degrees": 55,
-      "pruned_objects": 15,
+      "pruned_objects": 16,
       "flattened_surfaces": 1
     }
   },
@@ -18,25 +26,30 @@
     {
       "file": "desert_V3_flat.png",
       "tilt_radians": 0,
-      "seconds": 28.06
+      "seconds": 48.22,
+      "sha256": "40f5842049345b92e9dc8d6f11ac644bf58f5053c52a6cf8bab53965ef0b238a"
     },
     {
       "file": "desert_V3_mid.png",
       "tilt_radians": 0.48,
-      "seconds": 30.22
+      "seconds": 44.8,
+      "sha256": "935fb25ce3898edadcbe408a26af424d0b680cd1a19756cd441ed8ab93d75144"
     },
     {
       "file": "desert_V3_max.png",
       "tilt_radians": 0.96,
-      "seconds": 23.11
+      "seconds": 32.11,
+      "sha256": "1a9d649525ca5e2cd165c7eedae15dc3aefa9071dc6dd75b14be72e3a0f2ff9e"
     }
   ],
-  "objects": 76,
-  "samples": 48,
+  "objects": 96,
+  "samples": 64,
   "threads": 2,
   "source_hashes": {
-    "render_v3.py": "0392856a715a3e3405b40e9038901ad3ac3f7b67726f5fcd64aebd8dba28f66c",
-    "v3_art.py": "de5623358d7ee4fbbf46b70a8409db300c97536d12a87f82c167ea1684453984",
+    "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+    "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+    "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+    "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
     "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
     "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
     "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",

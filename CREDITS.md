@@ -78,3 +78,5 @@ Bandit V1 on-plate revision: own procedural corsair meshes, upturned straw brim 
 - V3 second modelling pass: own botanical branch/leaf meshes, fine sheep fleece, wall stones, cedar shakes, bark/end-grain rings, bent multi-grain wheat, fanning sheaves, chimney masonry, mine/yard props, fractured outcrops and world-scale procedural materials in `tools/blender/v3_art.py` and `render_v3.py`. No downloaded assets or projected painted-face textures.
 
 - V3 continuation: own logging sawbuck/tools, flowering margins, mineral joints/strata, refined erosion geometry, volumetric kiln smoke and grouped thorn scrub. The intermediate and final palettes are assembled from our Blender renders and Mauro's existing painted references; no external assets were added.
+
+- V3 completion: own broad conifer fans, hauling sled, mineral slabs, pasture gate/hayrack, enlarged sheaves, drying-brick yard, sandstone crowns and clustered foliage in `tools/blender/v3_story.py`, with the shared procedural pigment shader in `v3_finish.py`. Painted reference faces are comparison material only.
