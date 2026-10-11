@@ -83,7 +83,7 @@ fun PlateBox(
 }
 
 /** The drawn icons on the move buttons (Mauro: "buttons not words, with icons on them"). */
-enum class MoveIcon { TRADE, END_TURN, ROAD, HOMESTEAD, TOWN, CARD, KNIGHT, ROUSE, PROMOTE, RAMPARTS }
+enum class MoveIcon { TRADE, END_TURN, ROAD, HOMESTEAD, TOWN, CARD, KNIGHT, ROUSE, PROMOTE, RAMPARTS, CLOSE }
 
 /**
  * A brass plate with an engraved [icon] instead of words; [label] is what a screen reader (and the test scripts)
@@ -145,6 +145,10 @@ fun IconPlateButton(icon: MoveIcon, label: String, tag: String, modifier: Modifi
                         lineTo(0.4f * w, 0.3f * h); lineTo(0.6f * w, 0.3f * h); lineTo(0.6f * w, 0.48f * h); lineTo(0.76f * w, 0.48f * h); lineTo(0.76f * w, 0.3f * h)
                         lineTo(0.94f * w, 0.3f * h); lineTo(0.94f * w, 0.92f * h); close() }
                     drawPath(wall, ink, style = stroke)
+                }
+                MoveIcon.CLOSE -> {
+                    drawLine(ink, androidx.compose.ui.geometry.Offset(0.2f * w, 0.2f * h), androidx.compose.ui.geometry.Offset(0.8f * w, 0.8f * h), sw * 1.4f, androidx.compose.ui.graphics.StrokeCap.Round)
+                    drawLine(ink, androidx.compose.ui.geometry.Offset(0.8f * w, 0.2f * h), androidx.compose.ui.geometry.Offset(0.2f * w, 0.8f * h), sw * 1.4f, androidx.compose.ui.graphics.StrokeCap.Round)
                 }
                 MoveIcon.END_TURN -> {
                     // An hourglass: your time is up, pass it on.

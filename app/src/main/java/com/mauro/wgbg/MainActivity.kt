@@ -764,6 +764,7 @@ fun WatchGameScreen(
     var confirmExit by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(lookAndArt) }
     var guideOpen by remember { mutableStateOf(false) }
+    var histogramOpen by remember { mutableStateOf(false) }
     var hudTopRight by remember { mutableStateOf<Offset?>(null) }
     var diceFlying by remember { mutableStateOf(false) }
     var diceSlots by remember { mutableStateOf<Pair<androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect>?>(null) }
@@ -780,6 +781,7 @@ fun WatchGameScreen(
     BackHandler {
         when {
             guideOpen -> guideOpen = false
+            histogramOpen -> histogramOpen = false
             settingsOpen -> settingsOpen = false
             panelOpen -> panelOpen = false
             inventory -> if (lookAndArt) onExit() else inventory = false
@@ -1053,7 +1055,7 @@ fun WatchGameScreen(
             if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
                 TurnHud(report, previous, names, me = me, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
                     eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight,
-                    width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f)
+                    width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f, onDiceDoubleTap = { histogramOpen = true })
             }
             if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
@@ -1198,6 +1200,9 @@ fun WatchGameScreen(
         }
         if (compareTiles) { BackHandler { compareTiles = false }; TileCompare(onBack = { compareTiles = false }) }
         // Settings open from the gear inside the Menu, so the board stays clean.
+        if (histogramOpen) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            tick.let { DiceHistogram(tracker.rollCounts, tracker.eventCounts, state.ck != null, onClose = { histogramOpen = false }) }
+        }
         if (guideOpen) Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
             CardGuide(state.ck != null, onClose = { guideOpen = false })
         }

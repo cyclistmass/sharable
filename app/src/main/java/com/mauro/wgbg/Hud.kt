@@ -21,6 +21,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.imageResource
@@ -65,7 +68,9 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             /** Width; inside the one left side panel it matches the player list above (#73), and the news wraps. */
             width: androidx.compose.ui.unit.Dp = 360.dp,
             /** False inside the one left side panel, which draws the frame for both halves. */
-            framed: Boolean = true) {
+            framed: Boolean = true,
+            /** A double tap on the dice: open the roll histogram (Mauro). */
+            onDiceDoubleTap: (() -> Unit)? = null) {
     if (report == null) return
     // Fixed size, so the dice always sit in the same spot. The dice and whose turn it is stay pinned at the top; this
     // turn's news and the earlier turns below scroll, with a brass scroll bar on the right (#65).
@@ -75,7 +80,10 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.testTag("dice-row").then(if (onDiceDoubleTap != null) Modifier.pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = { onDiceDoubleTap() })
+            } else Modifier)) {
             val color = PLAYER_COLORS[report.player]
             run {
                 var r1 by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }

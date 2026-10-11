@@ -57,6 +57,9 @@ class TurnTracker(private val names: List<String>) {
     /** What other players' turns cost each player, newest last (the last [HISTORY] of them). */
     var hits: List<Hit> = emptyList()
         private set
+    /** Every roll this game: how many times each total 2..12 came up (index = total), and each event die face 0..5. */
+    val rollCounts = IntArray(13)
+    val eventCounts = IntArray(6)
     /** The progress card the turn's player played last this turn (engine index), or -1. */
     private var turnCard = -1
 
@@ -103,6 +106,7 @@ class TurnTracker(private val names: List<String>) {
         val gained = Array(s.numPlayers) { p -> IntArray(CARD_TYPES) { r -> s.hands[p * CARD_TYPES + r] - before[p * CARD_TYPES + r] } }
         val r = current!!
         val n = names[who]
+        if (action.type == ActionType.ROLL && d1 > 0) { rollCounts[(d1 + d2).coerceIn(2, 12)]++; if (ev in 0..5) eventCounts[ev]++ }
         current = when (action.type) {
             ActionType.ROLL -> r.copy(
                 die1 = d1, die2 = d2, event = ev,
