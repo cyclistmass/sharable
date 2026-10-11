@@ -24,3 +24,11 @@ The October 11 completion adds the larger story forms in `tools/blender/v3_story
 The approved original V1 skeleton corsair **stands on and blocks the number plate**. Ground foot/base centre is tile **(+0.36,+0.30)** in Blender for V3, projected screen offset (+0.36,-0.30*cos(tilt)). Sprite anchor is **(256,256)** in the padded 512px image, orthographic scale **2.65**. Own model scale **0.70** (previous off-plate prototype 0.46); full-round straw brim diameter **0.644**, above the plate diameter **0.54**. Turn the front brim upward so the skull remains readable at tilt.
 
 Bake an **opaque upright dark base seal radius 0.278** under the feet, matching the upright plate at every tilt. Draw plate first, then the complete Bandit sprite; never redraw blocked digits/pips over it. Preserve padding and use premultiplied cross-fades. Eight steps use tilt=0.96*i/7. Verify zero visible digit/pip pixels at every step, plus flat/mid/max tile and phone proofs. Reproduce with `render_bandit_v1.py --batch onplate`, then `compose_bandit_onplate.py`; earlier off-plate proofs and the left-centre on-plate proof are historical; the current V3 number centre supersedes their tile placement. The Bandit sprite foot anchor/scale stay the same.
+
+## Tilt steps and GPU rendering
+
+The game cross-fades each object between the two nearest **tilt steps**. Step *i* of *N* is rendered at
+`tilt = 0.96 * i / (N - 1)` radians (0 = straight down, 0.96 ≈ 55° = full tilt). The app's standard is **8 steps**
+(`<terrain>_V3_tilt_0..7.png`); denser sets (e.g. 16 steps in `v3/steps16/`) give smoother tilting at a larger APK size.
+Render them with `tools/blender/render_v3_steps.py`, on the GPU via `tools/blender/gpu_on.py`. See
+`tools/blender/README.md` for the options and measured speeds.
