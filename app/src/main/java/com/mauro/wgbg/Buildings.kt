@@ -33,7 +33,8 @@ class BuildingSprites(res: Resources, pirate: Boolean, chivalry: Boolean) {
     val roadV = load(res, BuildingArt.roadV(pirate))
     val roadP30 = load(res, BuildingArt.roadP30(pirate))
     val roadM30 = load(res, BuildingArt.roadM30(pirate))
-    val ramparts = if (chivalry) load(res, BuildingArt.ramparts(pirate)) else null
+    /** Ramparts by wall height, low to high (Age of Chivalry only); see [rampartsHeight]. */
+    val ramparts: List<Piece> = if (chivalry) BuildingArt.ramparts(pirate).map { load(res, it) } else emptyList()
     private val capitals = if (chivalry) BuildingArt.capitals(pirate).map { load(res, it) } else emptyList()
     /** The bell-buoy ports (PortArt.index order), 8 tilt steps each. */
     val ports: List<List<ImageBitmap>> = PortArt.TYPES.map { t -> t.map { ImageBitmap.imageResource(res, it) } }
@@ -55,6 +56,12 @@ class BuildingSprites(res: Resources, pirate: Boolean, chivalry: Boolean) {
         const val FRAME_UNITS = 256f / 193f
         /** The road policy from the art report: two 0.66-long sprites centred this far either side of an edge's middle. */
         const val ROAD_OFFSET = 0.17f
+
+        /**
+         * Which Ramparts height (0 low, 1 middle, 2 high) to draw for an owner whose best city improvement is [bestLevel]
+         * (0 to 5): the crenellations grow as the owner improves, at levels 0-1, 2-3 and 4-5.
+         */
+        fun rampartsHeight(bestLevel: Int): Int = (bestLevel / 2).coerceIn(0, 2)
 
         /** Index into BuildingArt.capitals (Guilds, Academy, Crown) for a metropolis [track], or -1. */
         fun capitalIndex(track: Int): Int = when (track) { Track.TRADE -> 0; Track.SCIENCE -> 1; Track.POLITICS -> 2; else -> -1 }

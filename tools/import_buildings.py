@@ -4,6 +4,7 @@ app/src/main/java/com/mauro/wgbg/BuildingArt.kt with the resource lists.
 Every piece is per theme (the Pirate harbour set has its own porch-house homestead and boardwalk roads):
   Default: C:/Users/mauro/wgbg-art/buildings/default/piece_<name>[_trim]_tilt_<0..7>.png
   Pirate:  C:/Users/mauro/wgbg-art/buildings-pirate-astra/steps8/pirate_piece_<name>[_trim]_tilt8_<0..7>.png
+  Ramparts, three wall heights (both themes): C:/Users/mauro/wgbg-art/ramparts-levels/out/ramparts_<theme>_h<1..3>[_trim]_tilt_<0..7>.png
 All are 256x256 RGBA at 193 px per hex unit with the contact point at the centre. Old imported files are
 removed first so nothing stale stays in res/.
 
@@ -15,13 +16,14 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "app/src/main/res/drawable-nodpi"
 KT = ROOT / "app/src/main/java/com/mauro/wgbg/BuildingArt.kt"
-PIECES = ["homestead", "town", "road_v", "road_p30", "road_m30", "ramparts", "capital_guilds", "capital_academy", "capital_crown"]
+PIECES = ["homestead", "town", "road_v", "road_p30", "road_m30", "capital_guilds", "capital_academy", "capital_crown"]
 THEMES = {
     "default": (Path(r"C:/Users/mauro/wgbg-art/buildings/default"), "piece_", "tilt"),
     # The corrected set: its flat view (step 0) was rotated 180 degrees in the first harbour render.
     "pirate": (Path(r"C:/Users/mauro/wgbg-art/buildings-pirate-astra/steps8"), "pirate_piece_", "tilt8"),
 }
 STEPS = 8
+LEVELS = Path(r"C:/Users/mauro/wgbg-art/ramparts-levels/out")
 
 for old in OUT.glob("bld_*.webp"):
     old.unlink()
@@ -36,6 +38,14 @@ for theme, (folder, prefix, tilt) in THEMES.items():
                 Image.open(folder / f"{prefix}{piece}{mid}_{tilt}_{i}.png").convert("RGBA").save(OUT / f"{name}.webp", quality=90, method=6)
                 names.append(name)
             sets[(theme, piece, layer)] = names
+    for h in (1, 2, 3):
+        for layer, mid in (("body", ""), ("trim", "_trim")):
+            names = []
+            for i in range(STEPS):
+                name = f"bld_{theme}_ramparts_h{h}{mid}_tilt_{i}"
+                Image.open(LEVELS / f"ramparts_{theme}_h{h}{mid}_tilt_{i}.png").convert("RGBA").save(OUT / f"{name}.webp", quality=90, method=6)
+                names.append(name)
+            sets[(theme, f"ramparts_h{h}", layer)] = names
 
 
 def kt_list(names):
@@ -57,14 +67,17 @@ lines = [
     "",
 ]
 for theme in THEMES:
-    for piece in PIECES:
+    for piece in PIECES + ["ramparts_h1", "ramparts_h2", "ramparts_h3"]:
         lines.append(f"    val {theme.upper()}_{piece.upper()} = Piece({kt_list(sets[(theme, piece, 'body')])},")
         lines.append(f"        {kt_list(sets[(theme, piece, 'trim')])})")
 lines.append("")
-for piece in ["homestead", "town", "road_v", "road_p30", "road_m30", "ramparts"]:
+for piece in ["homestead", "town", "road_v", "road_p30", "road_m30"]:
     fn = "".join(w.capitalize() if k else w for k, w in enumerate(piece.split("_")))
     lines.append(f"    fun {fn}(pirate: Boolean) = if (pirate) PIRATE_{piece.upper()} else DEFAULT_{piece.upper()}")
 lines += [
+    "    /** Ramparts by wall height, low to high (the owner's best improvement level 0-1, 2-3, 4-5). */",
+    "    fun ramparts(pirate: Boolean) = if (pirate) listOf(PIRATE_RAMPARTS_H1, PIRATE_RAMPARTS_H2, PIRATE_RAMPARTS_H3)",
+    "        else listOf(DEFAULT_RAMPARTS_H1, DEFAULT_RAMPARTS_H2, DEFAULT_RAMPARTS_H3)",
     "    /** Capitals in order Guilds, Academy, Crown. */",
     "    fun capitals(pirate: Boolean) = if (pirate) listOf(PIRATE_CAPITAL_GUILDS, PIRATE_CAPITAL_ACADEMY, PIRATE_CAPITAL_CROWN)",
     "        else listOf(DEFAULT_CAPITAL_GUILDS, DEFAULT_CAPITAL_ACADEMY, DEFAULT_CAPITAL_CROWN)",

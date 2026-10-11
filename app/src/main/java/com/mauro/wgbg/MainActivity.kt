@@ -130,6 +130,7 @@ import wgbg.engine.Piece
 import wgbg.engine.Port
 import wgbg.engine.Resource
 import wgbg.engine.Rules
+import wgbg.engine.Track
 import kotlin.math.min
 import kotlin.math.sqrt
 
@@ -1608,7 +1609,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             // 3D preview: the rendered tile (base and thickness baked in) at this tilt, then our number plate on top.
             val hs = scale * l.hexK(h)
             drawSteppedSprite(r3d, c, Tile3dArt.FRAME_UNITS * hs, l.tilt)
-            if (board.hexNumber[h] != 0) drawNumberToken(board.hexNumber[h], c + Offset(NUMBER_TOKEN_X * hs, NUMBER_TOKEN_Y * hs * l.squash), hs, measurer, wood)
+            if (board.hexNumber[h] != 0) drawNumberToken(board.hexNumber[h], c + Offset(TILE3D_PLATE_X * hs, TILE3D_PLATE_Y * hs * l.squash), hs, measurer, wood)
         } else drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]), tileLine)
     }
 
@@ -1669,7 +1670,9 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         if (bandit != null) {
             // Mauro: the bandit stands ON the number plate and hides it (drawn after the tiles and their tokens).
             val hs = scale * l.hexK(s.robberHex)
-            drawBandit(bandit, l.hexCenter(s.robberHex) + Offset(NUMBER_TOKEN_X * hs, NUMBER_TOKEN_Y * hs * l.squash), hs, l.tilt)
+            // On the number plate, wherever this tile style puts it (the 3D tiles have it further right and higher).
+            val plate = if (tiles3d != null) Offset(TILE3D_PLATE_X, TILE3D_PLATE_Y) else Offset(NUMBER_TOKEN_X, NUMBER_TOKEN_Y)
+            drawBandit(bandit, l.hexCenter(s.robberHex) + Offset(plate.x * hs, plate.y * hs * l.squash), hs, l.tilt)
         } else {
             val rs = scale * l.hexK(s.robberHex) * stand
             drawRobber(l.hexCenter(s.robberHex) + Offset(0.15f * rs, 0.15f * rs * l.squash), rs)
@@ -1696,16 +1699,15 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             val ckNow = s.ck
             // Ramparts (Mauro's pick C): the walls at 65%, the town perched on top of them, a little smaller and lifted.
             val walled = ckNow != null && ckNow.wall[v] == 1
-            if (walled) buildings.ramparts?.let { drawPieceSprite(it, at, unit * RAMPARTS_SCALE, l.tilt, color) }
-            val perch = if (walled) Offset(0f, -RAMPARTS_PERCH_LIFT * BuildingSprites.FRAME_UNITS * unit) else Offset.Zero
-            val townUnit = if (walled) unit * RAMPARTS_TOWN_SCALE else unit
+            // Taller crenellations as the owner improves their towns (0.2.6), the town perched on whichever height.
+            val height = if (walled) BuildingSprites.rampartsHeight((0 until Track.COUNT).maxOf { ckNow!!.level(owner, it) }) else -1
             val metro = ckNow?.metroVertex?.indexOf(v) ?: -1
             val piece = when {
                 metro >= 0 -> buildings.capital(metro) ?: buildings.town
                 s.vertexBuilding[v] == Piece.CITY -> buildings.town
                 else -> buildings.homestead
             }
-            drawPieceSprite(piece, at + perch, townUnit, l.tilt, color)
+            drawWalledPiece(buildings, piece, at, unit, l.tilt, color, height)
             continue
         }
         with(wood) {
@@ -1936,7 +1938,9 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
             val unit = scale * 2.2f
             drawPieceSprite(sprites.roadP30, Offset(x - 0.5f * scale, y), unit, 0.55f, PLAYER_COLORS[p])
             drawPieceSprite(sprites.homestead, Offset(x + 0.5f * scale, y), unit, 0.55f, PLAYER_COLORS[p])
-            drawPieceSprite(sprites.town, Offset(x + 1.35f * scale, y), unit, 0.55f, PLAYER_COLORS[p])
+            // Age of Chivalry: the first three towns sit on low, middle and high Ramparts, the last stands plain.
+            val walls = if (sprites.ramparts.isNotEmpty() && p < 3) p else -1
+            drawWalledPiece(sprites, sprites.town, Offset(x + 1.35f * scale, y), unit, 0.55f, PLAYER_COLORS[p], walls)
         } else with(wood) {
             road(Offset(x - 0.9f * scale, y + 0.2f * scale), Offset(x - 0.1f * scale, y - 0.4f * scale), p, scale * 1.3f)
             settlement(Offset(x + 0.5f * scale, y), p, scale * 1.3f)
@@ -2115,7 +2119,19 @@ internal const val RAMPARTS_SCALE = 0.65f
 /** How far out to sea a port buoy sits from the coast edge's middle, in hex units (the old token sat at 0.58). */
 internal const val PORT_BUOY_OUT = 0.70f
 internal const val RAMPARTS_TOWN_SCALE = 0.88f
-internal const val RAMPARTS_PERCH_LIFT = 12f / 256f
+
+/**
+ * Draws [piece] at [at] ([unit] as for drawPieceSprite), on Ramparts of [height] (0 low to 2 high) when that is 0 or
+ * more: the walls at [RAMPARTS_SCALE], the piece perched on top of them a little smaller (Mauro's pick C).
+ */
+internal fun DrawScope.drawWalledPiece(buildings: BuildingSprites, piece: BuildingSprites.Piece, at: Offset, unit: Float, tilt: Float, color: Color, height: Int) {
+    val walls = buildings.ramparts.getOrNull(height)
+    if (walls == null) { drawPieceSprite(piece, at, unit, tilt, color); return }
+    drawPieceSprite(walls, at, unit * RAMPARTS_SCALE, tilt, color)
+    drawPieceSprite(piece, at + Offset(0f, -RAMPARTS_PERCH_LIFT[height] * BuildingSprites.FRAME_UNITS * unit), unit * RAMPARTS_TOWN_SCALE, tilt, color)
+}
+/** The perch lift per Ramparts height (low, middle, high): the taller walls lift the town a little more. */
+internal val RAMPARTS_PERCH_LIFT = floatArrayOf(12f / 256f, 14f / 256f, 17f / 256f)
 
 /** Draws the tilt-stepped sprite [frames] centred on [c], [side] px square, cross-fading the two nearest steps. */
 private fun DrawScope.drawSteppedSprite(frames: List<ImageBitmap>, c: Offset, side: Float, tilt: Float) {
@@ -2144,6 +2160,12 @@ internal const val ROAD_SPREAD = 0.2f
  */
 internal const val NUMBER_TOKEN_X = 0.36f
 internal const val NUMBER_TOKEN_Y = 0.3f
+/**
+ * The number plate on a V3 3D tile, in hex units: the models are turned so the clearing sits in the lower half, lower
+ * right, at every tilt (Mauro, 2026-10-11: "the number is on the lower half of the tile").
+ */
+internal const val TILE3D_PLATE_X = 0.44f
+internal const val TILE3D_PLATE_Y = 0.162f
 
 private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer: TextMeasurer, wood: WoodPieces) {
     val r = NUMBER_TOKEN_R * scale

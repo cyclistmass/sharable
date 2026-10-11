@@ -32,7 +32,8 @@ class BuildingsTest {
     @Test
     fun `every sprite set has 8 tilt steps, distinct per piece, and the themes differ only where they should`() {
         val all = listOf(false, true).flatMap { p ->
-            listOf(BuildingArt.homestead(p), BuildingArt.roadV(p), BuildingArt.roadP30(p), BuildingArt.roadM30(p), BuildingArt.town(p), BuildingArt.ramparts(p)) +
+            listOf(BuildingArt.homestead(p), BuildingArt.roadV(p), BuildingArt.roadP30(p), BuildingArt.roadM30(p), BuildingArt.town(p)) +
+                BuildingArt.ramparts(p) +
                 BuildingArt.capitals(p)
         }
         for (piece in all) {
@@ -40,7 +41,7 @@ class BuildingsTest {
             assertEquals(16, (piece.body + piece.trim).toSet().size)
         }
         assertNotEquals(BuildingArt.town(false).body, BuildingArt.town(true).body)
-        assertNotEquals(BuildingArt.ramparts(false).body, BuildingArt.ramparts(true).body)
+        for (h in 0..2) assertNotEquals(BuildingArt.ramparts(false)[h].body, BuildingArt.ramparts(true)[h].body)
         // The Pirate harbour set has its own homestead and boardwalk roads.
         assertNotEquals(BuildingArt.homestead(false).body, BuildingArt.homestead(true).body)
         assertNotEquals(BuildingArt.roadV(false).body, BuildingArt.roadV(true).body)
