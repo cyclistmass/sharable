@@ -35,6 +35,7 @@ p.add_argument('--steps', type=int, nargs='+', default=[8, 16])
 p.add_argument('--max-tilt', type=float, default=0.96)
 p.add_argument('--samples', type=int, default=64)
 p.add_argument('--out', type=Path, default=ROOT / 'docs/design/tiles-3d-models/v3')
+p.add_argument('--thickness', type=float, help="hex base slab depth in hex units (scene default 0.22)")
 args = p.parse_args(argv)
 args.out = args.out.resolve()  # Blender resolves relative render paths against its own cwd
 
@@ -49,6 +50,14 @@ scene, cam = bpy.context.scene, bpy.context.scene.camera
 assert (scene.render.resolution_x, scene.render.resolution_y) == (512, 512)
 assert scene.render.film_transparent and abs(cam.data.ortho_scale - 2.65) < 1e-6
 scene.cycles.samples = args.samples
+if args.thickness is not None:
+    # The base is 'thick hex': a top face at z=0 and a bottom face at z=-0.22. Move only the bottom ring.
+    slab = bpy.data.objects['thick hex']
+    bottom = [v for v in slab.data.vertices if v.co.z < -1e-4]
+    assert len(bottom) == 6, f'expected 6 bottom vertices, got {len(bottom)}'
+    for v in bottom:
+        v.co.z = -args.thickness
+    print(f'[render_v3_steps] base thickness -> {args.thickness}', flush=True)
 scene.render.threads_mode = 'AUTO'
 
 log = []
