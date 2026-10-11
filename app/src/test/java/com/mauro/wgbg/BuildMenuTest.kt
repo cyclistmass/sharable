@@ -1,0 +1,37 @@
+package com.mauro.wgbg
+
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import wgbg.engine.ActionType
+import wgbg.engine.GameConfig
+import wgbg.engine.Phase
+import wgbg.ai.GreedyBot
+import wgbg.engine.ActionBuffer
+import wgbg.engine.Rules
+
+class BuildMenuTest {
+    @Test
+    fun `each ruleset gets its own entries, Fortune cards only in the base game`() {
+        assertEquals(listOf("Road", "Homestead", "Town", "Fortune card"), BuildKind.forRuleset(false).map { it.label })
+        assertEquals(listOf("Road", "Homestead", "Town", "Raise a knight", "Rouse a knight", "Promote a knight", "Ramparts"), BuildKind.forRuleset(true).map { it.label })
+    }
+
+    @Test
+    fun `a picked entry narrows the board to its moves only, and nothing picked offers everything`() {
+        val s = Rules.newGame(GameConfig(numPlayers = 4), 9)
+        val bots = List(4) { GreedyBot(it.toLong()) }
+        val buf = ActionBuffer()
+        var checked = 0
+        while (!s.isOver && s.turn < 200) {
+            val legal = Rules.legalActions(s)
+            if (s.phase == Phase.PLAY_TURN && legal.any { it.type == ActionType.BUILD_ROAD }) {
+                assertEquals(legal, boardMoves(legal, null))
+                assertTrue(boardMoves(legal, BuildKind.ROAD).all { it.type == ActionType.BUILD_ROAD } && boardMoves(legal, BuildKind.ROAD).isNotEmpty())
+                checked++
+            }
+            Rules.legalActions(s, buf); Rules.apply(s, bots[s.actingPlayer].choose(s, buf))
+        }
+        assertTrue(checked > 5, "road moments seen: $checked")
+    }
+}

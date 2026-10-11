@@ -179,6 +179,7 @@ while true; do
     pick=$(echo "$spots" | shuf -n 1); xy=${pick#*@}
     tap "${xy%,*}" "${xy#*,}"; sleep 0.6; tap "${xy%,*}" "${xy#*,}"
   elif echo ",$legal" | grep -q ',ROLL:' && tap_at "Roll"; then :
+  elif echo ",$legal" | grep -q ',BUY_DEVELOPMENT_CARD:' && [ $((RANDOM % 4)) = 0 ] && tap_desc "Fortune card"; then :   # the build menu's card icon
   elif echo ",$legal" | grep -q ',ACCEPT_TRADE:\|,REJECT_TRADE:'; then
     # A trade offered to you: answer it like a person, Yes or No (Counter is left out on purpose).
     if echo ",$legal" | grep -q ',ACCEPT_TRADE:' && [ $((RANDOM % 3)) = 0 ]; then tap_text "Yes" || tap_text "No"; else tap_text "No" || tap_text "Yes"; fi

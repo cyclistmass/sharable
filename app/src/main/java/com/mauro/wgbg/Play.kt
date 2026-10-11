@@ -215,7 +215,7 @@ fun HumanControls(
             @Composable fun single(t: ActionType, label: String, primary: Boolean = false) {
                 legal.firstOrNull { it.type == t }?.let { a -> MoveButton(label, primary) { onMove(a) } }
             }
-            single(ActionType.BUY_DEVELOPMENT_CARD, "Buy Fortune card")
+            // Buying a Fortune card lives in the build menu on the right edge now.
             single(ActionType.PLAY_KNIGHT_CARD, "Play Sentinel")
             single(ActionType.PLAY_ROAD_BUILDING, "Play Trailblazers")
             if (ActionType.PLAY_YEAR_OF_PLENTY in types) MoveButton("Play Windfall…") { sheet = "yop" }

@@ -813,7 +813,12 @@ fun WatchGameScreen(
     if (cardPick.isNotEmpty() && cardPick.any { it !in legal }) { cardPick = emptyList(); cardSecond = false } // the turn moved on
     val cardPickNow by rememberUpdatedState(cardPick)
     val cardSecondNow by rememberUpdatedState(cardSecond)
-    val targets = if (cardPick.isNotEmpty()) Targets.ofCards(cardPick, cardSecond) else Targets.of(legal)
+    // The build menu (right edge): a picked kind narrows the board to just its spots; it lets go when it can't be done.
+    var buildMode by remember { mutableStateOf<BuildKind?>(null) }
+    if (buildMode != null && legal.none { it.type == buildMode!!.kind }) buildMode = null
+    val boardLegal = boardMoves(legal, buildMode)
+    val boardLegalNow by rememberUpdatedState(boardLegal)
+    val targets = if (cardPick.isNotEmpty()) Targets.ofCards(cardPick, cardSecond) else Targets.of(boardLegal)
     val chosen = pending.filter { it in legal } // a stale pick (the turn moved on) is dropped
     // Turn and trade alerts (#44): a tick when it becomes your move, a chime when an offer asks for cards you
     // hold, and an offer you can't pay is declined for you after a short countdown so turns keep flowing.
@@ -954,7 +959,7 @@ fun WatchGameScreen(
                     detectTapGestures(onTap = { at ->
                         val p = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(at)
                         val picking = cardPickNow.isNotEmpty()
-                        val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else movesAt(boardNow, legalNow, p)
+                        val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else movesAt(boardNow, boardLegalNow, p)
                         // The Tinkerer swaps two tiles: the first tap narrows to that tile's swaps, the second picks the other tile.
                         if (picking && !cardSecondNow && moves.size > 1 && moves.all { it.a == wgbg.engine.Progress.INVENTOR }) {
                             cardPick = moves; cardSecond = true; return@detectTapGestures
@@ -1215,6 +1220,10 @@ fun WatchGameScreen(
             }
         }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.
+        // The build menu down the right edge, on your turn: an icon per thing you can build or do to a knight.
+        if (me >= 0 && !inventory && !panelOpen && !settingsOpen && !chestOpen && tick.let { state.phase == Phase.PLAY_TURN && state.currentPlayer == me && state.actingPlayer == me })
+            BuildMenu(state.ck != null, legal, buildMode, { buildMode = it }, { a -> pending = emptyList(); humanMoves.trySend(a) },
+                Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (env.viewBars) 156.dp else 8.dp))
         // Zoom and Tilt bars on the right edge (pinch and two-finger drag do the same).
         if (env.viewBars && !inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
             onZoom = { z -> camera = camera.transform(Offset(boardSize.width / 2f, boardSize.height / 2f), Offset.Zero, z / camera.zoom, boardSize) },
