@@ -1384,6 +1384,16 @@ internal fun describe(t: ActionKind) = when (t) {
     ActionType.DISCARD -> "discarded"
     ActionType.CONFIRM_TRADE -> "traded"
     ActionType.COUNTER_TRADE -> "made a counter-offer"
+    // Age of Chivalry, in our words (the history said "Red build knight").
+    wgbg.engine.CkActionType.BUILD_KNIGHT -> "raised a knight"
+    wgbg.engine.CkActionType.ACTIVATE_KNIGHT -> "roused a knight"
+    wgbg.engine.CkActionType.PROMOTE_KNIGHT -> "promoted a knight"
+    wgbg.engine.CkActionType.MOVE_KNIGHT -> "moved a knight"
+    wgbg.engine.CkActionType.DISPLACE_KNIGHT -> "chased off a knight"
+    wgbg.engine.CkActionType.CHASE_ROBBER -> "chased the bandit away"
+    wgbg.engine.CkActionType.BUILD_CITY_WALL -> "built Ramparts"
+    wgbg.engine.CkActionType.IMPROVE_CITY -> "improved a town"
+    wgbg.engine.CkActionType.PLAY_PROGRESS -> "played a progress card"
     else -> t.toString().lowercase().replace('_', ' ')
 }
 
