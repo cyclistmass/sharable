@@ -88,7 +88,7 @@ class FirestoreTransport(private val auth: FirebaseAuth, private val db: Firebas
     override fun join(id: String, seat: Int, name: String) = change(id) { r ->
         require(r.status == Status.lobby && seat in 1..3 && name.isNotBlank())
         require(r.seats.none { it.uid == uid } && r.seats[seat].uid == null && r.seats[seat].open)
-        r.copy(seats = r.seats.toMutableList().also { it[seat] = it[seat].copy(uid = uid, name = name, open = false, ready = false) })
+        r.copy(seats = r.seats.toMutableList().also { it[seat] = it[seat].copy(uid = uid, name = uniqueSeatName(name, r.seats.filter { it.uid != null }.map { it.name }), open = false, ready = false) })
     }
     override fun leave(id: String) = change(id) { r ->
         require((r.status == Status.lobby || r.status == Status.playing) && uid != r.host)

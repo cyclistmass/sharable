@@ -32,7 +32,7 @@ class InMemoryTransport(val uid: String, private val store: MemoryStore = Memory
         val s = snapshot(id); require(s.room.status == Status.lobby && seat in 1..3)
         require(s.room.seats.none { it.uid == uid }); val old = s.room.seats[seat]
         require(old.uid == null && old.open && name.isNotBlank())
-        publish(s.copy(room = s.room.copy(seats = s.room.seats.toMutableList().also { it[seat] = old.copy(uid = uid, name = name, ready = false, open = false) })))
+        publish(s.copy(room = s.room.copy(seats = s.room.seats.toMutableList().also { it[seat] = old.copy(uid = uid, name = uniqueSeatName(name, s.room.seats.filter { it.uid != null }.map { it.name }), ready = false, open = false) })))
     }
     override fun leave(id: String) = operation {
         val s = snapshot(id); require(s.room.status == Status.lobby && s.room.host != uid)

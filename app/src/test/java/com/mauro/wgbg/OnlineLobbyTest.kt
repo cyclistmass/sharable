@@ -119,4 +119,10 @@ class OnlineLobbyTest {
         val stuck = runCatching { LobbySession.host(InMemoryTransport("h2", store), setup, 5, code = "ROVER-42", attempts = 2) { "HARBOR-43" }.join() }
         assertTrue(stuck.isFailure, "two taken codes and two tries: fails")
     }
+
+    @Test fun `local lobby numbers a name that is already seated`() {
+        val l = Lobby.host(GameSetup(name = "Erin").withSeat(1, SeatKind.FRIEND).withSeat(2, SeatKind.FRIEND), code = "ROVER-42")
+            .join("Erin")!!.join("erin")!!
+        assertEquals(listOf("Erin", "Erin 2", "erin 3"), l.seats.take(3).map { it.name })
+    }
 }

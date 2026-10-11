@@ -73,7 +73,7 @@ data class Lobby(
     /** A person takes the first open seat; returns null when there is none. */
     fun join(name: String, photo: String? = null): Lobby? {
         val i = seats.indexOfFirst { it.open }.takeIf { it > 0 } ?: return null
-        return update(i) { LobbySeat(name = name, photo = photo) }
+        return update(i) { LobbySeat(name = wgbg.net.uniqueSeatName(name, seats.mapNotNull { it.name }), photo = photo) }
     }
 
     /** A person leaves: the seat reopens, keeping any bot that was waiting for it. */
