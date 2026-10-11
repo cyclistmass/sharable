@@ -45,10 +45,13 @@ class TurnTracker(private val names: List<String>) {
         private set
     var last: TurnReport? = null
         private set
+    /** Finished turns, newest first, up to [HISTORY] (the info box scrolls back through them, #65). */
+    var history: List<TurnReport> = emptyList()
+        private set
 
     fun apply(s: GameState, who: Int, action: Action, applyFn: () -> Unit) {
         if (current == null || current!!.player != s.currentPlayer || current!!.turn != s.turn) {
-            current?.let { if (it.rolled || it.events.isNotEmpty()) last = it }
+            current?.let { if (it.rolled || it.events.isNotEmpty()) { last = it; history = (listOf(it) + history).take(HISTORY) } }
             current = TurnReport(s.currentPlayer, s.turn)
         }
         val before = s.hands.copyOf()
@@ -118,6 +121,8 @@ class TurnTracker(private val names: List<String>) {
     }
 
     companion object {
+        /** How many finished turns the info box keeps. */
+        const val HISTORY = 40
         init { check(Resource.COUNT == RESOURCE_NAMES.size) }
     }
 }
