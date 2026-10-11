@@ -390,6 +390,34 @@ private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, under:
     }
 }
 
+/** What a "Choose a card" moment is for, in words: the science bonus, Harbor Charter, Grand Factor or Feast. */
+internal fun cardChoiceTitle(s: GameState, names: List<String>): String = when (s.phase) {
+    Phase.AQUEDUCT -> "Science bonus: nothing came your way, so take any one card free"
+    Phase.COMMERCIAL_HARBOR_RESPOND -> "${names[s.currentPlayer]} played Harbor Charter: give back one commodity"
+    Phase.MASTER_MERCHANT -> "Grand Factor: take a card from ${names[s.ck?.pendingTarget ?: 0]}"
+    Phase.WEDDING -> "${names[s.currentPlayer]} played Feast: hand them a card"
+    else -> "Choose a card"
+}
+
+/**
+ * The trade chest's card picker, reused wherever the game asks you to pick one card (Mauro): the illustrated cards
+ * on offer, with how many you (or, for Grand Factor, they) hold under each. One tap picks.
+ */
+@Composable
+fun CardChoiceSheet(s: GameState, me: Int, choices: List<Action>, names: List<String>, onMove: (Action) -> Unit, modifier: Modifier = Modifier) {
+    val owner = if (s.phase == Phase.MASTER_MERCHANT) s.ck?.pendingTarget ?: me else me
+    Column(modifier.chest().testTag("card-choice"), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(cardChoiceTitle(s, names), color = INK, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (a in choices.sortedBy { it.a }) Column(horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable { onMove(a) }.testTag("choose-card-${a.a}")) {
+                Image(painterResource(ALL_CARD_ART[a.a]), ALL_CARD_NAMES[a.a], Modifier.size(width = 42.dp, height = 60.dp))
+                Text("${if (owner == me) "have" else "has"} ${s.card(owner, a.a)}", color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            }
+        }
+    }
+}
+
 /** Five resource cards; tap adds one (or picks it, for the bank), the "−" under a card takes one back. */
 @Composable
 private fun CardRow(counts: IntArray, editable: Boolean, single: Boolean, badge: (Int) -> String?, change: (Int, Int) -> Unit) {

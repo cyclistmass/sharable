@@ -120,6 +120,25 @@ class TradePanelTest {
     }
 
     @Test
+    fun `every pick-a-card moment says what it is for`() {
+        val seen = mutableSetOf<Phase>()
+        for (seed in 1L..40L) {
+            val s = Rules.newGame(GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS, numPlayers = 4), seed)
+            val bots = List(4) { GreedyBot(it.toLong() + seed) }
+            val buf = ActionBuffer()
+            while (!s.isOver && s.turn < 400) {
+                Rules.legalActions(s, buf)
+                if (Rules.legalActions(s).any { it.type == wgbg.engine.CkActionType.CHOOSE_CARD }) {
+                    assertTrue(cardChoiceTitle(s, listOf("You", "Blue", "Orange", "White")) != "Choose a card", "${s.phase}")
+                    seen += s.phase
+                }
+                Rules.apply(s, bots[s.actingPlayer].choose(s, buf))
+            }
+        }
+        assertTrue(Phase.AQUEDUCT in seen, "science bonus seen: $seen")
+    }
+
+    @Test
     fun `before rolling the panel is closed`() {
         val s = until(5) { it.phase == Phase.PLAY_TURN && it.currentPlayer == 0 && !it.hasRolled }
         assertEquals(TradeMode.CLOSED, tradeMode(s, 0))

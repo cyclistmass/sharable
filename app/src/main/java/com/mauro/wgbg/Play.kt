@@ -197,6 +197,7 @@ fun HumanControls(
         // On a 7: pick all the cards first, then discard them with one press (playtest: a tap per card,
         // on buttons that moved as card types ran out, lost the wrong card with no undo).
         if (ActionType.DISCARD in types) { DiscardSheet(s, me, legal, onMove); return@Row }
+        if (wgbg.engine.CkActionType.CHOOSE_CARD in types) { CardChoiceSheet(s, me, legal.filter { it.type == wgbg.engine.CkActionType.CHOOSE_CARD }, names, onMove); return@Row }
         val buttonTypes = setOf(ActionType.ROLL, ActionType.END_TURN, ActionType.BUY_DEVELOPMENT_CARD,
             ActionType.PLAY_KNIGHT_CARD, ActionType.PLAY_ROAD_BUILDING, ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY)
         if (sheet == null && (types.any { it in buttonTypes } || ckButtonGroups(s, legal, names).isNotEmpty())) Column(
