@@ -37,6 +37,8 @@ class SeaSprites3d(private val res: Resources) {
         const val SLOOP_FRAME = 1.08f
         /** The Raiders' frame spans this many hex units (the hull about 1.0, like the old ship). */
         const val RAIDERS_FRAME = 1.4f
+        /** A gull frame spans this many hex units (the wingspan about a quarter hex, like the painted gull). */
+        const val GULL_FRAME = 0.32f
 
         /**
          * The rendered heading (bow direction on screen, counter-clockwise from east in 22.5 degree steps) for a

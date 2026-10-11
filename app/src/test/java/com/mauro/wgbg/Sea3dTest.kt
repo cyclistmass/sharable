@@ -25,7 +25,7 @@ class Sea3dTest {
         assertEquals(7, SeaSprites3d.tiltStep(0.96f))
         assertEquals(7, SeaSprites3d.tiltStep(2f))
         assertEquals(4, SeaSprites3d.tiltStep(0.96f * 4 / 7))
-        for (t in listOf(SeaArt.sloop, SeaArt.sloopTrim, SeaArt.sloopWake, SeaArt.raiders, SeaArt.raidersWake)) {
+        for (t in listOf(SeaArt.sloop, SeaArt.sloopTrim, SeaArt.sloopWake, SeaArt.raiders, SeaArt.raidersWake, SeaArt.gull)) {
             assertEquals(SeaArt.HEADINGS, t.size)
             t.forEach { assertEquals(SeaArt.STEPS, it.size) }
         }

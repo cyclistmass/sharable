@@ -241,6 +241,8 @@ class Sea(board: Board, seed: Int = 1) {
     var boatWake: ImageBitmap? = null
     /** The 3D sloops and Raiders' ship (#63); null in tests and until loaded, when the painted sprites draw. */
     var sprites3d: SeaSprites3d? = null
+    /** The tilt step the water was last drawn at (the sky has no squash of its own to go by). */
+    private var tiltStep3d = 0
     private var oceanBrushes: List<Pair<BitmapShader, ShaderBrush>>? = null
     private val oceanMatrix = Matrix()
     private val patchMatrix = Matrix()
@@ -483,6 +485,7 @@ class Sea(board: Board, seed: Int = 1) {
      * px a second, so the board caches it; LIVE is what moves every frame (glints, wavelets, boats, splashes).
      */
     fun drawWater(ds: DrawScope, at: (Float, Float) -> Offset, s: Float, squash: Float, woodBrush: Brush, part: WaterPart = WaterPart.ALL) = with(ds) {
+        tiltStep3d = SeaSprites3d.tiltStep(kotlin.math.acos(squash.coerceIn(0f, 1f)))
         if (part != WaterPart.LIVE) {
             val c = at(0f, 0f)
             // The ocean fills the whole screen (no frame); deeper toward the edges.
@@ -727,8 +730,18 @@ class Sea(board: Board, seed: Int = 1) {
             val b = birds[bi]
             if (!onScreen(at(b.x, b.y), 1f * s)) continue // shadow included
             // A faint shadow on the water below, then the bird.
-            val flap = gullFlap; val glide = gullGlide
-            if (flap != null && glide != null) {
+            val flap = gullFlap; val glide = gullGlide; val s3d = sprites3d
+            if (s3d != null) {
+                // 3D gull (#63): a 16-frame wingbeat (wings level while gliding), turned to its heading, shadow below.
+                val size = SeaSprites3d.GULL_FRAME * s * b.scale
+                val p = at(b.x, b.y)
+                val deg = Math.toDegrees(b.heading.toDouble()).toFloat()
+                gullShadow?.let { sh ->
+                    val q = at(b.x + 0.3f, b.y + 0.45f); val sz = 0.6f * s * b.scale
+                    withTransform({ rotate(deg, q) }) { drawImage(sh, dstOffset = IntOffset((q.x - sz / 2).toInt(), (q.y - sz / 2).toInt()), dstSize = IntSize(sz.toInt(), sz.toInt()), alpha = 0.6f) }
+                }
+                withTransform({ rotate(deg, p) }) { drawSeaProp(s3d, p, size, b.flapFrame(SeaArt.HEADINGS).coerceAtLeast(0), tiltStep3d, SeaArt.gull) }
+            } else if (flap != null && glide != null) {
                 // Painted gull: about a quarter of a hex wide, turned to its heading, shadow on the water below.
                 val size = 0.6f * s * b.scale   // the bird fills about 45% of its frame: ~1/4 hex wide
                 val p = at(b.x, b.y)

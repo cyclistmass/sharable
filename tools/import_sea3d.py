@@ -5,7 +5,8 @@ Source: C:/Users/mauro/wgbg-art/sea3d/<layer>_h<00..15>_tilt_<0..7>.png. Heading
 counter-clockwise from east in 22.5 degree steps (h00 east, h04 up the screen, h08 west, h12 down); tilt step i is
 tilt = 0.96 * i / 7 as for the buildings. Each frame is square with the model's waterline centre at the frame centre.
 Layers: sloop (the sail, tinted to a player's colour), sloop_trim (hull and rigging, untinted), sloop_wake;
-raiders (the Raiders' ship), raiders_wake. Frames are scaled down to SIZE px (they are small on the board).
+raiders (the Raiders' ship), raiders_wake; gull: <layer>_flap<00..15>_tilt_<i>, a 16-frame wingbeat (frame 0 wings
+level, head to the east; drawn turned to the bird's heading) stored in the heading slot. Frames are scaled down to SIZE px (they are small on the board).
 Old imported files are removed first.
 
 Usage: py tools/import_sea3d.py
@@ -17,7 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "app/src/main/res/drawable-nodpi"
 KT = ROOT / "app/src/main/java/com/mauro/wgbg/SeaArt.kt"
 SRC = Path(r"C:/Users/mauro/wgbg-art/sea3d")
-LAYERS = {"sloop": 144, "sloop_trim": 144, "sloop_wake": 144, "raiders": 192, "raiders_wake": 192}
+LAYERS = {"sloop": 144, "sloop_trim": 144, "sloop_wake": 144, "raiders": 192, "raiders_wake": 192, "gull": 64}
 HEADINGS, STEPS = 16, 8
 
 for old in OUT.glob("sea3d_*.webp"):
@@ -30,7 +31,8 @@ for layer, size in LAYERS.items():
         row = []
         for i in range(STEPS):
             name = f"sea3d_{layer}_h{h:02d}_t{i}"
-            Image.open(SRC / f"{layer}_h{h:02d}_tilt_{i}.png").convert("RGBA").resize((size, size), Image.LANCZOS) \
+            src = f"gull_flap{h:02d}_tilt_{i}.png" if layer == "gull" else f"{layer}_h{h:02d}_tilt_{i}.png"
+            Image.open(SRC / src).convert("RGBA").resize((size, size), Image.LANCZOS) \
                 .save(OUT / f"{name}.webp", quality=88, method=6)
             row.append(f"R.drawable.{name}")
         rows.append("intArrayOf(" + ", ".join(row) + ")")
