@@ -450,11 +450,21 @@ private fun CardRow(counts: IntArray, editable: Boolean, single: Boolean, badge:
     }
 }
 
+/** The chest's buttons (green yes, red no, gold counter), shared by every card sheet so they all look alike. */
+internal val CHEST_YES = Color(0xFF3E9B4F)
+internal val CHEST_NO = Color(0xFFC0392B)
+internal val CHEST_GOLD = Color(0xFFE0B23A)
+/** The chest's text colour. */
+internal val CHEST_INK = Color(0xFFEDE6D8)
+
 @Composable
-private fun BigButton(label: String, color: Color, tag: String, onClick: (() -> Unit)?) {
+internal fun ChestButton(label: String, color: Color, tag: String, width: androidx.compose.ui.unit.Dp = 78.dp, onClick: (() -> Unit)?) = BigButton(label, color, tag, onClick, width)
+
+@Composable
+private fun BigButton(label: String, color: Color, tag: String, onClick: (() -> Unit)?, width: androidx.compose.ui.unit.Dp = 78.dp) {
     val on = onClick != null
     Box(
-        Modifier.size(width = 78.dp, height = 38.dp)
+        Modifier.size(width = width, height = 38.dp)
             .background(if (on) color else color.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
             .border(2.dp, if (on) BRASS_LIGHT else BRASS_DARK, RoundedCornerShape(10.dp))
             .then(if (on) Modifier.clickable { onClick!!() } else Modifier).testTag(tag),

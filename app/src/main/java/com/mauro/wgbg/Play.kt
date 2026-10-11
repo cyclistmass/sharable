@@ -251,48 +251,43 @@ fun discardMoves(pile: IntArray): List<Action> = pile.indices.flatMap { r -> Lis
 
 @Composable
 private fun DiscardSheet(s: GameState, me: Int, legal: List<Action>, onMove: (Action) -> Unit) {
+    // The same chest as the trade and the science bonus: title, the cards with "have N" under them, the chest's
+    // buttons on the right (Mauro: "the discard menu for 7 should be the same style as trade and science bonus").
     val owed = s.discardOwed[me]
     var pile by remember(s.turn, owed) { mutableStateOf(IntArray(tradeCards(s))) }
-    Column(
-        Modifier.brassEdgedWood().padding(12.dp).testTag("discard-sheet"),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text("Too many cards on a 7: choose $owed to discard (${pile.sum()} chosen)", color = INK_LIGHT, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Text("Tap a card to add it · hold to take it back", color = INK_LIGHT.copy(alpha = 0.7f), fontSize = 11.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (r in pile.indices) {
-                val have = holding(s, me, r)
-                if (have == 0) continue
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        Modifier.size(width = 42.dp, height = 60.dp)
-                            .pointerInput(r, have, owed) {
-                                detectTapGestures(onTap = { pile = discardPick(pile, r, true, have, owed) },
-                                    onLongPress = { pile = discardPick(pile, r, false, have, owed) })
-                            }.testTag("discard-card-$r"),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (r < ALL_CARD_ART.size) Image(painterResource(ALL_CARD_ART[r]), ALL_CARD_NAMES[r], Modifier.fillMaxSize())
-                        else Box(Modifier.fillMaxSize().background(Color(0xFFEFE3C8), RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
-                            Text(ALL_CARD_NAMES[r], color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+    val full = pile.sum() == owed
+    Row(Modifier.chest().testTag("discard-sheet"), verticalAlignment = Alignment.CenterVertically) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("A 7: you hold too many cards. Choose $owed to discard (${pile.sum()} chosen)", color = CHEST_INK, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("Tap a card to add it · hold to take it back", color = CHEST_INK.copy(alpha = 0.7f), fontSize = 11.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (r in pile.indices) {
+                    val have = holding(s, me, r)
+                    if (have == 0) continue
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            Modifier.size(width = 42.dp, height = 60.dp)
+                                .pointerInput(r, have, owed) {
+                                    detectTapGestures(onTap = { pile = discardPick(pile, r, true, have, owed) },
+                                        onLongPress = { pile = discardPick(pile, r, false, have, owed) })
+                                }.testTag("discard-card-$r"),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Image(painterResource(ALL_CARD_ART[r]), ALL_CARD_NAMES[r], Modifier.fillMaxSize())
+                            if (pile[r] > 0) Text("−${pile[r]}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.align(Alignment.BottomCenter).background(Color(0xE0C0392B), CircleShape).padding(horizontal = 6.dp))
                         }
-                        if (pile[r] > 0) Text("−${pile[r]}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.align(Alignment.BottomCenter).background(Color(0xE0C0392B), CircleShape).padding(horizontal = 6.dp))
+                        Text("have $have", color = CHEST_INK, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                     }
-                    Text("have $have", color = INK_LIGHT, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
             }
         }
-        // The buttons are always there at a fixed height: the cards must never move while you pick them.
-        Row(Modifier.height(44.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            val full = pile.sum() == owed
-            PlateBox(Plate.STOP, enabled = full, onClick = {
-                val moves = discardMoves(pile); pile = IntArray(pile.size); moves.forEach(onMove)
-            }, modifier = Modifier.height(40.dp).testTag("discard-go")) {
-                Text("Discard $owed", color = if (full) Color.White else Color.White.copy(alpha = 0.5f), fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            }
-            if (pile.sum() > 0) WoodButton("Clear", "discard-clear") { pile = IntArray(pile.size) }
-            legal.firstOrNull { it.type == ActionType.DISCARD && it.discardResource < 0 }?.let { a -> WoodButton("At random", "discard-random") { onMove(a) } }
+        Box(Modifier.width(10.dp))
+        // Fixed buttons: the cards never move while you pick them.
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChestButton("Discard $owed", CHEST_YES, "discard-go", 104.dp, if (full) ({ val moves = discardMoves(pile); pile = IntArray(pile.size); moves.forEach(onMove) }) else null)
+            ChestButton("Clear", CHEST_NO, "discard-clear", 104.dp, if (pile.sum() > 0) ({ pile = IntArray(pile.size) }) else null)
+            legal.firstOrNull { it.type == ActionType.DISCARD && it.discardResource < 0 }?.let { a -> ChestButton("Random", CHEST_GOLD, "discard-random", 104.dp) { onMove(a) } }
         }
     }
 }
@@ -320,7 +315,7 @@ private fun Picker(title: String, options: List<Pair<String, Action>>, onMove: (
             } else MoveButton(label) { close(); onMove(a) }
         }
     }
-    WoodButton("Back", "pick-back") { close() }
+    ChestButton("Back", CHEST_NO, "pick-back") { close() }
 }
 
 /** The cards a picker choice stands for (Windfall's two, the card a Corner names), or null if it isn't cards. */
