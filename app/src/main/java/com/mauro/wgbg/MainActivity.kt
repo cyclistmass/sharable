@@ -295,32 +295,50 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
         screen = Screen.ONLINE_LOBBY
     }
     fun failed(e: Throwable) { busy = false; problem = onlineProblem(e) }
+    // The room to offer on the start screen ("Resume"), kept until the game ends or the host deletes it.
+    var resumeCode by remember { mutableStateOf(savedRoom.getString("room", null)) }
+    fun forgetRoom() { savedRoom.edit().remove("room").remove("paused").apply(); resumeCode = null }
     fun leaveRoom() {
         session?.let { s ->
-            if (!s.client.view().let { it.room?.host == s.uid } && s.client.view().room?.status == Status.lobby) s.transport.leave(s.id)
+            // A guest leaving the lobby frees the seat; quitting a running game hands it to a bot.
+            val room = s.client.view().room
+            if (room != null && room.host != s.uid && (room.status == Status.lobby || room.status == Status.playing)) s.transport.leave(s.id)
             s.close()
         }
-        savedRoom.edit().remove("room").apply()
+        forgetRoom()
         session = null; screen = Screen.START
     }
-    // Back after the app was closed or killed while in a room: rejoin it (the game catches up from its moves).
-    // Only a recent room (ROOM_REJOIN_MS): an old one is forgotten, because dropping into a long-dead room looks
-    // like a game that never gets past the first roll (it waits on players who are gone).
-    LaunchedEffect(Unit) {
-        val code = savedRoom.getString("room", null) ?: return@LaunchedEffect
-        if (start != null || session != null || inviteCode != null) return@LaunchedEffect
-        if (!rejoinRecent(savedRoom.getLong("at", 0L), System.currentTimeMillis())) { savedRoom.edit().remove("room").apply(); return@LaunchedEffect }
+    // Leaving a running online game is "for now" (Mauro: online games resume until the host deletes them): the
+    // room is kept and the start screen offers Resume; the app doesn't drop you back in by itself after this.
+    fun pauseRoom() {
+        val id = session?.id
+        session?.close(); session = null
+        if (id != null) { savedRoom.edit().putString("room", id).putBoolean("paused", true).apply(); resumeCode = id }
+        screen = Screen.START
+    }
+    // The host ends the room for everyone (marks it done; every phone then forgets it).
+    fun deleteRoom() {
+        session?.let { s -> s.transport.finish(s.id) }
+        leaveRoom()
+    }
+    fun rejoin(code: String) {
         setup = setup.copy(name = savedRoom.getString("name", null) ?: setup.name)
         busy = true; problem = "Rejoining room $code…"
         LobbySession.rejoin(transport.value, setup, code).whenComplete { r, e ->
             scope.launch {
                 busy = false
-                if (e != null) { savedRoom.edit().remove("room").apply(); problem = "Couldn't rejoin $code: ${onlineProblem(e)}" }
-                // A finished game isn't worth going back to.
-                else if (r.client.view().room?.status == Status.done) { r.close(); savedRoom.edit().remove("room").apply(); problem = null }
-                else { problem = null; enterRoom(r) }
+                if (e != null) { forgetRoom(); problem = "Couldn't rejoin $code: ${onlineProblem(e)}" }
+                // A finished (or deleted) game isn't worth going back to.
+                else if (r.client.view().room?.status == Status.done) { r.close(); forgetRoom(); problem = "Room $code has ended." }
+                else { problem = null; savedRoom.edit().remove("paused").apply(); enterRoom(r) }
             }
         }
+    }
+    // Back after the app was closed or killed while in a game: rejoin it (the game catches up from its moves), for
+    // as long as the room lives; a room you chose to leave for now waits for Resume on the start screen instead.
+    LaunchedEffect(Unit) {
+        val code = savedRoom.getString("room", null)
+        if (code != null && autoRejoin(code, savedRoom.getBoolean("paused", false), start != null || session != null || inviteCode != null)) rejoin(code)
     }
     // While in a room, keep its "last here" time fresh so a long game is still rejoined after Android closes the app.
     LaunchedEffect(screen) {
@@ -360,6 +378,8 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                     }
                 },
                 onJoinRoom = { s -> setup = s; problem = null; screen = Screen.JOIN },
+                resumeRoom = resumeCode.takeIf { session == null && !busy },
+                onResume = { resumeCode?.let { rejoin(it) } },
             )
             Screen.JOIN -> {
                 BackHandler { screen = Screen.START }
@@ -381,7 +401,8 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             } ?: run { screen = Screen.START }
             Screen.ONLINE_GAME -> session?.let { s ->
                 key(gameNo) {
-                    WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { leaveRoom() }, online = s, autoplay = autoplay)
+                    WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { pauseRoom() }, online = s, autoplay = autoplay,
+                        onDeleteRoom = { deleteRoom() }, onQuitRoom = { leaveRoom() })
                 }
             } ?: run { screen = Screen.START }
             Screen.GAME -> key(gameNo) {
@@ -444,6 +465,10 @@ fun WatchGameScreen(
     onExit: () -> Unit = {},
     /** An online room (#7): its moves drive the game, yours go through it, and the host's phone plays its bots. */
     online: LobbySession? = null,
+    /** Online, host only: end the room for everyone. */
+    onDeleteRoom: (() -> Unit)? = null,
+    /** Online, a guest: leave for good (the room is forgotten, never rejoined by itself). */
+    onQuitRoom: (() -> Unit)? = null,
     /** Debug: a bot plays your seat in an online game (two-phone simulations). */
     autoplay: Boolean = false,
     /** Debug: a bot places your opening homesteads and roads, then you play. */
@@ -536,13 +561,17 @@ fun WatchGameScreen(
     var seaTick by remember { mutableIntStateOf(0) }
     LaunchedEffect(sea) { // the sea keeps moving even when the game is paused
         var last = 0L
-        while (true) withFrameNanos { now ->
+        while (true) {
+            // Animations off (or Density 0): the scenery code doesn't run at all, so it can't take a game down.
+            if (!env.animating) { last = 0L; delay(300); continue }
+            withFrameNanos { now ->
             sea.clouds01 = env.clouds; sea.birds01 = env.birds; sea.boats01 = env.boats; sea.waves01 = env.waves; sea.density01 = env.density
             // Clamp both ends: on some phones (Pixel 9/10, Android 17) the frame clock can step back a little,
             // and a negative step crashed the gulls' turn limit (crash reports 2026-10-11).
             if (last != 0L) sea.update(((now - last) / 1e9f).coerceIn(0f, 0.05f))
             last = now
             seaTick++
+            }
         }
     }
 
@@ -664,7 +693,7 @@ fun WatchGameScreen(
                         views.onReceive { it }
                         humanMoves.onReceive { a -> if (Rules.isLegal(state, a) && send(who, a)) views.receive() else v }
                     }
-                    (n.isHost && n.bot(who) != null) || (autoplay && who == n.me) -> {
+                    (n.isHost && (n.bot(who) != null || quitToBot(v.room, n.seatOf(who)))) || (autoplay && who == n.me) -> {
                         // The host's phone plays the room's bots, at a watchable pace (dice land first).
                         delay(if (rolled) pauseAfter(ActionType.ROLL, 1) else 450L)
                         val fresh = views.tryReceive().getOrNull()
@@ -801,7 +830,7 @@ fun WatchGameScreen(
                                 pileGrip = lattice(p) - supplyCenter(stateNow, seat, viewerNow, pileOffsetsNow)
                                 hostView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
                                 true
-                            } else seaNow.cloudAt(lattice(p))?.also { dragged = it } != null
+                            } else env.animating && seaNow.cloudAt(lattice(p))?.also { dragged = it } != null
                         },
                         onGrabMove = { p ->
                             if (pile >= 0) {
@@ -902,7 +931,7 @@ fun WatchGameScreen(
                     waterLayerKey[0] = waterKey
                 }
                 drawLayer(waterLayer)
-                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.UNDER, banditSprites)
+                drawGame(state, measurer, wood, camera, sea.takeIf { env.animating }, tileFaces, cliff, tileLine, knights, raiders, BoardPart.UNDER, banditSprites)
                 // Re-record the still board only when something on it can have changed: a move, the
                 // camera, the canvas size or a look setting. Otherwise the last recording is replayed.
                 val key = BoardLayerKey(System.identityHashCode(state), tick, camera, size, tileLine, knights, tileFaces, cliff, viewer, pileOffsets, buildings, banditSprites != null, tiles3d)
@@ -913,7 +942,7 @@ fun WatchGameScreen(
                     boardLayerKey[0] = key
                 }
                 drawLayer(boardLayer)
-                drawGame(state, measurer, wood, camera, sea, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER, banditSprites)
+                drawGame(state, measurer, wood, camera, sea.takeIf { env.animating }, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER, banditSprites)
                 if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me))
                 if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
             }
@@ -945,7 +974,7 @@ fun WatchGameScreen(
                 TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
                     eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight)
             }
-            if (rolled != null) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
+            if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
@@ -1070,10 +1099,16 @@ fun WatchGameScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("Leave this game?", color = Color(0xFFF1D58A), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(if (online != null) "You'll leave the room; the others can't continue without you yet." else "It won't be saved.", color = Color(0xFFEDE6D8), fontSize = 13.sp)
+            Text(if (online != null) "Leave for now: Resume from the start screen any time, until the host deletes the game. " +
+                    (if (net?.isHost == true) "Delete game ends it for everyone." else "Quit: leave for good.")
+                else "It won't be saved.", color = Color(0xFFEDE6D8), fontSize = 13.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 WoodButton("Keep playing", "exit-no") { confirmExit = false }
-                ColorButton("Leave", Color(0xFFC0392B), "exit-yes") { confirmExit = false; onExit() }
+                ColorButton(if (online != null) "Leave for now" else "Leave", Color(0xFFC0392B), "exit-yes") { confirmExit = false; onExit() }
+                if (online != null && onDeleteRoom != null && net?.isHost == true)
+                    ColorButton("Delete game", Color(0xFF7A1E14), "exit-delete") { confirmExit = false; onDeleteRoom() }
+                if (online != null && onQuitRoom != null && net?.isHost != true)
+                    ColorButton("Quit", Color(0xFF7A1E14), "exit-quit") { confirmExit = false; onQuitRoom() }
             }
         }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.
@@ -1635,11 +1670,15 @@ internal fun appVersion(): String {
     return remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "?" }
 }
 
-/** How long after you were last in an online room the app still rejoins it on launch. */
-internal const val ROOM_REJOIN_MS = 2 * 60 * 60 * 1000L
+/**
+ * On launch, go straight back into saved room [code]? Yes while the room lives (no time limit: online games resume
+ * until the host deletes them), unless you left it for now ([paused]: the start screen offers Resume instead) or the
+ * app was opened for something else ([busyElsewhere]: a debug start, an invite link).
+ */
+/** True when room seat [seat] was a person who quit the running game: a bot now holds it, played by the host. */
+internal fun quitToBot(room: wgbg.net.Room?, seat: Int): Boolean = room?.seats?.getOrNull(seat)?.let { it.uid == null && it.bot != null } ?: false
 
-/** True when a room saved at [savedAt] (ms) is recent enough to rejoin at [now]; unknown or future times are not. */
-internal fun rejoinRecent(savedAt: Long, now: Long): Boolean = savedAt in 1..now && now - savedAt <= ROOM_REJOIN_MS
+internal fun autoRejoin(code: String?, paused: Boolean, busyElsewhere: Boolean): Boolean = code != null && !paused && !busyElsewhere
 
 /** Island radius for the off-board supplies (#52), from the board's outermost corner. */
 internal fun supplyLandR(board: Board): Float =

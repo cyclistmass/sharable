@@ -17,6 +17,17 @@ service cloud.firestore {
       let k = changed.hasAny(['1']) ? '1' : (changed.hasAny(['2']) ? '2' : '3');
       return changed.size() == 1 && !changed.hasAny(['0']) && selfSeat(k);
     }
+    // A guest quits a running game (Mauro, 2026-10-11): their own seat, not the host's, goes to a bot that the
+    // host's phone then plays; nothing else changes.
+    function quitSeat(k) {
+      let a = resource.data.seats[k]; let b = request.resource.data.seats[k];
+      return k != '0' && a.uid == request.auth.uid && b.uid == null && b.name == '' && b.bot in ['EASY','GREEDY','STRONG'] && b.open == false && b.ready == false;
+    }
+    function quitChange() {
+      let changed = resource.data.seats.diff(request.resource.data.seats).affectedKeys();
+      let k = changed.hasAny(['1']) ? '1' : (changed.hasAny(['2']) ? '2' : '3');
+      return changed.size() == 1 && !changed.hasAny(['0']) && quitSeat(k);
+    }
     // Crash reports from players: anyone signed in may add one; nobody can read, change or delete them
     // (Mauro reads them in the Firebase console).
     match /crashes/{id} {
@@ -33,7 +44,8 @@ service cloud.firestore {
         (resource.data.status == 'lobby' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seats','status','options']) &&
           ((resource.data.host == request.auth.uid && request.resource.data.status in ['lobby','playing']) ||
            (request.resource.data.status == 'lobby' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seats']) && selfChange()))) ||
-        (resource.data.status == 'playing' && resource.data.host == request.auth.uid && request.resource.data.status == 'done' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+        (resource.data.status == 'playing' && resource.data.host == request.auth.uid && request.resource.data.status == 'done' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])) ||
+        (resource.data.status == 'playing' && request.resource.data.status == 'playing' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seats']) && quitChange())
       );
       match /moves/{move} {
         function parent() { return get(/databases/$(database)/documents/games/$(game)).data; }

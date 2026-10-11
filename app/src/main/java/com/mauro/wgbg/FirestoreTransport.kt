@@ -91,9 +91,13 @@ class FirestoreTransport(private val auth: FirebaseAuth, private val db: Firebas
         r.copy(seats = r.seats.toMutableList().also { it[seat] = it[seat].copy(uid = uid, name = name, open = false, ready = false) })
     }
     override fun leave(id: String) = change(id) { r ->
-        require(r.status == Status.lobby && uid != r.host)
+        require((r.status == Status.lobby || r.status == Status.playing) && uid != r.host)
         val i = r.seats.indexOfFirst { it.uid == uid }; require(i > 0)
-        r.copy(seats = r.seats.toMutableList().also { it[i] = it[i].copy(uid = null, name = "", ready = false, open = true) })
+        r.copy(seats = r.seats.toMutableList().also {
+            // In the lobby the seat reopens; in a running game a bot takes it over (the host's phone plays it).
+            it[i] = if (r.status == Status.lobby) it[i].copy(uid = null, name = "", ready = false, open = true)
+                else it[i].copy(uid = null, name = "", ready = false, open = false, bot = it[i].bot ?: BotLevel.GREEDY.name)
+        })
     }
     override fun editLobby(id: String, seats: List<Seat>, expectedSeats: List<Seat>?) = change(id) { r ->
         require(r.status == Status.lobby)

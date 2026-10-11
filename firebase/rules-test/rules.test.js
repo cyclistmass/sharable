@@ -25,6 +25,16 @@ test('single move create is ordered and immutable; no counter write',async()=>{a
 test('guest writes own seat; host writes bot; host cannot impersonate person',async()=>{await seed('playing');await assertSucceeds(append('guest',0,'1'));await assertSucceeds(append('host',1,'2'));await assertFails(append('host',2,'1'));});
 test('unauthenticated, unseated, wrong seat, skipped sequence, invalid id and garbage denied',async()=>{await seed('playing');await assertFails(append(null));await assertFails(append('other'));await assertFails(append('guest',0,'0'));await assertFails(append('host',2));await assertFails(append('host',0,'0','0'));await assertFails(append('host',0,'0','0000000001'));await assertFails(append('host',0,'0','0000000000','garbage'));});
 test('standalone move succeeds; forged room counter denied',async()=>{await seed('playing');await assertSucceeds(append());await assertFails(updateDoc(ref('host'),{nextSeq:1,lastMove:'0000000000'}));});test('lobby and done reject moves; deny unknown paths and extra fields',async()=>{await seed();await assertFails(append());await seed('done');await assertFails(append());await assertFails(setDoc(doc(db('host'),'unknown/a'),{}));await assertFails(updateDoc(ref('host'),{extra:true}));});
+test('a guest quits a running game: the seat goes to a bot the host plays; nobody else can quit it',async()=>{await seed('playing');
+  const bot=seat(null,'','GREEDY',false,false);
+  await assertFails(updateDoc(ref('other'),{'seats.1':bot}));
+  await assertFails(updateDoc(ref('guest'),{'seats.1':seat(null,'',null,false,false)}));
+  await assertFails(updateDoc(ref('guest'),{'seats.1':seat(null,'','GREEDY',true,false)}));
+  await assertFails(updateDoc(ref('guest'),{'seats.1':bot,'seats.2.bot':'EASY'}));
+  await assertFails(updateDoc(ref('host'),{'seats.0':seat(null,'','GREEDY',false,false)}));
+  await assertSucceeds(updateDoc(ref('guest'),{'seats.1':bot}));
+  await assertSucceeds(append('host',0,'1'));
+  await assertFails(append('guest',1,'1'));});
 test('two concurrent appends only one succeeds',async()=>{await seed('playing');const r=await Promise.allSettled([append(),append()]);if(r.filter(x=>x.status==='fulfilled').length !== 1)throw Error('append race failed');});
 test('all guest seats may claim, ready and leave; lobby log is readable',async()=>{await seed();await assertSucceeds(getDocs(collection(db('other'),'games/g/moves')));for(const k of ['1','2','3']){await assertSucceeds(updateDoc(ref('host'),{['seats.'+k]:seat()}));await assertSucceeds(updateDoc(ref('guest'),{['seats.'+k]:seat('guest','Guest',null,false)}));await assertSucceeds(updateDoc(ref('guest'),{['seats.'+k+'.ready']:true}));await assertSucceeds(updateDoc(ref('guest'),{['seats.'+k]:seat()}));}});
 test('missing, forged and malformed predecessors, uid and extra fields denied',async()=>{
