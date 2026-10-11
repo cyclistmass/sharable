@@ -204,9 +204,14 @@ while true; do
     done
     tap_text "$(echo "$d" | grep -o 'text="Discard [0-9]*"' | head -1 | cut -d'"' -f2)" "$d" || true
   elif tap_text "Roll" "$d"; then :
+  elif echo "$d" | grep -q 'text="Hide"'; then
+    # The menu is open (a stray tap on the gear): carry on playing if it got paused, then close it, as a player would.
+    echo "$(date +%T) menu open, closing it" >&2
+    echo "$d" | grep -q 'text="Play"' && tap_text "Play" "$d"
+    tap_text "Hide" "$d" || true
   else
     # Any other on-screen choice (pickers, victims, Age of Chivalry buttons), else End turn.
-    opts=$(echo "$d" | grep -o 'text="[^"]\+"' | cut -d'"' -f2 | grep -v -x -E 'Menu|Trade|Hide|Exit|Leave|Settings|End turn|Roll|Counter|Offer|You|Blue|Orange|White|Red|Tester|Duo|\(.*\)|Your turn|[0-9/ ]+|.*turn.*|.*Tap .*|.*built.*|.*rolled.*|.*\+[0-9].*|Raiders|Zoom|Tilt|Players|Maritime|have [0-9]+|.*offers.*|.*chosen.*' | shuf)
+    opts=$(echo "$d" | grep -o 'text="[^"]\+"' | cut -d'"' -f2 | grep -v -x -E 'Menu|Trade|Hide|Exit|Leave|Settings|End turn|Roll|Counter|Offer|You|Blue|Orange|White|Red|Tester|Duo|\(.*\)|Your turn|[0-9/ ]+|.*turn.*|.*Tap .*|.*built.*|.*rolled.*|.*\+[0-9].*|Raiders|Zoom|Tilt|Players|Maritime|have [0-9]+|.*offers.*|.*chosen.*|Pause|Play|Slow|Normal|Fast|Max|Watch bots|Fit|Dice.*|v[0-9.]+|Sound|Music.*|Sounds.*|Inventory|Look.*' | shuf)
     # After a few taps that changed nothing, a player ends the turn.
     if [ -n "$opts" ] && [ "$tries" -lt 3 ] && [ $((RANDOM % 3)) != 0 ]; then tap_text "$(echo "$opts" | shuf -n 1)" "$d" || true
     else tap_text "End turn" "$d" || { [ -n "$opts" ] && tap_text "$(echo "$opts" | shuf -n 1)" "$d"; } || true; fi
