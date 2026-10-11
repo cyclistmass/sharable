@@ -69,7 +69,7 @@ if [ "$MODE" = join ]; then
   for _ in $(seq 1 90); do [ -s "$ROOM_FILE" ] && break; sleep 2; done
   code=$(cat "$ROOM_FILE" 2>/dev/null); [ -n "$code" ] || fail "no room code from the host in $ROOM_FILE"
   # Online needs a name first (the buttons stay off for "You").
-  xy=$(find_text "You" "$d") || true; [ -n "$xy" ] && { type_into $xy "Duo"; "$ADB" shell input keyevent 66; sleep 1; }
+  xy=$(find_text "You" "$d") || true; [ -n "$xy" ] && { type_into $xy "Duo"; "$ADB" shell input keyevent KEYCODE_BACK; sleep 1; }
   tap_text "Join a room" || fail "no Join a room button"
   sleep 1.5; d=$(dump)
   # Text boxes top to bottom: name, code. The keyboard moves things, so close it and look again before each box.
@@ -93,7 +93,7 @@ else
   [ "$MODE" = host ] && { xy=$(all_text Friend "$(dump)" | head -1); [ -n "$xy" ] || fail "no Friend seat button"; tap $xy; sleep 0.6; }
   [ "$RULESET" = chivalry ] && { tap_text "Age of Chivalry" || fail "no ruleset button"; }
   if [ "$MODE" = online ] || [ "$MODE" = host ]; then
-    xy=$(find_text "You") || true; [ -n "$xy" ] && { type_into $xy "Tester"; "$ADB" shell input keyevent 66; sleep 1; }
+    xy=$(find_text "You") || true; [ -n "$xy" ] && { type_into $xy "Tester"; "$ADB" shell input keyevent KEYCODE_BACK; sleep 1; }
     tap_text "Host online room" || fail "no Host online room button"
     sleep 8
     if [ "$MODE" = host ]; then
@@ -127,7 +127,7 @@ if [ "$MODE" = local ]; then
   done; tap_text "Hide"
 fi
 
-start=$(date +%s); moves=0; last=""; prev=""; same=0
+start=$(date +%s); moves=0; last=""; prev=""; same=0; tries=0; changed=$(date +%s)
 while true; do
   [ $(( $(date +%s) - start )) -gt $((MINUTES * 60)) ] && fail "game not over after $MINUTES minutes ($moves moves)"
   crashed && fail "crash after $moves moves"
@@ -139,12 +139,14 @@ while true; do
   legal=$(echo "$line" | sed -n 's/.* legal=\([^ ]*\).*/\1/p')
   if [ -z "$legal" ] || [ "$line" = "$last" ]; then
     # Not my move (bots playing, dice flying), or my last tap didn't take yet.
-    same=$((same + 1)); [ "$same" -gt 90 ] && fail "stuck: ${line:0:200}"
+    # Stuck = the game log hasn't moved for 5 minutes (anyone's move moves it; a slow friend or bot doesn't count).
+    [ "$line" = "$prev" ] || { changed=$(date +%s); prev="$line"; tries=0; }
+    same=$((same + 1)); [ $(( $(date +%s) - changed )) -gt 300 ] && fail "stuck: ${line:0:200}"
     # A move of mine that didn't take: try the on-screen buttons again.
     if [ -n "$legal" ] && [ $((same % 6)) = 5 ]; then last=""; fi
     sleep 1; continue
   fi
-  [ "$line" = "$prev" ] || same=0; last="$line"; prev="$line"
+  if [ "$line" = "$prev" ]; then tries=$((tries + 1)); else same=0; tries=0; changed=$(date +%s); fi; last="$line"; prev="$line"
   spots=$(echo "$line" | sed -n 's/.* spots=\([^ ]*\).*/\1/p' | tr ';' '\n')
   d=$(dump)
   if [ -n "$spots" ] && [ $((RANDOM % 5)) != 0 ]; then
@@ -161,8 +163,9 @@ while true; do
   elif tap_text "Roll" "$d"; then :
   else
     # Any other on-screen choice (pickers, victims, Age of Chivalry buttons), else End turn.
-    opts=$(echo "$d" | grep -o 'text="[^"]\+"' | cut -d'"' -f2 | grep -v -x -E 'Menu|Trade|Hide|Exit|Leave|Settings|End turn|Roll|Counter|Offer|You|Blue|Orange|White|Red|Your turn|[0-9/ ]+|.*turn.*|.*Tap .*|.*built.*|.*rolled.*|.*\+[0-9].*|Raiders|Zoom|Tilt' | head -12)
-    if [ -n "$opts" ] && [ $((RANDOM % 3)) != 0 ]; then tap_text "$(echo "$opts" | shuf -n 1)" "$d" || true
+    opts=$(echo "$d" | grep -o 'text="[^"]\+"' | cut -d'"' -f2 | grep -v -x -E 'Menu|Trade|Hide|Exit|Leave|Settings|End turn|Roll|Counter|Offer|You|Blue|Orange|White|Red|Tester|Duo|\(.*\)|Your turn|[0-9/ ]+|.*turn.*|.*Tap .*|.*built.*|.*rolled.*|.*\+[0-9].*|Raiders|Zoom|Tilt' | head -12)
+    # After a few taps that changed nothing, a player ends the turn.
+    if [ -n "$opts" ] && [ "$tries" -lt 3 ] && [ $((RANDOM % 3)) != 0 ]; then tap_text "$(echo "$opts" | shuf -n 1)" "$d" || true
     else tap_text "End turn" "$d" || { [ -n "$opts" ] && tap_text "$(echo "$opts" | shuf -n 1)" "$d"; } || true; fi
   fi
   moves=$((moves + 1))
