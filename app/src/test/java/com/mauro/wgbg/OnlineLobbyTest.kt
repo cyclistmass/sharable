@@ -106,4 +106,17 @@ class OnlineLobbyTest {
         assertEquals("That room is full or has started", onlineProblem(stranger.exceptionOrNull()!!))
         listOf(host, typed).forEach { it.close() }
     }
+
+    @Test
+    fun `hosting picks another code when the first ones are taken by old rooms, and gives up after its tries`() {
+        val store = MemoryStore()
+        val setup = GameSetup(name = "Mauro")
+        for (c in listOf("ROVER-42", "HARBOR-43")) LobbySession.host(InMemoryTransport("old", store), setup, 1, code = c).join().close()
+        val codes = ArrayDeque(listOf("HARBOR-43", "CEDAR-44"))
+        val s = LobbySession.host(InMemoryTransport("h", store), setup, 5, code = "ROVER-42") { codes.removeFirst() }.join()
+        assertEquals("CEDAR-44", s.id)
+        s.close()
+        val stuck = runCatching { LobbySession.host(InMemoryTransport("h2", store), setup, 5, code = "ROVER-42", attempts = 2) { "HARBOR-43" }.join() }
+        assertTrue(stuck.isFailure, "two taken codes and two tries: fails")
+    }
 }

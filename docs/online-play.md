@@ -178,7 +178,7 @@ domain/App Link, host cancellation/transfer and disconnect UX separately.
 
 ## In the app (wired 2026-10-09)
 
-Start screen: **Host online room** (opens a room, shows its code, link and QR) or **Join a room** (type
+Start screen: **Host a room** (opens a room, shows its code, link and QR) or **Join a room** (type
 the code; any case, spaces or no dash; takes the first open seat). Online needs a real name, not the
 default "You". Everyone marks ready, the host starts, and every phone plays the same game: your moves go
 through `GameClient.act`, dice through `nextRoll()`, and the host's phone plays the room's bots.

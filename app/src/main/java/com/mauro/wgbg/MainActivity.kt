@@ -1106,9 +1106,9 @@ fun WatchGameScreen(
                 WoodButton("Keep playing", "exit-no") { confirmExit = false }
                 ColorButton(if (online != null) "Leave for now" else "Leave", Color(0xFFC0392B), "exit-yes") { confirmExit = false; onExit() }
                 if (online != null && onDeleteRoom != null && net?.isHost == true)
-                    ColorButton("Delete game", Color(0xFF7A1E14), "exit-delete") { confirmExit = false; onDeleteRoom() }
+                    ColorButton("Delete game", Color(0xFFC0392B), "exit-delete") { confirmExit = false; onDeleteRoom() }
                 if (online != null && onQuitRoom != null && net?.isHost != true)
-                    ColorButton("Quit", Color(0xFF7A1E14), "exit-quit") { confirmExit = false; onQuitRoom() }
+                    ColorButton("Quit", Color(0xFFC0392B), "exit-quit") { confirmExit = false; onQuitRoom() }
             }
         }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.

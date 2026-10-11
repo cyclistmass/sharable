@@ -157,8 +157,8 @@ fun NewGameScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val ready = onlineName(setup.name)
                 if (onOpenLobby != null) {
-                    if (ready) GoButton("Host online room", "open-lobby", true, Modifier.weight(1f).height(40.dp)) { onOpenLobby(setup) }
-                    else Choice("Host online room", false, "open-lobby", Modifier.weight(1f).height(36.dp), radius = 10.dp, enabled = false) { }
+                    if (ready) GoButton("Host a room", "open-lobby", true, Modifier.weight(1f).height(40.dp)) { onOpenLobby(setup) }
+                    else Choice("Host a room", false, "open-lobby", Modifier.weight(1f).height(36.dp), radius = 10.dp, enabled = false) { }
                 }
                 if (onJoinRoom != null) {
                     if (ready) GoButton("Join a room", "join-room", true, Modifier.weight(1f).height(40.dp)) { onJoinRoom(setup) }
