@@ -57,27 +57,26 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                 /** False inside the one left side panel (#73), which draws the frame for both halves. */
                 framed: Boolean = true) {
     version // the state object is mutated in place; this changing value makes the strip redraw after each move
-    Column((if (framed) modifier.brassEdgedWood() else modifier).padding(horizontal = 12.dp, vertical = 8.dp).testTag("player-strip"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column((if (framed) modifier.brassEdgedWood() else modifier).padding(horizontal = 12.dp, vertical = 8.dp).testTag("player-strip"), verticalArrangement = Arrangement.spacedBy(1.dp)) {
         // Age of Chivalry: how near the Raiders are (a ship marker on a 7-step track).
         s.ck?.let { ck ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.testTag("raiders-track")) {
                 Text("Raiders", color = Color(0xFFE57373), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp))
                 for (i in 0 until wgbg.engine.CkPiece.BARBARIAN_TRACK) Box(
-                    Modifier.size(width = 14.dp, height = 8.dp)
+                    Modifier.size(width = 11.dp, height = 8.dp)
                         .background(if (i < ck.barbarianPos) Color(0xFFC0392B) else Color(0x73000000), RoundedCornerShape(2.dp)),
                 )
-                Text("${raidersStepsLeft(ck.barbarianPos)}", color = Color(0xFFE57373), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                // Raiders' strength vs every active knight, on the track's own line (Mauro): green while the knights would hold.
+                val raiders = wgbg.engine.CitiesAndKnights.barbarianStrength(s)
+                val knights = (0 until s.numPlayers).sumOf { wgbg.engine.CitiesAndKnights.activeKnightStrength(s, it) }
+                Text("$raiders vs $knights", fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp).testTag("raiders-vs-knights"),
+                    color = if (knights >= raiders) Color(0xFF8BD18B) else Color(0xFFFF6B5E))
             }
-            // Who wins if they land now: the Raiders' strength (every town) against all active knights (Mauro).
-            val raiders = wgbg.engine.CitiesAndKnights.barbarianStrength(s)
-            val knights = (0 until s.numPlayers).sumOf { wgbg.engine.CitiesAndKnights.activeKnightStrength(s, it) }
-            Text("Raiders $raiders vs knights $knights", fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("raiders-vs-knights"),
-                color = if (knights >= raiders) Color(0xFF8BD18B) else Color(0xFFFF6B5E))
         }
         for (p in 0 until s.numPlayers) {
             val turn = !s.isOver && p == s.currentPlayer
             Row(
-                Modifier.then(if (turn) Modifier.border(1.dp, Color(0xFFC9A04A), RoundedCornerShape(8.dp)) else Modifier).padding(horizontal = 6.dp, vertical = 2.dp),
+                Modifier.then(if (turn) Modifier.border(1.dp, Color(0xFFC9A04A), RoundedCornerShape(8.dp)) else Modifier).padding(horizontal = 6.dp, vertical = 1.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 // The score sits in the player's colour dot, so the strip needs no score column (Mauro).
@@ -96,7 +95,7 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                 }
                 // The card count, and under it (right of the upgrade bars) the road length and knights: a squiggle and a
                 // shield, gold for whoever holds Longest Road / Largest Army (Mauro).
-                Column(Modifier.width(64.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(Modifier.width(64.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                 // A tiny card icon and the count; in Age of Chivalry "cards/progress", e.g. 8/3.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(width = 10.dp, height = 14.dp).background(Color(0xFFEFE3C8), RoundedCornerShape(2.dp))

@@ -2,6 +2,7 @@ package com.mauro.wgbg
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -43,12 +44,15 @@ fun boardMoves(legal: List<Action>, mode: BuildKind?): List<Action> = if (mode =
  */
 @Composable
 fun BuildMenu(chivalry: Boolean, legal: List<Action>, mode: BuildKind?, onMode: (BuildKind?) -> Unit, onMove: (Action) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.testTag("build-menu"), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
-        for (k in BuildKind.forRuleset(chivalry)) {
-            val moves = legal.filter { it.type == k.kind }
-            IconPlateButton(k.icon, k.label, "build-${k.name.lowercase()}", lit = mode == k, enabled = moves.isNotEmpty(), width = 54.dp, height = 46.dp,
-                modifier = Modifier.padding(0.dp)) {
-                if (!k.onBoard) moves.firstOrNull()?.let(onMove) else onMode(if (mode == k) null else k)
+    // Two columns (pieces, then knights and walls), so the menu ends well above Trade / Roll / End turn.
+    val kinds = BuildKind.forRuleset(chivalry)
+    Row(modifier.testTag("build-menu"), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        for (col in kinds.chunked(4)) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            for (k in col) {
+                val moves = legal.filter { it.type == k.kind }
+                IconPlateButton(k.icon, k.label, "build-${k.name.lowercase()}", lit = mode == k, enabled = moves.isNotEmpty(), width = 46.dp, height = 40.dp) {
+                    if (!k.onBoard) moves.firstOrNull()?.let(onMove) else onMode(if (mode == k) null else k)
+                }
             }
         }
     }
