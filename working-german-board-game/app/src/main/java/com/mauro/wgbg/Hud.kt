@@ -7,6 +7,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -38,6 +44,8 @@ private val HUD_TEXT = Color(0xFFEDE6D8)
 /** The roll and what came of it, pinned to a corner of the board. */
 @Composable
 fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PLAYER_NAMES, modifier: Modifier = Modifier,
+            /** Earlier turns, newest first: shown below this turn so you can scroll back to see what everyone did (#65). */
+            history: List<TurnReport> = emptyList(),
             /** Reports where the two dice are (root coordinates), so thrown dice can fly to them. */
             onDiceSlots: ((androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect) -> Unit)? = null,
             /** Age of Chivalry: where the event die rests (root coordinates). */
@@ -51,14 +59,18 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             /** Dice set: false = Normal (carved red + ivory), true = Pirate (ship-timber + bone, dark brass pips). */
             pirate: Boolean = false,
             /** Settings > Event die: which pirate event die art (DiceArt.EVENT_STYLES). */
-            eventStyle: Int = 0) {
+            eventStyle: Int = 0,
+            /** Width; inside the one left side panel it matches the player list above (#73), and the news wraps. */
+            width: androidx.compose.ui.unit.Dp = 360.dp,
+            /** False inside the one left side panel, which draws the frame for both halves. */
+            framed: Boolean = true) {
     if (report == null) return
-    // Fixed size, so the dice always sit in the same spot; longer turns scroll inside.
+    // Fixed size, so the dice always sit in the same spot. The dice and whose turn it is stay pinned at the top; this
+    // turn's news and the earlier turns below scroll, with a brass scroll bar on the right (#65).
     Column(
-        modifier.size(width = 360.dp, height = height)
-            .brassEdgedWood()
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-            .verticalScroll(androidx.compose.foundation.rememberScrollState()),
+        modifier.size(width = width, height = height)
+            .then(if (framed) Modifier.brassEdgedWood() else Modifier)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -73,15 +85,49 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             }
             Text(if (names[report.player] == "You") "Your turn" else "${names[report.player]}'s turn", color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
+        val scroll = androidx.compose.foundation.rememberScrollState()
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+        Column(Modifier.fillMaxSize().padding(end = 10.dp).verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         for (line in report.production) Text(line, color = HUD_TEXT, fontSize = 12.sp, maxLines = 1)
-        for (line in report.events.takeLast(4)) Text(line, color = HUD_TEXT.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 1)
-        if (previous != null && previous.rolled) {
+        for (line in report.events) Text(line, color = HUD_TEXT.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 2)
+        val earlier = history.filter { it !== report }
+        if (earlier.isNotEmpty()) {
+            // Scroll down for earlier turns: each one's player and roll, then everything that happened.
+            for (t in earlier) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    (if (names[t.player] == "You") "Your turn" else "${names[t.player]}'s turn") +
+                        (if (t.rolled) " · rolled ${t.die1 + t.die2}" else "") + " · turn ${t.turn + 1}",
+                    color = PLAYER_COLORS[t.player].copy(alpha = 0.9f), fontWeight = FontWeight.Bold, fontSize = 12.sp,
+                )
+                for (line in t.production) Text(line, color = HUD_TEXT.copy(alpha = 0.7f), fontSize = 11.sp, maxLines = 2)
+                for (line in t.events) Text(line, color = HUD_TEXT.copy(alpha = 0.6f), fontSize = 11.sp, maxLines = 2)
+            }
+        } else if (previous != null && previous.rolled) {
             Text(
                 "Last turn: ${names[previous.player]} rolled ${previous.die1 + previous.die2}. " +
                     previous.production.joinToString("; "),
                 color = HUD_TEXT.copy(alpha = 0.6f), fontSize = 11.sp, maxLines = 2,
             )
         }
+        }
+        BrassScrollBar(scroll, Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(5.dp))
+        }
+    }
+}
+
+/** A thin worn-brass scroll bar for [state]: a dark groove with a brass thumb; hidden when nothing scrolls. */
+@Composable
+private fun BrassScrollBar(state: androidx.compose.foundation.ScrollState, modifier: Modifier) {
+    if (state.maxValue <= 0) return
+    Canvas(modifier) {
+        val r = androidx.compose.ui.geometry.CornerRadius(size.width / 2, size.width / 2)
+        drawRoundRect(Color(0x66000000), cornerRadius = r)
+        val visible = size.height / (size.height + state.maxValue)
+        val thumbH = (size.height * visible).coerceAtLeast(size.width * 4)
+        val top = (size.height - thumbH) * state.value / state.maxValue
+        drawRoundRect(Color(0xFFB08A3E), topLeft = androidx.compose.ui.geometry.Offset(0f, top),
+            size = androidx.compose.ui.geometry.Size(size.width, thumbH), cornerRadius = r)
     }
 }
 

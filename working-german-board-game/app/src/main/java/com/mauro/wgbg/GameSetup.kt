@@ -73,7 +73,27 @@ data class GameSetup(
 
     fun withDecks(d: Int) = copy(decks = d.coerceIn(0, MAX_DECKS))
 
+    /**
+     * Saved as one line (#68, #69: the start screen comes back with your last game and your name):
+     * v1|name|photo|ruleset|points|decks|kind:bot,kind:bot,kind:bot,kind:bot (name and photo URL-encoded).
+     */
+    fun encode(): String = listOf("v1", enc(name), enc(photo ?: ""), ruleset.name, points.toString(), decks.toString(),
+        seats.joinToString(",") { "${it.kind.name}:${it.bot.name}" }).joinToString("|")
+
     companion object {
+        private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
+        private fun dec(s: String) = java.net.URLDecoder.decode(s, "UTF-8")
+
+        /** The setup [encode] wrote, or null if [text] is missing, from an unknown version or damaged. */
+        fun decode(text: String?): GameSetup? = runCatching {
+            val f = text!!.split("|"); require(f.size == 7 && f[0] == "v1")
+            val seats = f[6].split(",").map { s -> val (k, b) = s.split(":"); SeatSetup(SeatKind.valueOf(k), BotLevel.valueOf(b)) }
+            require(seats.size == MAX_SEATS && seats[0].kind == SeatKind.FRIEND)
+            GameSetup(name = dec(f[1]).take(40).ifBlank { "You" }, photo = dec(f[2]).ifBlank { null }, seats = seats,
+                decks = f[5].toInt().coerceIn(0, MAX_DECKS), ruleset = Ruleset.valueOf(f[3]),
+                points = f[4].toInt().coerceIn(POINTS_RANGE))
+        }.getOrNull()
+
         const val MAX_SEATS = 4
         const val MAX_DECKS = 4
         val POINTS_RANGE = 5..20

@@ -106,12 +106,13 @@ fun Modifier.tableTop(): Modifier {
 
 /** A panel of dark-stained wood with a thin old-brass edge (the canvases' `.seat`). */
 @Composable
-fun Modifier.brassEdgedWood(edge: Dp = 5.dp): Modifier {
+fun Modifier.brassEdgedWood(edge: Dp = 5.dp, woodAlpha: Float = 1f): Modifier {
     val wood = rememberTexture(R.drawable.wood_grain, 240.dp)
     val brass = rememberTexture(R.drawable.old_brass, 200.dp)
-    return shadow(8.dp, RectangleShapeCompat).drawBehind {
-        drawRect(wood)
-        drawRect(Brush.verticalGradient(listOf(Color(0xC22E1A0C), Color(0xE6120A04))))
+    // woodAlpha < 1: a see-through panel (Settings > Side panel) shows the board through the wood; the brass frame stays.
+    return (if (woodAlpha >= 1f) shadow(8.dp, RectangleShapeCompat) else this).drawBehind {
+        drawRect(wood, alpha = woodAlpha)
+        drawRect(Brush.verticalGradient(listOf(Color(0xC22E1A0C), Color(0xE6120A04))), alpha = woodAlpha)
         val e = edge.toPx()
         // The brass frame, then a bevel: light on the outer top-left, dark on the inner edge.
         drawRect(brass, Offset(e / 2, e / 2), Size(size.width - e, size.height - e), style = Stroke(e))

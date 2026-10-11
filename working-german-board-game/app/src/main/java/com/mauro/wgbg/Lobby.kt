@@ -158,7 +158,7 @@ private fun SeatRow(lobby: Lobby, i: Int, onChange: (Lobby) -> Unit) {
         when {
             seat.open -> {
                 Text(
-                    if (seat.bot != null) "Open seat · bot if nobody joins" else "Open seat · stays empty if nobody joins",
+                    if (seat.bot != null) "Open seat · a bot plays if nobody joins" else "Open seat · for a person only",
                     style = Wood.sans(14.sp, color = Wood.INK_MUTED), modifier = Modifier.weight(1f), maxLines = 1,
                 )
                 if (lobby.isHost) BotPicker(seat.bot, i, allowNone = true) { onChange(lobby.setBot(i, it)) }
@@ -189,7 +189,11 @@ private fun SeatRow(lobby: Lobby, i: Int, onChange: (Lobby) -> Unit) {
     }
 }
 
-/** Easy / Greedy / Strong (and None on open seats): brass when chosen, dark wood otherwise. */
+/**
+ * Human / Easy / Greedy / Strong on open seats (Human: keep it for a person, no bot fills it), Easy / Greedy / Strong on
+ * bot seats. The chosen one is a bright brass plate with a check; the rest are dimmed, so it's clear what you picked
+ * (Mauro: it was easy to uninvite someone while setting bot strength).
+ */
 @Composable
 private fun BotPicker(current: BotLevel?, seat: Int, allowNone: Boolean, onPick: (BotLevel?) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -204,7 +208,8 @@ private fun BotPicker(current: BotLevel?, seat: Int, allowNone: Boolean, onPick:
                     .padding(horizontal = 8.dp).testTag("lobby-seat-$seat-bot-${b?.name ?: "NONE"}"),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(b?.label ?: "None", style = Wood.sans(11.sp, if (on) FontWeight.Bold else FontWeight.SemiBold, if (on) Wood.BRASS_INK else Wood.INK))
+                Text((if (on) "✓ " else "") + (b?.label ?: "Human"), style = Wood.sans(11.sp, if (on) FontWeight.Bold else FontWeight.Normal,
+                    if (on) Wood.BRASS_INK else Wood.INK.copy(alpha = 0.55f)))
             }
         }
     }

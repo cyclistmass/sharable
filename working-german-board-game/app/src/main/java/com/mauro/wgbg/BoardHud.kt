@@ -47,9 +47,11 @@ fun barSegments(level: Int) = level.coerceIn(0, 4)
 @Composable
 fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifier: Modifier = Modifier,
                 /** The turn whose roll the mini cards show (#47); null shows none. */
-                roll: TurnReport? = null) {
+                roll: TurnReport? = null,
+                /** False inside the one left side panel (#73), which draws the frame for both halves. */
+                framed: Boolean = true) {
     version // the state object is mutated in place; this changing value makes the strip redraw after each move
-    Column(modifier.brassEdgedWood().padding(horizontal = 12.dp, vertical = 8.dp).testTag("player-strip"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column((if (framed) modifier.brassEdgedWood() else modifier).padding(horizontal = 12.dp, vertical = 8.dp).testTag("player-strip"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         // Age of Chivalry: how near the Raiders are (a ship marker on a 7-step track).
         s.ck?.let { ck ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.testTag("raiders-track")) {
@@ -132,11 +134,13 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
             }
         }
         val ck = s.ck ?: return@Row
-        // Commodities: Parchment (Academy), Weave (Guilds), Silver (Crown), until their card art lands.
-        val commodityTrack = listOf(wgbg.engine.Track.SCIENCE, wgbg.engine.Track.TRADE, wgbg.engine.Track.POLITICS)
+        // Commodities: Parchment, Weave, Silver, with their card art (#62).
         for (c in 0 until wgbg.engine.Commodity.COUNT) {
             val n = s.card(me, CARD_TYPES + c)
-            if (n > 0) namedCard(ALL_CARD_NAMES[CARD_TYPES + c], TRACK_COLORS[commodityTrack[c]], n, "hand-commodity-$c", 50, 70)
+            if (n > 0) Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.testTag("hand-commodity-$c")) {
+                Image(painterResource(COMMODITY_ART[c]), ALL_CARD_NAMES[CARD_TYPES + c], Modifier.size(width = 50.dp, height = 70.dp))
+                count(n)
+            }
         }
         for (c in 0 until wgbg.engine.Progress.COUNT) {
             val n = ck.progressHand[me * wgbg.engine.Progress.COUNT + c]

@@ -259,7 +259,7 @@ class Sea(board: Board, seed: Int = 1) {
         var laneStartX = -laneDir * OPEN_RX
     }
     /** Sail colours for the cruising boats (the players' colours). */
-    var boatColors: List<Color> = listOf(Color(0xFFD32F2F), Color(0xFF1E63C6), Color(0xFFF57C00), Color(0xFFF5F5F5))
+    var boatColors: List<Color> = PLAYER_COLORS
     internal val boats: List<Boat> = List(MAX_BOATS) { i ->
         val (x, y) = seaPoint(0.7f); val (tx, ty) = seaPoint(0.7f)
         Boat(x, y.coerceIn(-LANE_Y, LANE_Y), tx, y.coerceIn(-LANE_Y, LANE_Y), if (rnd.nextBoolean()) 0f else PI.toFloat(), 0.10f + rnd.nextFloat() * 0.08f, i % 4, rnd.nextFloat() * 6f)

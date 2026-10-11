@@ -59,6 +59,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.imageResource
@@ -229,7 +231,10 @@ private val TERRAIN_COLORS = mapOf(
     Resource.NONE to Color(0xFFE8D9A8),
 )
 
-internal val PLAYER_COLORS = listOf(Color(0xFFD32F2F), Color(0xFF1E63C6), Color(0xFFF57C00), Color(0xFFF5F5F5))
+/** Seat colours. Mauro's pick (#59, 2026-10-11): scarlet and a hue-29 orange, both 20% lighter, so red and orange never blur. */
+internal val PLAYER_COLORS = listOf(Color(0xFFFF5C59), Color(0xFF1E63C6), Color(0xFFFF9B3E), Color(0xFFF5F5F5))
+/** The brown (tan) for boat sails and the extra seats of six-player games (v3). */
+internal val PLAYER_BROWN = Color(0xFF8D6E63)
 internal val PLAYER_NAMES = listOf("Red", "Blue", "Orange", "White")
 private val INK = Color(0xFF2B2118)
 
@@ -262,7 +267,7 @@ private fun polygon(points: List<Offset>) = Path().apply {
 /** Pips under a number token: how many dice combinations roll it (2/12 → 1, 6/8 → 5). */
 private fun pips(n: Int) = 6 - kotlin.math.abs(7 - n)
 
-private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME }
+private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME, LOOK }
 
 /**
  * Game start (#3) -> the game, or online: host a room (lobby #19) or join one by code -> the online game (#7).
@@ -272,8 +277,12 @@ private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME 
 fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseEmu: Boolean = false, autoplay: Boolean = false, autoSetup: Boolean = false, watch: Boolean = false,
             crashTest: Boolean = false, players: Int = 0, inviteCode: String? = null) {
     var screen by rememberSaveable { mutableStateOf(if (start != null) Screen.GAME else if (inviteCode != null) Screen.JOIN else Screen.START) }
+    val context0 = LocalContext.current.applicationContext
+    // Your last game's settings and your name, kept across restarts (#68, #69); debug starts use the defaults.
+    val savedSetup = remember { context0.getSharedPreferences("setup", android.content.Context.MODE_PRIVATE) }
     var setup by remember {
-        val base = if (start == "chivalry") GameSetup().withRuleset(Ruleset.CHIVALRY) else GameSetup()
+        val last = if (start == null && players == 0) GameSetup.decode(savedSetup.getString("last", null)) else null
+        val base = last ?: if (start == "chivalry") GameSetup().withRuleset(Ruleset.CHIVALRY) else GameSetup()
         // `--ei players N` (debug): you plus N-1 bots, the other seats empty.
         mutableStateOf(if (players in 2..GameSetup.MAX_SEATS) base.copy(seats = List(GameSetup.MAX_SEATS) { i ->
             when { i == 0 -> base.seats[0]; i < players -> SeatSetup(SeatKind.BOT); else -> SeatSetup(SeatKind.EMPTY) } }) else base)
@@ -369,17 +378,18 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             modifier = Modifier.align(Alignment.BottomEnd).zIndex(1f).padding(10.dp).testTag("app-version"))
         when (screen) {
             Screen.START -> NewGameScreen(
-                onStart = { setup = it; gameNo++; screen = Screen.GAME },
+                onStart = { setup = it; savedSetup.edit().putString("last", it.encode()).apply(); gameNo++; screen = Screen.GAME },
                 initial = setup,
                 onOpenLobby = { s ->
-                    setup = s; busy = true; problem = null
+                    setup = s; savedSetup.edit().putString("last", s.encode()).apply(); busy = true; problem = null
                     LobbySession.host(transport.value, s, java.security.SecureRandom().nextLong()).whenComplete { r, e ->
                         scope.launch { if (e != null) failed(e) else { busy = false; enterRoom(r) } }
                     }
                 },
-                onJoinRoom = { s -> setup = s; problem = null; screen = Screen.JOIN },
+                onJoinRoom = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); problem = null; screen = Screen.JOIN },
                 resumeRoom = resumeCode.takeIf { session == null && !busy },
                 onResume = { resumeCode?.let { rejoin(it) } },
+                onLookAndArt = { screen = Screen.LOOK },
             )
             Screen.JOIN -> {
                 BackHandler { screen = Screen.START }
@@ -405,6 +415,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                         onDeleteRoom = { deleteRoom() }, onQuitRoom = { leaveRoom() })
                 }
             } ?: run { screen = Screen.START }
+            Screen.LOOK -> WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), Camera.FIT, setup, onExit = { screen = Screen.START }, lookAndArt = true)
             Screen.GAME -> key(gameNo) {
                 // Back asks "Leave this game?" inside the game screen (same as Exit).
                 WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup, startWatching = watch)
@@ -465,6 +476,8 @@ fun WatchGameScreen(
     onExit: () -> Unit = {},
     /** An online room (#7): its moves drive the game, yours go through it, and the host's phone plays its bots. */
     online: LobbySession? = null,
+    /** The Look & art page before a game (#71): every piece on show with the art settings beside it; Done goes back. */
+    lookAndArt: Boolean = false,
     /** Online, host only: end the room for everyone. */
     onDeleteRoom: (() -> Unit)? = null,
     /** Online, a guest: leave for good (the room is forgotten, never rejoined by itself). */
@@ -513,7 +526,7 @@ fun WatchGameScreen(
     var playing by remember { mutableStateOf(true) }
     var speed by remember { mutableIntStateOf(if (human) 2 else MAX_SPEED) }
     val wins = remember { mutableStateListOf(0, 0, 0, 0, 0) } // per seat, last slot = draws
-    var inventory by remember { mutableStateOf(false) }
+    var inventory by remember { mutableStateOf(lookAndArt) }
     /** Watching bots: stop on the finished board instead of going straight into the next game (#13). */
     var oneGame by remember { mutableStateOf(false) }
     var compareTiles by remember { mutableStateOf(false) }
@@ -521,6 +534,20 @@ fun WatchGameScreen(
     val appContext = LocalContext.current.applicationContext
     val env = remember { EnvSettings(PrefsStore(appContext), viewBarsDefault = EnvSettings.isEmulator()) }
     val sound = remember { SoundSettings(PrefsStore(appContext)) }
+    // Music (#58): the set list at the Music volume; it pauses while the app is in the background.
+    val music = remember { MusicPlayer(appContext, SoundSettings.SONGS) }
+    LaunchedEffect(sound.musicVolume) { music.setVolume(sound.musicVolume) }
+    val gameLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(gameLifecycle) {
+        val o = androidx.lifecycle.LifecycleEventObserver { _, ev ->
+            when (ev) {
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> music.pause()
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> music.resume()
+                else -> {}
+            }
+        }
+        gameLifecycle.addObserver(o); onDispose { gameLifecycle.removeObserver(o); music.close() }
+    }
     // One sea for the whole session: it depends only on the board's shape, and at Max speed a new
     // game starts several times a second, which would otherwise wipe splashes and clouds.
     val oceanRes = LocalContext.current.resources
@@ -722,13 +749,14 @@ fun WatchGameScreen(
     val pileOffsetsNow by rememberUpdatedState(pileOffsets)
     var panelOpen by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
-    var settingsOpen by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(lookAndArt) }
     var hudTopRight by remember { mutableStateOf<Offset?>(null) }
     var diceFlying by remember { mutableStateOf(false) }
     var diceSlots by remember { mutableStateOf<Pair<androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect>?>(null) }
     var eventSlot by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
     // The turn panel fits under the player list (taller in Age of Chivalry), so neither hides the dice.
     var stripBottom by remember { mutableStateOf(0f) }
+    var stripWidth by remember { mutableStateOf(0f) }
     var screenHeight by remember { mutableStateOf(0f) }
     val turnHudHeight = with(LocalDensity.current) {
         if (screenHeight <= 0f) 210.dp else ((screenHeight - stripBottom).toDp() - 16.dp).coerceIn(110.dp, 210.dp)
@@ -738,7 +766,7 @@ fun WatchGameScreen(
         when {
             settingsOpen -> settingsOpen = false
             panelOpen -> panelOpen = false
-            inventory -> inventory = false
+            inventory -> if (lookAndArt) onExit() else inventory = false
             else -> confirmExit = !confirmExit
         }
     }
@@ -776,6 +804,20 @@ fun WatchGameScreen(
     val hostView = androidx.compose.ui.platform.LocalView.current
     val sounds = remember { GameSounds(appContext) }
     androidx.compose.runtime.DisposableEffect(sounds) { onDispose { sounds.close() } }
+    // Dice (#57): every roll is heard; your own roll you also feel. The roll already showing when the screen opens
+    // (a rejoin, a new game) isn't replayed.
+    val lastRoll = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
+    val rollKey = lastRoll?.let { it.turn * 8 + it.player }
+    val firstRollKey = remember { rollKey }
+    LaunchedEffect(rollKey) {
+        if (rollKey == null || rollKey == firstRollKey || lastRoll == null) return@LaunchedEffect
+        sounds.diceRoll(sound.soundVolume)
+        if (lastRoll.player == me) Haptics.diceRattle(appContext)
+        // Age of Chivalry: the Raiders' ship on the event die gets a wooden clonk as the dice settle, for everyone.
+        if (lastRoll.event in 0 until wgbg.engine.EventDie.SHIP_FACES) {
+            delay(650); sounds.raidersClonk(sound.soundVolume); Haptics.raidersClonk(appContext)
+        }
+    }
     val myMoveKey = tick.let { if (me >= 0 && !state.isOver && state.actingPlayer == me) listOf(state.turn, state.phase) else null }
     LaunchedEffect(myMoveKey) { if (myMoveKey != null) hostView.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY) }
     val offerKey = tick.let { if (me >= 0 && tradeMode(state, me) == TradeMode.RESPOND) listOf(state.turn, state.currentPlayer, state.tradeOffer.contentHashCode()) else null }
@@ -902,8 +944,13 @@ fun WatchGameScreen(
                             cardPick = moves; cardSecond = true; return@detectTapGestures
                         }
                         when {
-                            moves.isNotEmpty() && moves == pending && moves.size == 1 -> { pending = emptyList(); humanMoves.trySend(moves[0]) }
-                            moves.isNotEmpty() -> pending = moves
+                            moves.isNotEmpty() && moves == pending && moves.size == 1 -> {
+                                // The second tap places it: a firm confirm you can feel (#57).
+                                hostView.performHapticFeedback(if (android.os.Build.VERSION.SDK_INT >= 30) android.view.HapticFeedbackConstants.CONFIRM
+                                    else android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                                pending = emptyList(); humanMoves.trySend(moves[0])
+                            }
+                            moves.isNotEmpty() -> { pending = moves; hostView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
                             pending.isNotEmpty() -> pending = emptyList() // tapping elsewhere cancels
                             !inventory && boardTapHint(boardNow, legalNow, stateNow.robberHex, p) != null -> tapHint = boardTapHint(boardNow, legalNow, stateNow.robberHex, p)
                             !inventory && seaNow.isWater(p) -> seaNow.splash(p)
@@ -948,6 +995,12 @@ fun WatchGameScreen(
             }
         }
         // Inventory: the illustrated resource cards along the bottom, then the dice faces.
+        // Look & art page (#71): Done goes back to the start screen; Tiles: compare shows every tile look side by side.
+        if (lookAndArt) Row(Modifier.align(Alignment.TopStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            GoButton("Done", "look-done", true, Modifier.width(120.dp).height(44.dp)) { onExit() }
+            BrassButton("Tiles: compare", "look-tile-compare", Modifier.height(44.dp)) { compareTiles = true }
+        }
         if (inventory) Row(Modifier.align(Alignment.BottomCenter).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((r, art) in CARD_ART.withIndex()) androidx.compose.foundation.Image(
                 androidx.compose.ui.res.painterResource(art), RESOURCE_NAMES[r], Modifier.size(width = 76.dp, height = 110.dp))
@@ -970,17 +1023,24 @@ fun WatchGameScreen(
             // The roll's dice roll across the turn HUD and rest on its top-right corner until the next roll.
             val rolled = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
             // While the trade chest is open it docks here, over the turn panel, so the board stays in view.
+            // One left side panel (#73): a single brass-edged frame behind the player list and the turn news, as narrow
+            // as the list needs; the news below takes that width and wraps. See-through is a setting.
+            val sideWidth = with(LocalDensity.current) { stripWidth.toDp() }
+            if (stripWidth > 0f) Box(Modifier.align(Alignment.TopStart).padding(8.dp).width(sideWidth).fillMaxHeight()
+                .brassEdgedWood(woodAlpha = if (env.seeThrough) 0.4f else 1f))
             if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
-                TurnHud(report, previous, names, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
-                    eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight)
+                TurnHud(report, previous, names, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
+                    eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight,
+                    width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f)
             }
             if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
         // The game state is mutated in place, so these get `tick` to redraw after every move.
-        if (!inventory) PlayerStrip(state, me, names, tick, Modifier.align(Alignment.TopStart).padding(8.dp).onGloballyPositioned { stripBottom = it.boundsInParent().bottom },
-            roll = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } })
+        if (!inventory) PlayerStrip(state, me, names, tick, Modifier.align(Alignment.TopStart).padding(8.dp)
+            .onGloballyPositioned { stripBottom = it.boundsInParent().bottom; stripWidth = it.size.width.toFloat() },
+            roll = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }, framed = false)
         if (net != null && !inventory) onlineView?.let { v ->
             Column(Modifier.align(Alignment.TopCenter).padding(top = 52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 OnlineConnectionStatus(v)
@@ -1020,8 +1080,12 @@ fun WatchGameScreen(
                 Text(confirmTitle(state, chosen[0]), color = Color(0xFFEDE6D8), fontWeight = FontWeight.Bold)
                 confirmWarning(state, me, chosen[0])?.let { Text(it, color = Color(0xFFFFB4A0), fontSize = 13.sp) }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (a in chosen) ColorButton(confirmLabel(state, a, names), Color(0xFF3E9B4F), "confirm") { send(a) }
-                    ColorButton("Cancel", Color(0xFFC0392B), "cancel") { pending = emptyList(); if (cardSecond) { cardPick = emptyList(); cardSecond = false } }
+                    // Compact: a check to place it, a cross to cancel (Mauro: "just an x or check, save space, look cleaner");
+                    // a choice that needs words (who to rob) keeps them after the check.
+                    for (a in chosen) ColorButton(confirmLabel(state, a, names).let { if (it == "Confirm") "✓" else "✓ $it" }, Color(0xFF3E9B4F), "confirm",
+                        androidx.compose.ui.Modifier.confirmA11y("Confirm")) { send(a) }
+                    ColorButton("✗", Color(0xFFC0392B), "cancel", androidx.compose.ui.Modifier.confirmA11y("Cancel")) {
+                        pending = emptyList(); if (cardSecond) { cardPick = emptyList(); cardSecond = false } }
                 }
             }
             if (tick.let { state.isOver }) Column(
@@ -1069,8 +1133,7 @@ fun WatchGameScreen(
                     if (!human && oneGame && tick.let { state.isOver }) WoodButton("Next game", "menu-next-game") { seed++ }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    WoodButton(if (inventory) "Back to game" else "Inventory", "menu-inventory") { inventory = !inventory }
-                    WoodButton("Tiles: compare", "menu-tile-compare") { compareTiles = true; panelOpen = false }
+ // Inventory and Tiles: compare live on the Look & art page before the game now (#71, Mauro: clean up the menu).
                     WoodButton("Fit", "menu-fit") { camera = Camera.FIT }
                     if (online == null) WoodButton(if (diceSetting == 0) "Dice: random" else "Dice: ${36 * diceSetting} deck · ${(dice as? DiceDeck)?.remaining ?: ""}", "menu-dice") {
                         diceSetting = (diceSetting + 1) % 5
@@ -1556,10 +1619,11 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         val mid = Offset((a.x + b.x) / 2, (a.y + b.y) / 2)
         val n = (mid - l.center).let { it / it.getDistance() }
         val ps = scale * (l.k(p.v1) + l.k(p.v2)) / 2f
-        PortGeom(p.type, a, b, mid, n, mid + Offset(n.x, n.y * l.squash) * (0.58f * ps), ps)
+        // The rendered buoys are 1.5x the old token, so they sit a little further out (Mauro, 2026-10-11).
+        PortGeom(p.type, a, b, mid, n, mid + Offset(n.x, n.y * l.squash) * ((if (buildings != null) PORT_BUOY_OUT else 0.58f) * ps), ps)
     }
     for (pg in ports) drawPortWater(pg, pg.scale, l.squash)
-    for (pg in ports) drawPortPiersAndToken(pg, pg.scale, measurer, wood)
+    for (pg in ports) drawPortPiersAndToken(pg, pg.scale, measurer, wood, buildings?.ports?.getOrNull(PortArt.index(pg.type)), l.tilt)
 
     // Roads: rendered sprites (two per edge, overlapping at the middle, per the art report) or drawn planks.
     for (e in 0 until topo.edgeCount) {
@@ -1630,14 +1694,18 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             // Mauro, 2026-10-10: "make the houses twice as large, I can't see the buildings".
             val at = l.at(v); val unit = scale * l.k(v) * BUILDING_SCALE; val color = PLAYER_COLORS[owner]
             val ckNow = s.ck
-            if (ckNow != null && ckNow.wall[v] == 1) buildings.ramparts?.let { drawPieceSprite(it, at, unit, l.tilt, color) }
+            // Ramparts (Mauro's pick C): the walls at 65%, the town perched on top of them, a little smaller and lifted.
+            val walled = ckNow != null && ckNow.wall[v] == 1
+            if (walled) buildings.ramparts?.let { drawPieceSprite(it, at, unit * RAMPARTS_SCALE, l.tilt, color) }
+            val perch = if (walled) Offset(0f, -RAMPARTS_PERCH_LIFT * BuildingSprites.FRAME_UNITS * unit) else Offset.Zero
+            val townUnit = if (walled) unit * RAMPARTS_TOWN_SCALE else unit
             val metro = ckNow?.metroVertex?.indexOf(v) ?: -1
             val piece = when {
                 metro >= 0 -> buildings.capital(metro) ?: buildings.town
                 s.vertexBuilding[v] == Piece.CITY -> buildings.town
                 else -> buildings.homestead
             }
-            drawPieceSprite(piece, at, unit, l.tilt, color)
+            drawPieceSprite(piece, at + perch, townUnit, l.tilt, color)
             continue
         }
         with(wood) {
@@ -1853,7 +1921,9 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
     val ports = listOf(Port.GENERIC, Resource.WOOD, Resource.BRICK, Resource.SHEEP, Resource.WHEAT, Resource.ORE)
     ports.forEachIndexed { i, type ->
         val c = Offset(left + i * 2.05f * scale, 4.0f * scale)
-        drawPortToken(type, c, scale * 1.4f, measurer, wood)
+        val buoy = art?.buildings?.ports?.getOrNull(PortArt.index(type))
+        if (buoy != null) drawSteppedSprite(buoy, c, BuildingSprites.FRAME_UNITS * scale * 1.4f, 0.55f)
+        else drawPortToken(type, c, scale * 1.4f, measurer, wood)
         label(if (type == Port.GENERIC) "3:1 port" else "2:1 port", c + Offset(0f, 0.6f * scale))
     }
     // Row 3: each player's road, settlement and city, plus the robber.
@@ -1936,7 +2006,8 @@ private fun DrawScope.drawPortWater(pg: PortGeom, scale: Float, squash: Float = 
     drawPath(polygon(listOf(boat + Offset(-0.08f * u, -1.5f * u), boat + Offset(-0.08f * u, -0.15f * u), boat + Offset(-0.8f * u, -0.15f * u))), Color(0xFFE8E2D0))
 }
 
-private fun DrawScope.drawPortPiersAndToken(pg: PortGeom, scale: Float, measurer: TextMeasurer, wood: WoodPieces) {
+private fun DrawScope.drawPortPiersAndToken(pg: PortGeom, scale: Float, measurer: TextMeasurer, wood: WoodPieces,
+                                            buoy: List<ImageBitmap>? = null, tilt: Float = 0f) {
     // Wooden plank walkways from each coast intersection to the token.
     for (v in listOf(pg.a, pg.b)) {
         // 15% longer than the original 0.12..0.75 span, extended at the coast end so the token stays put.
@@ -1971,7 +2042,18 @@ private fun DrawScope.drawPortPiersAndToken(pg: PortGeom, scale: Float, measurer
             k += 0.22f * scale
         }
     }
-    drawPortToken(pg.type, pg.token, scale, measurer, wood)
+    // Crest's bell buoy with the trade good on deck (3:1 an anchor); the old wooden token if the art isn't loaded.
+    if (buoy != null) {
+        drawSteppedSprite(buoy, pg.token, BuildingSprites.FRAME_UNITS * scale, tilt)
+        // The rate on a little worn-wood tag at the buoy's foot, so you never have to remember which is which.
+        val label = measurer.measure(if (pg.type == Port.GENERIC) "3:1" else "2:1",
+            TextStyle(fontSize = (0.17f * scale / density).sp, fontWeight = FontWeight.Bold, color = Color(0xFFF6EBD2)))
+        val at = pg.token + Offset(0f, 0.30f * scale)
+        val w = label.size.width + 0.10f * scale; val h = label.size.height.toFloat()
+        drawRoundRect(Color(0xE6372312), Offset(at.x - w / 2, at.y - h / 2), Size(w, h), androidx.compose.ui.geometry.CornerRadius(h / 3, h / 3))
+        drawRoundRect(Color(0xFFA9863F), Offset(at.x - w / 2, at.y - h / 2), Size(w, h), androidx.compose.ui.geometry.CornerRadius(h / 3, h / 3), style = Stroke(0.012f * scale))
+        drawText(label, topLeft = at - Offset(label.size.width / 2f, label.size.height / 2f))
+    } else drawPortToken(pg.type, pg.token, scale, measurer, wood)
 }
 
 /** Raised trade-rate token: wood with an anchor for 3:1, terrain art for 2:1. */
@@ -2019,8 +2101,21 @@ internal const val NUMBER_TOKEN_R = 0.27f
 /** Number size on the plate, in hex units (the font size for a side-1 hex); Mauro: bigger, ~60% over the first 0.264. */
 internal const val NUMBER_TEXT = 0.46f
 
+/** How far up the number sits: its top is this share of its height above the plate centre (was 0.66; lower now). */
+internal const val NUMBER_TEXT_RAISE = 0.56f
+
+/** The probability dots, this far below the plate centre in plate radii (was 0.55). */
+internal const val NUMBER_PIPS_DOWN = 0.72f
+
 /** Homesteads, towns, Ramparts and Capitals drawn this many times the art spec's size (roads stay as they are). */
-internal const val BUILDING_SCALE = 2.4f
+internal const val BUILDING_SCALE = 1.8f   // Mauro 2026-10-11: 25% smaller than 2.4
+
+/** Ramparts under a town (pick C): the walls this share of a building, the town on top this share, lifted by this share of a frame. */
+internal const val RAMPARTS_SCALE = 0.65f
+/** How far out to sea a port buoy sits from the coast edge's middle, in hex units (the old token sat at 0.58). */
+internal const val PORT_BUOY_OUT = 0.70f
+internal const val RAMPARTS_TOWN_SCALE = 0.88f
+internal const val RAMPARTS_PERCH_LIFT = 12f / 256f
 
 /** Draws the tilt-stepped sprite [frames] centred on [c], [side] px square, cross-fading the two nearest steps. */
 private fun DrawScope.drawSteppedSprite(frames: List<ImageBitmap>, c: Offset, side: Float, tilt: Float) {
@@ -2071,11 +2166,12 @@ private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer:
         // Mauro, 2026-10-10: bigger numbers, same disc (0.264 -> 0.34 hex units, about 30% larger).
         TextStyle(fontSize = (NUMBER_TEXT * k * scale / density).sp, fontWeight = FontWeight.Bold, color = ink),
     )
-    drawText(text, topLeft = t - Offset(text.size.width / 2f, text.size.height * 0.66f))
+    // Mauro (#61): number and dots sit lower on the plate.
+    drawText(text, topLeft = t - Offset(text.size.width / 2f, text.size.height * NUMBER_TEXT_RAISE))
     val dots = pips(n)
     val gap = 0.12f * r
     for (d in 0 until dots) {
-        drawCircle(ink, 0.05f * r, Offset(t.x + (d - (dots - 1) / 2f) * gap, t.y + 0.55f * r))
+        drawCircle(ink, 0.05f * r, Offset(t.x + (d - (dots - 1) / 2f) * gap, t.y + NUMBER_PIPS_DOWN * r))
     }
 }
 
@@ -2202,3 +2298,7 @@ object AgentHooks {
         runCatching { android.util.Log.i(TAG, line(where, s, legal, prompt, spot)) }
     }
 }
+
+/** What a screen reader says for an icon-only button (the confirm box's check and cross). */
+private fun androidx.compose.ui.Modifier.confirmA11y(label: String) =
+    this.semantics { contentDescription = label }

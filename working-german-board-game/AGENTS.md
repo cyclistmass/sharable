@@ -31,7 +31,10 @@ standard terms (`CitiesAndKnights.kt`, `Resource.ORE`); player-facing text may n
 
 Every panel, dialog, HUD box, menu and button uses the tabletop look: **dark wood panels with old-brass
 edges and brass-edged buttons**, in a **rivetless brass, steampunk master-craftsman** style (smooth hand-finished
-brass, fine engraving, no rivets or bolts). Use the shared pieces in `app/.../Tabletop.kt` (`brassEdgedWood()`,
+brass, fine engraving, never rivets; a screw only where one would really be needed, otherwise a press-fit look). The
+brass is always **worn and aged, never new**: burnished and worn the way brass gets on a boat, well loved but old,
+with softened edges, darkened recesses, a gentle patina or verdigris in the crevices, highlights polished by years of
+hands. Use the shared pieces in `app/.../Tabletop.kt` (`brassEdgedWood()`,
 `brassPlate()`, `BrassButton`, `GoButton`, `Choice`, `WoodButton`) and the Alegreya SC / Alegreya Sans
 fonts. No plain Material grey buttons or black boxes. Action colours: yes/confirm green, no/cancel red,
 counter/primary gold.
@@ -42,7 +45,10 @@ counter/primary gold.
    code work). It has the house style and the file and on-board size of every object: tiles, number plate,
    bandit, pieces, knights, ports, cliffs, sea, boats, gulls, Raiders, cards, dice, buttons and icons. Key
    rule: the number plate sits **lower right** on each tile (centre +0.36, +0.30, radius 0.27) on a plain
-   clearing, with nothing tall in front of it, so tilting the board never hides the number.
+   clearing, with nothing tall in front of it, so tilting the board never hides the number. **3D models too:** a
+   rendered tile's clearing (and the plate) must land in the lower half, lower right, at every tilt step, with peaks,
+   trees and buildings behind it; check every 3D render for this before it goes in, and turn the model in Blender
+   rather than flipping images.
 1. New or changed art is shown as options side by side for the maintainer to pick from before it goes in.
 2. Approved art goes into `app/src/main/res/drawable-nodpi/` and onto the in-app **Inventory** screen
    (Menu › Inventory, `drawInventory` in `MainActivity.kt`), so every object can be checked together.
