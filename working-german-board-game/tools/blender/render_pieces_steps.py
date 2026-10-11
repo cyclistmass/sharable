@@ -38,6 +38,9 @@ p.add_argument('--blend-prefix', default='')
 p.add_argument('--file-prefix', default='piece_')
 p.add_argument('--out', type=Path)
 a = p.parse_args(argv)
+# Resolve paths now: Blender resolves relative render paths against its own working directory, not the caller's.
+a.src = a.src.resolve()
+a.out = a.out.resolve() if a.out else None
 out_root = a.out or a.src
 
 blends = sorted(a.src.glob(f'{a.blend_prefix}*.blend'))
