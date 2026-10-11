@@ -272,8 +272,12 @@ private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME 
 fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseEmu: Boolean = false, autoplay: Boolean = false, autoSetup: Boolean = false, watch: Boolean = false,
             crashTest: Boolean = false, players: Int = 0, inviteCode: String? = null) {
     var screen by rememberSaveable { mutableStateOf(if (start != null) Screen.GAME else if (inviteCode != null) Screen.JOIN else Screen.START) }
+    val context0 = LocalContext.current.applicationContext
+    // Your last game's settings and your name, kept across restarts (#68, #69); debug starts use the defaults.
+    val savedSetup = remember { context0.getSharedPreferences("setup", android.content.Context.MODE_PRIVATE) }
     var setup by remember {
-        val base = if (start == "chivalry") GameSetup().withRuleset(Ruleset.CHIVALRY) else GameSetup()
+        val last = if (start == null && players == 0) GameSetup.decode(savedSetup.getString("last", null)) else null
+        val base = last ?: if (start == "chivalry") GameSetup().withRuleset(Ruleset.CHIVALRY) else GameSetup()
         // `--ei players N` (debug): you plus N-1 bots, the other seats empty.
         mutableStateOf(if (players in 2..GameSetup.MAX_SEATS) base.copy(seats = List(GameSetup.MAX_SEATS) { i ->
             when { i == 0 -> base.seats[0]; i < players -> SeatSetup(SeatKind.BOT); else -> SeatSetup(SeatKind.EMPTY) } }) else base)
@@ -369,15 +373,15 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             modifier = Modifier.align(Alignment.BottomEnd).zIndex(1f).padding(10.dp).testTag("app-version"))
         when (screen) {
             Screen.START -> NewGameScreen(
-                onStart = { setup = it; gameNo++; screen = Screen.GAME },
+                onStart = { setup = it; savedSetup.edit().putString("last", it.encode()).apply(); gameNo++; screen = Screen.GAME },
                 initial = setup,
                 onOpenLobby = { s ->
-                    setup = s; busy = true; problem = null
+                    setup = s; savedSetup.edit().putString("last", s.encode()).apply(); busy = true; problem = null
                     LobbySession.host(transport.value, s, java.security.SecureRandom().nextLong()).whenComplete { r, e ->
                         scope.launch { if (e != null) failed(e) else { busy = false; enterRoom(r) } }
                     }
                 },
-                onJoinRoom = { s -> setup = s; problem = null; screen = Screen.JOIN },
+                onJoinRoom = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); problem = null; screen = Screen.JOIN },
                 resumeRoom = resumeCode.takeIf { session == null && !busy },
                 onResume = { resumeCode?.let { rejoin(it) } },
             )
