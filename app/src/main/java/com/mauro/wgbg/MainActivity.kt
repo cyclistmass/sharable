@@ -1503,9 +1503,9 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             val ux = (x2 - x1) / len; val uy = (y2 - y1) / len
             val sprite = buildings.roadFor(x2 - x1, y2 - y1)
             for (side in listOf(-1f, 1f)) {
-                val x = (x1 + x2) / 2f + side * ux * BuildingSprites.ROAD_OFFSET
-                val y = (y1 + y2) / 2f + side * uy * BuildingSprites.ROAD_OFFSET
-                drawPieceSprite(sprite, l.project(x, y), scale * l.kAt(y), l.tilt, PLAYER_COLORS[owner])
+                val x = (x1 + x2) / 2f + side * ux * ROAD_SPREAD
+                val y = (y1 + y2) / 2f + side * uy * ROAD_SPREAD
+                drawPieceSprite(sprite, l.project(x, y), scale * l.kAt(y) * ROAD_SCALE, l.tilt, PLAYER_COLORS[owner])
             }
             continue
         }
@@ -1628,7 +1628,7 @@ private fun DrawScope.drawSupplies(s: GameState, l: Layout, wood: WoodPieces, st
             val unit = l.scale * l.kAt(sp.y)
             when (sp.kind) {
                 // The upright road sprite turned to lie along the owner's row.
-                Supply.Kind.ROAD -> drawPieceSprite(buildings.roadV, at, unit, l.tilt, PLAYER_COLORS[p], Math.toDegrees(a.toDouble()).toFloat())
+                Supply.Kind.ROAD -> drawPieceSprite(buildings.roadV, at, unit * ROAD_SCALE, l.tilt, PLAYER_COLORS[p], Math.toDegrees(a.toDouble()).toFloat())
                 Supply.Kind.TOWN -> drawPieceSprite(buildings.town, at, unit * BUILDING_SCALE, l.tilt, PLAYER_COLORS[p], faceOwnerDegrees(a))
                 Supply.Kind.HOMESTEAD -> drawPieceSprite(buildings.homestead, at, unit * BUILDING_SCALE, l.tilt, PLAYER_COLORS[p], faceOwnerDegrees(a))
             }
@@ -1928,7 +1928,11 @@ internal const val NUMBER_TOKEN_R = 0.27f
 internal const val NUMBER_TEXT = 0.46f
 
 /** Homesteads, towns, Ramparts and Capitals drawn this many times the art spec's size (roads stay as they are). */
-internal const val BUILDING_SCALE = 3f
+internal const val BUILDING_SCALE = 2.4f
+
+/** Roads drawn at this share of the art-spec size (Mauro: narrower), two per edge, centred ROAD_SPREAD from the middle. */
+internal const val ROAD_SCALE = 0.8f
+internal const val ROAD_SPREAD = 0.2f
 
 /**
  * Where the number token sits on a tile, in hex sides from its centre (y down, before the tilt squash).
