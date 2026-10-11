@@ -939,7 +939,9 @@ fun WatchGameScreen(
         }
         if (me >= 0 && !inventory) tick.let {
             TurnPrompt(tapHint ?: prompt(state, legal, names), Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
-            if (!tradeOpen && !tradeNeedsMe(state, me)) HandRow(state, me, tick, Modifier.align(Alignment.BottomCenter).offset(x = 60.dp).padding(bottom = 6.dp))
+            if (!tradeOpen && !tradeNeedsMe(state, me)) HandRow(state, me, tick,
+                // Between the left panel and the move buttons (playtest: progress cards slid under End turn).
+                Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 384.dp, end = 196.dp, bottom = 6.dp))
         }
         if (me >= 0 && !inventory) {
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
@@ -1046,7 +1048,8 @@ fun WatchGameScreen(
         if (env.viewBars && !inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
             onZoom = { z -> camera = camera.transform(Offset(boardSize.width / 2f, boardSize.height / 2f), Offset.Zero, z / camera.zoom, boardSize) },
             onTilt = { t -> camera = camera.copy(tilt = t) },
-            Modifier.align(Alignment.CenterEnd).padding(end = 8.dp))
+            // Upper right under Trade, short, clear of the move buttons that stack up from the bottom right.
+            Modifier.align(Alignment.TopEnd).padding(top = 104.dp, end = 8.dp))
         if (me >= 0 && !inventory && tick.let { tradeButtonVisible(state) }) TradeToggle(
             open = tradeOpen || tradeNeedsMe(state, me),
             attention = tick.let { tradeNeedsMe(state, me) },
@@ -1915,6 +1918,9 @@ private fun DrawScope.drawPortToken(type: Int, t: Offset, scale: Float, measurer
  */
 internal const val NUMBER_TOKEN_R = 0.27f
 
+/** Number size on the plate, in hex units (the font size for a side-1 hex); Mauro: bigger, ~60% over the first 0.264. */
+internal const val NUMBER_TEXT = 0.46f
+
 /**
  * Where the number token sits on a tile, in hex sides from its centre (y down, before the tilt squash).
  * Mauro (2026-10-10): lower RIGHT, on the clearing every tile keeps for it (docs/design/art-spec.md).
@@ -1941,9 +1947,10 @@ private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer:
     val ink = if (n == 6 || n == 8) Color(0xFFC62828) else INK
     val text = measurer.measure(
         n.toString(),
-        TextStyle(fontSize = (0.264f * k * scale / density).sp, fontWeight = FontWeight.Bold, color = ink),
+        // Mauro, 2026-10-10: bigger numbers, same disc (0.264 -> 0.34 hex units, about 30% larger).
+        TextStyle(fontSize = (NUMBER_TEXT * k * scale / density).sp, fontWeight = FontWeight.Bold, color = ink),
     )
-    drawText(text, topLeft = t - Offset(text.size.width / 2f, text.size.height * 0.6f))
+    drawText(text, topLeft = t - Offset(text.size.width / 2f, text.size.height * 0.66f))
     val dots = pips(n)
     val gap = 0.12f * r
     for (d in 0 until dots) {

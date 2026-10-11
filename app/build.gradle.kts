@@ -20,6 +20,12 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // CI signs every build with one stable debug key so phones can update between versions. The key file comes
+    // from a repository secret via WGBG_DEBUG_KEYSTORE (no machine paths here); without it, the usual debug key.
+    System.getenv("WGBG_DEBUG_KEYSTORE")?.takeIf { it.isNotBlank() }?.let { path ->
+        signingConfigs.getByName("debug") { storeFile = file(path) }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
