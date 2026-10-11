@@ -1100,7 +1100,10 @@ fun WatchGameScreen(
                 ColorButton("Cancel", Color(0xFFC0392B), "card-pick-cancel") { cardPick = emptyList(); cardSecond = false }
             }
             else if (legal.isNotEmpty()) HumanControls(state, me, legal, names, send, Modifier.fillMaxSize().padding(start = panelEdge, end = 8.dp, bottom = 8.dp),
-                onBoardPick = { cardPick = it; cardSecond = false; pending = emptyList() })
+                onBoardPick = { cardPick = it; cardSecond = false; pending = emptyList() },
+                tradeButton = if (tick.let { tradeButtonVisible(state) }) ({
+                    IconPlateButton(MoveIcon.TRADE, "Trade", "trade-toggle", lit = tradeOpen || tradeNeedsMe(state, me)) { tradeOpen = !tradeOpen }
+                }) else null)
             if (chosen.isNotEmpty()) Column(
                 Modifier.align(Alignment.TopCenter).padding(top = 8.dp).chest(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -1217,12 +1220,6 @@ fun WatchGameScreen(
             onTilt = { t -> camera = camera.copy(tilt = t) },
             // Upper right under Trade, short, clear of the move buttons that stack up from the bottom right.
             Modifier.align(Alignment.TopEnd).padding(top = 104.dp, end = 8.dp))
-        if (me >= 0 && !inventory && tick.let { tradeButtonVisible(state) }) TradeToggle(
-            open = tradeOpen || tradeNeedsMe(state, me),
-            attention = tick.let { tradeNeedsMe(state, me) },
-            onClick = { tradeOpen = !tradeOpen },
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (panelOpen || settingsOpen) 376.dp else 8.dp),
-        )
     }
 }
 

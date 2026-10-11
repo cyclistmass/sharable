@@ -167,6 +167,8 @@ fun HumanControls(
     modifier: Modifier = Modifier,
     /** A board card's choices: picked by tapping the board instead of from a list (Mauro, 2026-10-11). */
     onBoardPick: (List<Action>) -> Unit = {},
+    /** The Trade button, set beside Roll / End turn in the bottom-right corner (Mauro: "next to each other"). */
+    tradeButton: (@Composable () -> Unit)? = null,
 ) {
     var sheet by remember { mutableStateOf<String?>(null) } // which picker is open
     var ckChoices by remember { mutableStateOf<Pair<String, List<Action>>?>(null) }
@@ -205,7 +207,7 @@ fun HumanControls(
         }
         val buttonTypes = setOf(ActionType.ROLL, ActionType.END_TURN, ActionType.BUY_DEVELOPMENT_CARD,
             ActionType.PLAY_KNIGHT_CARD, ActionType.PLAY_ROAD_BUILDING, ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY)
-        if (sheet == null && (types.any { it in buttonTypes } || ckButtonGroups(s, legal, names).isNotEmpty())) Column(
+        if (sheet == null && (types.any { it in buttonTypes } || ckButtonGroups(s, legal, names).isNotEmpty() || tradeButton != null)) Column(
             Modifier.align(Alignment.BottomEnd).width(176.dp).testTag("thumb-buttons"),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -224,9 +226,12 @@ fun HumanControls(
                 else if (isBoardCard(acts)) MoveButton("$label…") { onBoardPick(acts) }
                 else MoveButton("$label…") { ckChoices = label to acts; sheet = "ck" }
             }
-            // The main move last, in the bottom-right corner.
-            single(ActionType.ROLL, "Roll", primary = true)
-            single(ActionType.END_TURN, "End turn", primary = ActionType.ROLL !in types && legal.none { it.type == ActionType.BUILD_SETTLEMENT || it.type == ActionType.BUILD_CITY })
+            // The main move last, in the bottom-right corner, with Trade right beside it: icons, not words (Mauro).
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+                tradeButton?.invoke()
+                legal.firstOrNull { it.type == ActionType.ROLL }?.let { a -> BrassButton("Roll", "move-Roll", Modifier.width(96.dp).height(54.dp), size = 18.sp) { onMove(a) } }
+                legal.firstOrNull { it.type == ActionType.END_TURN }?.let { a -> IconPlateButton(MoveIcon.END_TURN, "End turn", "move-End turn") { onMove(a) } }
+            }
         }
     }
 }

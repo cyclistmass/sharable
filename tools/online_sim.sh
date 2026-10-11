@@ -21,7 +21,7 @@ dump() { "$A" -s "$1" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; "$A
 centre() { grep -o 'bounds="\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]"' | grep -o '[0-9]*' | tr '\n' ' '; }
 # Taps the Nth node whose text is exactly $2 on device $1.
 tap_text() {
-  local b; b=$(dump "$1" | grep "text=\"$2\"" | sed -n "${3:-1}p" | centre)
+  local b; b=$(dump "$1" | grep "\(text\|content-desc\)=\"$2\"" | sed -n "${3:-1}p" | centre)
   [ -n "$b" ] || { echo "[$1] '$2' not on screen"; return 1; }
   set -- "$1" $b; "$A" -s "$1" shell input tap $(( ($2 + $4) / 2 )) $(( ($3 + $5) / 2 )); sleep 0.8
 }

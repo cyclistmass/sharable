@@ -470,17 +470,6 @@ private fun Pill(label: String, color: Color, tag: String, onClick: () -> Unit) 
     ) { Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
 }
 
-/** The always-visible Trade toggle; glows when a trade is waiting on you. */
-@Composable
-fun TradeToggle(open: Boolean, attention: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier.size(width = 84.dp, height = 40.dp)
-            .background(if (open) BRASS else WOOD_DARK, RoundedCornerShape(10.dp))
-            .border(if (attention) 3.dp else 2.dp, if (attention) COUNTER else BRASS, RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick).testTag("trade-toggle"),
-        contentAlignment = Alignment.Center,
-    ) { Text("Trade", color = if (open) WOOD_DARK else INK, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
-}
 
 /** The Trade button appears once setup is over (no trading while placing the first homesteads). */
 fun tradeButtonVisible(s: GameState) = s.phase != Phase.BUILD_INITIAL_SETTLEMENT && s.phase != Phase.BUILD_INITIAL_ROAD

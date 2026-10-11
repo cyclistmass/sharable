@@ -20,7 +20,7 @@ tap() { "$ADB" shell input tap "$1" "$2"; }
 tap_text() { # tap the on-screen element whose text is $1; false if it isn't there
   "$ADB" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
   local B
-  B=$("$ADB" shell cat /sdcard/ui.xml | tr '>' '\n' | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" |
+  B=$("$ADB" shell cat /sdcard/ui.xml | tr '>' '\n' | grep -o "\(text\|content-desc\)=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" |
       grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | head -2 | tr '\n' ' ')
   [ -n "$B" ] || return 1
   set -- $B

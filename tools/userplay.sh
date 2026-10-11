@@ -40,7 +40,7 @@ dump() {
 # Centre of the first on-screen text exactly $1 (optionally in $2 = a dump already taken).
 find_text() {
   local d="${2:-$(dump)}"
-  echo "$d" | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | head -1 |
+  echo "$d" | grep -o "\(text\|content-desc\)=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | head -1 |
     grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | tr '\n' ' ' | awk '{split($1,a,",");split($2,b,",");print int((a[1]+b[1])/2), int((a[2]+b[2])/2)}'
 }
 tap_text() { local xy; xy=$(find_text "$1" "${2:-}"); [ -n "$xy" ] || return 1; "$ADB" shell input tap $xy; sleep 0.7; }
@@ -56,7 +56,7 @@ shot() { "$ADB" exec-out screencap -p > "$OUT/$TAG-$1.png"; }
 crashed() { [ "$("$ADB" logcat -d -b crash | grep -A8 'FATAL EXCEPTION' | grep -c "$PKG")" != 0 ]; }
 fail() { echo "USERPLAY $TAG FAILED: $1"; shot fail; "$ADB" logcat -d -b crash | grep -A30 "FATAL EXCEPTION" | head -40; exit 1; }
 # Centres of every element with text $1, left to right.
-all_text() { echo "$2" | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | grep -o 'bounds=.*' | tr -c '0-9\n' ' ' |
+all_text() { echo "$2" | grep -o "\(text\|content-desc\)=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | grep -o 'bounds=.*' | tr -c '0-9\n' ' ' |
   awk '{print int(($1+$3)/2), int(($2+$4)/2)}' | sort -n -k1,1; }
 # Type into a text box (tap it, clear it, type).
 type_into() { tap $1 $2; sleep 0.5; "$ADB" shell input keyevent KEYCODE_MOVE_END; for _ in $(seq 1 14); do "$ADB" shell input keyevent KEYCODE_DEL; done

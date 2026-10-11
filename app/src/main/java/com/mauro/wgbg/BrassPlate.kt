@@ -5,6 +5,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -76,4 +80,49 @@ fun PlateBox(
             .padding(horizontal = 16.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center,
     ) { content() }
+}
+
+/** The drawn icons on the move buttons (Mauro: "buttons not words, with icons on them"). */
+enum class MoveIcon { TRADE, END_TURN }
+
+/**
+ * A brass plate with an engraved [icon] instead of words; [label] is what a screen reader (and the test scripts)
+ * call it. [lit] marks it pressed-in and glowing gold (an open trade, a trade waiting on you).
+ */
+@Composable
+fun IconPlateButton(icon: MoveIcon, label: String, tag: String, modifier: Modifier = Modifier, plate: Plate = Plate.BRASS, lit: Boolean = false, onClick: () -> Unit) {
+    PlateBox(if (lit) Plate.GOLD else plate, enabled = true, onClick = onClick,
+        modifier = modifier.size(width = 66.dp, height = 54.dp).testTag(tag).semantics(mergeDescendants = true) { contentDescription = label }) {
+        androidx.compose.foundation.Canvas(Modifier.size(30.dp)) {
+            val ink = androidx.compose.ui.graphics.Color(if (lit) 0xFF3A2410 else 0xFFFFF4D8)
+            val w = size.width; val h = size.height; val sw = w * 0.11f
+            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
+            when (icon) {
+                MoveIcon.TRADE -> {
+                    // Two arrows passing each other: give one way, get the other.
+                    fun arrow(y: Float, right: Boolean) {
+                        val (a, b) = if (right) 0.12f * w to 0.86f * w else 0.88f * w to 0.14f * w
+                        drawLine(ink, androidx.compose.ui.geometry.Offset(a, y), androidx.compose.ui.geometry.Offset(b, y), sw, androidx.compose.ui.graphics.StrokeCap.Round)
+                        val d = if (right) -1f else 1f
+                        val p = androidx.compose.ui.graphics.Path().apply { moveTo(b + d * 0.22f * w, y - 0.17f * h); lineTo(b, y); lineTo(b + d * 0.22f * w, y + 0.17f * h) }
+                        drawPath(p, ink, style = stroke)
+                    }
+                    arrow(0.3f * h, right = true); arrow(0.72f * h, right = false)
+                }
+                MoveIcon.END_TURN -> {
+                    // An hourglass: your time is up, pass it on.
+                    drawLine(ink, androidx.compose.ui.geometry.Offset(0.18f * w, 0.08f * h), androidx.compose.ui.geometry.Offset(0.82f * w, 0.08f * h), sw, androidx.compose.ui.graphics.StrokeCap.Round)
+                    drawLine(ink, androidx.compose.ui.geometry.Offset(0.18f * w, 0.92f * h), androidx.compose.ui.geometry.Offset(0.82f * w, 0.92f * h), sw, androidx.compose.ui.graphics.StrokeCap.Round)
+                    val glass = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(0.26f * w, 0.1f * h); lineTo(0.74f * w, 0.1f * h); lineTo(0.54f * w, 0.5f * h); lineTo(0.74f * w, 0.9f * h)
+                        lineTo(0.26f * w, 0.9f * h); lineTo(0.46f * w, 0.5f * h); close()
+                    }
+                    drawPath(glass, ink, style = stroke)
+                    // The sand run down into the bottom bulb.
+                    val sand = androidx.compose.ui.graphics.Path().apply { moveTo(0.5f * w, 0.62f * h); lineTo(0.66f * w, 0.86f * h); lineTo(0.34f * w, 0.86f * h); close() }
+                    drawPath(sand, ink)
+                }
+            }
+        }
+    }
 }

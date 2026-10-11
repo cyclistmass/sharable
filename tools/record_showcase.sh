@@ -32,7 +32,7 @@ tap_text() {
   # Retry for up to 10 s: a cold start after pm clear can take longer than the sleep before the tap.
   for try in 1 2 3 4 5 6 7 8 9 10; do
     "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-    B=$("$A" shell cat /sdcard/ui.xml | tr '>' '\n' | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]" | grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | head -1 || true)
+    B=$("$A" shell cat /sdcard/ui.xml | tr '>' '\n' | grep -o "\(text\|content-desc\)=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]" | grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | head -1 || true)
     [ -n "$B" ] && break; sleep 1
   done
   [ -n "$B" ] || { echo "'$1' not found on screen"; exit 1; }
