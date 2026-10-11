@@ -195,9 +195,10 @@ while true; do
     [ "$need" -gt 0 ] || break
       # Every held card once per copy (centre x, y), shuffled; tap the first "need" of them.
       echo "$d" | grep -o '\(content-desc\|text\)="\(Timber\|Clay\|Fleece\|Grain\|Stone\|Parchment\|Weave\|Silver\)"[^/]*bounds="[^"]*"\|text="have [0-9]*"[^/]*bounds="[^"]*"' |
-        sed 's/^text="have \([0-9]*\)"[^/]*bounds="\[\([0-9]*\),[0-9]*\]\[\([0-9]*\),[0-9]*\]"/H \1 \2 \3/; s/^[a-z-]*="[A-Za-z]*"[^/]*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),\([0-9]*\)\]"/C \1 \2 \3 \4/' |
-        awk '$1=="C"{n++; x1[n]=$2; y1[n]=$3; x2[n]=$4; y2[n]=$5} $1=="H"{h[++m]=$2; hx[m]=($3+$4)/2}
-             END{for(i=1;i<=n;i++){cx=(x1[i]+x2[i])/2; for(k=1;k<=m;k++) if(hx[k]>=x1[i] && hx[k]<=x2[i]) for(c=0;c<h[k];c++) print int(cx), int((y1[i]+y2[i])/2)}}' |
+        sed 's/^text="have \([0-9]*\)"[^/]*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),[0-9]*\]"/H \1 \2 \4 \3/; s/^[a-z-]*="[A-Za-z]*"[^/]*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),\([0-9]*\)\]"/C \1 \2 \3 \4/' |
+        # A "have N" counts only for the card right above it (a hidden hand row under the sheet must not match).
+        awk '$1=="C"{n++; x1[n]=$2; y1[n]=$3; x2[n]=$4; y2[n]=$5} $1=="H"{h[++m]=$2; hx[m]=($3+$4)/2; hy[m]=$5}
+             END{for(i=1;i<=n;i++){cx=(x1[i]+x2[i])/2; for(k=1;k<=m;k++) if(hx[k]>=x1[i] && hx[k]<=x2[i] && hy[k]>=y2[i]-10 && hy[k]<=y2[i]+60) for(c=0;c<h[k];c++) print int(cx), int((y1[i]+y2[i])/2)}}' |
         shuf | head -n "$need" | while read -r x y; do tap "$x" "$y"; sleep 0.6; done
       d=$(dump)
       read -r owed chosen < <(echo "$d" | grep -o 'choose [0-9]* to discard ([0-9]* chosen)' | head -1 | sed 's/choose \([0-9]*\) to discard (\([0-9]*\) chosen)/\1 \2/')

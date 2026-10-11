@@ -91,8 +91,11 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                         for (i in 0 until 4) Box(Modifier.size(width = 14.dp, height = 4.dp).background(if (i < filled) color else Color(0x73000000), RoundedCornerShape(1.dp)))
                     }
                 }
+                // The card count, and under it (right of the upgrade bars) the road length and knights: a squiggle and a
+                // shield, gold for whoever holds Longest Road / Largest Army (Mauro).
+                Column(Modifier.width(64.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 // A tiny card icon and the count; in Age of Chivalry "cards/progress", e.g. 8/3.
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.width(52.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(width = 10.dp, height = 14.dp).background(Color(0xFFEFE3C8), RoundedCornerShape(2.dp))
                         .border(1.dp, Color(0xFFC9A04A), RoundedCornerShape(2.dp)))
                     Spacer(Modifier.width(4.dp))
@@ -100,7 +103,11 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                     Text(cardsLabel(s, p), color = if (overCardLimit(s, p)) Color(0xFFFF6B5E) else Color(0xFFEDE6D8), fontSize = 13.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.testTag("cards-$p"))
                 }
-                // What this player got (+) and lost (-) on the last roll, as tiny cards (#47).
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        StatBadge(StatIcon.ROAD, s.roadLength[p], s.longestRoadOwner == p, "road-$p")
+                        StatBadge(StatIcon.SHIELD, knightsShown(s, p), s.ck == null && s.largestArmyOwner == p, "army-$p")
+                    }
+                }
                 // A fixed slot, so the panel keeps one width whether or not anyone got cards (they used to poke out of the frame).
                 val minis = rollMinis(roll, p, me)
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.width(MINI_SLOT).testTag("roll-minis-$p")) {
@@ -114,6 +121,31 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
 /** Room for the last roll's mini cards beside each player (3 of them; more are left out, the history has them all). */
 private val MINI_SLOT = 72.dp
 private const val MINI_MAX = 3
+
+/** The knights number on a player's shield: Sentinels played (base game), active knight strength (Age of Chivalry). */
+fun knightsShown(s: GameState, p: Int): Int = if (s.ck != null) wgbg.engine.CitiesAndKnights.activeKnightStrength(s, p) else s.knightsPlayed(p)
+
+enum class StatIcon { ROAD, SHIELD }
+
+/** A tiny drawn icon and a number; gold when the player holds that award. */
+@Composable
+fun StatBadge(icon: StatIcon, value: Int, held: Boolean, tag: String) {
+    val ink = if (held) Color(0xFFF1D58A) else Color(0xFFCDBFA6)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.testTag(tag)) {
+        androidx.compose.foundation.Canvas(Modifier.size(12.dp)) {
+            val w = size.width; val h = size.height
+            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(w * 0.16f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            when (icon) {
+                StatIcon.ROAD -> drawPath(androidx.compose.ui.graphics.Path().apply {
+                    moveTo(0.05f * w, 0.75f * h); cubicTo(0.3f * w, 0.1f * h, 0.45f * w, 1.0f * h, 0.7f * w, 0.35f * h); quadraticTo(0.82f * w, 0.1f * h, 0.95f * w, 0.25f * h) }, ink, style = stroke)
+                StatIcon.SHIELD -> drawPath(androidx.compose.ui.graphics.Path().apply {
+                    moveTo(0.12f * w, 0.1f * h); lineTo(0.88f * w, 0.1f * h); lineTo(0.88f * w, 0.5f * h)
+                    quadraticTo(0.85f * w, 0.85f * h, 0.5f * w, 0.98f * h); quadraticTo(0.15f * w, 0.85f * h, 0.12f * w, 0.5f * h); close() }, ink, style = stroke)
+            }
+        }
+        Text("$value", color = ink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    }
+}
 
 /** A progress card's art: its deck's commodity card (Guilds Weave, Crown Silver, Academy Parchment). */
 fun progressArt(card: Int): Int = ALL_CARD_ART[wgbg.engine.Track.commodity(wgbg.engine.Progress.track(card))]

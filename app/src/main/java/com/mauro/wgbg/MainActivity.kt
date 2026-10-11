@@ -141,7 +141,7 @@ class MainActivity : ComponentActivity() {
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE == 0) return Camera.FIT
         if (intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return Camera.FIT // stale extras from recents
         return Camera(intent.getFloatExtra("zoom", 1f).coerceIn(Camera.MIN_ZOOM, Camera.MAX_ZOOM), Offset.Zero,
-            intent.getFloatExtra("tilt", 0f).coerceIn(0f, Camera.MAX_TILT))
+            intent.getFloatExtra("tilt", Camera.START_TILT).coerceIn(0f, Camera.MAX_TILT))
     }
 
     /** Debug builds: moves sent by test drivers (`am broadcast -a com.mauro.wgbg.MOVE --es move TYPE:PAYLOAD`). */
@@ -980,7 +980,7 @@ fun WatchGameScreen(
                         val sz = Size(size.width.toFloat(), size.height.toFloat())
                         // A double-tap on a supply resets that pile (handled with its drag); the view stays.
                         if (supplyAt(stateNow, viewerNow, pileOffsetsNow, Layout.fit(boardNow, sz.width, sz.height, camera), at, 48.dp.toPx()) >= 0) return@detectTapGestures
-                        camera = if (camera.zoom > 1.05f || camera.tilt > 0.01f || camera.pan.getDistance() > 1f) Camera.FIT
+                        camera = if (camera.zoom > 1.05f || kotlin.math.abs(camera.tilt - Camera.START_TILT) > 0.01f || camera.pan.getDistance() > 1f) Camera.FIT
                         else camera.transform(at, Offset.Zero, Camera.DOUBLE_TAP_ZOOM / camera.zoom, sz)
                     })
                 },
@@ -1080,7 +1080,9 @@ fun WatchGameScreen(
                 }
             }
             TurnPrompt(tapHint ?: prompt(state, legal, names), Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
-            if (!tradeOpen && !tradeNeedsMe(state, me)) HandRow(state, me, tick,
+            // The hand row steps aside while a card sheet (a 7's discard, a card to pick) covers the bottom centre.
+            val cardSheet = legal.any { it.type == ActionType.DISCARD || it.type == wgbg.engine.CkActionType.CHOOSE_CARD }
+            if (!tradeOpen && !tradeNeedsMe(state, me) && !cardSheet) HandRow(state, me, tick,
                 // Between the left panel and the move buttons (playtest: progress cards slid under End turn).
                 Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 384.dp, end = 196.dp, bottom = 6.dp))
         }
@@ -1580,7 +1582,9 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
         const val PAN_EXTRA = 0.4f
         /** Steepest table tilt, in radians (about 55 degrees). */
         const val MAX_TILT = 0.96f
-        val FIT = Camera()
+        /** The board starts tipped up a little, 15% of the way to full tilt (Mauro: "start the board at a 10 or 15% uptilt"). */
+        const val START_TILT = 0.15f * MAX_TILT
+        val FIT = Camera(tilt = START_TILT)
     }
 }
 
