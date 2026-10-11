@@ -32,6 +32,10 @@ tap_text() { # tap the on-screen element whose text is $1
   "$A" shell input tap $(( ${B%,*} + 20 )) $(( ${B#*,} + 20 ))
   sleep 0.8
 }
+
+# Like tap_text, but fine if it's gone: at Max speed a game can end and the next one starts with the menu closed.
+tap_text_opt() { ( tap_text "$1" ) >/dev/null || true; }
+
 start() { # $1 ruleset, then extra am-start arguments
   local rules="$1"; shift
   "$A" shell am start --activity-clear-task -n $PKG/.MainActivity --es start "$rules" "$@" >/dev/null
@@ -56,7 +60,7 @@ play_setup() { # place your opening pieces through the agent hooks (no debug bad
   done
 }
 one_game() { # watching: stop on the finished board instead of starting the next
-  tap_text "Menu"; tap_text "Nonstop"; tap_text "Hide"; sleep 6
+  tap_text "Menu"; tap_text "Nonstop"; tap_text_opt "Hide"; sleep 6
 }
 
 # 1. The tilted board late in a game (Default theme): rendered towns and roads, Bandit V2.
@@ -88,7 +92,7 @@ tap_text "Trade"; sleep 1
 shot trade-chest
 # 5. The Inventory (every object), then 6. Settings scrolled to the event die styles.
 tap_text "Close"; sleep 0.5
-tap_text "Menu"; tap_text "Inventory"; tap_text "Hide"; sleep 1
+tap_text "Menu"; tap_text "Inventory"; tap_text_opt "Hide"; sleep 1
 shot inventory
 tap_text "Menu"; "$A" shell input tap 1580 254; sleep 1.2
 "$A" shell input swipe 1900 950 1900 520 500; sleep 1

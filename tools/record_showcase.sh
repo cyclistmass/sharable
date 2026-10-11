@@ -40,6 +40,10 @@ tap_text() {
   sleep 0.8
 }
 
+# Like tap_text, but fine if it's gone: at Max speed a game can end and the next one starts with the menu closed.
+tap_text_opt() { ( tap_text "$1" ) >/dev/null || true; }
+
+
 # Watch bots in ruleset $1 at the given tilt/zoom; then set the speed by tapping the speed button $2 times
 # (Max -> 1x -> 2x -> 4x -> 8x).
 watch() {
@@ -48,8 +52,8 @@ watch() {
   tap_text "Menu"
   for _ in $(seq 1 "$2"); do "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
     local label; label=$("$A" shell cat /sdcard/ui.xml | grep -o 'text="\(Max\|[0-9]*×\)"' | head -1 | cut -d'"' -f2 || true)
-    tap_text "$label"; done
-  tap_text "Hide"
+    [ -n "$label" ] && tap_text_opt "$label"; done
+  tap_text_opt "Hide"
 }
 
 clip() { # record $SECS s to $OUT/$1.mp4
@@ -75,8 +79,8 @@ watch chivalry 4 0.55 1.5
 sleep 120
 tap_text "Menu"; for _ in 1 2 3 4; do "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
   label=$("$A" shell cat /sdcard/ui.xml | grep -o 'text="\(Max\|[0-9]*×\)"' | head -1 | cut -d'"' -f2 || true)
-  [ "$label" = "1×" ] && break; tap_text "$label"; done
-tap_text "Hide"
+  [ "$label" = "1×" ] && break; [ -n "$label" ] && tap_text_opt "$label"; done
+tap_text_opt "Hide"
 sleep 2
 clip chivalry
 
