@@ -136,7 +136,7 @@ fun prompt(s: GameState, legal: List<Action>, names: List<String>): String =
     s.freeRoads > 0 -> "Trailblazers: tap glowing edges for ${s.freeRoads} free road${if (s.freeRoads > 1) "s" else ""}"
     legal.any { it.type == ActionType.BUILD_ROAD || it.type == ActionType.BUILD_SETTLEMENT || it.type == ActionType.BUILD_CITY } ->
         "Tap a glowing spot to build, or trade, or end your turn"
-    else -> "Trade, buy a Fortune card, or end your turn"
+    else -> if (s.ck != null) "Trade, improve your towns, or end your turn" else "Trade, buy a Fortune card, or end your turn"
 }
 
 private fun cards(n: (Int) -> Int) = (0 until CARD_TYPES).filter { n(it) > 0 }.joinToString(", ") { "${n(it)} ${RES[it]}" }.ifEmpty { "nothing" }
