@@ -1,0 +1,63 @@
+{
+  "metadata": {
+    "sheep": 7,
+    "small_alpacas": 3,
+    "alpaca_relative_scale": 0.65,
+    "teeny_goats": 2,
+    "finish": {
+      "readable_story_details": 100,
+      "material_pass": "single pigment, warm key, cool fill, local AO"
+    },
+    "story_pass": {
+      "pasture_gate_and_hayrack": 2,
+      "broad_leaf_islands": 5
+    },
+    "token_space": {
+      "token_center": [
+        0.36,
+        0.3
+      ],
+      "token_radius": 0.27,
+      "clearing_radius": 0.31,
+      "upright_plate": true,
+      "foreground_max_tilt_degrees": 55,
+      "pruned_objects": 20,
+      "flattened_surfaces": 1
+    }
+  },
+  "renders": [
+    {
+      "file": "fleece_V3_flat.png",
+      "tilt_radians": 0,
+      "seconds": 81.5,
+      "sha256": "c9cd10b085ed8db37359181115f2b1d506fab25e3c024b04cdaf4b0696334cba"
+    },
+    {
+      "file": "fleece_V3_mid.png",
+      "tilt_radians": 0.48,
+      "seconds": 74.91,
+      "sha256": "77cb1fe07b874a0303758b072f54caba9b193b3dfe0a41d1de7c8fa9c8002376"
+    },
+    {
+      "file": "fleece_V3_max.png",
+      "tilt_radians": 0.96,
+      "seconds": 51.64,
+      "sha256": "968a2a058b20c2973c20de949c0b5a34260982f4b2183c5859c5e40678dd9466"
+    }
+  ],
+  "objects": 150,
+  "samples": 64,
+  "threads": 2,
+  "source_hashes": {
+    "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+    "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+    "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+    "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
+    "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+    "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+    "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+    "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+    "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+    "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+  }
+}

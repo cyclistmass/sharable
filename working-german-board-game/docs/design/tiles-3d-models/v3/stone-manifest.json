@@ -1,0 +1,112 @@
+{
+  "metadata": {
+    "selected_study": "R3 Alpine chain",
+    "original_summits": 4,
+    "added_summits": 3,
+    "summits": [
+      [
+        -0.0,
+        0.7,
+        1.08
+      ],
+      [
+        -0.2,
+        0.52,
+        0.78
+      ],
+      [
+        -0.49,
+        0.22,
+        0.92
+      ],
+      [
+        -0.56,
+        -0.12,
+        0.7
+      ],
+      [
+        -0.12,
+        -0.4,
+        0.65
+      ],
+      [
+        -0.33,
+        -0.44,
+        0.74
+      ],
+      [
+        -0.57,
+        0.47,
+        0.79
+      ]
+    ],
+    "scree_stones": 58,
+    "pines": 9,
+    "mesh_vertices": 3361,
+    "ridge_vertices_sha256": "7cbc9dd29f448c57643b7a894e88a60a5618cd3e77414ad8ce56ad629133b174",
+    "continuity": {
+      "shared_edge_samples": 99,
+      "max_height_error": 3.3306690738754696e-16,
+      "physical_lattice_width": 1.6108072510390559,
+      "physical_lattice_row": 1.395
+    },
+    "mirrored_R3": true,
+    "periodic_erosion_amplitude": 0.036,
+    "story": "mirrored R3 Alpine chain, pine fringes, mine hoist, rails and quarried blocks",
+    "finish": {
+      "readable_story_details": 57,
+      "material_pass": "single pigment, warm key, cool fill, local AO"
+    },
+    "story_pass": {
+      "large_mineral_slabs": 45,
+      "broad_leaf_islands": 3
+    },
+    "token_space": {
+      "token_center": [
+        0.36,
+        0.3
+      ],
+      "token_radius": 0.27,
+      "clearing_radius": 0.31,
+      "upright_plate": true,
+      "foreground_max_tilt_degrees": 55,
+      "pruned_objects": 48,
+      "flattened_surfaces": 1
+    }
+  },
+  "renders": [
+    {
+      "file": "stone_V3_flat.png",
+      "tilt_radians": 0,
+      "seconds": 68.03,
+      "sha256": "788ac6df9d01a753d5736fa71d6bd5d48d96f99b74073b2505be6bbf8afcff84"
+    },
+    {
+      "file": "stone_V3_mid.png",
+      "tilt_radians": 0.48,
+      "seconds": 68.06,
+      "sha256": "5a9adf7289cfcd9dc35449c828fe5a81253eb9eafc6fef8ca6eaba64ce92a089"
+    },
+    {
+      "file": "stone_V3_max.png",
+      "tilt_radians": 0.96,
+      "seconds": 54.73,
+      "sha256": "efd324e892957993039da9f4ef645972abf1b65fc856766daedb6067563a2bec"
+    }
+  ],
+  "objects": 468,
+  "samples": 64,
+  "threads": 2,
+  "source_hashes": {
+    "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+    "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+    "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+    "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
+    "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+    "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+    "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+    "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+    "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+    "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+  }
+}

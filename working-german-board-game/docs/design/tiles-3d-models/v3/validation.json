@@ -1,0 +1,428 @@
+{
+  "terrain_views": 18,
+  "rgba_512px": true,
+  "new_plate_center": [
+    0.36,
+    0.3
+  ],
+  "plate_radius": 0.27,
+  "clearing_radius": 0.31,
+  "neighbour_plate_overlap_pixels": 0,
+  "app_files_unchanged": 146,
+  "historical_assets_unchanged": 35,
+  "geometry_validated_terrains": 6,
+  "opaque_black_pixels_by_view": {
+    "timber_V3_flat.png": 0,
+    "timber_V3_mid.png": 0,
+    "timber_V3_max.png": 0,
+    "stone_V3_flat.png": 0,
+    "stone_V3_mid.png": 0,
+    "stone_V3_max.png": 0,
+    "fleece_V3_flat.png": 0,
+    "fleece_V3_mid.png": 0,
+    "fleece_V3_max.png": 0,
+    "grain_V3_flat.png": 0,
+    "grain_V3_mid.png": 0,
+    "grain_V3_max.png": 0,
+    "clay_V3_flat.png": 0,
+    "clay_V3_mid.png": 0,
+    "clay_V3_max.png": 0,
+    "desert_V3_flat.png": 0,
+    "desert_V3_mid.png": 0,
+    "desert_V3_max.png": 0
+  },
+  "png_bytes": 4474135,
+  "retained_render_seconds": 1315.76,
+  "views": [
+    {
+      "file": "timber_V3_flat.png",
+      "sha256": "f160d3ad0c578a929e2e34abd233f50d4afcb62dcb46f2a9d01f116f38730d02",
+      "alpha_bounds": [
+        76,
+        76,
+        417,
+        441
+      ]
+    },
+    {
+      "file": "timber_V3_mid.png",
+      "sha256": "11c2f1ce5e4ca08e86ac32bc1d838a05d51ec77c3b3fcacf74a39c13f773eb6d",
+      "alpha_bounds": [
+        77,
+        94,
+        418,
+        434
+      ]
+    },
+    {
+      "file": "timber_V3_max.png",
+      "sha256": "3b546c28e6b5b888c46ff85b7589aa87061c82fbaadca30df1078b5dbab4366b",
+      "alpha_bounds": [
+        77,
+        110,
+        417,
+        393
+      ]
+    },
+    {
+      "file": "stone_V3_flat.png",
+      "sha256": "788ac6df9d01a753d5736fa71d6bd5d48d96f99b74073b2505be6bbf8afcff84",
+      "alpha_bounds": [
+        95,
+        76,
+        416,
+        437
+      ]
+    },
+    {
+      "file": "stone_V3_mid.png",
+      "sha256": "5a9adf7289cfcd9dc35449c828fe5a81253eb9eafc6fef8ca6eaba64ce92a089",
+      "alpha_bounds": [
+        94,
+        33,
+        416,
+        434
+      ]
+    },
+    {
+      "file": "stone_V3_max.png",
+      "sha256": "efd324e892957993039da9f4ef645972abf1b65fc856766daedb6067563a2bec",
+      "alpha_bounds": [
+        95,
+        2,
+        416,
+        393
+      ]
+    },
+    {
+      "file": "fleece_V3_flat.png",
+      "sha256": "c9cd10b085ed8db37359181115f2b1d506fab25e3c024b04cdaf4b0696334cba",
+      "alpha_bounds": [
+        95,
+        75,
+        417,
+        437
+      ]
+    },
+    {
+      "file": "fleece_V3_mid.png",
+      "sha256": "77cb1fe07b874a0303758b072f54caba9b193b3dfe0a41d1de7c8fa9c8002376",
+      "alpha_bounds": [
+        95,
+        88,
+        417,
+        434
+      ]
+    },
+    {
+      "file": "fleece_V3_max.png",
+      "sha256": "968a2a058b20c2973c20de949c0b5a34260982f4b2183c5859c5e40678dd9466",
+      "alpha_bounds": [
+        95,
+        132,
+        417,
+        393
+      ]
+    },
+    {
+      "file": "grain_V3_flat.png",
+      "sha256": "85d355f10bf02247c35d41eb8c8944a2e6c7151729b36497a00cbbb0f8d02dd3",
+      "alpha_bounds": [
+        94,
+        75,
+        427,
+        438
+      ]
+    },
+    {
+      "file": "grain_V3_mid.png",
+      "sha256": "a378f83cf8bb5fb33de5851c024c24be67d00f69762902a17ac2f08539392ff3",
+      "alpha_bounds": [
+        94,
+        69,
+        427,
+        434
+      ]
+    },
+    {
+      "file": "grain_V3_max.png",
+      "sha256": "700d171622c6f5ed64e241425a132cff8dc15e464f67bf5c2fb5ac2177e24c9d",
+      "alpha_bounds": [
+        94,
+        89,
+        427,
+        393
+      ]
+    },
+    {
+      "file": "clay_V3_flat.png",
+      "sha256": "b18af8032b40bdb4d2e66102af0700a3c77ce290a13ab4d6252565fc59d0cb05",
+      "alpha_bounds": [
+        99,
+        76,
+        413,
+        437
+      ]
+    },
+    {
+      "file": "clay_V3_mid.png",
+      "sha256": "36ac6ee116a6536c7759fb8a83a21968120b645f93df93a442baadad59c0f453",
+      "alpha_bounds": [
+        99,
+        51,
+        413,
+        434
+      ]
+    },
+    {
+      "file": "clay_V3_max.png",
+      "sha256": "44594de561118f413a2cf49b5387e4f649b6e7b0b9335315489015fe30d11ee7",
+      "alpha_bounds": [
+        99,
+        21,
+        413,
+        393
+      ]
+    },
+    {
+      "file": "desert_V3_flat.png",
+      "sha256": "40f5842049345b92e9dc8d6f11ac644bf58f5053c52a6cf8bab53965ef0b238a",
+      "alpha_bounds": [
+        99,
+        76,
+        413,
+        437
+      ]
+    },
+    {
+      "file": "desert_V3_mid.png",
+      "sha256": "935fb25ce3898edadcbe408a26af424d0b680cd1a19756cd441ed8ab93d75144",
+      "alpha_bounds": [
+        99,
+        92,
+        413,
+        434
+      ]
+    },
+    {
+      "file": "desert_V3_max.png",
+      "sha256": "1a9d649525ca5e2cd165c7eedae15dc3aefa9071dc6dd75b14be72e3a0f2ff9e",
+      "alpha_bounds": [
+        99,
+        126,
+        413,
+        393
+      ]
+    }
+  ],
+  "geometry": [
+    {
+      "mesh_vertices_checked": 319734,
+      "prop_vertices_inside_clearing": 0,
+      "foreground_vertices_over_plate_at_eight_steps": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "plate_center": [
+        0.36,
+        0.3
+      ],
+      "source_hashes": {
+        "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+        "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+        "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+        "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
+        "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+        "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+        "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+        "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+        "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+        "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+      }
+    },
+    {
+      "mesh_vertices_checked": 117905,
+      "prop_vertices_inside_clearing": 0,
+      "foreground_vertices_over_plate_at_eight_steps": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "plate_center": [
+        0.36,
+        0.3
+      ],
+      "source_hashes": {
+        "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+        "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+        "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+        "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
+        "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+        "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+        "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+        "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+        "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+        "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+      }
+    },
+    {
+      "mesh_vertices_checked": 145365,
+      "prop_vertices_inside_clearing": 0,
+      "foreground_vertices_over_plate_at_eight_steps": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "plate_center": [
+        0.36,
+        0.3
+      ],
+      "source_hashes": {
+        "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+        "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+        "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+        "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
+        "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+        "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+        "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+        "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+        "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+        "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+      }
+    },
+    {
+      "mesh_vertices_checked": 439462,
+      "prop_vertices_inside_clearing": 0,
+      "foreground_vertices_over_plate_at_eight_steps": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "plate_center": [
+        0.36,
+        0.3
+      ],
+      "source_hashes": {
+        "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+        "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+        "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+        "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
+        "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+        "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+        "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+        "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+        "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+        "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+      }
+    },
+    {
+      "mesh_vertices_checked": 61312,
+      "prop_vertices_inside_clearing": 0,
+      "foreground_vertices_over_plate_at_eight_steps": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "plate_center": [
+        0.36,
+        0.3
+      ],
+      "source_hashes": {
+        "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+        "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+        "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+        "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
+        "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+        "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+        "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+        "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+        "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+        "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+      }
+    },
+    {
+      "mesh_vertices_checked": 26783,
+      "prop_vertices_inside_clearing": 0,
+      "foreground_vertices_over_plate_at_eight_steps": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "plate_center": [
+        0.36,
+        0.3
+      ],
+      "source_hashes": {
+        "render_v3.py": "52a435785efca22efbb53a6ee0b913a11d45ec4e551c3363d1b57aee8fc72239",
+        "v3_art.py": "33250357dd1b22a094241375a5280d193aa10a6d4540784d6cc6132b85bdd5e3",
+        "v3_finish.py": "d05fc47cbe346a5eefc308b0ea0059508e571d1d8f87a49a16a69bf7f2d3bab9",
+        "v3_story.py": "e8aebc0d73c0bb03761fe0e23c832363f4458560561f3baf5c5cfc0cd4578bb6",
+        "render_density.py": "c0bbea285437e8887d2054abd3bcdd0aa5fbf56f584c7f8338c8365cf366a820",
+        "render_v2_set.py": "2a9de2809aae08af79aeb3cfd679a29f1edff9125470794367f1e37ae9fc192d",
+        "render_models.py": "b2eb8ea1dfebbce140bc922d06e571ebedb6c75d85d1fb5d5e0184a2a36d7d2e",
+        "token_space.py": "63802769ecc6eddd7746bf91032053e1a974d15f680ac8188a98de0a4c8a8bdf",
+        "alpine_chain.py": "57f914a88f00f7a6133b42ca88b15392c0be3ff221abb184580370acc61ca122",
+        "alpacas.py": "dfc30f01ac4ad8dcc4ab907ffceeac069149f6d58b904a5eafd32525a94973c1"
+      }
+    }
+  ],
+  "trial_lossless_webp_bytes": 2231868,
+  "eight_step_base_only_estimated_webp_bytes": 5951648,
+  "painted_references": [
+    {
+      "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_timber.webp",
+      "sha256": "939b087c9fde4021d90d71057f32d6be59c91e192411104f9fcb5d75da84ad93"
+    },
+    {
+      "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_stone.webp",
+      "sha256": "981a30280d1cffc02eb18bdddd4b35a470d9a778cf4b0625b7567ce13e237d04"
+    },
+    {
+      "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_fleece.webp",
+      "sha256": "ca11f1a5af41d20d1873f44ae31e1e7151441796e205292f957d687041f3805a"
+    },
+    {
+      "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_grain.webp",
+      "sha256": "0bacd228ff6a2339ce9faa79efa0fe4dd8b8056aec18b5a380a9fd7e646ae011"
+    },
+    {
+      "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_clay.webp",
+      "sha256": "a4080fbf5cf198945eb5e22c3cdf43981c7e15b4ee2255ee1e0da95ca0611871"
+    },
+    {
+      "file": "C:\\Users\\mauro\\catan-android\\app\\src\\main\\res\\drawable-nodpi\\tile_desert.webp",
+      "sha256": "a23052cd74c838224bc3b2567e5c80a31a9a9718c8206f3bebc8eca020cb49fd"
+    }
+  ]
+}
