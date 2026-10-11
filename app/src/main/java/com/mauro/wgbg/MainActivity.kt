@@ -267,7 +267,7 @@ private fun polygon(points: List<Offset>) = Path().apply {
 /** Pips under a number token: how many dice combinations roll it (2/12 → 1, 6/8 → 5). */
 private fun pips(n: Int) = 6 - kotlin.math.abs(7 - n)
 
-private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME }
+private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME, LOOK }
 
 /**
  * Game start (#3) -> the game, or online: host a room (lobby #19) or join one by code -> the online game (#7).
@@ -389,6 +389,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 onJoinRoom = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); problem = null; screen = Screen.JOIN },
                 resumeRoom = resumeCode.takeIf { session == null && !busy },
                 onResume = { resumeCode?.let { rejoin(it) } },
+                onLookAndArt = { screen = Screen.LOOK },
             )
             Screen.JOIN -> {
                 BackHandler { screen = Screen.START }
@@ -414,6 +415,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                         onDeleteRoom = { deleteRoom() }, onQuitRoom = { leaveRoom() })
                 }
             } ?: run { screen = Screen.START }
+            Screen.LOOK -> WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), Camera.FIT, setup, onExit = { screen = Screen.START }, lookAndArt = true)
             Screen.GAME -> key(gameNo) {
                 // Back asks "Leave this game?" inside the game screen (same as Exit).
                 WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup, startWatching = watch)
@@ -474,6 +476,8 @@ fun WatchGameScreen(
     onExit: () -> Unit = {},
     /** An online room (#7): its moves drive the game, yours go through it, and the host's phone plays its bots. */
     online: LobbySession? = null,
+    /** The Look & art page before a game (#71): every piece on show with the art settings beside it; Done goes back. */
+    lookAndArt: Boolean = false,
     /** Online, host only: end the room for everyone. */
     onDeleteRoom: (() -> Unit)? = null,
     /** Online, a guest: leave for good (the room is forgotten, never rejoined by itself). */
@@ -522,7 +526,7 @@ fun WatchGameScreen(
     var playing by remember { mutableStateOf(true) }
     var speed by remember { mutableIntStateOf(if (human) 2 else MAX_SPEED) }
     val wins = remember { mutableStateListOf(0, 0, 0, 0, 0) } // per seat, last slot = draws
-    var inventory by remember { mutableStateOf(false) }
+    var inventory by remember { mutableStateOf(lookAndArt) }
     /** Watching bots: stop on the finished board instead of going straight into the next game (#13). */
     var oneGame by remember { mutableStateOf(false) }
     var compareTiles by remember { mutableStateOf(false) }
@@ -745,7 +749,7 @@ fun WatchGameScreen(
     val pileOffsetsNow by rememberUpdatedState(pileOffsets)
     var panelOpen by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
-    var settingsOpen by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(lookAndArt) }
     var hudTopRight by remember { mutableStateOf<Offset?>(null) }
     var diceFlying by remember { mutableStateOf(false) }
     var diceSlots by remember { mutableStateOf<Pair<androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect>?>(null) }
@@ -762,7 +766,7 @@ fun WatchGameScreen(
         when {
             settingsOpen -> settingsOpen = false
             panelOpen -> panelOpen = false
-            inventory -> inventory = false
+            inventory -> if (lookAndArt) onExit() else inventory = false
             else -> confirmExit = !confirmExit
         }
     }
@@ -991,6 +995,12 @@ fun WatchGameScreen(
             }
         }
         // Inventory: the illustrated resource cards along the bottom, then the dice faces.
+        // Look & art page (#71): Done goes back to the start screen; Tiles: compare shows every tile look side by side.
+        if (lookAndArt) Row(Modifier.align(Alignment.TopStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            GoButton("Done", "look-done", true, Modifier.width(120.dp).height(44.dp)) { onExit() }
+            BrassButton("Tiles: compare", "look-tile-compare", Modifier.height(44.dp)) { compareTiles = true }
+        }
         if (inventory) Row(Modifier.align(Alignment.BottomCenter).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((r, art) in CARD_ART.withIndex()) androidx.compose.foundation.Image(
                 androidx.compose.ui.res.painterResource(art), RESOURCE_NAMES[r], Modifier.size(width = 76.dp, height = 110.dp))
@@ -1123,8 +1133,7 @@ fun WatchGameScreen(
                     if (!human && oneGame && tick.let { state.isOver }) WoodButton("Next game", "menu-next-game") { seed++ }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    WoodButton(if (inventory) "Back to game" else "Inventory", "menu-inventory") { inventory = !inventory }
-                    WoodButton("Tiles: compare", "menu-tile-compare") { compareTiles = true; panelOpen = false }
+ // Inventory and Tiles: compare live on the Look & art page before the game now (#71, Mauro: clean up the menu).
                     WoodButton("Fit", "menu-fit") { camera = Camera.FIT }
                     if (online == null) WoodButton(if (diceSetting == 0) "Dice: random" else "Dice: ${36 * diceSetting} deck · ${(dice as? DiceDeck)?.remaining ?: ""}", "menu-dice") {
                         diceSetting = (diceSetting + 1) % 5
@@ -1912,7 +1921,9 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
     val ports = listOf(Port.GENERIC, Resource.WOOD, Resource.BRICK, Resource.SHEEP, Resource.WHEAT, Resource.ORE)
     ports.forEachIndexed { i, type ->
         val c = Offset(left + i * 2.05f * scale, 4.0f * scale)
-        drawPortToken(type, c, scale * 1.4f, measurer, wood)
+        val buoy = art?.buildings?.ports?.getOrNull(PortArt.index(type))
+        if (buoy != null) drawSteppedSprite(buoy, c, BuildingSprites.FRAME_UNITS * scale * 1.4f, 0.55f)
+        else drawPortToken(type, c, scale * 1.4f, measurer, wood)
         label(if (type == Port.GENERIC) "3:1 port" else "2:1 port", c + Offset(0f, 0.6f * scale))
     }
     // Row 3: each player's road, settlement and city, plus the robber.

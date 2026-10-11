@@ -81,6 +81,8 @@ fun NewGameScreen(
     /** An online game you left for now (room code): shows a green Resume button until it ends or is deleted. */
     resumeRoom: String? = null,
     onResume: (() -> Unit)? = null,
+    /** Look & art (#71): pick the theme, dice, tiles and see every piece, before the game. */
+    onLookAndArt: (() -> Unit)? = null,
 ) {
     var setup by remember { mutableStateOf(initial) }
     // The deck size to come back to when switching Random -> Card deck (72 by default, as drawn).
@@ -126,6 +128,8 @@ fun NewGameScreen(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 Choice("+", false, "points-up", Modifier.size(34.dp), size = 18.sp,
                     enabled = setup.points < GameSetup.POINTS_RANGE.last) { setup = setup.withPoints(setup.points + 1) }
+                Spacer(Modifier.weight(1f))
+                if (onLookAndArt != null) BrassButton("Look & art", "look-and-art", Modifier.height(40.dp)) { onLookAndArt() }
             }
         }
         Panel(Modifier.width(300.dp)) {
