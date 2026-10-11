@@ -1549,7 +1549,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         val level = ck.knightLevel[v].coerceIn(1, 3)
         val img = knights[(level - 1) * 2 + if (ck.isActive(v)) 1 else 0]
         val at = l.at(v)
-        val size = 0.62f * scale * l.k(v)
+        val size = KNIGHT_SCALE * scale * l.k(v)
         drawOval(PLAYER_COLORS[owner], at + Offset(-size * 0.42f, -size * 0.12f), Size(size * 0.84f, size * 0.3f * l.squash))
         drawOval(Color.Black.copy(alpha = 0.5f), at + Offset(-size * 0.42f, -size * 0.12f), Size(size * 0.84f, size * 0.3f * l.squash), style = Stroke(size * 0.03f))
         drawImage(img, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size * 0.92f).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
@@ -1955,6 +1955,9 @@ internal const val NUMBER_TEXT = 0.46f
 
 /** Homesteads, towns, Ramparts and Capitals drawn this many times the art spec's size (roads stay as they are). */
 internal const val BUILDING_SCALE = 2.4f
+
+/** Age of Chivalry knight size in hex units (Mauro, 2026-10-11: "knights about 3x bigger", was 0.62). */
+internal const val KNIGHT_SCALE = 1.86f
 
 /** Roads drawn at this share of the art-spec size (Mauro: narrower), two per edge, centred ROAD_SPREAD from the middle. */
 internal const val ROAD_SCALE = 0.8f
