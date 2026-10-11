@@ -120,4 +120,13 @@ class SeabirdTest {
         }
         assertTrue(crossed >= 6, "only $crossed of 8 birds crossed the island and came back out")
     }
+
+    @Test
+    fun `negative, zero and NaN frame steps never crash (Pixel 9 and 10 crash reports)`() {
+        val b = Seabird(4, 4f)
+        val boats = floatArrayOf(4f, 0f)
+        repeat(100) { b.update(1 / 60f, boats) }
+        for (dt in listOf(-5.7239004E-6f, -1.6353329E-4f, 0f, Float.NaN, -1f)) b.update(dt, boats)
+        assertTrue(b.x.isFinite() && b.y.isFinite() && b.heading.isFinite())
+    }
 }

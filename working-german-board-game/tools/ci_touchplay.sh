@@ -5,7 +5,9 @@
 # End turn are tapped by their labels; only moves with no single tap target (discards, card choices, steals)
 # go through the agent hook. Fails on any crash or ANR, or if the human seat gets stuck.
 # Covers base and Age of Chivalry with 3 players (how Mauro plays: you + 2 bots) and with 4.
-# Usage: tools/ci_touchplay.sh [seconds per game] [min human moves per game]
+# Usage: tools/ci_touchplay.sh [seconds per game] [min human moves per game] [games, e.g. "base:3 chivalry:3"]
+# With FULL=1 each game runs until it is won (the app logs WGBG-GAME at game over) or the time runs out,
+# and the game must reach its end.
 set -uo pipefail
 SECS="${1:-150}"
 MIN_MOVES="${2:-12}"
@@ -26,7 +28,9 @@ tap_text() { # tap the on-screen element whose text is $1; false if it isn't the
 }
 crashed() { [ "$("$ADB" logcat -d -b crash | grep -A8 'FATAL EXCEPTION' | grep -c "$PKG")" != 0 ]; }
 
-for game in base:3 chivalry:3 base:4 chivalry:4; do
+GAMES="${3:-base:3 chivalry:3 base:4 chivalry:4}"
+FULL="${FULL:-0}"
+for game in $GAMES; do
   ruleset=${game%:*}; players=${game#*:}
   "$ADB" shell am force-stop $PKG
   "$ADB" shell pm clear $PKG >/dev/null
@@ -37,6 +41,8 @@ for game in base:3 chivalry:3 base:4 chivalry:4; do
   moves=0; taps=0; hooks=0; last=""; same=0; start=$(date +%s)
   while [ $(( $(date +%s) - start )) -lt "$SECS" ]; do
     if crashed; then echo "touchplay $ruleset/${players}p: CRASH after $moves moves"; fail=1; break; fi
+    over=$("$ADB" logcat -d -s WGBG-GAME:I | grep -o 'over.*' | tail -1)
+    [ -n "$over" ] && { echo "touchplay $ruleset/${players}p: game over after $moves human moves: $over"; break; }
     line=$("$ADB" logcat -d -s WGBG-TURN:I | tail -1)
     if [ -z "$line" ] || [ "$line" = "$last" ]; then
       same=$((same + 1))
@@ -63,7 +69,8 @@ for game in base:3 chivalry:3 base:4 chivalry:4; do
   anr=$("$ADB" logcat -d | grep -c "ANR in $PKG" || true)
   alive=$("$ADB" shell pidof $PKG | tr -d '\r')
   echo "touchplay $ruleset/${players}p: $moves human moves ($taps by touch, $hooks by hook) in ${SECS}s, anr=$anr pid=${alive:-none}"
-  if crashed || [ "$anr" != 0 ] || [ -z "$alive" ] || [ "$moves" -lt "$MIN_MOVES" ]; then
+  ended=$("$ADB" logcat -d -s WGBG-GAME:I | grep -c 'over' || true)
+  if crashed || [ "$anr" != 0 ] || [ -z "$alive" ] || [ "$moves" -lt "$MIN_MOVES" ] || { [ "$FULL" = 1 ] && [ "$ended" = 0 ]; }; then
     echo "TOUCHPLAY FAILED in $ruleset with $players players"
     "$ADB" logcat -d -b crash | grep -A30 "FATAL EXCEPTION" | head -45
     fail=1

@@ -59,6 +59,7 @@ class Seabird(seed: Int, private val ringR: Float) {
      * path is always a slow curve, never a corner.
      */
     fun update(dt: Float, boats: FloatArray = NO_BOATS, nBoats: Int = boats.size / 2) {
+        if (!(dt > 0f)) return // a backwards or empty step would make the turn range empty (a crash on Android 17)
         t += dt
         if (circling >= nBoats) circling = -1
         if (circling >= 0) {

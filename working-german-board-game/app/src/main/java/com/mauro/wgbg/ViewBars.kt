@@ -49,8 +49,8 @@ object ViewBars {
 fun ViewBarsPanel(camera: Camera, onZoom: (Float) -> Unit, onTilt: (Float) -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.brassEdgedWood(3.dp).padding(horizontal = 6.dp, vertical = 8.dp).testTag("view-bars"),
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        BrassBar("Zoom", ViewBars.zoomToBar(camera.zoom), "bar-zoom") { onZoom(ViewBars.barToZoom(it)) }
-        BrassBar("Tilt", ViewBars.tiltToBar(camera.tilt), "bar-tilt") { onTilt(ViewBars.barToTilt(it)) }
+        BrassBar("Zoom", ViewBars.zoomToBar(camera.zoom), "bar-zoom", height = 110.dp) { onZoom(ViewBars.barToZoom(it)) }
+        BrassBar("Tilt", ViewBars.tiltToBar(camera.tilt), "bar-tilt", height = 110.dp) { onTilt(ViewBars.barToTilt(it)) }
     }
 }
 

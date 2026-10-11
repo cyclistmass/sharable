@@ -190,7 +190,9 @@ class MainActivity : ComponentActivity() {
                 val crashTest = debug && intent.getBooleanExtra("crash", false)
                 // Debug builds: `--ei players 3` starts with that many players (you plus bots), like a 3-player setup.
                 val players = if (debug) intent.getIntExtra("players", 0) else 0
-                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup, watch, crashTest, players)
+                // An invite link (wgbg://join/ROOM-42) opens the Join screen with that code filled in.
+                val inviteCode = joinCodeFrom(intent.dataString)
+                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup, watch, crashTest, players, inviteCode)
             }
         }
     }
@@ -268,8 +270,8 @@ private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME 
  */
 @Composable
 fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseEmu: Boolean = false, autoplay: Boolean = false, autoSetup: Boolean = false, watch: Boolean = false,
-            crashTest: Boolean = false, players: Int = 0) {
-    var screen by rememberSaveable { mutableStateOf(if (start != null) Screen.GAME else Screen.START) }
+            crashTest: Boolean = false, players: Int = 0, inviteCode: String? = null) {
+    var screen by rememberSaveable { mutableStateOf(if (start != null) Screen.GAME else if (inviteCode != null) Screen.JOIN else Screen.START) }
     var setup by remember {
         val base = if (start == "chivalry") GameSetup().withRuleset(Ruleset.CHIVALRY) else GameSetup()
         // `--ei players N` (debug): you plus N-1 bots, the other seats empty.
@@ -306,7 +308,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     // like a game that never gets past the first roll (it waits on players who are gone).
     LaunchedEffect(Unit) {
         val code = savedRoom.getString("room", null) ?: return@LaunchedEffect
-        if (start != null || session != null) return@LaunchedEffect
+        if (start != null || session != null || inviteCode != null) return@LaunchedEffect
         if (!rejoinRecent(savedRoom.getLong("at", 0L), System.currentTimeMillis())) { savedRoom.edit().remove("room").apply(); return@LaunchedEffect }
         setup = setup.copy(name = savedRoom.getString("name", null) ?: setup.name)
         busy = true; problem = "Rejoining room $code…"
@@ -340,6 +342,9 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     crash?.let { report -> CrashReportScreen(report) { crash = null }; return }
     // Debug builds: `--ez crash true` throws a test crash to exercise the reporter.
     if (crashTest) LaunchedEffect(Unit) { kotlinx.coroutines.delay(1500); throw IllegalStateException("test crash (debug --ez crash true)") }
+    // The intro fly-over, the first time the app opens (never over a debug start or a rejoin).
+    var intro by remember { mutableStateOf(start == null && !Intro.seen(ctx)) }
+    if (intro && screen == Screen.START) { IntroScreen { intro = false }; return }
     Box(Modifier.fillMaxSize()) {
         // Which build this is, for testers (bumped with each major merge).
         if (screen == Screen.START) Text("v${appVersion()}", color = Color(0xFFD9B865), fontSize = 12.sp,
@@ -358,7 +363,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             )
             Screen.JOIN -> {
                 BackHandler { screen = Screen.START }
-                JoinRoomScreen(setup.name, busy, onJoin = { code, name ->
+                JoinRoomScreen(setup.name, busy, initialCode = inviteCode ?: "", onJoin = { code, name ->
                     setup = setup.copy(name = name); busy = true; problem = null
                     joinFirstOpenSeat(transport.value, setup, code).whenComplete { r, e ->
                         scope.launch { if (e != null) failed(e) else { busy = false; enterRoom(r) } }
@@ -531,7 +536,9 @@ fun WatchGameScreen(
         var last = 0L
         while (true) withFrameNanos { now ->
             sea.clouds01 = env.clouds; sea.birds01 = env.birds; sea.boats01 = env.boats; sea.waves01 = env.waves; sea.density01 = env.density
-            if (last != 0L) sea.update(((now - last) / 1e9f).coerceAtMost(0.05f))
+            // Clamp both ends: on some phones (Pixel 9/10, Android 17) the frame clock can step back a little,
+            // and a negative step crashed the gulls' turn limit (crash reports 2026-10-11).
+            if (last != 0L) sea.update(((now - last) / 1e9f).coerceIn(0f, 0.05f))
             last = now
             seaTick++
         }
@@ -939,7 +946,9 @@ fun WatchGameScreen(
         }
         if (me >= 0 && !inventory) tick.let {
             TurnPrompt(tapHint ?: prompt(state, legal, names), Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
-            if (!tradeOpen && !tradeNeedsMe(state, me)) HandRow(state, me, tick, Modifier.align(Alignment.BottomCenter).offset(x = 60.dp).padding(bottom = 6.dp))
+            if (!tradeOpen && !tradeNeedsMe(state, me)) HandRow(state, me, tick,
+                // Between the left panel and the move buttons (playtest: progress cards slid under End turn).
+                Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 384.dp, end = 196.dp, bottom = 6.dp))
         }
         if (me >= 0 && !inventory) {
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
@@ -1046,7 +1055,8 @@ fun WatchGameScreen(
         if (env.viewBars && !inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
             onZoom = { z -> camera = camera.transform(Offset(boardSize.width / 2f, boardSize.height / 2f), Offset.Zero, z / camera.zoom, boardSize) },
             onTilt = { t -> camera = camera.copy(tilt = t) },
-            Modifier.align(Alignment.CenterEnd).padding(end = 8.dp))
+            // Upper right under Trade, short, clear of the move buttons that stack up from the bottom right.
+            Modifier.align(Alignment.TopEnd).padding(top = 104.dp, end = 8.dp))
         if (me >= 0 && !inventory && tick.let { tradeButtonVisible(state) }) TradeToggle(
             open = tradeOpen || tradeNeedsMe(state, me),
             attention = tick.let { tradeNeedsMe(state, me) },
@@ -1495,9 +1505,9 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             val ux = (x2 - x1) / len; val uy = (y2 - y1) / len
             val sprite = buildings.roadFor(x2 - x1, y2 - y1)
             for (side in listOf(-1f, 1f)) {
-                val x = (x1 + x2) / 2f + side * ux * BuildingSprites.ROAD_OFFSET
-                val y = (y1 + y2) / 2f + side * uy * BuildingSprites.ROAD_OFFSET
-                drawPieceSprite(sprite, l.project(x, y), scale * l.kAt(y), l.tilt, PLAYER_COLORS[owner])
+                val x = (x1 + x2) / 2f + side * ux * ROAD_SPREAD
+                val y = (y1 + y2) / 2f + side * uy * ROAD_SPREAD
+                drawPieceSprite(sprite, l.project(x, y), scale * l.kAt(y) * ROAD_SCALE, l.tilt, PLAYER_COLORS[owner])
             }
             continue
         }
@@ -1538,7 +1548,8 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         if (owner < 0) continue
         if (buildings != null) {
             // Rendered: Ramparts first, then the town, or the Capital that replaces it on a metropolis.
-            val at = l.at(v); val unit = scale * l.k(v); val color = PLAYER_COLORS[owner]
+            // Mauro, 2026-10-10: "make the houses twice as large, I can't see the buildings".
+            val at = l.at(v); val unit = scale * l.k(v) * BUILDING_SCALE; val color = PLAYER_COLORS[owner]
             val ckNow = s.ck
             if (ckNow != null && ckNow.wall[v] == 1) buildings.ramparts?.let { drawPieceSprite(it, at, unit, l.tilt, color) }
             val metro = ckNow?.metroVertex?.indexOf(v) ?: -1
@@ -1619,9 +1630,9 @@ private fun DrawScope.drawSupplies(s: GameState, l: Layout, wood: WoodPieces, st
             val unit = l.scale * l.kAt(sp.y)
             when (sp.kind) {
                 // The upright road sprite turned to lie along the owner's row.
-                Supply.Kind.ROAD -> drawPieceSprite(buildings.roadV, at, unit, l.tilt, PLAYER_COLORS[p], Math.toDegrees(a.toDouble()).toFloat())
-                Supply.Kind.TOWN -> drawPieceSprite(buildings.town, at, unit, l.tilt, PLAYER_COLORS[p], faceOwnerDegrees(a))
-                Supply.Kind.HOMESTEAD -> drawPieceSprite(buildings.homestead, at, unit, l.tilt, PLAYER_COLORS[p], faceOwnerDegrees(a))
+                Supply.Kind.ROAD -> drawPieceSprite(buildings.roadV, at, unit * ROAD_SCALE, l.tilt, PLAYER_COLORS[p], Math.toDegrees(a.toDouble()).toFloat())
+                Supply.Kind.TOWN -> drawPieceSprite(buildings.town, at, unit * BUILDING_SCALE, l.tilt, PLAYER_COLORS[p], faceOwnerDegrees(a))
+                Supply.Kind.HOMESTEAD -> drawPieceSprite(buildings.homestead, at, unit * BUILDING_SCALE, l.tilt, PLAYER_COLORS[p], faceOwnerDegrees(a))
             }
             continue
         }
@@ -1915,6 +1926,16 @@ private fun DrawScope.drawPortToken(type: Int, t: Offset, scale: Float, measurer
  */
 internal const val NUMBER_TOKEN_R = 0.27f
 
+/** Number size on the plate, in hex units (the font size for a side-1 hex); Mauro: bigger, ~60% over the first 0.264. */
+internal const val NUMBER_TEXT = 0.46f
+
+/** Homesteads, towns, Ramparts and Capitals drawn this many times the art spec's size (roads stay as they are). */
+internal const val BUILDING_SCALE = 2.4f
+
+/** Roads drawn at this share of the art-spec size (Mauro: narrower), two per edge, centred ROAD_SPREAD from the middle. */
+internal const val ROAD_SCALE = 0.8f
+internal const val ROAD_SPREAD = 0.2f
+
 /**
  * Where the number token sits on a tile, in hex sides from its centre (y down, before the tilt squash).
  * Mauro (2026-10-10): lower RIGHT, on the clearing every tile keeps for it (docs/design/art-spec.md).
@@ -1941,9 +1962,10 @@ private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer:
     val ink = if (n == 6 || n == 8) Color(0xFFC62828) else INK
     val text = measurer.measure(
         n.toString(),
-        TextStyle(fontSize = (0.264f * k * scale / density).sp, fontWeight = FontWeight.Bold, color = ink),
+        // Mauro, 2026-10-10: bigger numbers, same disc (0.264 -> 0.34 hex units, about 30% larger).
+        TextStyle(fontSize = (NUMBER_TEXT * k * scale / density).sp, fontWeight = FontWeight.Bold, color = ink),
     )
-    drawText(text, topLeft = t - Offset(text.size.width / 2f, text.size.height * 0.6f))
+    drawText(text, topLeft = t - Offset(text.size.width / 2f, text.size.height * 0.66f))
     val dots = pips(n)
     val gap = 0.12f * r
     for (d in 0 until dots) {

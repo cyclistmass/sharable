@@ -132,8 +132,8 @@ class OnlineSeats(room: Room, uid: String) {
 /** Join a room by its code (ROVER-42; any case, spaces or no dash). Takes the first open seat. */
 @Composable
 fun JoinRoomScreen(name: String, busy: Boolean, onJoin: (code: String, name: String) -> Unit, onBack: () -> Unit,
-                   modifier: Modifier = Modifier) {
-    var typed by remember { mutableStateOf("") }
+                   modifier: Modifier = Modifier, initialCode: String = "") {
+    var typed by remember { mutableStateOf(initialCode) }
     var me by remember { mutableStateOf(if (onlineName(name)) name else "") }
     val code = Lobby.normalizeCode(typed)
     androidx.compose.foundation.layout.Box(modifier.fillMaxSize().tableTop().testTag("join"), contentAlignment = androidx.compose.ui.Alignment.Center) {

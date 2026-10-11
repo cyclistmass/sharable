@@ -61,6 +61,13 @@ Write the test plan before calling a change done, and cover all four kinds:
 4. **On-device:** install on an emulator, drive it, screenshot it; for UI work also run Android's
    `monkey` random-input tester and report any crash.
 
+**Before every push: test as the user (required unless the maintainer says otherwise for that push).** Install the exact APK being released, both fresh
+and as an update over the last release. Go in through the start screen with real taps, no debug
+extras or hooks. Play full games to the end in both rulesets with 3 and 4 players. Close and reopen
+mid-game. Host and join online, and try every changed feature. Debug hooks (`WGBG-TURN` broadcasts,
+`--es start`, `--ei players`, autosetup) are for unit and automated tests only; they never count as
+user testing.
+
 Also cross-check core rules against Catanatron, test dice fairness statistically, and report test counts
 honestly. Never call something done with failing or skipped tests.
 

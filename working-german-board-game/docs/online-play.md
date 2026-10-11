@@ -85,7 +85,7 @@ and mid-game departure/replacement are unsupported.
    Guests leave lobbies with `transport.leave(id)`.
 
 The fallback is local to the process, not LAN transport. The invite base remains
-the placeholder `https://wgbg.example/join/`; App Links and join navigation belong
+the placeholder `https://cyclistmass.github.io/sharable/join/#`; App Links and join navigation belong
 to AppRoot/product integration.
 
 ## Rules testing and deployment
