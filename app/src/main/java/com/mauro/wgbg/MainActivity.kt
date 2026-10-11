@@ -190,7 +190,9 @@ class MainActivity : ComponentActivity() {
                 val crashTest = debug && intent.getBooleanExtra("crash", false)
                 // Debug builds: `--ei players 3` starts with that many players (you plus bots), like a 3-player setup.
                 val players = if (debug) intent.getIntExtra("players", 0) else 0
-                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup, watch, crashTest, players)
+                // An invite link (wgbg://join/ROOM-42) opens the Join screen with that code filled in.
+                val inviteCode = joinCodeFrom(intent.dataString)
+                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup, watch, crashTest, players, inviteCode)
             }
         }
     }
@@ -268,8 +270,8 @@ private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME 
  */
 @Composable
 fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseEmu: Boolean = false, autoplay: Boolean = false, autoSetup: Boolean = false, watch: Boolean = false,
-            crashTest: Boolean = false, players: Int = 0) {
-    var screen by rememberSaveable { mutableStateOf(if (start != null) Screen.GAME else Screen.START) }
+            crashTest: Boolean = false, players: Int = 0, inviteCode: String? = null) {
+    var screen by rememberSaveable { mutableStateOf(if (start != null) Screen.GAME else if (inviteCode != null) Screen.JOIN else Screen.START) }
     var setup by remember {
         val base = if (start == "chivalry") GameSetup().withRuleset(Ruleset.CHIVALRY) else GameSetup()
         // `--ei players N` (debug): you plus N-1 bots, the other seats empty.
@@ -306,7 +308,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     // like a game that never gets past the first roll (it waits on players who are gone).
     LaunchedEffect(Unit) {
         val code = savedRoom.getString("room", null) ?: return@LaunchedEffect
-        if (start != null || session != null) return@LaunchedEffect
+        if (start != null || session != null || inviteCode != null) return@LaunchedEffect
         if (!rejoinRecent(savedRoom.getLong("at", 0L), System.currentTimeMillis())) { savedRoom.edit().remove("room").apply(); return@LaunchedEffect }
         setup = setup.copy(name = savedRoom.getString("name", null) ?: setup.name)
         busy = true; problem = "Rejoining room $code…"
@@ -361,7 +363,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             )
             Screen.JOIN -> {
                 BackHandler { screen = Screen.START }
-                JoinRoomScreen(setup.name, busy, onJoin = { code, name ->
+                JoinRoomScreen(setup.name, busy, initialCode = inviteCode ?: "", onJoin = { code, name ->
                     setup = setup.copy(name = name); busy = true; problem = null
                     joinFirstOpenSeat(transport.value, setup, code).whenComplete { r, e ->
                         scope.launch { if (e != null) failed(e) else { busy = false; enterRoom(r) } }

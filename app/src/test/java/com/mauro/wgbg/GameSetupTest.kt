@@ -117,7 +117,7 @@ class GameSetupTest {
         assertFalse(lobby.seats[3].open)
         assertEquals(BotLevel.EASY, lobby.seats[3].bot)
         assertEquals("Easy bot", lobby.seats[3].label)
-        assertEquals("https://wgbg.example/join/ROVER-42", lobby.link)
+        assertEquals("https://cyclistmass.github.io/sharable/join/#ROVER-42", lobby.link)
         assertEquals(1, lobby.taken)
     }
 
@@ -239,8 +239,8 @@ class GameSetupTest {
     @Test
     fun `the invite names the room, ruleset and link, and greets a recent player by name`() {
         val l = Lobby.sample()
-        assertEquals("Join my game: room ROVER-42, Base game. https://wgbg.example/join/ROVER-42", inviteText(l))
-        assertEquals("Sam, join my game: room ROVER-42, Base game. https://wgbg.example/join/ROVER-42", inviteText(l, "Sam"))
+        assertEquals("Join my game: room ROVER-42, Base game. https://cyclistmass.github.io/sharable/join/#ROVER-42", inviteText(l))
+        assertEquals("Sam, join my game: room ROVER-42, Base game. https://cyclistmass.github.io/sharable/join/#ROVER-42", inviteText(l, "Sam"))
     }
 
     @Test

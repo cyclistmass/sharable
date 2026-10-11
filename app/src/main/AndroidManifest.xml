@@ -16,6 +16,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Invite links: the join page's "Open in the game" button opens wgbg://join/ROOM-42. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="wgbg" android:host="join" />
+            </intent-filter>
         </activity>
     </application>
 

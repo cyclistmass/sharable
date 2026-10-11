@@ -6,7 +6,15 @@ import kotlin.random.Random
 // Online LobbySession feeds this through the same seam as the local/stub lobby.
 
 /** Where invite links point. Placeholder until #7 picks the real domain and App Link. */
-const val JOIN_BASE = "https://wgbg.example/join/"
+/** Invite links open the join page on GitHub Pages (a real address), which opens the game with wgbg://join/CODE. */
+const val JOIN_BASE = "https://cyclistmass.github.io/sharable/join/#"
+
+/** The room code in an invite link or a wgbg://join/CODE link, or null. */
+fun joinCodeFrom(link: String?): String? {
+    if (link == null) return null
+    val tail = link.substringAfterLast('#', link.substringAfterLast('/'))
+    return Lobby.normalizeCode(tail)
+}
 
 /**
  * One lobby seat. A person sits in it ([name]), or it is open (anyone can join; [bot] is the
