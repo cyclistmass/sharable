@@ -1956,8 +1956,8 @@ internal const val NUMBER_TEXT = 0.46f
 /** Homesteads, towns, Ramparts and Capitals drawn this many times the art spec's size (roads stay as they are). */
 internal const val BUILDING_SCALE = 2.4f
 
-/** Age of Chivalry knight size in hex units (Mauro, 2026-10-11: "knights about 3x bigger", was 0.62). */
-internal const val KNIGHT_SCALE = 1.86f
+/** Age of Chivalry knight size in hex units (Mauro, 2026-10-11: 3x the first 0.62, then 30% smaller). */
+internal const val KNIGHT_SCALE = 1.30f
 
 /** Roads drawn at this share of the art-spec size (Mauro: narrower), two per edge, centred ROAD_SPREAD from the middle. */
 internal const val ROAD_SCALE = 0.8f
