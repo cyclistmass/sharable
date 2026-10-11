@@ -33,7 +33,7 @@ unless another path is given.
   `dice_pe2_*` Ship-timber, `dice_pe3_*` Brass cage, and their tumbles) are from the same source, imported at
   −25% saturation by `tools/import_event_dice.py`.
 - Rendered buildings (`bld_*`, #41): homestead, town, roads in three directions, Ramparts and three Capitals, in a Default and a Pirate set, each a tintable wood layer plus a brass/stone trim layer in 8 tilt steps; own Blender models and procedural materials, imported by `tools/import_buildings.py`.
-- Intro fly-over (`res/raw/intro_flyover.mp4`): the gull riding beside a sloop and over the island, rendered by OpenAI Codex for Mauro (#54).
+- Intro fly-over (`res/raw/intro_flyover.mp4`, v2): the 3D sloop sailing bow-first with its wake, the flapping gull and the scarred sperm whale surfacing and blowing, then over the island to the board; our own Blender scenes (sea_props.py, build_splash_v2.py) built by OpenAI Codex and rendered on Mauro's PC (#54, #64).
 - App icon (`ic_launcher*`): our gull over deep sea in an old-brass roundel (option A, Mauro's pick 2026-10-10), rendered by OpenAI Codex for Mauro.
 - Bandit V2 "skeleton corsair" (`bandit_tilt_0..7`): the painted-miniature finish with an aged ivory skull, bigger afro and upturned brim, a 3D model rendered in Blender, 8 tilt steps (Mauro's pick, 2026-10-10).
 - Tile candidates for Menu › Tiles: compare (`tile3d_v2_*`, `tile_a1_relief_*`): 3D renders and relief faces,
