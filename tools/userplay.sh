@@ -136,9 +136,9 @@ shot start
 for _ in $(seq 1 120); do "$ADB" logcat -d -s WGBG-TURN:I | grep -q 'phase=' && break; sleep 1; done
 "$ADB" logcat -d -s WGBG-TURN:I | grep -q 'phase=' || fail "the game never started (still on the start screen?)"
 # Animations off from the menu, like a player can (Mauro: test games skip the animation; it also makes reading the
-# screen fast, since a still screen needs no waiting): Menu, Settings, Animations Off, Done, Hide.
+# screen fast, since a still screen needs no waiting): Menu, Settings, Animations Off, Hide (it saves as you tap).
 if tap_text "Menu"; then
-  tap_desc "Settings" && { tap_text "Off" || echo "USERPLAY $TAG: no Animations Off switch"; tap_text "Done"; }
+  tap_desc "Settings" && { tap_text "Off" || echo "USERPLAY $TAG: no Animations Off switch"; }
   tap_text "Hide"
 fi
 # Local games: speed the bots up from the menu like a player can (Menu, tap the speed button up to Max, Hide).

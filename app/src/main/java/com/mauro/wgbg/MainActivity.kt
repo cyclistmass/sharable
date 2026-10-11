@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -515,6 +516,8 @@ fun WatchGameScreen(
     }
     val log = remember(seed, seats) { mutableStateListOf<String>() }
     val tracker = remember(seed, seats, human, epoch) { TurnTracker(names) }
+    /** The last [Hit] notice the player dismissed. */
+    var seenHit by remember(tracker) { mutableIntStateOf(0) }
     // Moves from the human's taps and buttons; the game loop checks each against the rules.
     val humanMoves = remember { Channel<Action>(Channel.UNLIMITED) }
     var tradeOpen by remember { mutableStateOf(false) }
@@ -1056,6 +1059,16 @@ fun WatchGameScreen(
             }
         }
         if (me >= 0 && !inventory) tick.let {
+            // Another player's card or bandit cost you something: say who, with what card and why, until OK.
+            tracker.hits.lastOrNull { it.victim == me && it.seq > seenHit }?.let { hit ->
+                Column(Modifier.align(Alignment.TopCenter).padding(top = 64.dp).widthIn(max = 460.dp).chest().testTag("hit-notice"),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("${names[hit.by]} ${hit.cause}", color = Color(0xFFF1D58A), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    hit.why?.let { Text(it, color = Color(0xFFEDE6D8), fontSize = 12.sp) }
+                    Text("You lost ${hit.lost}", color = Color(0xFFFFB4A0), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    ColorButton("OK", Color(0xFF3E9B4F), "hit-ok") { seenHit = hit.seq }
+                }
+            }
             TurnPrompt(tapHint ?: prompt(state, legal, names), Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
             if (!tradeOpen && !tradeNeedsMe(state, me)) HandRow(state, me, tick,
                 // Between the left panel and the move buttons (playtest: progress cards slid under End turn).
@@ -1163,10 +1176,12 @@ fun WatchGameScreen(
             color = Color(0xFFFFB4A0), fontSize = 12.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 14.dp, end = 120.dp).background(Color(0xCC2A1B10), RoundedCornerShape(8.dp))
                 .padding(horizontal = 8.dp, vertical = 3.dp).testTag("debug-badge"))
-        BrassButton(if (panelOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) { panelOpen = !panelOpen }
+        BrassButton(if (panelOpen || settingsOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) {
+            if (settingsOpen) settingsOpen = false else panelOpen = !panelOpen
+        }
         if (compareTiles) { BackHandler { compareTiles = false }; TileCompare(onBack = { compareTiles = false }) }
         // Settings open from the gear inside the Menu, so the board stays clean.
-        if (settingsOpen) SettingsPanel(env, sound, onClose = { settingsOpen = false },
+        if (settingsOpen) SettingsPanel(env, sound,
             Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp))
         if (confirmExit) Column(
             Modifier.align(Alignment.Center).brassEdgedWood().padding(18.dp).testTag("exit-confirm"),

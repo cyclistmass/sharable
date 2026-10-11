@@ -37,6 +37,12 @@ data class TurnReport(
 data class Steal(val thief: Int, val victim: Int, val card: Int)
 
 /**
+ * Something [by]'s turn cost [victim] (cards, a road, a knight, a progress card), with the card or bandit that did it:
+ * shown to the victim (Mauro: "the person getting shafted needs to know who and why"). [seq] counts up from 1.
+ */
+data class Hit(val seq: Int, val victim: Int, val by: Int, val cause: String, val why: String?, val lost: String)
+
+/**
  * Watches every action applied to a game and builds [TurnReport]s. Call [apply] instead of
  * `Rules.apply` so it can diff hands around each action.
  */
@@ -48,12 +54,34 @@ class TurnTracker(private val names: List<String>) {
     /** Finished turns, newest first, up to [HISTORY] (the info box scrolls back through them, #65). */
     var history: List<TurnReport> = emptyList()
         private set
+    /** What other players' turns cost each player, newest last (the last [HISTORY] of them). */
+    var hits: List<Hit> = emptyList()
+        private set
+    /** The progress card the turn's player played last this turn (engine index), or -1. */
+    private var turnCard = -1
+
+    /** Per player: cards by kind, then roads, knights and progress cards held. */
+    private fun holdings(s: GameState): Array<IntArray> = Array(s.numPlayers) { p ->
+        val kinds = if (s.ck != null) wgbg.engine.CK_CARD_TYPES else CARD_TYPES
+        val ck = s.ck
+        IntArray(kinds + 3) { i ->
+            when {
+                i < kinds -> s.card(p, i)
+                i == kinds -> s.edgeOwner.count { it == p }
+                i == kinds + 1 -> ck?.knightOwner?.count { it == p } ?: 0
+                else -> ck?.progressCount(p) ?: 0
+            }
+        }
+    }
 
     fun apply(s: GameState, who: Int, action: Action, applyFn: () -> Unit) {
         if (current == null || current!!.player != s.currentPlayer || current!!.turn != s.turn) {
             current?.let { if (it.rolled || it.events.isNotEmpty()) { last = it; history = (listOf(it) + history).take(HISTORY) } }
             current = TurnReport(s.currentPlayer, s.turn)
+            turnCard = -1
         }
+        val owner = s.currentPlayer
+        val held = holdings(s)
         val before = s.hands.copyOf()
         val phaseBefore = s.phase
         val counterer = s.counterFrom
@@ -71,6 +99,7 @@ class TurnTracker(private val names: List<String>) {
             if (s.ck != null) ev = peek.nextInt(6)
         }
         applyFn()
+        noteHits(s, owner, who, action, held, holdings(s), phaseBefore)
         val gained = Array(s.numPlayers) { p -> IntArray(CARD_TYPES) { r -> s.hands[p * CARD_TYPES + r] - before[p * CARD_TYPES + r] } }
         val r = current!!
         val n = names[who]
@@ -105,6 +134,38 @@ class TurnTracker(private val names: List<String>) {
             ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY ->
                 r.plus("$n played ${describe(action.type)} and got ${changes(gained[who]) ?: "nothing"}")
             else -> r.plus("$n ${describe(action.type)}")
+        }
+    }
+
+    /**
+     * Records a [Hit] for every other player who lost something on [owner]'s turn through no choice of their own:
+     * not trades they agreed to, not their own discards on a rolled 7. Card effects that the victim carries out
+     * (giving cards for a Wedding, removing a knight for a Turncoat) count, named after the card that caused them.
+     */
+    private fun noteHits(s: GameState, owner: Int, who: Int, action: Action, was: Array<IntArray>, now: Array<IntArray>, phaseBefore: Phase) {
+        if (action.type.toString() == "PLAY_PROGRESS" && who == owner) turnCard = (action.payload and 0xff).toInt()
+        if ("TRADE" in action.type.toString()) return
+        val sevenDiscard = action.type == ActionType.DISCARD && phaseBefore == Phase.DISCARD && turnCard < 0
+        if (sevenDiscard) return
+        val kinds = was[0].size - 3
+        for (p in 0 until s.numPlayers) {
+            if (p == owner) continue
+            val lost = buildList {
+                val cards = (0 until kinds).filter { now[p][it] < was[p][it] }
+                if (cards.isNotEmpty()) add(cards.joinToString(", ") { "${was[p][it] - now[p][it]} ${ALL_CARD_NAMES[it]}" })
+                if (now[p][kinds] < was[p][kinds]) add("a road")
+                if (now[p][kinds + 1] < was[p][kinds + 1]) add("a knight")
+                if (now[p][kinds + 2] < was[p][kinds + 2]) add("a progress card")
+            }
+            if (lost.isEmpty()) continue
+            val (cause, why) = when {
+                action.type == ActionType.MOVE_ROBBER -> "moved the bandit to you" to null
+                turnCard >= 0 -> "played ${PROGRESS_NAMES.getOrElse(turnCard) { "a card" }}" to PROGRESS_HINTS.getOrNull(turnCard)
+                else -> "took it" to null
+            }
+            hits = (hits + Hit((hits.lastOrNull()?.seq ?: 0) + 1, p, owner, cause, why, lost.joinToString(", "))).takeLast(HISTORY)
+            // The bandit's theft is already in the turn's lines; a card's cost is added here.
+            if (action.type != ActionType.MOVE_ROBBER) current = current?.plus("${names[owner]} $cause: ${names[p]} lost ${lost.joinToString(", ")}")
         }
     }
 

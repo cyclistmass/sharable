@@ -162,15 +162,14 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
  * Reset puts scenery and sound back to their defaults.
  */
 @Composable
-fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = Modifier) {
+    // No Done button: every change saves as it is made, and the Menu button (showing Hide) closes the panel (Mauro).
     // Scrolls when the screen is too short for every setting (landscape phones).
     Column(modifier.width(360.dp).brassEdgedWood().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp).testTag("settings-panel"),
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Settings", fontSize = 18.sp, color = Color(0xFFF1D58A), modifier = Modifier.weight(1f))
             ResetButton { env.reset(); sound.reset() }
-            Spacer(Modifier.width(8.dp))
-            WoodButton("Done", "settings-done", onClick = onClose)
         }
         Text("Animations (off, or Density at 0: nothing moves)", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
