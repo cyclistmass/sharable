@@ -141,17 +141,51 @@ def guitar12(note, dur, vel=1.0):
     return x * vel
 
 
-def accordion(note, dur, vel=1.0):
-    """Accordion reeds: three slightly detuned reed voices (musette) with bellows swell and a soft attack."""
-    n = int((dur + 0.08) * SR); t = np.arange(n) / SR; f = midi_hz(note)
-    x = np.zeros(n)
-    for det in (0.0, -0.11, 0.13):                      # semitone-cents detune of the three reeds
-        ff = f * 2 ** (det / 12)
-        ph = 2 * np.pi * ff * t
-        x += np.sin(ph) + 0.55 * np.sin(2 * ph) + 0.4 * np.sin(3 * ph) + 0.22 * np.sin(4 * ph) + 0.12 * np.sin(5 * ph)
-    env = np.minimum(1, t / 0.035) * np.minimum(1, (dur + 0.08 - t) / 0.06).clip(0, 1)
-    swell = 1 + 0.08 * np.sin(2 * np.pi * 0.7 * t)
-    return x * env * swell * vel / 4
+_REED_TABLES = {}
+
+
+def _reed_table(f, size=2048):
+    """One period of a free reed's tone at [f] Hz: a band-limited sawtooth-like spectrum (harmonics ~1/n up to
+    8 kHz) with a bump around 1.5-3 kHz from the reed chamber."""
+    key = round(f, 2)
+    if key not in _REED_TABLES:
+        ph = 2 * np.pi * np.arange(size) / size
+        tab = np.zeros(size)
+        for n in range(1, max(2, int(8000 / f)) + 1):
+            fh = n * f
+            amp = (1.0 / n) * (1 + 0.9 * np.exp(-((fh - 2200) / 800) ** 2)) * (1 if fh < 6000 else 1 - (fh - 6000) / 2500)
+            tab += amp * np.sin(n * ph)
+        _REED_TABLES[key] = tab
+    return _REED_TABLES[key]
+
+
+def _reed(f, n, t):
+    """A reed voice at [f] Hz, [n] samples, read from its wavetable with a random starting phase."""
+    tab = _reed_table(f); size = len(tab)
+    pos = (rng.uniform(0, size) + f * size * t) % size
+    i = pos.astype(int); frac = pos - i
+    return tab[i] * (1 - frac) + tab[(i + 1) % size] * frac
+
+
+def accordion(note, dur, vel=1.0, musette=True, low_reed=True):
+    """A free-reed accordion: buzzy reeds (band-limited, sawtooth-like), in musette three middle reeds (one in tune,
+    two about +-13 cents off, so they beat a few times a second) plus a quieter reed an octave below; a quick soft
+    bellows attack with a little reed chiff, a slow swell and a clean release. musette=False is one reed (the
+    left-hand buttons); low_reed adds the bassoon reed."""
+    n = int((dur + 0.06) * SR); t = np.arange(n) / SR; f = midi_hz(note)
+    x = _reed(f, n, t)
+    if musette:
+        x = x + 0.85 * _reed(f * 2 ** (0.13 / 12), n, t) + 0.85 * _reed(f * 2 ** (-0.14 / 12), n, t)
+    if low_reed:
+        x = x + 0.4 * _reed(f / 2, n, t)
+    a = 0.025
+    env = np.minimum(1, t / a) ** 1.5 * np.clip((dur + 0.06 - t) / 0.06, 0, 1)
+    env *= 1 + 0.06 * np.minimum(1, t / 0.8)            # the bellows pressing on
+    nc = min(n, int(0.03 * SR))                         # reed chiff: a short, soft breathy burst at the start
+    chiff = np.zeros(n)
+    chiff[:nc] = one_pole_lowpass(rng.standard_normal(nc), 3500) * np.exp(-np.arange(nc) / (0.008 * SR)) * 0.5
+    norm = 4.5 if musette else 2.2
+    return (x * env + chiff) * vel / norm
 
 
 def harmonica(note, dur, vel=1.0):
@@ -237,53 +271,67 @@ def drunken_sailor():
 
 
 def carnival_of_venice():
-    """Carnival of Venice (Il carnevale di Venezia), G major, 6/8. Melody after James Kerr, "Merry Melodies" v.3
-    p.29 #2 (public domain), ABC by John Chambers:
-    https://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/book/Kerr/MM3-V1/0525
-    Each strain twice (AABB), the whole tune twice. Accordion melody over a gently arpeggiated 12-string; second
-    time round a soft harmonica doubles strain A an octave up and the accordion takes strain B an octave up."""
-    # Each strain: the one-eighth pickup, then 8 bars of 6 eighths whose last note leaves room for the next pickup.
-    strain_a = ("d e:2 d c:2 B d:2 c A:2 B c B c e:2 d B:5 d "
-                "e:2 d c:2 B d:2 c A:2 B c B c e:2 d G:5")
-    strain_b = ("d d c B B A G F#:2 A e:2 d c#:2 d c:2 A B:5 d "
-                "d c B B A G F#:2 A e:2 d f# e d c B A G:5")
-    # One chord per bar (two for a split bar), the same both times through each strain.
-    bars = {"A": ["C", "D7", "D7", "G", "C", "D7", "D7", "G"],
-            "B": ["G", "D7", "A7 D7", "G", "G", "D7", "D7", "G"]}
-    chords = {"G": [43, 47, 50, 55], "C": [48, 52, 55, 60], "D7": [50, 54, 57, 60], "A7": [45, 49, 52, 55]}
-    e = 0.24                                            # the same easy pace as Drunken Sailor
-    form = ["A", "A", "B", "B"]
-    total_eighths = 2 * len(form) * 48
-    track = np.zeros((int((total_eighths * e + 5) * SR), 2))
-    t = 0.0
-    for r in range(2):
-        for s_i, s in enumerate(form):
+    """Carnival of Venice (Il carnevale di Venezia, the "Mein Hut, der hat drei Ecken" / "My Hat, It Has Three
+    Corners" tune), the 3/4 theme in C major. Melody after Helene Criscio and Tony Santorella, "Italian Favorites
+    for Accordion" (1997), ABC by John Chambers (in F there; transposed to C):
+    https://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/abc/Italy/song/Carnival_of_Venice/0000
+    Cross-checked against Frank Nordberg's Musica Viva transcription (the same notes, in C):
+    https://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/abc/mirror/musicaviva.com/italy/carnival-of-venice/0000
+    and Conal O'Grada's 3/4 setting (an ornamented variant): https://thesession.org/tunes/23403
+    Accordion right hand on the tune, its left hand an oom-pah-pah waltz (bass on 1, short chords on 2 and 3), a
+    soft 12-string under it; both strains twice through, the second time with a quiet harmonica doubling."""
+    q = 0.48                                            # seconds per quarter note: Drunken Sailor's beat
+    e = q / 2                                           # parse() lengths are in eighths
+    # Each half: 8 bars of 3/4 (6 eighths); the last note leaves room for the pickup g into the next half.
+    half_a = "a:4 g:2 f:4 e:2 f:2 d:6 d:2 e:2 f:4 g:2 a:4 g:2 {end}:10 g:2"
+    half_b = "g:2 f:2 e:2 e:2 d:2 c:2 c:2 B:4 B:2 d:2 e:2 f:4 g:2 a:4 g:2 {end}:10 g:2"
+    halves = [(half_a.format(end="e"), "A"), (half_a.format(end="c"), "A"),
+              (half_b.format(end="e"), "B"), (half_b.format(end="c"), "B")]
+    # Chord per beat (a bar of one name is the same chord on all three beats).
+    bars = {"A": ["F", "F", "G7", "G7", "G7", "F", "C", "C"],
+            "B": ["C", "C", "C G7 G7", "G7", "G7", "F", "C", "C"]}
+    bass = {"C": (36, 43), "F": (41, 36), "G7": (43, 38)}            # root, then the fifth on alternate bars
+    chord = {"C": [48, 52, 55], "F": [48, 53, 57], "G7": [47, 50, 53]}  # left-hand chords, below the tune
+    passes = 2
+    total_bars = 1 + passes * 32 + 2
+    track = np.zeros((int((total_bars * 3 * q + 4) * SR), 2))
+
+    def left_hand(at, names, bar_no, final=False):
+        names = names.split()
+        names = names * 3 if len(names) == 1 else names
+        b = bass[names[0]][bar_no % 2]
+        place(track, accordion(b, q * (2.6 if final else 0.85), 0.55, musette=False, low_reed=False), at, pan=0.2)
+        place(track, accordion(b + 12, q * (2.6 if final else 0.85), 0.3, musette=False, low_reed=False), at, pan=0.2)
+        for j, nn in enumerate(chord[names[0]]):              # the 12-string: one soft strum on the downbeat
+            place(track, guitar12(nn, 3 * q, 0.13), at + j * 0.02, pan=0.3)
+        if final:
+            for nn in chord[names[0]]:
+                place(track, accordion(nn, q * 2.6, 0.22, musette=False, low_reed=False), at, pan=0.2)
+            return
+        for beat in (1, 2):                                   # pah, pah: short and light
+            for nn in chord[names[beat]]:
+                place(track, accordion(nn, q * 0.42, 0.22, musette=False, low_reed=False), at + beat * q, pan=0.2)
+
+    left_hand(0.0, "C", 0)                                    # one bar of oom-pah-pah to set the waltz going
+    place(track, accordion(67, q * 0.92, 0.8), 2 * q, pan=-0.15)        # pickup g (G4)
+    t = 3 * q; bar_no = 1
+    for p in range(passes):
+        for h_i, (mel, strain) in enumerate(halves):
             start = t
-            octave = 5 if (r == 1 and s == "B") else 4
-            notes = parse(strain_a if s == "A" else strain_b, octave=octave)
-            for n_i, (midi, ln) in enumerate(notes):
-                last = r == 1 and s_i == len(form) - 1 and n_i == len(notes) - 1
-                hold = 3.0 if last else 0.92                # the very last note rings on
+            notes = parse(mel, octave=4)
+            last_half = p == passes - 1 and h_i == len(halves) - 1
+            if last_half:
+                notes = notes[:-2] + [(notes[-2][0], 12.0)]     # end on a held c, no pickup
+            for midi, ln in notes:
                 if midi is not None:
-                    place(track, accordion(midi, ln * e * hold, 0.9), t, pan=-0.15)
-                    if r == 1 and s == "A":
-                        place(track, harmonica(midi + 12, ln * e * hold, 0.3), t, pan=0.2)
+                    hold = 1.15 if last_half and ln == 12.0 else 0.92
+                    place(track, accordion(midi, ln * e * hold, 0.8), t, pan=-0.15)
+                    if p == 1:
+                        place(track, harmonica(midi, ln * e * hold, 0.22), t, pan=0.15)
                 t += ln * e
-            # 12-string: an unhurried arpeggio, one note per eighth (root, 3rd, 5th, octave, 5th, 3rd).
-            for b, bar in enumerate(bars[s]):
-                names = bar.split()
-                for k in range(6):
-                    nm = names[0] if len(names) == 1 or k < 3 else names[1]
-                    ch = chords[nm]
-                    nn = ch[[0, 1, 2, 3, 2, 1][k]]
-                    vel = 0.32 if k in (0, 3) else 0.2
-                    at = start + (1 + b * 6 + k) * e
-                    if r == 1 and s_i == len(form) - 1 and b == 7:   # final bar: one soft strum that rings out
-                        if k == 0:
-                            for j, cn in enumerate(ch):
-                                place(track, guitar12(cn, 6 * e, 0.3), at + j * 0.03, pan=0.25)
-                        continue
-                    place(track, guitar12(nn, 2 * e, vel), at, pan=0.25)
+            for b, names in enumerate(bars[strain]):
+                left_hand(start + b * 3 * q, names, bar_no, final=last_half and b == 7)
+                bar_no += 1
     end = int((t + 2.5) * SR)
     track = track[:end]
     fade = np.minimum(1, (end - np.arange(end)) / (2.5 * SR))[:, None]

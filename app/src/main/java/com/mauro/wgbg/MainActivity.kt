@@ -59,6 +59,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.imageResource
@@ -1057,8 +1059,12 @@ fun WatchGameScreen(
                 Text(confirmTitle(state, chosen[0]), color = Color(0xFFEDE6D8), fontWeight = FontWeight.Bold)
                 confirmWarning(state, me, chosen[0])?.let { Text(it, color = Color(0xFFFFB4A0), fontSize = 13.sp) }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (a in chosen) ColorButton(confirmLabel(state, a, names), Color(0xFF3E9B4F), "confirm") { send(a) }
-                    ColorButton("Cancel", Color(0xFFC0392B), "cancel") { pending = emptyList(); if (cardSecond) { cardPick = emptyList(); cardSecond = false } }
+                    // Compact: a check to place it, a cross to cancel (Mauro: "just an x or check, save space, look cleaner");
+                    // a choice that needs words (who to rob) keeps them after the check.
+                    for (a in chosen) ColorButton(confirmLabel(state, a, names).let { if (it == "Confirm") "✓" else "✓ $it" }, Color(0xFF3E9B4F), "confirm",
+                        androidx.compose.ui.Modifier.confirmA11y("Confirm")) { send(a) }
+                    ColorButton("✗", Color(0xFFC0392B), "cancel", androidx.compose.ui.Modifier.confirmA11y("Cancel")) {
+                        pending = emptyList(); if (cardSecond) { cardPick = emptyList(); cardSecond = false } }
                 }
             }
             if (tick.let { state.isOver }) Column(
@@ -2239,3 +2245,7 @@ object AgentHooks {
         runCatching { android.util.Log.i(TAG, line(where, s, legal, prompt, spot)) }
     }
 }
+
+/** What a screen reader says for an icon-only button (the confirm box's check and cross). */
+private fun androidx.compose.ui.Modifier.confirmA11y(label: String) =
+    this.semantics { contentDescription = label }

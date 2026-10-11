@@ -31,7 +31,10 @@ standard terms (`CitiesAndKnights.kt`, `Resource.ORE`); player-facing text may n
 
 Every panel, dialog, HUD box, menu and button uses the tabletop look: **dark wood panels with old-brass
 edges and brass-edged buttons**, in a **rivetless brass, steampunk master-craftsman** style (smooth hand-finished
-brass, fine engraving, no rivets or bolts). Use the shared pieces in `app/.../Tabletop.kt` (`brassEdgedWood()`,
+brass, fine engraving, never rivets; a screw only where one would really be needed, otherwise a press-fit look). The
+brass is always **worn and aged, never new**: burnished and worn the way brass gets on a boat, well loved but old,
+with softened edges, darkened recesses, a gentle patina or verdigris in the crevices, highlights polished by years of
+hands. Use the shared pieces in `app/.../Tabletop.kt` (`brassEdgedWood()`,
 `brassPlate()`, `BrassButton`, `GoButton`, `Choice`, `WoodButton`) and the Alegreya SC / Alegreya Sans
 fonts. No plain Material grey buttons or black boxes. Action colours: yes/confirm green, no/cancel red,
 counter/primary gold.
