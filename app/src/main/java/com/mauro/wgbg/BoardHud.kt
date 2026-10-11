@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -141,6 +144,21 @@ fun StatBadge(icon: StatIcon, value: Int, held: Boolean, tag: String) {
     }
 }
 
+/** Everything about one card, for the long-press view: its art, name, kind and what it's for. */
+data class CardDetail(val art: Int, val title: String, val kind: String?, val lines: List<String>)
+
+/** A resource or commodity card ([card] index): where it comes from and what it pays for, read from the build map. */
+fun cardDetail(card: Int, chivalry: Boolean): CardDetail {
+    val uses = buildCosts(chivalry).filter { card < it.cards.size && it.cards[card] > 0 }.map { "${it.name}: ${it.cards[card]}" }
+    val improve = if (card >= CARD_TYPES) listOf("Improves the ${listOf("Academy", "Guilds", "Crown")[card - CARD_TYPES]} track of your towns") else emptyList()
+    return CardDetail(ALL_CARD_ART[card], ALL_CARD_NAMES[card], if (card < CARD_TYPES) "Resource" else "Commodity",
+        listOf("From: ${CARD_SOURCES[card]}") + (if (uses.isEmpty()) emptyList() else listOf("Pays for: " + uses.joinToString(", "))) + improve)
+}
+
+/** A progress card: its deck and its full meaning. */
+fun progressDetail(c: Int): CardDetail = CardDetail(progressArt(c), PROGRESS_NAMES.getOrElse(c) { "Progress card" },
+    "${DECK_NAMES[wgbg.engine.Progress.track(c)]} progress card", listOf(progressHint(c)))
+
 /** A progress card's art: its deck's commodity card (Guilds Weave, Crown Silver, Academy Parchment). */
 fun progressArt(card: Int): Int = ALL_CARD_ART[wgbg.engine.Track.commodity(wgbg.engine.Progress.track(card))]
 
@@ -162,9 +180,14 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
     // Tap a progress card to see what it does (Mauro: "add some hints on what a card does").
     var hint by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     androidx.compose.runtime.LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay(5000); hint = null } }
+    // A long press on any card shows it big with everything about it (Mauro); a tap anywhere on it closes.
+    var detail by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<CardDetail?>(null) }
+    fun Modifier.longPressFor(d: CardDetail) = this.pointerInput(d) { detectTapGestures(onLongPress = { detail = d }) }
     @Composable
-    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, small: String? = null, art: Int? = null, onTap: (() -> Unit)? = null) = Box(contentAlignment = Alignment.TopEnd,
-        modifier = Modifier.testTag(tag).then(if (onTap != null) Modifier.clickable { onTap() } else Modifier)) {
+    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, small: String? = null, art: Int? = null, long: CardDetail? = null, onTap: (() -> Unit)? = null) = Box(contentAlignment = Alignment.TopEnd,
+        modifier = Modifier.testTag(tag).then(if (onTap != null || long != null) Modifier.pointerInput(long) {
+            detectTapGestures(onTap = { onTap?.invoke() }, onLongPress = { long?.let { detail = it } })
+        } else Modifier)) {
         Box(Modifier.size(width = w.dp, height = h.dp).background(Color(0xFFEFE3C8), RoundedCornerShape(5.dp))
             .clip(RoundedCornerShape(5.dp)).border(2.dp, edge, RoundedCornerShape(5.dp))) {
             // Themed by its deck's commodity (Mauro): Guilds on Weave, Crown on Silver, Academy on Parchment.
@@ -181,13 +204,25 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
         if (n > 1) count(n)
     }
     Column(modifier) {
+    detail?.let { d ->
+        Row(Modifier.padding(bottom = 6.dp).brassEdgedWood().padding(12.dp).widthIn(max = 520.dp).pointerInput(d) { detectTapGestures { detail = null } }.testTag("card-detail"),
+            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Image(painterResource(d.art), d.title, Modifier.size(width = 100.dp, height = 140.dp), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(d.title, color = Color(0xFFF1D58A), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                d.kind?.let { Text(it, color = Color(0xFFCDBFA6), fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                for (line in d.lines) Text(line, color = Color(0xFFEDE6D8), fontSize = 13.sp)
+                Text("Tap to close", color = Color(0xFFCDBFA6), fontSize = 11.sp)
+            }
+        }
+    }
     hint?.let { Text(it, color = Color(0xFFEDE6D8), fontSize = 13.sp,
         modifier = Modifier.padding(bottom = 4.dp).brassEdgedWood(2.dp).padding(horizontal = 10.dp, vertical = 6.dp).testTag("card-hint")) }
     Row(Modifier.testTag("hand-row").horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
         for (r in 0 until CARD_TYPES) {
             val n = s.hand(me, r)
             if (n == 0) continue
-            Box(contentAlignment = Alignment.TopEnd) {
+            Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.longPressFor(cardDetail(r, s.ck != null))) {
                 Image(painterResource(CARD_ART[r]), RESOURCE_NAMES[r], Modifier.size(width = 50.dp, height = 70.dp))
                 count(n)
             }
@@ -196,7 +231,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
         // Commodities: Parchment, Weave, Silver, with their card art (#62).
         for (c in 0 until wgbg.engine.Commodity.COUNT) {
             val n = s.card(me, CARD_TYPES + c)
-            if (n > 0) Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.testTag("hand-commodity-$c")) {
+            if (n > 0) Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.testTag("hand-commodity-$c").longPressFor(cardDetail(CARD_TYPES + c, true))) {
                 Image(painterResource(COMMODITY_ART[c]), ALL_CARD_NAMES[CARD_TYPES + c], Modifier.size(width = 50.dp, height = 70.dp))
                 count(n)
             }
@@ -204,7 +239,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
         for (c in 0 until wgbg.engine.Progress.COUNT) {
             val n = ck.progressHand[me * wgbg.engine.Progress.COUNT + c]
             if (n > 0) namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 66, 92, small = progressHint(c),
-                art = progressArt(c)) {
+                art = progressArt(c), long = progressDetail(c)) {
                 hint = "${PROGRESS_NAMES.getOrElse(c) { "Progress" }}: ${progressHint(c)}"
             }
         }

@@ -4,6 +4,7 @@ import wgbg.engine.Action
 import wgbg.engine.ActionKind
 import wgbg.engine.CkActionType
 import wgbg.engine.GameState
+import wgbg.engine.Phase
 import wgbg.engine.Progress
 import wgbg.engine.Track
 
@@ -139,9 +140,15 @@ fun ckButtonGroups(s: GameState, legal: List<Action>, names: List<String>): List
 fun bankLabel(a: Action) = "Give ${card(a.maritimeGive)} for ${card(a.maritimeGet)}"
 
 /** The prompt line for a C&K turn, by what the legal moves ask for. */
-fun ckPrompt(s: GameState, legal: List<Action>): String? {
+fun ckPrompt(s: GameState, legal: List<Action>, names: List<String> = PLAYER_NAMES): String? {
     val kinds = legal.map { it.type }.toSet()
+    val by = names.getOrElse(s.currentPlayer) { "Someone" }
     return when {
+        // A card played against you: who played what, and what you have to do (Mauro).
+        s.phase == Phase.DESERTER_REMOVE -> "$by played Turncoat against you: tap one of your knights to give up"
+        s.phase == Phase.WEDDING -> "$by played Feast against you: give them ${s.ck?.giveOwed?.getOrNull(s.actingPlayer) ?: 2} card(s)"
+        s.phase == Phase.COMMERCIAL_HARBOR_RESPOND -> "$by played Harbor Charter: give back one commodity for the card you got"
+        s.phase == Phase.BARBARIAN_LOSS -> "The Raiders won: tap one of your towns to lose to them"
         CkActionType.CHOOSE_PROGRESS_DECK in kinds -> "Raiders beaten: draw a progress card from a deck"
         CkActionType.DISCARD_PROGRESS in kinds -> "Too many progress cards: discard one"
         CkActionType.CHOOSE_CARD in kinds -> "Choose a card"

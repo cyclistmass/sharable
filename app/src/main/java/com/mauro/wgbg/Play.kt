@@ -125,7 +125,7 @@ private val INK_LIGHT = Color(0xFFEDE6D8)
 
 /** One-line instruction for what the human should do now. */
 fun prompt(s: GameState, legal: List<Action>, names: List<String>): String =
-    if (legal.isEmpty() && !s.isOver) "Waiting for ${names[s.actingPlayer]}…" else ckPrompt(s, legal) ?: when {
+    if (legal.isEmpty() && !s.isOver) "Waiting for ${names[s.actingPlayer]}…" else ckPrompt(s, legal, names) ?: when {
     s.phase == Phase.BUILD_INITIAL_SETTLEMENT -> "Tap a glowing corner to place a homestead"
     s.phase == Phase.BUILD_INITIAL_ROAD -> "Tap a glowing edge to place a road"
     s.phase == Phase.MOVE_ROBBER -> "Tap a tile to move the bandit"
@@ -169,6 +169,8 @@ fun HumanControls(
     onBoardPick: (List<Action>) -> Unit = {},
     /** The Trade button, set beside Roll / End turn in the bottom-right corner (Mauro: "next to each other"). */
     tradeButton: (@Composable () -> Unit)? = null,
+    /** Why you must discard, when it isn't a rolled 7 (Wrecker played against you); null for a 7. */
+    discardCause: String? = null,
 ) {
     var sheet by remember { mutableStateOf<String?>(null) } // which picker is open
     var ckChoices by remember { mutableStateOf<Pair<String, List<Action>>?>(null) }
@@ -201,7 +203,7 @@ fun HumanControls(
         }
         // On a 7: pick all the cards first, then discard them with one press (playtest: a tap per card,
         // on buttons that moved as card types ran out, lost the wrong card with no undo).
-        if (ActionType.DISCARD in types) { Box(Modifier.align(Alignment.BottomCenter)) { DiscardSheet(s, me, legal, onMove) }; return@Box }
+        if (ActionType.DISCARD in types) { Box(Modifier.align(Alignment.BottomCenter)) { DiscardSheet(s, me, legal, onMove, discardCause) }; return@Box }
         if (wgbg.engine.CkActionType.CHOOSE_CARD in types) {
             CardChoiceSheet(s, me, legal.filter { it.type == wgbg.engine.CkActionType.CHOOSE_CARD }, names, onMove, Modifier.align(Alignment.BottomCenter)); return@Box
         }
@@ -250,7 +252,7 @@ fun discardPick(pile: IntArray, r: Int, add: Boolean, have: Int, owed: Int): Int
 fun discardMoves(pile: IntArray): List<Action> = pile.indices.flatMap { r -> List(pile[r]) { Action.discard(r) } }
 
 @Composable
-private fun DiscardSheet(s: GameState, me: Int, legal: List<Action>, onMove: (Action) -> Unit) {
+private fun DiscardSheet(s: GameState, me: Int, legal: List<Action>, onMove: (Action) -> Unit, cause: String? = null) {
     // The same chest as the trade and the science bonus: title, the cards with "have N" under them, the chest's
     // buttons on the right (Mauro: "the discard menu for 7 should be the same style as trade and science bonus").
     val owed = s.discardOwed[me]
@@ -258,7 +260,7 @@ private fun DiscardSheet(s: GameState, me: Int, legal: List<Action>, onMove: (Ac
     val full = pile.sum() == owed
     Row(Modifier.chest().testTag("discard-sheet"), verticalAlignment = Alignment.CenterVertically) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("A 7: you hold too many cards. Choose $owed to discard (${pile.sum()} chosen)", color = CHEST_INK, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("${cause ?: "A 7: you hold too many cards"}. Choose $owed to discard (${pile.sum()} chosen)", color = CHEST_INK, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Text("Tap a card to add it · hold to take it back", color = CHEST_INK.copy(alpha = 0.7f), fontSize = 11.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (r in pile.indices) {

@@ -1111,6 +1111,9 @@ fun WatchGameScreen(
             }
             else if (legal.isNotEmpty()) HumanControls(state, me, legal, names, send, Modifier.fillMaxSize().padding(start = panelEdge, end = 8.dp, bottom = 8.dp),
                 onBoardPick = { cardPick = it; cardSecond = false; pending = emptyList() },
+                discardCause = tick.let {
+                    if (tracker.turnCard == wgbg.engine.Progress.SABOTEUR && state.currentPlayer != me) "${names[state.currentPlayer]} played Wrecker against you" else null
+                },
                 tradeButton = if (tick.let { tradeButtonVisible(state) }) ({
                     IconPlateButton(MoveIcon.TRADE, "Trade", "trade-toggle", lit = tradeOpen || tradeNeedsMe(state, me)) { tradeOpen = !tradeOpen }
                 }) else null)

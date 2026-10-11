@@ -396,7 +396,7 @@ internal fun cardChoiceTitle(s: GameState, names: List<String>): String = when (
     Phase.AQUEDUCT -> "Science bonus: nothing came your way, so take any one card free"
     Phase.COMMERCIAL_HARBOR_RESPOND -> "${names[s.currentPlayer]} played Harbor Charter: give back one commodity"
     Phase.MASTER_MERCHANT -> "Grand Factor: take a card from ${names[s.ck?.pendingTarget ?: 0]}"
-    Phase.WEDDING -> "${names[s.currentPlayer]} played Feast: hand them a card"
+    Phase.WEDDING -> "${names[s.currentPlayer]} played Feast against you: give them ${s.ck?.giveOwed?.getOrNull(s.actingPlayer) ?: 2} card(s), one at a time"
     else -> "Choose a card"
 }
 

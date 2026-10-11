@@ -61,7 +61,8 @@ class TurnTracker(private val names: List<String>) {
     val rollCounts = IntArray(13)
     val eventCounts = IntArray(6)
     /** The progress card the turn's player played last this turn (engine index), or -1. */
-    private var turnCard = -1
+    var turnCard = -1
+        private set
 
     /** Per player: cards by kind, then roads, knights and progress cards held. */
     private fun holdings(s: GameState): Array<IntArray> = Array(s.numPlayers) { p ->
