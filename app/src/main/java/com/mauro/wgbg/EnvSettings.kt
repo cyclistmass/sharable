@@ -80,6 +80,13 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         get() = viewBarsState.floatValue > 0.5f
         set(v) { viewBarsState.floatValue = if (v) 1f else 0f; store.put(VIEW_BARS, viewBarsState.floatValue) }
 
+    private val seeThroughState = mutableFloatStateOf(store.get(SEE_THROUGH, 0f))
+
+    /** The left side panel (players and turn news): solid wood, or see-through so the board shows behind it (#73). Saved. */
+    var seeThrough: Boolean
+        get() = seeThroughState.floatValue > 0.5f
+        set(v) { seeThroughState.floatValue = if (v) 1f else 0f; store.put(SEE_THROUGH, seeThroughState.floatValue) }
+
     private val animationsState = mutableFloatStateOf(store.get(ANIMATIONS, 1f))
 
     /**
@@ -139,6 +146,7 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         const val VIEW_BARS = "view-bars"
         const val TILES_3D = "tiles-3d"
         const val ANIMATIONS = "animations"
+        const val SEE_THROUGH = "side-panel-see-through"
 
         /** True on an Android emulator (where there's no pinch), from the build's hardware and product names. */
         fun isEmulator(): Boolean {
@@ -197,6 +205,11 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("Show", selected = env.viewBars, tag = "view-bars-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.viewBars = true }
             Choice("Hide", selected = !env.viewBars, tag = "view-bars-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.viewBars = false }
+        }
+        Text("Side panel", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Solid", selected = !env.seeThrough, tag = "side-solid", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.seeThrough = false }
+            Choice("See-through", selected = env.seeThrough, tag = "side-see-through", modifier = Modifier.height(36.dp).width(130.dp), size = 13.sp) { env.seeThrough = true }
         }
         Text("Tiles", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

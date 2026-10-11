@@ -231,7 +231,10 @@ private val TERRAIN_COLORS = mapOf(
     Resource.NONE to Color(0xFFE8D9A8),
 )
 
-internal val PLAYER_COLORS = listOf(Color(0xFFD32F2F), Color(0xFF1E63C6), Color(0xFFF57C00), Color(0xFFF5F5F5))
+/** Seat colours. Mauro's pick (#59, 2026-10-11): a brighter scarlet and a copper orange so red and orange never blur. */
+internal val PLAYER_COLORS = listOf(Color(0xFFFF2420), Color(0xFF1E63C6), Color(0xFFFF6600), Color(0xFFF5F5F5))
+/** The brown (tan) for boat sails and the extra seats of six-player games (v3). */
+internal val PLAYER_BROWN = Color(0xFF8D6E63)
 internal val PLAYER_NAMES = listOf("Red", "Blue", "Orange", "White")
 private val INK = Color(0xFF2B2118)
 
@@ -749,6 +752,7 @@ fun WatchGameScreen(
     var eventSlot by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
     // The turn panel fits under the player list (taller in Age of Chivalry), so neither hides the dice.
     var stripBottom by remember { mutableStateOf(0f) }
+    var stripWidth by remember { mutableStateOf(0f) }
     var screenHeight by remember { mutableStateOf(0f) }
     val turnHudHeight = with(LocalDensity.current) {
         if (screenHeight <= 0f) 210.dp else ((screenHeight - stripBottom).toDp() - 16.dp).coerceIn(110.dp, 210.dp)
@@ -1009,17 +1013,24 @@ fun WatchGameScreen(
             // The roll's dice roll across the turn HUD and rest on its top-right corner until the next roll.
             val rolled = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }
             // While the trade chest is open it docks here, over the turn panel, so the board stays in view.
+            // One left side panel (#73): a single brass-edged frame behind the player list and the turn news, as narrow
+            // as the list needs; the news below takes that width and wraps. See-through is a setting.
+            val sideWidth = with(LocalDensity.current) { stripWidth.toDp() }
+            if (stripWidth > 0f) Box(Modifier.align(Alignment.TopStart).padding(8.dp).width(sideWidth).fillMaxHeight()
+                .brassEdgedWood(woodAlpha = if (env.seeThrough) 0.4f else 1f))
             if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
                 TurnHud(report, previous, names, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
-                    eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight)
+                    eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight,
+                    width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f)
             }
             if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
         // The game state is mutated in place, so these get `tick` to redraw after every move.
-        if (!inventory) PlayerStrip(state, me, names, tick, Modifier.align(Alignment.TopStart).padding(8.dp).onGloballyPositioned { stripBottom = it.boundsInParent().bottom },
-            roll = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } })
+        if (!inventory) PlayerStrip(state, me, names, tick, Modifier.align(Alignment.TopStart).padding(8.dp)
+            .onGloballyPositioned { stripBottom = it.boundsInParent().bottom; stripWidth = it.size.width.toFloat() },
+            roll = tick.let { tracker.current?.takeIf { it.rolled } ?: tracker.last?.takeIf { it.rolled } }, framed = false)
         if (net != null && !inventory) onlineView?.let { v ->
             Column(Modifier.align(Alignment.TopCenter).padding(top = 52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 OnlineConnectionStatus(v)

@@ -47,9 +47,11 @@ fun barSegments(level: Int) = level.coerceIn(0, 4)
 @Composable
 fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifier: Modifier = Modifier,
                 /** The turn whose roll the mini cards show (#47); null shows none. */
-                roll: TurnReport? = null) {
+                roll: TurnReport? = null,
+                /** False inside the one left side panel (#73), which draws the frame for both halves. */
+                framed: Boolean = true) {
     version // the state object is mutated in place; this changing value makes the strip redraw after each move
-    Column(modifier.brassEdgedWood().padding(horizontal = 12.dp, vertical = 8.dp).testTag("player-strip"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column((if (framed) modifier.brassEdgedWood() else modifier).padding(horizontal = 12.dp, vertical = 8.dp).testTag("player-strip"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         // Age of Chivalry: how near the Raiders are (a ship marker on a 7-step track).
         s.ck?.let { ck ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.testTag("raiders-track")) {

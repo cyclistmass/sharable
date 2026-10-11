@@ -59,13 +59,17 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             /** Dice set: false = Normal (carved red + ivory), true = Pirate (ship-timber + bone, dark brass pips). */
             pirate: Boolean = false,
             /** Settings > Event die: which pirate event die art (DiceArt.EVENT_STYLES). */
-            eventStyle: Int = 0) {
+            eventStyle: Int = 0,
+            /** Width; inside the one left side panel it matches the player list above (#73), and the news wraps. */
+            width: androidx.compose.ui.unit.Dp = 360.dp,
+            /** False inside the one left side panel, which draws the frame for both halves. */
+            framed: Boolean = true) {
     if (report == null) return
     // Fixed size, so the dice always sit in the same spot. The dice and whose turn it is stay pinned at the top; this
     // turn's news and the earlier turns below scroll, with a brass scroll bar on the right (#65).
     Column(
-        modifier.size(width = 360.dp, height = height)
-            .brassEdgedWood()
+        modifier.size(width = width, height = height)
+            .then(if (framed) Modifier.brassEdgedWood() else Modifier)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
