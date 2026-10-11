@@ -231,8 +231,8 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
                 Choice(e.label, selected = env.tileEdge == e, tag = "edge-${e.name.lowercase()}", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.tileEdge = e }
         }
         Text("Sound", fontSize = 13.sp, color = Color(0xFFD9B865))
-        SliderRow("Music", sound.musicVolume, "vol-music") { sound.musicVolume = it }
-        SliderRow("Sounds", sound.soundVolume, "vol-sounds") { sound.soundVolume = it }
+        VolumeRow("Music", sound.musicVolume, "vol-music") { sound.musicVolume = it }
+        VolumeRow("Sounds", sound.soundVolume, "vol-sounds") { sound.soundVolume = it }
         Text("Songs", fontSize = 13.sp, color = Color(0xFFD9B865))
         for (song in SoundSettings.SONGS) Text("♪ ${song.title}", fontSize = 12.sp, color = Color(0xFFCDBFA6))
     }
@@ -256,6 +256,48 @@ fun GearButton(open: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier
         painterResource(if (pressed) R.drawable.settings_gear_pressed else R.drawable.settings_gear), "Settings",
         modifier.rotate(turn).clickable(interactionSource = source, indication = null, onClick = onClick).testTag("gear"),
     )
+}
+
+/** A volume slider whose handle is a little brass phonograph that grows with the volume (Mauro, #58: no knobs). */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun VolumeSlider(value: Float, tag: String, width: androidx.compose.ui.unit.Dp, onChange: (Float) -> Unit) {
+    val colors = brassSlider()
+    Slider(value, onChange, Modifier.width(width).height(44.dp).testTag(tag), colors = colors,
+        thumb = { Phonograph(value, Modifier.size(44.dp)) })
+}
+
+@Composable
+private fun VolumeRow(label: String, value: Float, tag: String, onChange: (Float) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("$label ${(value * 100).roundToInt()}%", fontSize = 12.sp, color = Color(0xFFEDE6D8), modifier = Modifier.width(100.dp))
+        VolumeSlider(value, tag, 220.dp, onChange)
+    }
+}
+
+/** A worn-brass gramophone horn on a little walnut box, drawn at 45% to 100% of its box as [volume] goes 0 to 1. */
+@Composable
+private fun Phonograph(volume: Float, modifier: Modifier) = androidx.compose.foundation.Canvas(modifier) {
+    val k = 0.45f + 0.55f * volume.coerceIn(0f, 1f)
+    val w = size.width * k; val h = size.height * k
+    val left = (size.width - w) / 2; val top = (size.height - h) / 2
+    fun p(x: Float, y: Float) = androidx.compose.ui.geometry.Offset(left + x * w, top + y * h)
+    // Walnut box with a brass edge.
+    drawRect(Color(0xFF4A2A14), p(0.18f, 0.66f), androidx.compose.ui.geometry.Size(0.64f * w, 0.28f * h))
+    drawRect(Color(0xFFA9863F), p(0.18f, 0.66f), androidx.compose.ui.geometry.Size(0.64f * w, 0.28f * h),
+        style = androidx.compose.ui.graphics.drawscope.Stroke(0.04f * w))
+    // The horn: a brass tube from the box rising to a wide bell up and to the right, darker inside.
+    val horn = androidx.compose.ui.graphics.Path().apply {
+        moveTo(p(0.42f, 0.66f).x, p(0.42f, 0.66f).y)
+        cubicTo(p(0.40f, 0.48f).x, p(0.40f, 0.48f).y, p(0.52f, 0.36f).x, p(0.52f, 0.36f).y, p(0.62f, 0.10f).x, p(0.62f, 0.10f).y)
+        lineTo(p(0.98f, 0.30f).x, p(0.98f, 0.30f).y)
+        cubicTo(p(0.74f, 0.40f).x, p(0.74f, 0.40f).y, p(0.56f, 0.50f).x, p(0.56f, 0.50f).y, p(0.54f, 0.66f).x, p(0.54f, 0.66f).y)
+        close()
+    }
+    drawPath(horn, Color(0xFFB8913F))
+    drawPath(horn, Color(0xFF6E5420), style = androidx.compose.ui.graphics.drawscope.Stroke(0.03f * w))
+    drawLine(Color(0xFF3B2A10), p(0.63f, 0.12f), p(0.96f, 0.30f), strokeWidth = 0.08f * w)   // the bell's dark mouth
+    drawLine(Color(0x99FFF2CD), p(0.47f, 0.60f), p(0.58f, 0.24f), strokeWidth = 0.025f * w)  // a worn highlight
 }
 
 /** Sliders in the motif: brass thumb and track over dark wood. */
@@ -309,11 +351,11 @@ fun SoundControls(sound: SoundSettings) {
         if (open) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Music ${(sound.musicVolume * 100).roundToInt()}%", fontSize = 12.sp, modifier = Modifier.width(96.dp))
-                Slider(sound.musicVolume, { sound.musicVolume = it }, Modifier.width(200.dp).testTag("vol-music"), colors = brassSlider())
+                VolumeSlider(sound.musicVolume, "vol-music", 200.dp) { sound.musicVolume = it }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Sounds ${(sound.soundVolume * 100).roundToInt()}%", fontSize = 12.sp, modifier = Modifier.width(96.dp))
-                Slider(sound.soundVolume, { sound.soundVolume = it }, Modifier.width(200.dp).testTag("vol-sounds"), colors = brassSlider())
+                VolumeSlider(sound.soundVolume, "vol-sounds", 200.dp) { sound.soundVolume = it }
             }
             Text("Songs", fontSize = 12.sp)
             for (song in SoundSettings.SONGS) Text("♪ ${song.title}", fontSize = 12.sp, color = Color(0xFFCDBFA6))
