@@ -15,6 +15,10 @@ from any artist or AI drop in without rework. Sizes are measured from the shippe
   otherwise parts look press-fit, with no bolts or plate seams. Steampunk in
   craft and materials (gears, filigree, engraved scrollwork, lenses where they fit), never in industrial
   hardware.
+- **Numbers on the lower half, 3D models included** (Mauro, 2026-10-11): every tile's number clearing sits lower
+  right, in the lower half, so a tilted board never hides it behind mountains or trees. 3D renders are checked
+  for this at every tilt step before they ship; a model whose clearing faces another way is turned in Blender
+  and re-rendered, never flipped as a 2D image (that breaks the light and perspective).
 - **Brass is worn and aged, never new** (Mauro, 2026-10-11): burnished and worn the way brass gets on a boat, "well loved
   but old". Any honest ageing works, such as softened and rubbed edges,
   darkened recesses, warm patina, a touch of verdigris in crevices, highlights polished bright only where hands
