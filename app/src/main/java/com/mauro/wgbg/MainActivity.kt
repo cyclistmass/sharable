@@ -390,7 +390,8 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 onJoinRoom = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); problem = null; screen = Screen.JOIN },
                 resumeRoom = resumeCode.takeIf { session == null && !busy },
                 onResume = { resumeCode?.let { rejoin(it) } },
-                onLookAndArt = { screen = Screen.LOOK },
+                // Look & art shows the ruleset chosen on screen, and the choices are still there on the way back.
+                onLookAndArt = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); screen = Screen.LOOK },
             )
             Screen.JOIN -> {
                 BackHandler { screen = Screen.START }
@@ -975,7 +976,7 @@ fun WatchGameScreen(
             tick // redraw on every move
             if (!inventory) seaTick // and on every sea frame (the Inventory screen holds still)
             if (inventory) drawInventory(measurer, wood, banditSprites, tileFaces, tileLine,
-                InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide, buildings),
+                InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide, buildings, sea.sprites3d),
                 bottomInset = INVENTORY_CARDS_DP.dp.toPx()) else {
                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
                 val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
@@ -1909,7 +1910,7 @@ private fun DrawScope.drawRobber(c: Offset, scale: Float) {
 
 /** Bitmap art the Inventory lays out beside the drawn pieces (knights in the current theme). */
 private class InventoryArt(val knights: List<ImageBitmap>, val raiders: ImageBitmap, val cliffs: List<ImageBitmap>, val boats: List<ImageBitmap>,
-                           val gull: ImageBitmap, val buildings: BuildingSprites? = null)
+                           val gull: ImageBitmap, val buildings: BuildingSprites? = null, val sea3d: SeaSprites3d? = null)
 
 /** Height of the Inventory's bottom row of cards and dice (a Compose overlay); the canvas fits above it. */
 private const val INVENTORY_CARDS_DP = 126
@@ -1985,13 +1986,23 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
         label("L${i / 2 + 1}${if (i % 2 == 1) " on" else ""}", c + Offset(0f, 0.5f * scale))
     }
     val shipAt = Offset(left + 5.3f * scale, y4)
-    image(art.raiders, shipAt, 1.1f); label("Raiders", shipAt + Offset(0f, 0.6f * scale))
+    val s3d = art.sea3d
+    // The 3D sea props (#63) as the board draws them at this tilt, side on; else the painted ones.
+    val invStep = SeaSprites3d.tiltStep(0.55f)
+    if (s3d != null) drawSeaProp(s3d, shipAt, SeaSprites3d.RAIDERS_FRAME * scale, 0, invStep, SeaArt.raiders)
+    else image(art.raiders, shipAt, 1.1f)
+    label("Raiders", shipAt + Offset(0f, 0.6f * scale))
     val cliffAt = Offset(left + 7.4f * scale, y4 - 0.15f * scale)
     image(art.cliffs[0], cliffAt, 2.4f); label("Cliff", cliffAt + Offset(0f, 0.45f * scale))
-    art.boats.take(4).forEachIndexed { i, bt -> image(bt, Offset(left + 9.2f * scale + (i % 2) * 0.7f * scale, y4 - 0.35f * scale + (i / 2) * 0.6f * scale), 0.7f) }
+    art.boats.take(4).forEachIndexed { i, bt ->
+        val at = Offset(left + 9.2f * scale + (i % 2) * 0.7f * scale, y4 - 0.35f * scale + (i / 2) * 0.6f * scale)
+        if (s3d != null) drawSeaProp(s3d, at, SeaSprites3d.SLOOP_FRAME * scale * 0.8f, 8 * (i % 2), invStep, SeaArt.sloop, SeaArt.sloopTrim, tint = PLAYER_COLORS[i])
+        else image(bt, at, 0.7f)
+    }
     label("Boats", Offset(left + 9.55f * scale, y4 + 0.6f * scale))
     val gullAt = Offset(left + 10.7f * scale, y4)
-    image(art.gull, gullAt, 0.8f); label("Gull", gullAt + Offset(0f, 0.5f * scale))
+    if (s3d != null) drawSeaProp(s3d, gullAt, SeaSprites3d.GULL_FRAME * scale * 2f, 4, invStep, SeaArt.gull) else image(art.gull, gullAt, 0.8f)
+    label("Gull", gullAt + Offset(0f, 0.5f * scale))
 }
 
 private class PortGeom(val type: Int, val a: Offset, val b: Offset, val mid: Offset, val out: Offset, val token: Offset, val scale: Float)
