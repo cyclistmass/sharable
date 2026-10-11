@@ -18,7 +18,9 @@ SHA=$(git -C "$SHARABLE" rev-parse origin/main)
 RUN=$(api "https://api.github.com/repos/$REPO/actions/runs?head_sha=$SHA" | py -c "
 import json,sys
 r=[w for w in json.load(sys.stdin)['workflow_runs'] if 'working' in w['name']]
-print(r[0]['id'] if r and r[0]['conclusion']=='success' else '')")
+# Any green run for this commit (a re-run may still be going); none green means don't publish.
+ok=[w for w in r if w['conclusion']=='success']
+print(ok[0]['id'] if ok else '')")
 [ -n "$RUN" ] || { echo "CI is not green for ${SHA:0:7}; not publishing"; exit 1; }
 ART=$(api "https://api.github.com/repos/$REPO/actions/runs/$RUN/artifacts" | py -c "
 import json,sys
