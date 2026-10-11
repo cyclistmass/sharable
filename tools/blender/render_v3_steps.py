@@ -36,6 +36,7 @@ p.add_argument('--max-tilt', type=float, default=0.96)
 p.add_argument('--samples', type=int, default=64)
 p.add_argument('--out', type=Path, default=ROOT / 'docs/design/tiles-3d-models/v3')
 args = p.parse_args(argv)
+args.out = args.out.resolve()  # Blender resolves relative render paths against its own cwd
 
 scratch = ROOT / '.v3-tilt-render-temp'
 scratch.mkdir(exist_ok=True)
