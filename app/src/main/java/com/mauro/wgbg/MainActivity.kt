@@ -393,6 +393,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 onResume = { resumeCode?.let { rejoin(it) } },
                 // Look & art shows the ruleset chosen on screen, and the choices are still there on the way back.
                 onLookAndArt = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); screen = Screen.LOOK },
+                onPlayIntro = { intro = true },
             )
             Screen.JOIN -> {
                 BackHandler { screen = Screen.START }
@@ -411,13 +412,13 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 BackHandler { leaveRoom() }
                 OnlineLobbyScreen(s, onPlaying = { if (screen == Screen.ONLINE_LOBBY) { gameNo++; screen = Screen.ONLINE_GAME } },
                     onSettings = { leaveRoom() }, onError = { e -> scope.launch { problem = onlineProblem(e) } })
-            } ?: run { screen = Screen.START }
+            } ?: RejoiningOr(savedRoom) { screen = Screen.START }
             Screen.ONLINE_GAME -> session?.let { s ->
                 key(gameNo) {
                     WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { pauseRoom() }, online = s, autoplay = autoplay,
                         onDeleteRoom = { deleteRoom() }, onQuitRoom = { leaveRoom() })
                 }
-            } ?: run { screen = Screen.START }
+            } ?: RejoiningOr(savedRoom) { screen = Screen.START }
             Screen.LOOK -> WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), Camera.FIT, setup, onExit = { screen = Screen.START }, lookAndArt = true)
             Screen.GAME -> key(gameNo) {
                 // Back asks "Leave this game?" inside the game screen (same as Exit).
@@ -1220,6 +1221,22 @@ fun WatchGameScreen(
             onTilt = { t -> camera = camera.copy(tilt = t) },
             // Upper right under Trade, short, clear of the move buttons that stack up from the bottom right.
             Modifier.align(Alignment.TopEnd).padding(top = 104.dp, end = 8.dp))
+    }
+}
+
+/**
+ * Android brought the app back without its room connection (it closed the app in the background): while the saved
+ * room is being rejoined, say so on the game's wood instead of flashing the start screen (Mauro: "the lobby is
+ * visible for a sec"). With no room to rejoin, [orElse] goes back to the start screen.
+ */
+@Composable
+private fun RejoiningOr(savedRoom: android.content.SharedPreferences, orElse: () -> Unit) {
+    val code = savedRoom.getString("room", null)
+    if (code == null || savedRoom.getBoolean("paused", false)) { LaunchedEffect(Unit) { orElse() }; return }
+    // A rejoin that never starts (or hangs) falls back to the start screen, which offers Resume.
+    LaunchedEffect(code) { kotlinx.coroutines.delay(15_000); orElse() }
+    Box(Modifier.fillMaxSize().background(Wood.NIGHT), contentAlignment = Alignment.Center) {
+        Text("Rejoining room $code…", style = Wood.sans(20.sp, FontWeight.Bold, Color(0xFFF1D58A)), modifier = Modifier.testTag("rejoining"))
     }
 }
 

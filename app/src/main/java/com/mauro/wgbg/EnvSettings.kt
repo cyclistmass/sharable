@@ -216,15 +216,6 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = M
             Choice("Painted", selected = !env.tiles3d, tag = "tiles-painted", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.tiles3d = false }
             Choice("3D (preview)", selected = env.tiles3d, tag = "tiles-3d", modifier = Modifier.height(36.dp).width(130.dp), size = 13.sp) { env.tiles3d = true }
         }
-        Text("Intro", fontSize = 13.sp, color = Color(0xFFD9B865))
-        val ctx = androidx.compose.ui.platform.LocalContext.current
-        var replay by remember { mutableStateOf(false) }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Choice("Play the intro again", selected = replay, tag = "intro-replay", modifier = Modifier.height(36.dp).width(170.dp), size = 13.sp) {
-                ctx.getSharedPreferences("intro", android.content.Context.MODE_PRIVATE).edit().putBoolean("seen", false).apply(); replay = true
-            }
-            if (replay) Text("Plays next time you open the app", fontSize = 12.sp, color = Color(0xFFEDE6D8))
-        }
         Text("Tile edges", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (e in EnvSettings.TileEdge.entries)
