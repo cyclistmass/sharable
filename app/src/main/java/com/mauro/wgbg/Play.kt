@@ -110,7 +110,7 @@ fun movesAt(b: Board, legal: List<Action>, p: Offset, second: Boolean = false): 
 // ------------------------------------------------------------------ the human's controls
 
 private val RES = RESOURCE_NAMES
-private val FORTUNE = listOf("Sentinel", "Windfall", "Corner the Market", "Trailblazers", "Landmark")
+internal val FORTUNE = listOf("Sentinel", "Windfall", "Corner the Market", "Trailblazers", "Landmark")
 
 /** What each Fortune card does (same order as [FORTUNE]). */
 val FORTUNE_HINTS = listOf(

@@ -762,6 +762,7 @@ fun WatchGameScreen(
     var panelOpen by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(lookAndArt) }
+    var guideOpen by remember { mutableStateOf(false) }
     var hudTopRight by remember { mutableStateOf<Offset?>(null) }
     var diceFlying by remember { mutableStateOf(false) }
     var diceSlots by remember { mutableStateOf<Pair<androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect>?>(null) }
@@ -777,6 +778,7 @@ fun WatchGameScreen(
     // Back closes whatever is open on top first (Settings, the menu, the Inventory), then asks about leaving.
     BackHandler {
         when {
+            guideOpen -> guideOpen = false
             settingsOpen -> settingsOpen = false
             panelOpen -> panelOpen = false
             inventory -> if (lookAndArt) onExit() else inventory = false
@@ -1013,6 +1015,7 @@ fun WatchGameScreen(
             verticalAlignment = Alignment.CenterVertically) {
             GoButton("Done", "look-done", true, Modifier.width(120.dp).height(44.dp)) { onExit() }
             BrassButton("Tiles: compare", "look-tile-compare", Modifier.height(44.dp)) { compareTiles = true }
+            BrassButton("Card guide", "look-guide", Modifier.height(44.dp)) { guideOpen = true }
         }
         if (inventory) Row(Modifier.align(Alignment.BottomCenter).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((r, art) in CARD_ART.withIndex()) androidx.compose.foundation.Image(
@@ -1147,6 +1150,8 @@ fun WatchGameScreen(
                         modifier = Modifier.border(1.dp, Color(0xFF8A6A2A), RoundedCornerShape(10.dp))
                             .clickable { confirmExit = true }.padding(horizontal = 10.dp, vertical = 3.dp).testTag("menu-exit"))
                 }
+                // Every card and what it does, and what everything costs (Mauro: "make a map in the menu").
+                WoodButton("Card guide", "menu-guide") { guideOpen = true; panelOpen = false }
                 if (online != null) Text("Online · room ${online.id}", fontWeight = FontWeight.Bold, modifier = Modifier.testTag("menu-room"))
                 if (online == null) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
@@ -1182,6 +1187,9 @@ fun WatchGameScreen(
         }
         if (compareTiles) { BackHandler { compareTiles = false }; TileCompare(onBack = { compareTiles = false }) }
         // Settings open from the gear inside the Menu, so the board stays clean.
+        if (guideOpen) Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
+            CardGuide(state.ck != null, onClose = { guideOpen = false })
+        }
         if (settingsOpen) SettingsPanel(env, sound,
             Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp))
         if (confirmExit) Column(
