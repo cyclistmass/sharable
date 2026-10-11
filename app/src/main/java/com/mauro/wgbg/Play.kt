@@ -133,7 +133,8 @@ fun prompt(s: GameState, legal: List<Action>, names: List<String>): String =
     s.phase == Phase.DECIDE_COUNTER -> "${names[s.counterFrom]} made a counter-offer"
     s.phase == Phase.DECIDE_ACCEPTEES -> "Pick who to trade with, or cancel"
     legal.any { it.type == ActionType.ROLL } -> "Your turn: roll the dice"
-    s.freeRoads > 0 -> "Trailblazers: tap glowing edges for ${s.freeRoads} free road${if (s.freeRoads > 1) "s" else ""}"
+    // Trailblazers, Pathfinders or Envoy (moving your own road): place the free road(s) before anything else.
+    s.freeRoads > 0 -> "Place ${if (s.freeRoads > 1) "${s.freeRoads} free roads" else "your free road"} first: tap a glowing edge"
     legal.any { it.type == ActionType.BUILD_ROAD || it.type == ActionType.BUILD_SETTLEMENT || it.type == ActionType.BUILD_CITY } ->
         "Tap a glowing spot to build, or trade, or end your turn"
     else -> if (s.ck != null) "Trade, improve your towns, or end your turn" else "Trade, buy a Fortune card, or end your turn"

@@ -77,6 +77,14 @@ fun tradeMode(s: GameState, me: Int): TradeMode {
 }
 
 /** True when the game is waiting on [me] to answer a trade: the panel opens itself. */
+/** Why the chest can't trade right now, in the player's words (Mauro's playtest: after Envoy it wrongly said "Trade on your turn"). */
+internal fun tradeClosedReason(s: GameState, me: Int): String = when {
+    s.currentPlayer != me -> "Trade on your turn"
+    !s.hasRolled -> "Roll first, then trade"
+    s.phase == Phase.PLAY_TURN && s.freeRoads > 0 -> "Place your free road first, then trade"
+    else -> "Finish what you're doing, then trade"
+}
+
 fun tradeNeedsMe(s: GameState, me: Int) = tradeMode(s, me).let {
     it == TradeMode.RESPOND || it == TradeMode.REVIEW_COUNTER || it == TradeMode.PICK_PARTNER
 }
@@ -302,7 +310,7 @@ private fun status(s: GameState, me: Int, mode: TradeMode, names: List<String>, 
     mode == TradeMode.REVIEW_COUNTER -> "${names[s.counterFrom]} counters your offer"
     mode == TradeMode.PICK_PARTNER -> "Pick who to trade with"
     mode == TradeMode.WAITING -> "Waiting for ${names[s.actingPlayer]}…"
-    else -> if (s.currentPlayer == me && !s.hasRolled) "Roll first, then trade" else "Trade on your turn"
+    else -> tradeClosedReason(s, me)
 }
 
 @Composable

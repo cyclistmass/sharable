@@ -46,7 +46,7 @@ val PROGRESS_HINTS = listOf(
     "Move the bandit and take a random card from each player on that tile.",
     "Worth 1 point; played at once.",
     "A player removes one of their knights; you place one of the same strength.",
-    "Remove an open road (or move one of your own).",
+    "Remove an open road. If it's yours, place it again at once.",
     "Knock an enemy knight off one of your roads.",
     "Every player with as many points as you or more discards half their cards.",
     "Look at a player's progress cards and take one.",
