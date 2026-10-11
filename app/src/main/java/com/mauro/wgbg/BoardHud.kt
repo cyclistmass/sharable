@@ -108,19 +108,13 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                         StatBadge(StatIcon.SHIELD, knightsShown(s, p), s.ck == null && s.largestArmyOwner == p, "army-$p")
                     }
                 }
-                // A fixed slot, so the panel keeps one width whether or not anyone got cards (they used to poke out of the frame).
-                val minis = rollMinis(roll, p, me)
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.width(MINI_SLOT).testTag("roll-minis-$p")) {
-                    for (m in minis.take(MINI_MAX)) MiniRollCard(m)
-                }
+                // The last roll's cards per player are in the history right below; showing them here too either made the
+                // panel jump or left a third of it empty (Mauro), so the rows keep to score, cards, road and knights.
             }
         }
     }
 }
 
-/** Room for the last roll's mini cards beside each player (3 of them; more are left out, the history has them all). */
-private val MINI_SLOT = 72.dp
-private const val MINI_MAX = 3
 
 /** The knights number on a player's shield: Sentinels played (base game), active knight strength (Age of Chivalry). */
 fun knightsShown(s: GameState, p: Int): Int = if (s.ck != null) wgbg.engine.CitiesAndKnights.activeKnightStrength(s, p) else s.knightsPlayed(p)

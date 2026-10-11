@@ -34,4 +34,9 @@ class HistogramTest {
         assertEquals(rolls.toFloat(), eventBars(tracker.eventCounts).sumOf { it.expected.toDouble() }.toFloat(), 0.01f)
         assertTrue(DICE_WAYS.sum() == 36)
     }
+
+    @Test
+    fun `every Age of Chivalry move reads as words in the history, never an engine name`() {
+        for (t in wgbg.engine.CkActionType.entries) assertTrue(describe(t).none { it == '_' } && describe(t) != t.toString().lowercase().replace('_', ' '), "$t -> ${describe(t)}")
+    }
 }

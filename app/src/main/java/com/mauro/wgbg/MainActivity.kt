@@ -1201,7 +1201,8 @@ fun WatchGameScreen(
         if (compareTiles) { BackHandler { compareTiles = false }; TileCompare(onBack = { compareTiles = false }) }
         // Settings open from the gear inside the Menu, so the board stays clean.
         if (histogramOpen) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            tick.let { DiceHistogram(tracker.rollCounts, tracker.eventCounts, state.ck != null, onClose = { histogramOpen = false }) }
+            // Copies, so each move's new counts reach the screen (the arrays themselves never change identity).
+            tick.let { DiceHistogram(tracker.rollCounts.copyOf(), tracker.eventCounts.copyOf(), state.ck != null, onClose = { histogramOpen = false }) }
         }
         if (guideOpen) Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
             CardGuide(state.ck != null, onClose = { guideOpen = false })
@@ -1399,6 +1400,15 @@ internal fun describe(t: ActionKind) = when (t) {
     wgbg.engine.CkActionType.BUILD_CITY_WALL -> "built Ramparts"
     wgbg.engine.CkActionType.IMPROVE_CITY -> "improved a town"
     wgbg.engine.CkActionType.PLAY_PROGRESS -> "played a progress card"
+    wgbg.engine.CkActionType.RELOCATE_KNIGHT -> "set a knight down elsewhere"
+    wgbg.engine.CkActionType.DISCARD_PROGRESS -> "discarded a progress card"
+    wgbg.engine.CkActionType.CHOOSE_CARD -> "chose a card"
+    wgbg.engine.CkActionType.CHOOSE_VERTEX -> "chose a corner"
+    wgbg.engine.CkActionType.CHOOSE_PROGRESS_DECK -> "drew a progress card"
+    wgbg.engine.CkActionType.TAKE_PROGRESS -> "took a progress card"
+    wgbg.engine.CkActionType.COMMERCIAL_HARBOR_OFFER -> "offered a Harbor Charter swap"
+    wgbg.engine.CkActionType.CK_DONE -> "finished"
+    wgbg.engine.CkActionType.OFFER_TRADE_CK -> "offered a trade"
     else -> t.toString().lowercase().replace('_', ' ')
 }
 

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,7 +46,7 @@ fun eventBars(counts: IntArray): List<Bar> {
  */
 @Composable
 fun DiceHistogram(rollCounts: IntArray, eventCounts: IntArray, chivalry: Boolean, onClose: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.chest().testTag("dice-histogram"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.widthIn(max = 520.dp).chest().testTag("dice-histogram"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Dice this game · ${rollCounts.sum()} rolls", color = CHEST_INK, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             IconPlateButton(MoveIcon.CLOSE, "Close", "histogram-close", width = 44.dp, height = 40.dp) { onClose() }
@@ -62,7 +63,7 @@ fun DiceHistogram(rollCounts: IntArray, eventCounts: IntArray, chivalry: Boolean
 @Composable
 private fun Bars(bars: List<Bar>, wide: Boolean = false) {
     val top = (bars.maxOf { maxOf(it.count.toFloat(), it.expected) }).coerceAtLeast(1f)
-    val height = 110.dp
+    val height = 64.dp
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
         for (b in bars) Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(if (wide) 64.dp else 30.dp).testTag("bar-${b.label}")) {
             Text("${b.count}", color = CHEST_INK, fontSize = 11.sp, fontWeight = FontWeight.Bold)
