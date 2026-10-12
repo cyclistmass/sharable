@@ -74,17 +74,38 @@ time. Depth is part of the pose (d25/d50/d75 = 25/50/75% of the body above the w
 ```json
 "behavior": { "pattern": "surface-breather", "stages": [
   { "id": "surface", "share": 5,  "seconds": [3, 4],   "delta": [0.3, 0, 0.3],  "anim": "surface", "next": {"cruise": 1} },
-  { "id": "cruise",  "share": 40, "seconds": [8, 20],  "delta": [1.6, 0, 0],    "anim": "swim:d50", "next": {"turn": 2, "blow": 2, "beat": 1, "dive": 1} },
-  { "id": "turn",    "share": 10, "seconds": [4, 8],   "delta": [0.6, 0, 0], "turn": 60, "anim": "swim:d50", "next": {"cruise": 1} },
+  { "id": "cruise",  "share": 40, "seconds": [8, 20],  "delta": [1.6, 0, 0],    "anim": "swim:d50", "next": {"turn": 2, "blow": 2, "beat": 1, "low": 2, "dive": 1} },
+  { "id": "turn",    "share": 10, "seconds": [4, 8],   "delta": [0.6, 0, 0], "turn": 60, "anim": "swim:d50", "next": {"cruise": 1, "turn": 1} },
   { "id": "blow",    "share": 10, "seconds": [2, 5],   "delta": [0.1, 0, 0],    "anim": "blow:d50", "next": {"cruise": 2, "blow": 1} },
-  { "id": "beat",    "share": 10, "seconds": [2, 2],   "delta": [0.4, 0, 0],    "anim": "beat:d50", "next": {"cruise": 1, "dive": 1} },
-  { "id": "low",     "share": 20, "seconds": [5, 12],  "delta": [0.8, 0, -0.1], "anim": "swim:d25", "next": {"cruise": 1, "dive": 1} },
+  { "id": "beat",    "share": 10, "seconds": [2, 2],   "delta": [0.4, 0, 0],    "anim": "beat:d50", "next": {"cruise": 1, "beat": 1, "dive": 1} },
+  { "id": "low",     "share": 20, "seconds": [5, 12],  "delta": [0.8, 0, -0.1], "anim": "swim:d25", "next": {"cruise": 1, "low": 1, "dive": 1} },
   { "id": "dive",    "share": 5,  "seconds": [3, 4],   "delta": [0.4, 0, -0.6], "anim": "dive", "next": {"hidden": 1} },
   { "id": "hidden",  "share": 0,  "seconds": [30, 90], "delta": [3, 0, 0],      "anim": null, "next": {"surface": 1} }
 ] }
 ```
 
 (`hidden` is off-screen time and doesn't count toward the shares.)
+
+**Rules the engine follows** (worked out by the reference simulator in `wgbg-art/critter-sim`, which runs this whale
+for an hour within 1 percentage point of every share):
+
+- A stage with `share` 0 is transit time: it doesn't count toward the shares, and the positive shares add up to 100.
+- Every stage with a share must be reachable, and the graph must be able to meet the shares with the given `seconds`.
+  Self-edges (`"turn": 1` inside `turn`) let a stage repeat without a forced trip through `cruise`.
+- The engine steers toward the shares: at each transition an edge's weight is multiplied by exp(time owed to its stage
+  / 4 s). It never jumps along an edge that isn't in `next`.
+- `delta` is cumulative motion in the critter's frame, turned by the heading at each step. `keys` positions are
+  cumulative too, linear between keys, with t=0 at [0,0,0] and t=1 equal to `delta`.
+- `anim` is `clip[:pose]`: the clip in the .glb, plus the flat-board pose. A key without `anim` keeps the last one;
+  `null` means invisible. A clip restarts on every stage entry; `loop` wraps and `once` holds its last pose.
+- `opacity` (0–1, on a stage or a key) fades a critter in and out, as a `lurker` needs.
+- Speed is 3D speed. Motion that the limits or the zone cut off is lost, not made up later; turning away from a
+  boundary comes before the stage's own turn.
+- `clear_of_coast` is measured from a disk of radius `length` / 2 around the origin to the nearest land hex.
+- `count` is rolled once per game with `chance`, from a random stream separate from movement.
+- If every `next` guard is false, the critter stays in its current stage until one opens.
+- Not settled yet: how `flock`, `sailer` and `drifter` get their leader, lanes and wind; how long "a passing moment"
+  over a number plate is; the off-board ring's width. The simulator's spec-gaps.md lists the rest.
 
 ## Layers
 
