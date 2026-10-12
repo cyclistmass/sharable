@@ -103,9 +103,9 @@ internal fun livePlacements(s: GameState, pirate: Boolean, lod: Int, hasModel: (
     for (h in 0 until b.hexCount) {
         val at = liveHex(b, h)
         add(LivePlacement("tile_${terrain.getOrElse(b.hexResource[h]) { "desert" }}_lod$lod", at))
-        if (b.hexNumber[h] > 0) {
+        if (s.numberAt(h) > 0) {
             add(LivePlacement("number_plate", at + LIVE_PLATE, 0.012f))
-            if (h != s.robberHex) add(LivePlacement("digit_${b.hexNumber[h]}", at + LIVE_PLATE, 0.039f))
+            if (h != s.robberHex) add(LivePlacement("digit_${s.numberAt(h)}", at + LIVE_PLATE, 0.039f))
         }
     }
     if (s.robberHex >= 0) add(LivePlacement("bandit", liveHex(b, s.robberHex) + LIVE_PLATE, 0.012f))

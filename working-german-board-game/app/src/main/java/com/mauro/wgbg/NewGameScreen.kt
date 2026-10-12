@@ -9,6 +9,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -137,7 +138,8 @@ fun NewGameScreen(
                 if (onLookAndArt != null) BrassButton("Look & art", "look-and-art", Modifier.height(40.dp)) { onLookAndArt(setup) }
             }
         }
-        Panel(Modifier.width(300.dp)) {
+        // Scrolls when it can't fit: a saved game's Resume used to push Host and Join off the bottom (2026-10-12).
+        Panel(Modifier.width(300.dp), scroll = true) {
             Text("Dice", style = Wood.title(22.sp))
             DiceChoice("True random", "the phone's secure dice", setup.decks == 0, "dice-random") {
                 setup = setup.withDecks(0)
@@ -151,7 +153,7 @@ fun NewGameScreen(
                     enabled = setup.decks > 0) { lastDecks = d; setup = setup.withDecks(d) }
             }
             Text("Reshuffles when 5 cards are left.", style = Wood.sans(12.sp, color = Wood.INK_SOFT))
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(4.dp))
             // Sign in on the start screen (Mauro, 2026-10-12); hidden when the build has no Firebase.
             AccountSection(compact = true)
             setup.problems.firstOrNull()?.let {
@@ -178,6 +180,8 @@ fun NewGameScreen(
                     else Choice("Join a room", false, "join-room", Modifier.weight(1f).height(36.dp), radius = 10.dp, enabled = false) { }
                 }
             }
+            // Which build this is, for testers, inside the panel (it sat on the brass edge before).
+            Text("v${appVersion()}", style = Wood.sans(12.sp, color = Wood.INK_SOFT), modifier = Modifier.align(Alignment.End).testTag("app-version"))
         }
     }
 }
@@ -185,9 +189,10 @@ fun NewGameScreen(
 private const val MAX_NAME = 16
 
 @Composable
-private fun Panel(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
+private fun Panel(modifier: Modifier, scroll: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier.fillMaxHeight().brassEdgedWood().padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier.fillMaxHeight().brassEdgedWood().padding(horizontal = 14.dp, vertical = 12.dp)
+            .then(if (scroll) Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()) else Modifier),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         content = content,
     )

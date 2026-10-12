@@ -488,5 +488,8 @@ private fun Pill(label: String, color: Color, tag: String, onClick: () -> Unit) 
 }
 
 
-/** The Trade button appears once setup is over (no trading while placing the first homesteads). */
-fun tradeButtonVisible(s: GameState) = !inSetup(s)
+/**
+ * The Trade button appears once setup is over (no trading while placing the first homesteads) and the turn's dice
+ * are rolled: the rules allow no trade before the roll, and opening the panel then left the game stuck (Mauro, 2026-10-12).
+ */
+fun tradeButtonVisible(s: GameState) = !inSetup(s) && s.hasRolled

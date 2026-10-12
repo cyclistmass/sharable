@@ -92,6 +92,7 @@ class TurnTracker(private val names: List<String>) {
         var d1 = 0
         var d2 = 0
         var ev = -1
+        val alchemist = action.type == wgbg.engine.CkActionType.PLAY_PROGRESS && (action.payload and 0xff).toInt() == wgbg.engine.Progress.ALCHEMIST
         if (action.type == ActionType.ROLL && action.payload != 0L) {
             d1 = action.a; d2 = action.b // dice thrown outside the engine travel in the action
             ev = ((action.payload ushr 16) and 0xff).toInt() - 1
@@ -101,15 +102,19 @@ class TurnTracker(private val names: List<String>) {
             d1 = peek.nextInt(6) + 1
             d2 = peek.nextInt(6) + 1
             if (s.ck != null) ev = peek.nextInt(6)
+        } else if (alchemist) {
+            // The Transmuter (Alchemist) is this turn's roll: the player picked both number dice, the event die is thrown.
+            d1 = ((action.payload ushr 8) and 0xff).toInt(); d2 = ((action.payload ushr 16) and 0xff).toInt()
+            ev = s.rng.copy().nextInt(6)
         }
         applyFn()
         noteHits(s, owner, who, action, held, holdings(s), phaseBefore)
         val gained = Array(s.numPlayers) { p -> IntArray(CARD_TYPES) { r -> s.hands[p * CARD_TYPES + r] - before[p * CARD_TYPES + r] } }
         val r = current!!
         val n = names[who]
-        if (action.type == ActionType.ROLL && d1 > 0) { rollCounts[(d1 + d2).coerceIn(2, 12)]++; if (ev in 0..5) eventCounts[ev]++ }
-        current = when (action.type) {
-            ActionType.ROLL -> r.copy(
+        if ((action.type == ActionType.ROLL || alchemist) && d1 > 0) { rollCounts[(d1 + d2).coerceIn(2, 12)]++; if (ev in 0..5) eventCounts[ev]++ }
+        current = when {
+            alchemist || action.type == ActionType.ROLL -> r.copy(
                 die1 = d1, die2 = d2, event = ev,
                 rollIn = gained.map { g -> IntArray(g.size) { maxOf(0, g[it]) } },
                 rollOut = List(s.numPlayers) { IntArray(CARD_TYPES) },
@@ -117,28 +122,28 @@ class TurnTracker(private val names: List<String>) {
                 else (0 until s.numPlayers).mapNotNull { p -> changes(gained[p])?.let { "${names[p]} $it" } }
                     .ifEmpty { listOf("Nobody produced anything.") },
             )
-            ActionType.END_TURN -> r
-            ActionType.REJECT_TRADE, ActionType.COUNTER_TRADE -> r
-            ActionType.ACCEPT_TRADE ->
+            action.type == ActionType.END_TURN -> r
+            action.type == ActionType.REJECT_TRADE || action.type == ActionType.COUNTER_TRADE -> r
+            action.type == ActionType.ACCEPT_TRADE ->
                 if (phaseBefore == Phase.DECIDE_COUNTER) r.plus("$n traded with ${names[counterer]}: ${tradeText(gained[who])}") else r
-            ActionType.MOVE_ROBBER -> {
+            action.type == ActionType.MOVE_ROBBER -> {
                 val victim = action.robberVictim
                 val card = if (victim >= 0) gained[victim].indexOfFirst { it < 0 } else -1
                 r.plus(if (victim >= 0) "$n moved the bandit and took a card from ${names[victim]}" else "$n moved the bandit")
                     .let { if (victim >= 0 && card >= 0) it.copy(steal = Steal(who, victim, card)) else it }
             }
-            ActionType.DISCARD -> r.plus("$n discarded " + gained[who].withIndex().filter { it.value < 0 }.joinToString(", ") { "${-it.value} ${RESOURCE_NAMES[it.index]}" })
+            action.type == ActionType.DISCARD -> r.plus("$n discarded " + gained[who].withIndex().filter { it.value < 0 }.joinToString(", ") { "${-it.value} ${RESOURCE_NAMES[it.index]}" })
                 .let { rep -> if (rep.rollOut.size > who) rep.copy(rollOut = rep.rollOut.mapIndexed { p, out -> if (p != who) out else IntArray(out.size) { out[it] + maxOf(0, -gained[who][it]) } }) else rep }
-            ActionType.MARITIME_TRADE -> r.plus("$n traded with the bank: ${tradeText(gained[who])}")
-            ActionType.OFFER_TRADE -> r.plus("$n offered a trade")
-            ActionType.CONFIRM_TRADE -> {
+            action.type == ActionType.MARITIME_TRADE -> r.plus("$n traded with the bank: ${tradeText(gained[who])}")
+            action.type == ActionType.OFFER_TRADE -> r.plus("$n offered a trade")
+            action.type == ActionType.CONFIRM_TRADE -> {
                 val partner = action.payload.toInt()
                 r.plus("$n traded with ${names[partner]}: ${tradeText(gained[who])}")
             }
-            ActionType.CANCEL_TRADE -> r.plus("$n's trade offer found no takers")
-            ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY ->
+            action.type == ActionType.CANCEL_TRADE -> r.plus("$n's trade offer found no takers")
+            action.type == ActionType.PLAY_YEAR_OF_PLENTY || action.type == ActionType.PLAY_MONOPOLY ->
                 r.plus("$n played ${describe(action.type)} and got ${changes(gained[who]) ?: "nothing"}")
-            wgbg.engine.CkActionType.CHOOSE_VERTEX -> r.plus(when (phaseBefore) {
+            action.type == wgbg.engine.CkActionType.CHOOSE_VERTEX -> r.plus(when (phaseBefore) {
                 Phase.BARBARIAN_LOSS -> "$n lost a town to the Raiders"
                 Phase.DESERTER_REMOVE -> "$n gave up a knight to Turncoat"
                 else -> "$n ${describe(action.type)}"

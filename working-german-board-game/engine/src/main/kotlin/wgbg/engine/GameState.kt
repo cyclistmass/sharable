@@ -152,6 +152,9 @@ class GameState internal constructor(
         if (c < Resource.COUNT) hands[p * CARD_TYPES + c] else ck!!.commodities[p * Commodity.COUNT + c - Resource.COUNT]
 
     /** Actual points, including hidden VP cards. */
+    /** The number on hex [h] now: an Inventor can swap them in Age of Chivalry, so draw and score from this, not [Board.hexNumber]. */
+    fun numberAt(h: Int): Int = ck?.hexNumber?.get(h) ?: board.hexNumber[h]
+
     fun victoryPoints(p: Int) = publicVictoryPoints(p) + devHand[p * DevCard.COUNT + DevCard.VICTORY_POINT]
 
     /**
