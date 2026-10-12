@@ -14,6 +14,9 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // CatanatronTraceTest writes these for tools/catanatron/diff.py (#12). As a declared output they come back with
+    // the test results when Gradle reuses a cached run; otherwise a cached run left the folder empty.
+    outputs.dir(layout.buildDirectory.dir("catanatron-traces"))
     maxHeapSize = "1g"
     testLogging {
         events("failed")

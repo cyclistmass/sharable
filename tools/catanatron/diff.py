@@ -337,6 +337,9 @@ def replay(path):
 
 def main():
     root = Path(sys.argv[1] if len(sys.argv) > 1 else "engine/build/catanatron-traces")
+    # At least this many games, or the check fails: an empty or short trace folder must never read as a pass
+    # (CI once replayed 0 games when Gradle took the engine tests from its cache without writing the traces).
+    need = int(sys.argv[2]) if len(sys.argv) > 2 else 200
     files = sorted(root.glob("game-*.jsonl"), key=lambda f: int(f.stem.split("-")[1]))
     random.seed(0)
     bad = 0
@@ -349,6 +352,9 @@ def main():
             if bad <= 20:
                 print(f"{f.name}: {err}")
     print(f"Catanatron differential: {len(files)} games, {moves} moves, {bad} differ")
+    if len(files) < need:
+        print(f"FAIL: only {len(files)} trace games in {root}, need {need}; the engine tests didn't write them")
+        sys.exit(1)
     sys.exit(1 if bad else 0)
 
 
