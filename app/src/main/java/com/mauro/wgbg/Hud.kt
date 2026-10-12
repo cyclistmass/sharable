@@ -22,6 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.verticalScroll
@@ -97,7 +100,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
         }
         val scroll = androidx.compose.foundation.rememberScrollState()
         Box(Modifier.weight(1f).fillMaxWidth()) {
-        Column(Modifier.fillMaxSize().padding(end = 10.dp).verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(Modifier.fillMaxSize().padding(end = 22.dp).verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         for (line in report.production) Text(line, color = HUD_TEXT, fontSize = 12.sp, maxLines = 1)
         for (line in report.events) Text(line, color = HUD_TEXT.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 2)
         val earlier = history.filter { it !== report }
@@ -121,7 +124,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             )
         }
         }
-        BrassScrollBar(scroll, Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(5.dp))
+        BrassScrollBar(scroll, Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(20.dp))
         }
     }
 }
@@ -130,14 +133,25 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
 @Composable
 private fun BrassScrollBar(state: androidx.compose.foundation.ScrollState, modifier: Modifier) {
     if (state.maxValue <= 0) return
-    Canvas(modifier) {
-        val r = androidx.compose.ui.geometry.CornerRadius(size.width / 2, size.width / 2)
-        drawRoundRect(Color(0x66000000), cornerRadius = r)
+    // Drag the thumb (or tap the groove) to move through the history; a thumb swipe on the text works too (Mauro).
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    Canvas(modifier.pointerInput(state) {
+        detectTapGestures { at -> scope.launch { state.scrollTo((state.maxValue * at.y / size.height).toInt().coerceIn(0, state.maxValue)) } }
+    }.pointerInput(state) {
+        detectVerticalDragGestures { change, dy ->
+            change.consume()
+            scope.launch { state.scrollBy(dy * (state.maxValue + size.height).toFloat() / size.height.coerceAtLeast(1)) }
+        }
+    }) {
+        // A wide touch strip, the bar itself drawn thin along its right edge.
+        val bw = 5.dp.toPx(); val x = size.width - bw
+        val r = androidx.compose.ui.geometry.CornerRadius(bw / 2, bw / 2)
+        drawRoundRect(Color(0x66000000), topLeft = androidx.compose.ui.geometry.Offset(x, 0f), size = androidx.compose.ui.geometry.Size(bw, size.height), cornerRadius = r)
         val visible = size.height / (size.height + state.maxValue)
-        val thumbH = (size.height * visible).coerceAtLeast(size.width * 4)
+        val thumbH = (size.height * visible).coerceAtLeast(bw * 4)
         val top = (size.height - thumbH) * state.value / state.maxValue
-        drawRoundRect(Color(0xFFB08A3E), topLeft = androidx.compose.ui.geometry.Offset(0f, top),
-            size = androidx.compose.ui.geometry.Size(size.width, thumbH), cornerRadius = r)
+        drawRoundRect(Color(0xFFB08A3E), topLeft = androidx.compose.ui.geometry.Offset(x, top),
+            size = androidx.compose.ui.geometry.Size(bw, thumbH), cornerRadius = r)
     }
 }
 
