@@ -41,6 +41,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -74,6 +76,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -532,6 +535,7 @@ fun WatchGameScreen(
     var inventory by remember { mutableStateOf(lookAndArt) }
     /** Watching bots: stop on the finished board instead of going straight into the next game (#13). */
     var oneGame by remember { mutableStateOf(false) }
+    var liveFreezeTurn by remember { mutableIntStateOf(0) } // debug measurement: pause a real bot game
     var compareTiles by remember { mutableStateOf(false) }
     // Scenery settings (density and motion), kept across restarts; the sea reads them once it supports them.
     val appContext = LocalContext.current.applicationContext
@@ -600,7 +604,7 @@ fun WatchGameScreen(
         var last = 0L
         while (true) {
             // Animations off (or Density 0): the scenery code doesn't run at all, so it can't take a game down.
-            if (!env.animating) { last = 0L; delay(300); continue }
+            if (!env.animating || env.liveBoard) { last = 0L; delay(300); continue }
             withFrameNanos { now ->
             sea.clouds01 = env.clouds; sea.birds01 = env.birds; sea.boats01 = env.boats; sea.waves01 = env.waves; sea.density01 = env.density
             // Clamp both ends: on some phones (Pixel 9/10, Android 17) the frame clock can step back a little,
@@ -654,6 +658,25 @@ fun WatchGameScreen(
             noteResponse(who, action)
             tracker.apply(state, who, action) { Rules.apply(state, action) }
             logMove(who, action)
+            if (liveFreezeTurn > 0 && state.turn >= liveFreezeTurn) {
+                playing = false
+                liveFreezeTurn = 0
+                android.util.Log.i("WGBG-3D-SNAPSHOT", "turn=${state.turn} hash=${state.stateHash()} " +
+                    "roads=${state.edgeOwner.count { it >= 0 }} buildings=${state.vertexOwner.count { it >= 0 }} " +
+                    "towns=${state.vertexBuilding.count { it == Piece.CITY }} walls=${state.ck?.wall?.sum()} capitals=${state.ck?.metroVertex?.count { it >= 0 }}")
+                if (appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+                    val snapshot = org.json.JSONObject().apply {
+                        put("turn", state.turn); put("hash", state.stateHash().toString())
+                        put("placements", org.json.JSONArray(livePlacements(state, env.pirateTheme, env.liveLod).map { p ->
+                            org.json.JSONObject().apply {
+                                put("model", p.model); put("x", p.position.x); put("z", p.position.y)
+                                put("height", p.height); put("scale", p.scale); put("heading", p.heading); put("owner", p.owner)
+                            }
+                        }))
+                    }
+                    appContext.cacheDir.resolve("live-board-scene.json").writeText(snapshot.toString())
+                }
+            }
             return action.type
         }
         if (speed == MAX_SPEED) {
@@ -661,7 +684,7 @@ fun WatchGameScreen(
             while (playing && !state.isOver) {
                 withFrameNanos { }
                 val start = System.nanoTime()
-                while (!state.isOver && System.nanoTime() - start < 12_000_000) step()
+                while (playing && !state.isOver && System.nanoTime() - start < 12_000_000) step()
                 tick++
             }
         } else {
@@ -748,6 +771,20 @@ fun WatchGameScreen(
     // The board fills the screen; controls live in an overlay panel toggled from the corner.
     val players = tick.let { (0 until state.numPlayers).map { PlayerInfo.of(state, it, me) } }
     var camera by remember { mutableStateOf(initialCamera) }
+    var boardRotation by remember { mutableFloatStateOf(0f) }
+    var liveFailure by remember { mutableStateOf<String?>(null) }
+    val liveBoard = env.liveBoard && liveFailure == null
+    val liveBoardNow by rememberUpdatedState(liveBoard)
+    val liveDensity = LocalDensity.current
+    fun liveProjection(width: Float, height: Float): LiveProjection {
+        if (inventory) {
+            val available = (height - with(liveDensity) { INVENTORY_CARDS_DP.dp.toPx() }).coerceAtLeast(height * .4f)
+            val scale = minOf(width / 18f, available / 12f) * camera.zoom
+            return LiveProjection(Offset(width / 2, available / 2) + camera.pan, scale, camera.tilt, boardRotation)
+        }
+        val fitted = Layout.fit(state.board, width, height, camera)
+        return LiveProjection(fitted.center, fitted.scale, camera.tilt, boardRotation)
+    }
     // The view stays where the player puts it (Mauro, 2026-10-10: it used to glide back to the full board
     // after 6 s untouched). Menu > Fit and a double-tap still reset it; Camera.clamped keeps it on screen.
     var boardSize by remember { mutableStateOf(Size.Zero) }
@@ -791,19 +828,40 @@ fun WatchGameScreen(
     // Debug agent hooks (#46): announce each moment the local player must act, and take moves by broadcast.
     val debuggable = LocalContext.current.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
     if (debuggable) {
-        LaunchedEffect(tick, legal.size, boardSize, camera, boardOrigin) {
+        LaunchedEffect(tick, legal.size, boardSize, camera, boardOrigin, liveBoard, boardRotation) {
             if (legal.isEmpty()) return@LaunchedEffect
             // Screen pixel of each board move, for the touch test: the board's layout now, plus its place on screen.
             val sz = boardSize
             val l = if (sz.minDimension > 0f) Layout.fit(state.board, sz.width, sz.height, camera) else null
             AgentHooks.announce(online?.id ?: "local", state, legal, prompt(state, legal, names),
-                l?.let { lay -> { a: Action -> spotOf(state.board, a)?.let { lay.project(it.x, it.y) + boardOrigin } } })
+                l?.let { lay -> { a: Action -> spotOf(state.board, a)?.let {
+                    (if (liveBoard) liveProjection(sz.width, sz.height).project(it) else lay.project(it.x, it.y)) + boardOrigin
+                } } })
         }
         androidx.compose.runtime.DisposableEffect(Unit) {
             val mine: (Action) -> Unit = { a -> humanMoves.trySend(a) }
             AgentHooks.sink = mine
             // Only clear our own: a relaunch builds the new game before the old one is disposed.
             onDispose { if (AgentHooks.sink === mine) AgentHooks.sink = null }
+        }
+        androidx.compose.runtime.DisposableEffect(env) {
+            val receiver = object : android.content.BroadcastReceiver() {
+                override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+                    if (intent.hasExtra("live")) env.liveBoard = intent.getBooleanExtra("live", false)
+                    if (intent.hasExtra("lod")) env.liveLod = intent.getIntExtra("lod", 0)
+                    if (intent.hasExtra("pirate")) env.pirateTheme = intent.getBooleanExtra("pirate", false)
+                    if (intent.hasExtra("sprites3d")) env.tiles3d = intent.getBooleanExtra("sprites3d", false)
+                    if (intent.hasExtra("tilt")) camera = camera.copy(tilt = (intent.getFloatExtra("tilt", Camera.START_TILT).takeIf { it.isFinite() } ?: Camera.START_TILT).coerceIn(0f, Camera.MAX_TILT))
+                    if (intent.hasExtra("zoom")) camera = camera.copy(zoom = (intent.getFloatExtra("zoom", 1f).takeIf { it.isFinite() } ?: 1f).coerceIn(Camera.MIN_ZOOM, Camera.MAX_ZOOM))
+                    if (intent.hasExtra("rotation")) boardRotation = intent.getFloatExtra("rotation", 0f).takeIf { it.isFinite() } ?: 0f
+                    if (intent.hasExtra("freezeTurn")) liveFreezeTurn = intent.getIntExtra("freezeTurn", 0).coerceAtLeast(0)
+                    if (intent.hasExtra("playing")) playing = intent.getBooleanExtra("playing", false)
+                    android.util.Log.i("WGBG-3D-VIEW", "live=${env.liveBoard} lod=${env.liveLod} pirate=${env.pirateTheme} tilt=${camera.tilt} rotation=$boardRotation turn=${stateNow.turn} hash=${stateNow.stateHash()}")
+                }
+            }
+            androidx.core.content.ContextCompat.registerReceiver(appContext, receiver, android.content.IntentFilter("com.mauro.wgbg.FILAMENT_VIEW"),
+                androidx.core.content.ContextCompat.RECEIVER_EXPORTED)
+            onDispose { appContext.unregisterReceiver(receiver) }
         }
     }
     // A board card being aimed (Envoy, Abbot, Tinkerer...): its spots glow and a board tap picks one (Mauro, 2026-10-11).
@@ -869,13 +927,27 @@ fun WatchGameScreen(
         val boardLayerKey = remember { arrayOfNulls<BoardLayerKey>(1) }
         val waterLayer = rememberGraphicsLayer().apply { compositingStrategy = CompositingStrategy.Offscreen }
         val waterLayerKey = remember { arrayOfNulls<WaterLayerKey>(1) }
+        if (liveBoard) {
+            val placements = remember(tick, state, env.pirateTheme, env.liveLod, inventory) {
+                if (inventory) liveInventoryPlacements() else livePlacements(state, env.pirateTheme, env.liveLod)
+            }
+            val projection = if (boardSize.minDimension > 0f) liveProjection(boardSize.width, boardSize.height) else null
+            LiveBoardView(placements, projection, Modifier.fillMaxSize()) { reason ->
+                liveFailure = reason; env.liveBoard = false
+                android.widget.Toast.makeText(appContext, "3D board unavailable; using the sprite board", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+        LaunchedEffect(env.liveBoard) { if (env.liveBoard) liveFailure = null }
         Canvas(
             Modifier.fillMaxSize()
                 .onSizeChanged { boardSize = Size(it.width.toFloat(), it.height.toFloat()) }
                 .onGloballyPositioned { boardOrigin = it.positionInWindow() }
                 .clipToBounds() // never draw the board under the side panel
                 .pointerInput(Unit) {
-                    fun lattice(p: Offset) = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(p)
+                    fun lattice(p: Offset): Offset {
+                        val l = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera)
+                        return if (liveBoardNow) LiveProjection(l.center, l.scale, camera.tilt, boardRotation).unproject(p) else l.unproject(p)
+                    }
                     var dragged: Sea.Cloud? = null
                     // Supplies (#52): a press on one grabs it; it follows the finger, keeping where it was held.
                     var pile = -1
@@ -887,7 +959,7 @@ fun WatchGameScreen(
                     boardGestures(
                         grab = { p ->
                             val seat = pileAt(p)
-                            if (seat >= 0) {
+                            if (liveBoardNow) false else if (seat >= 0) {
                                 pile = seat
                                 pileGrip = lattice(p) - supplyCenter(stateNow, seat, viewerNow, pileOffsetsNow)
                                 hostView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
@@ -938,6 +1010,8 @@ fun WatchGameScreen(
                             camera = camera.transform(centroid, pan, zoom, Size(size.width.toFloat(), size.height.toFloat()))
                         },
                         onTilt = { dy -> camera = camera.tilted(dy, size.height.toFloat()) },
+                        onRotate = { degrees -> if (liveBoardNow) boardRotation = (boardRotation + Math.toRadians(degrees.toDouble()).toFloat()) % (2f * Math.PI.toFloat()) },
+                        allowRotation = { liveBoardNow },
                     )
                 }
                 .pointerInput(Unit) {
@@ -956,7 +1030,8 @@ fun WatchGameScreen(
                 }
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { at ->
-                        val p = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(at)
+                        val l = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera)
+                        val p = if (liveBoardNow) LiveProjection(l.center, l.scale, camera.tilt, boardRotation).unproject(at) else l.unproject(at)
                         val picking = cardPickNow.isNotEmpty()
                         val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else movesAt(boardNow, boardLegalNow, p)
                         // The Tinkerer swaps two tiles: the first tap narrows to that tile's swaps, the second picks the other tile.
@@ -978,17 +1053,32 @@ fun WatchGameScreen(
                     }, onDoubleTap = { at ->
                         val sz = Size(size.width.toFloat(), size.height.toFloat())
                         // A double-tap on a supply resets that pile (handled with its drag); the view stays.
-                        if (supplyAt(stateNow, viewerNow, pileOffsetsNow, Layout.fit(boardNow, sz.width, sz.height, camera), at, 48.dp.toPx()) >= 0) return@detectTapGestures
-                        camera = if (camera.zoom > 1.05f || kotlin.math.abs(camera.tilt - Camera.START_TILT) > 0.01f || camera.pan.getDistance() > 1f) Camera.FIT
+                        if (!liveBoardNow && supplyAt(stateNow, viewerNow, pileOffsetsNow, Layout.fit(boardNow, sz.width, sz.height, camera), at, 48.dp.toPx()) >= 0) return@detectTapGestures
+                        camera = if (camera.zoom > 1.05f || kotlin.math.abs(camera.tilt - Camera.START_TILT) > 0.01f || camera.pan.getDistance() > 1f || kotlin.math.abs(boardRotation) > .01f) Camera.FIT.also { boardRotation = 0f }
                         else camera.transform(at, Offset.Zero, Camera.DOUBLE_TAP_ZOOM / camera.zoom, sz)
                     })
                 },
         ) {
             tick // redraw on every move
             if (!inventory) seaTick // and on every sea frame (the Inventory screen holds still)
-            if (inventory) drawInventory(measurer, wood, banditSprites, tileFaces, tileLine,
+            if (inventory && liveBoard) {
+                val projection = liveProjection(size.width, size.height)
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xFFF1D58A.toInt(); textSize = 16.dp.toPx(); textAlign = android.graphics.Paint.Align.CENTER
+                    typeface = resources.getFont(R.font.alegreya_sans_regular)
+                }
+                for ((text, z) in listOf("Terrain LOD0" to -5.3f, "Terrain LOD1" to -2.6f, "Default pieces" to .45f, "Pirate pieces" to 2.5f, "Bandit and runtime plate" to 6.1f)) {
+                    val at = projection.project(Offset(0f, z))
+                    drawContext.canvas.nativeCanvas.drawText(text, at.x, at.y, paint)
+                }
+            } else if (inventory) drawInventory(measurer, wood, banditSprites, tileFaces, tileLine,
                 InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide, buildings, sea.sprites3d),
-                bottomInset = INVENTORY_CARDS_DP.dp.toPx()) else {
+                bottomInset = INVENTORY_CARDS_DP.dp.toPx()) else if (liveBoard) {
+                val projection = liveProjection(size.width, size.height)
+                drawLiveOverlay(state, projection, if (env.pirateTheme) knightsPirate else knightsNormal)
+                if (!targets.isEmpty) drawLiveTargets(state.board, targets, projection, targetGlow(me))
+                if (chosen.isNotEmpty()) drawLiveTargets(state.board, Targets.of(chosen), projection, Color.White)
+            } else {
                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
                 val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
                 val layerSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt())
@@ -1182,6 +1272,7 @@ fun WatchGameScreen(
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
  // Inventory and Tiles: compare live on the Look & art page before the game now (#71, Mauro: clean up the menu).
                     WoodButton("Fit", "menu-fit") { camera = Camera.FIT }
+                    if (env.liveBoard) WoodButton("3D collection (test)", "menu-live-collection") { inventory = true; panelOpen = false; settingsOpen = false; camera = Camera.FIT; boardRotation = 0f }
                     if (online == null) WoodButton(if (diceSetting == 0) "Dice: random" else "Dice: ${36 * diceSetting} deck · ${(dice as? DiceDeck)?.remaining ?: ""}", "menu-dice") {
                         diceSetting = (diceSetting + 1) % 5
                     }
@@ -1322,6 +1413,8 @@ internal fun targetPulse(seconds: Float, period: Float = 1.8f): Float = (kotlin.
 private suspend fun PointerInputScope.boardGestures(
     onTransform: (centroid: Offset, pan: Offset, zoom: Float) -> Unit,
     onTilt: (dy: Float) -> Unit,
+    onRotate: (degrees: Float) -> Unit = {},
+    allowRotation: () -> Boolean = { false },
     grab: (Offset) -> Boolean = { false },
     onGrabMove: (Offset) -> Unit = {},
     onGrabEnd: (GrabEnd) -> Unit = {},
@@ -1354,25 +1447,28 @@ private suspend fun PointerInputScope.boardGestures(
     var travelY = 0f
     var travelX = 0f
     var spread = 1f
+    var twist = 0f
     do {
         val event = awaitPointerEvent()
         val down = event.changes.count { it.pressed }
         if (event.changes.any { it.isConsumed }) break
         val zoom = event.calculateZoom()
         val pan = event.calculatePan()
+        val rotation = if (allowRotation()) event.calculateRotation() else 0f
         if (mode == 0) {
             travelX += pan.x
             travelY += pan.y
             spread *= zoom
+            twist += rotation
             val moved = kotlin.math.hypot(travelX, travelY)
-            if (moved > viewConfiguration.touchSlop || kotlin.math.abs(spread - 1f) > 0.05f) {
-                mode = if (down >= 2 && kotlin.math.abs(travelY) > 2f * kotlin.math.abs(travelX) &&
+            if (moved > viewConfiguration.touchSlop || kotlin.math.abs(spread - 1f) > 0.05f || kotlin.math.abs(twist) > 3f) {
+                mode = if (down >= 2 && kotlin.math.abs(twist) < 3f && kotlin.math.abs(travelY) > 2f * kotlin.math.abs(travelX) &&
                     kotlin.math.abs(spread - 1f) < 0.04f
                 ) 2 else 1
             }
         }
         when (mode) {
-            1 -> onTransform(event.calculateCentroid(), pan, zoom)
+            1 -> { onTransform(event.calculateCentroid(), pan, zoom); onRotate(rotation) }
             2 -> if (down >= 2) onTilt(pan.y)
         }
         if (mode != 0) event.changes.forEach { if (it.positionChanged()) it.consume() }

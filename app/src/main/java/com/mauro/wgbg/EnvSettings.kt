@@ -103,6 +103,17 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
 
     private val tiles3dState = mutableFloatStateOf(store.get(TILES_3D, 0f))
 
+    private val liveBoardState = mutableFloatStateOf(store.get(LIVE_BOARD, 0f))
+    /** Opt-in Filament spike. The existing sprite board remains the default. */
+    var liveBoard: Boolean
+        get() = liveBoardState.floatValue > 0.5f
+        set(v) { liveBoardState.floatValue = if (v) 1f else 0f; store.put(LIVE_BOARD, liveBoardState.floatValue) }
+
+    private val liveLodState = mutableFloatStateOf(store.get(LIVE_LOD, 0f))
+    var liveLod: Int
+        get() = liveLodState.floatValue.toInt().coerceIn(0, 1)
+        set(v) { liveLodState.floatValue = v.coerceIn(0, 1).toFloat(); store.put(LIVE_LOD, liveLodState.floatValue) }
+
     /** Board tiles: the painted faces (default) or the rendered 3D tiles (V3, a preview to try). Saved. */
     var tiles3d: Boolean
         get() = tiles3dState.floatValue > 0.5f
@@ -131,7 +142,7 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         set(v) { eventDie.floatValue = v.coerceIn(0, DiceArt.EVENT_STYLES.size - 1).toFloat(); store.put(EVENT_DIE, eventDie.floatValue) }
 
     /** Back to the defaults (saved). */
-    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0 }
+    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0; liveBoard = false; liveLod = 0 }
 
     val clouds get() = this[Item.CLOUDS]
     val birds get() = this[Item.BIRDS]
@@ -146,6 +157,8 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         const val DENSITY = "env-density"
         const val VIEW_BARS = "view-bars"
         const val TILES_3D = "tiles-3d"
+        const val LIVE_BOARD = "live-board"
+        const val LIVE_LOD = "live-board-lod"
         const val ANIMATIONS = "animations"
         const val SEE_THROUGH = "side-panel-see-through"
 
@@ -170,6 +183,15 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = M
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Settings", fontSize = 18.sp, color = Color(0xFFF1D58A), modifier = Modifier.weight(1f))
             ResetButton { env.reset(); sound.reset() }
+        }
+        Text("3D board (test)", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("On", selected = env.liveBoard, tag = "live-board-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.liveBoard = true }
+            Choice("Off", selected = !env.liveBoard, tag = "live-board-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.liveBoard = false }
+        }
+        if (env.liveBoard) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Detail: LOD0", selected = env.liveLod == 0, tag = "live-lod-0", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.liveLod = 0 }
+            Choice("Detail: LOD1", selected = env.liveLod == 1, tag = "live-lod-1", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.liveLod = 1 }
         }
         Text("Animations (off, or Density at 0: nothing moves)", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
