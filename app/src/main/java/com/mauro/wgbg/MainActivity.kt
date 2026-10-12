@@ -1455,11 +1455,11 @@ private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, puls
     }
 }
 
-/** Build-mark sizes in hex units: corner radius and edge half-width (Mauro, 2026-10-10: 25% smaller than 0.26 / 0.15). */
 /** Tilt steps (of 7) pieces are seen steeper than the board; see [banditSteps]. */
 internal const val PIECE_LIFT_STEPS = 4f
 internal var pieceLiftSteps = PIECE_LIFT_STEPS
 
+/** Build-mark sizes in hex units: corner radius and edge half-width (Mauro, 2026-10-10: 25% smaller than 0.26 / 0.15). */
 internal const val BUILD_MARK_R = 0.195f
 internal const val BUILD_MARK_W = 0.1125f
 

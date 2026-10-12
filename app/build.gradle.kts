@@ -14,8 +14,8 @@ android {
         applicationId = "com.mauro.wgbg"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.2.7"
+        versionCode = 11
+        versionName = "0.2.8"
         // Instrumented tests (online play against the Firebase emulators, #35).
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
