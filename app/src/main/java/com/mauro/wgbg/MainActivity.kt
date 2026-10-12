@@ -1019,8 +1019,8 @@ fun WatchGameScreen(
         if (lookAndArt) Row(Modifier.align(Alignment.TopStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically) {
             GoButton("Done", "look-done", true, Modifier.width(120.dp).height(44.dp)) { onExit() }
-            BrassButton("Tiles: compare", "look-tile-compare", Modifier.height(44.dp)) { compareTiles = true }
-            BrassButton("Card guide", "look-guide", Modifier.height(44.dp)) { guideOpen = true }
+            BrassButton("Tiles: compare", "look-tile-compare", Modifier.height(44.dp)) { compareTiles = true; settingsOpen = false }
+            BrassButton("Card guide", "look-guide", Modifier.height(44.dp)) { guideOpen = true; settingsOpen = false }
         }
         if (inventory) Row(Modifier.align(Alignment.BottomCenter).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((r, art) in CARD_ART.withIndex()) androidx.compose.foundation.Image(
@@ -1052,7 +1052,7 @@ fun WatchGameScreen(
             if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
                 TurnHud(report, previous, names, me = me, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
                     eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight,
-                    width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f, onDiceDoubleTap = { histogramOpen = true })
+                    width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f, onDiceDoubleTap = { histogramOpen = true; settingsOpen = false })
             }
             if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
@@ -1164,7 +1164,7 @@ fun WatchGameScreen(
                             .clickable { confirmExit = true }.padding(horizontal = 10.dp, vertical = 3.dp).testTag("menu-exit"))
                 }
                 // Every card and what it does, and what everything costs (Mauro: "make a map in the menu").
-                WoodButton("Card guide", "menu-guide") { guideOpen = true; panelOpen = false }
+                WoodButton("Card guide", "menu-guide") { guideOpen = true; panelOpen = false; settingsOpen = false }
                 if (online != null) Text("Online · room ${online.id}", fontWeight = FontWeight.Bold, modifier = Modifier.testTag("menu-room"))
                 if (online == null) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
