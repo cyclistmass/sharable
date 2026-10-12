@@ -399,7 +399,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 onJoinRoom = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); problem = null; screen = Screen.JOIN },
                 resumeRoom = resumeCode.takeIf { session == null && !busy },
                 onResume = { resumeCode?.let { rejoin(it) } },
-                resumeGame = localSave?.let { "Resume your ${it.setup.ruleset.label} game" },
+                resumeGame = localSave?.let { "Resume your ${it.setup.ruleset.label.removeSuffix(" game")} game" },
                 onResumeGame = { localSave?.let { setup = it.setup; resuming = it; gameNo++; screen = Screen.GAME } },
                 // Look & art shows the ruleset chosen on screen, and the choices are still there on the way back.
                 onLookAndArt = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); screen = Screen.LOOK },
