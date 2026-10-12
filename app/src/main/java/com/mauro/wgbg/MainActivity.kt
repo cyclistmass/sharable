@@ -1303,16 +1303,7 @@ fun WatchGameScreen(
                 // A bug or an idea, typed or spoken, with this whole game attached (Mauro, 2026-10-12).
                 WoodButton("Report a bug or idea", "menu-feedback") { feedbackOpen = true; panelOpen = false; settingsOpen = false }
                 if (online != null) Text("Online · room ${online.id}", fontWeight = FontWeight.Bold, modifier = Modifier.testTag("menu-room"))
-                if (online == null) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
-                    WoodButton(if (speed == MAX_SPEED) "Max" else "${speed}×", "menu-speed") { speed = if (speed == MAX_SPEED) 1 else speed * 2 }
-                    WoodButton(if (human) "Watch bots" else "Play", "menu-watch") { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }
-                    if (!human) WoodButton(if (oneGame) "One game" else "Nonstop", "menu-one-game") {
-                        oneGame = !oneGame
-                        if (!oneGame && state.isOver) seed++
-                    }
-                    if (!human && oneGame && tick.let { state.isOver }) WoodButton("Next game", "menu-next-game") { seed++ }
-                }
+                if (!lookAndArt) LiveBoardChoice(env)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
  // Inventory and Tiles: compare live on the Look & art page before the game now (#71, Mauro: clean up the menu).
                     WoodButton("Fit", "menu-fit") { camera = Camera.FIT }
@@ -1354,8 +1345,24 @@ fun WatchGameScreen(
         if (guideOpen) Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
             CardGuide(state.ck != null, env.pirateTheme, onClose = { guideOpen = false })
         }
+        // Pause, speed and Watch bots live under the gear (Mauro, 2026-10-12); local games only, not on Look & art.
         if (settingsOpen) SettingsPanel(env, sound,
-            Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp))
+            Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp),
+            gameControls = if (online == null && !lookAndArt) {
+                {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
+                        WoodButton(if (speed == MAX_SPEED) "Max" else "${speed}×", "menu-speed") { speed = if (speed == MAX_SPEED) 1 else speed * 2 }
+                        WoodButton(if (human) "Watch bots" else "Play", "menu-watch") { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }
+                        if (!human) WoodButton(if (oneGame) "One game" else "Nonstop", "menu-one-game") {
+                            oneGame = !oneGame
+                            if (!oneGame && state.isOver) seed++
+                        }
+                        if (!human && oneGame && tick.let { state.isOver }) WoodButton("Next game", "menu-next-game") { seed++ }
+                    }
+                }
+            } else null,
+            liveBoardChoice = lookAndArt)
         if (confirmExit) Column(
             Modifier.align(Alignment.Center).brassEdgedWood().padding(18.dp).testTag("exit-confirm"),
             horizontalAlignment = Alignment.CenterHorizontally,

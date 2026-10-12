@@ -170,12 +170,27 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
     }
 }
 
+/** The 3D board (test) On/Off switch and its detail level; in the game's Menu, and in Settings on Look & art. */
+@Composable
+fun LiveBoardChoice(env: EnvSettings) {
+    Text("3D board (test)", fontSize = 13.sp, color = Color(0xFFD9B865))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Choice("On", selected = env.liveBoard, tag = "live-board-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.liveBoard = true }
+        Choice("Off", selected = !env.liveBoard, tag = "live-board-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.liveBoard = false }
+    }
+    if (env.liveBoard) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Choice("Detail: LOD0", selected = env.liveLod == 0, tag = "live-lod-0", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.liveLod = 0 }
+        Choice("Detail: LOD1", selected = env.liveLod == 1, tag = "live-lod-1", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.liveLod = 1 }
+    }
+}
+
 /**
  * The gear menu: every setting in one wood-and-brass panel. Changes save as they happen;
  * Reset puts scenery and sound back to their defaults.
  */
 @Composable
-fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = Modifier) {
+fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = Modifier,
+                  gameControls: (@Composable () -> Unit)? = null, liveBoardChoice: Boolean = true) {
     // No Done button: every change saves as it is made, and the Menu button (showing Hide) closes the panel (Mauro).
     // Scrolls when the screen is too short for every setting (landscape phones).
     Column(modifier.width(360.dp).brassEdgedWood().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp).testTag("settings-panel"),
@@ -184,16 +199,14 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = M
             Text("Settings", fontSize = 18.sp, color = Color(0xFFF1D58A), modifier = Modifier.weight(1f))
             ResetButton { env.reset(); sound.reset() }
         }
+        // In a game: Pause, speed and Watch bots first (Mauro, 2026-10-12: "should be under the gear menu").
+        if (gameControls != null) {
+            Text("This game", fontSize = 13.sp, color = Color(0xFFD9B865))
+            gameControls()
+        }
         AccountSection()
-        Text("3D board (test)", fontSize = 13.sp, color = Color(0xFFD9B865))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Choice("On", selected = env.liveBoard, tag = "live-board-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.liveBoard = true }
-            Choice("Off", selected = !env.liveBoard, tag = "live-board-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.liveBoard = false }
-        }
-        if (env.liveBoard) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Choice("Detail: LOD0", selected = env.liveLod == 0, tag = "live-lod-0", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.liveLod = 0 }
-            Choice("Detail: LOD1", selected = env.liveLod == 1, tag = "live-lod-1", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.liveLod = 1 }
-        }
+        // In a game the 3D switch sits in the main Menu instead (Mauro: "3d board should move out to that main menu").
+        if (liveBoardChoice) LiveBoardChoice(env)
         Text("Animations (off, or Density at 0: nothing moves)", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("On", selected = env.animations, tag = "animations-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.animations = true }

@@ -143,9 +143,9 @@ if tap_text "Menu"; then
   tap_desc "Settings" && { tap_text "Off" || echo "USERPLAY $TAG: no Animations Off switch"; }
   tap_text "Hide"
 fi
-# Local games: speed the bots up from the menu like a player can (Menu, tap the speed button up to Max, Hide).
+# Local games: speed the bots up like a player can (Menu, the gear, tap the speed button up to Max, Hide).
 if [ "$MODE" = local ]; then
-  tap_text "Menu" && for _ in 1 2 3 4 5; do
+  tap_text "Menu" && tap_desc "Settings" && for _ in 1 2 3 4 5; do
     lbl=$(dump | grep -o 'text="\(Max\|[0-9]*×\)"' | head -1 | cut -d'"' -f2)
     [ "$lbl" = "Max" ] && break; [ -n "$lbl" ] && tap_text "$lbl"
   done; tap_text "Hide"

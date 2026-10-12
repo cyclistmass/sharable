@@ -51,7 +51,7 @@ counter/primary gold.
    rather than flipping images.
 1. New or changed art is shown as options side by side for the maintainer to pick from before it goes in.
 2. Approved art goes into `app/src/main/res/drawable-nodpi/` and onto the in-app **Inventory** screen
-   (Menu › Inventory, `drawInventory` in `MainActivity.kt`), so every object can be checked together.
+   (start screen › Look & art, `drawInventory` in `MainActivity.kt`), so every object can be checked together.
 3. Screenshot the Inventory screen and the board to confirm.
 4. Art must be CC0 or our own. Record every source in `CREDITS.md`.
 

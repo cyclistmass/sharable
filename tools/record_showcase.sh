@@ -49,7 +49,7 @@ tap_text_opt() { ( tap_text "$1" ) >/dev/null || true; }
 watch() {
   "$A" shell am start --activity-clear-task -n $PKG/.MainActivity --es start "$1" --ez watch true --ef tilt "$3" --ef zoom "$4" >/dev/null
   sleep 3
-  tap_text "Menu"
+  tap_text "Menu"; tap_text "Settings"   # the speed button is under the gear
   for _ in $(seq 1 "$2"); do "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
     local label; label=$("$A" shell cat /sdcard/ui.xml | grep -o 'text="\(Max\|[0-9]*×\)"' | head -1 | cut -d'"' -f2 || true)
     [ -n "$label" ] && tap_text_opt "$label"; done
@@ -77,7 +77,7 @@ clip base
 settings "view-bars=0.0" "theme-pirate=1.0" "event-die-style=3.0"
 watch chivalry 4 0.55 1.5
 sleep 120
-tap_text "Menu"; for _ in 1 2 3 4; do "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+tap_text "Menu"; tap_text "Settings"; for _ in 1 2 3 4; do "$A" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
   label=$("$A" shell cat /sdcard/ui.xml | grep -o 'text="\(Max\|[0-9]*×\)"' | head -1 | cut -d'"' -f2 || true)
   [ "$label" = "1×" ] && break; [ -n "$label" ] && tap_text_opt "$label"; done
 tap_text_opt "Hide"
