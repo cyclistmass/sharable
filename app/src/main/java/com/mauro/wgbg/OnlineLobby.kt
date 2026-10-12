@@ -134,7 +134,7 @@ class OnlineSeats(room: Room, uid: String) {
         when {
             i == me -> seat.name.ifBlank { "You" }
             seat.uid != null -> seat.name.ifBlank { PLAYER_NAMES[i] }
-            else -> "${PLAYER_NAMES[i]} (${seat.bot?.let { b -> BotLevel.valueOf(b).label } ?: "bot"})"
+            else -> PLAYER_NAMES[i]   // just the colour name: the bot's level only took room (Mauro)
         }
     }
     private val bots: List<BotLevel?> = players.map { s -> room.seats[s].takeIf { it.uid == null }?.bot?.let(BotLevel::valueOf) }

@@ -1702,7 +1702,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         if (r3d != null) {
             // 3D preview: the rendered tile (base and thickness baked in) at this tilt, then our number plate on top.
             val hs = scale * l.hexK(h)
-            drawSteppedSprite(r3d, c, Tile3dArt.FRAME_UNITS * hs, l.tilt)
+            drawSteppedSprite(r3d, c, Tile3dArt.FRAME_UNITS * hs, l.tilt, TILE_FILTER)
             if (board.hexNumber[h] != 0) drawNumberToken(board.hexNumber[h], c + Offset(TILE3D_PLATE_X * hs, TILE3D_PLATE_Y * hs * l.squash), hs, measurer, wood)
         } else drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]), tileLine)
     }
@@ -1921,7 +1921,7 @@ private fun DrawScope.drawTile(
         val w = sqrt(3f) * r
         val hgt = 2 * r * squash
         drawImage(face, dstOffset = IntOffset((c.x - w / 2).toInt(), (c.y - hgt / 2).toInt()), dstSize = IntSize(w.toInt(), hgt.toInt()),
-            filterQuality = FilterQuality.Medium)
+            filterQuality = FilterQuality.Medium, colorFilter = TILE_FILTER)   // a little greyer, so the pieces stand out
         // Tile edges: Thin line = a fine dark outline in a deeper shade of the terrain.
         if (line) drawPath(polygon(top), base.shade(0.55f).copy(alpha = 0.75f), style = Stroke(0.025f * scale))
         if (number != 0) drawNumberToken(number, c + Offset(NUMBER_TOKEN_X * scale, NUMBER_TOKEN_Y * scale * squash), scale, measurer, wood)
@@ -2241,12 +2241,12 @@ internal fun DrawScope.drawWalledPiece(buildings: BuildingSprites, piece: Buildi
 internal val RAMPARTS_PERCH_LIFT = floatArrayOf(12f / 256f, 14f / 256f, 17f / 256f)
 
 /** Draws the tilt-stepped sprite [frames] centred on [c], [side] px square, cross-fading the two nearest steps. */
-private fun DrawScope.drawSteppedSprite(frames: List<ImageBitmap>, c: Offset, side: Float, tilt: Float) {
+private fun DrawScope.drawSteppedSprite(frames: List<ImageBitmap>, c: Offset, side: Float, tilt: Float, filter: androidx.compose.ui.graphics.ColorFilter? = null) {
     if (side < 2f || !side.isFinite()) return
     val (a, b, f) = banditSteps(tilt)
     val dst = IntOffset((c.x - side / 2).toInt(), (c.y - side / 2).toInt()); val sz = IntSize(side.toInt(), side.toInt())
-    frames.getOrNull(a)?.let { drawImage(it, IntOffset.Zero, IntSize(it.width, it.height), dst, sz, filterQuality = FilterQuality.Medium) }
-    if (f > 0.02f) frames.getOrNull(b)?.let { drawImage(it, IntOffset.Zero, IntSize(it.width, it.height), dst, sz, alpha = f, filterQuality = FilterQuality.Medium) }
+    frames.getOrNull(a)?.let { drawImage(it, IntOffset.Zero, IntSize(it.width, it.height), dst, sz, filterQuality = FilterQuality.Medium, colorFilter = filter) }
+    if (f > 0.02f) frames.getOrNull(b)?.let { drawImage(it, IntOffset.Zero, IntSize(it.width, it.height), dst, sz, alpha = f, filterQuality = FilterQuality.Medium, colorFilter = filter) }
 }
 
 /** Corners 0 until [count] ordered back to front: by [screenY] (smaller is farther away), ties by index. */
