@@ -104,7 +104,11 @@ fun ckLabel(s: GameState, a: Action, names: List<String>): String? = when (a.typ
     CkActionType.CHASE_ROBBER -> "Chase the bandit off"
     CkActionType.RELOCATE_KNIGHT -> "Set your knight down here"
     CkActionType.BUILD_CITY_WALL -> "Build Ramparts here"
-    CkActionType.CHOOSE_VERTEX -> "Choose this corner"
+    CkActionType.CHOOSE_VERTEX -> when (s.phase) {
+        Phase.BARBARIAN_LOSS -> "Lose this town"
+        Phase.DESERTER_REMOVE -> "Remove this knight"
+        else -> "Choose this corner"
+    }
     CkActionType.IMPROVE_CITY -> "Improve ${deck(a.a)}" + if (a.b > 0) " (claim the Capital)" else ""
     CkActionType.PLAY_PROGRESS -> "Play ${progress(a.a)}"
     CkActionType.DISCARD_PROGRESS -> "Discard ${progress(a.a)}"

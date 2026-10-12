@@ -138,6 +138,11 @@ class TurnTracker(private val names: List<String>) {
             ActionType.CANCEL_TRADE -> r.plus("$n's trade offer found no takers")
             ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY ->
                 r.plus("$n played ${describe(action.type)} and got ${changes(gained[who]) ?: "nothing"}")
+            wgbg.engine.CkActionType.CHOOSE_VERTEX -> r.plus(when (phaseBefore) {
+                Phase.BARBARIAN_LOSS -> "$n lost a town to the Raiders"
+                Phase.DESERTER_REMOVE -> "$n gave up a knight to Turncoat"
+                else -> "$n ${describe(action.type)}"
+            })
             else -> r.plus("$n ${describe(action.type)}")
         }
     }

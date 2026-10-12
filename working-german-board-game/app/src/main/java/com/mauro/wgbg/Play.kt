@@ -340,8 +340,20 @@ fun confirmTitle(s: GameState, a: Action): String = when (a.type) {
     ActionType.BUILD_ROAD -> if (s.phase == Phase.BUILD_INITIAL_ROAD || s.freeRoads > 0) "Place a free road here?" else "Build a road here?"
     ActionType.MOVE_ROBBER -> "Move the bandit here?"
     wgbg.engine.CkActionType.PLAY_PROGRESS -> "Play ${PROGRESS_NAMES.getOrElse(a.a) { "this card" }} here?"
+    wgbg.engine.CkActionType.CHOOSE_VERTEX -> when (s.phase) {
+        Phase.BARBARIAN_LOSS -> "The Raiders won: lose this town to them?"
+        Phase.DESERTER_REMOVE -> "Turncoat: remove this knight of yours?"
+        else -> "Choose what to do here"
+    }
     else -> "Choose what to do here"
 }
+
+/**
+ * Whether the confirm box goes to the bottom of the screen instead of the top: when the tapped spot ([spotY] on a board
+ * [boardHeight] tall) is in the top 45%, so the box never covers the spot itself. (0.2.7 online test: a Raiders town
+ * near the top edge sat under the box, and a double tap on the town landed on its cancel button.)
+ */
+fun confirmBelow(spotY: Float?, boardHeight: Float): Boolean = spotY != null && boardHeight > 0f && spotY < boardHeight * 0.45f
 
 /** A warning worth a second look (the bandit on your own land), or null. */
 fun confirmWarning(s: GameState, me: Int, a: Action): String? {
