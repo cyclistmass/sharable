@@ -6,7 +6,6 @@
 # The GitHub token comes from Git Credential Manager for one command at a time; it is never printed or saved.
 # Usage: tools/publish_release.sh [path to gameplay mp4]
 set -euo pipefail
-VERSION=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)
 VIDEO="${1:-$TEMP/wgbg-showcase/working-german-board-game-gameplay.mp4}"
 REPO=cyclistmass/sharable
 SHARABLE="${SHARABLE:-../sharable}"
@@ -14,7 +13,10 @@ WORK="$(mktemp -d)"
 tok() { printf "protocol=https\nhost=github.com\npath=%s.git\n\n" "$REPO" | git -c credential.useHttpPath=true credential fill | sed -n 's/^password=//p'; }
 api() { curl -s -m 60 -H "Authorization: Bearer $(tok)" "$@"; }
 
-SHA=$(git -C "$SHARABLE" rev-parse origin/main)
+# The commit to release: origin/main, or SHA=<commit> to pin an earlier tested build while newer work lands on main.
+SHA="${SHA:-$(git -C "$SHARABLE" rev-parse origin/main)}"
+# The version of that commit, not of this checkout (main may already be on the next version).
+VERSION=$(git -C "$SHARABLE" show "$SHA:working-german-board-game/app/build.gradle.kts" | sed -n 's/.*versionName = "\(.*\)".*/\1/p')
 RUN=$(api "https://api.github.com/repos/$REPO/actions/runs?head_sha=$SHA" | py -c "
 import json,sys
 r=[w for w in json.load(sys.stdin)['workflow_runs'] if 'working' in w['name']]
