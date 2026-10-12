@@ -58,6 +58,35 @@ class LiveBoardDeviceTest {
         Thread.sleep(650) // Let detectTapGestures finish its double-tap window.
     }
 
+    /** The newest `spots=` line once it has stayed the same for [quiet] ms: the camera settles after a gesture, slowly on CI. */
+    private fun settledSpots(quiet: Long = 1_000): String {
+        var last = ""; var since = SystemClock.uptimeMillis()
+        val deadline = since + 15_000
+        while (SystemClock.uptimeMillis() < deadline) {
+            val now = log("WGBG-TURN").lineSequence().lastOrNull { it.contains("spots=") } ?: ""
+            if (now != last) { last = now; since = SystemClock.uptimeMillis() }
+            else if (now.isNotEmpty() && SystemClock.uptimeMillis() - since >= quiet) return now
+            Thread.sleep(100)
+        }
+        fail("Timed out: spots settle"); return last
+    }
+
+    private fun phaseLine() = log("WGBG-TURN").lineSequence().last { it.contains("phase=") }
+
+    /** Taps a [type] spot twice (pick, confirm) until [placed]; each try re-reads settled spots and moves to the next one. */
+    private fun placeByTaps(type: String, label: String, inView: (Float, Float) -> Boolean = { _, _ -> true }, placed: () -> Boolean) {
+        repeat(4) { attempt ->
+            val spots = Regex("$type:[0-9]+@([0-9]+),([0-9]+)").findAll(settledSpots())
+                .map { it.groupValues[1].toFloat() to it.groupValues[2].toFloat() }.filter { (x, y) -> inView(x, y) }.toList()
+            assertTrue("no $type spot on screen", spots.isNotEmpty())
+            val (x, y) = spots[attempt % spots.size]
+            tap(x, y); tap(x, y)
+            val deadline = SystemClock.uptimeMillis() + 5_000
+            while (SystemClock.uptimeMillis() < deadline) { if (placed()) return; Thread.sleep(100) }
+        }
+        fail("Timed out: $label")
+    }
+
     @Test fun twistPinchTiltPanAndPlacementOnLiveSurface() {
         context.getSharedPreferences("wgbg-settings", 0).edit().putFloat(EnvSettings.LIVE_BOARD, 1f)
             .putFloat(EnvSettings.ANIMATIONS, 0f).putFloat(EnvSettings.THEME, 0f).commit()
@@ -81,19 +110,11 @@ class LiveBoardDeviceTest {
         gesture(false, { cx to cy }, { cx - 60f to cy + 20f })
         Thread.sleep(800)
         // AgentHooks supplies screen positions only; placement and confirmation use real pointer events.
-        val before = log("WGBG-TURN").lineSequence().last { it.contains("spots=") }
-        val spot = Regex("BUILD_SETTLEMENT:[0-9]+@([0-9]+),([0-9]+)").findAll(before).first {
-            val x = it.groupValues[1].toFloat(); val y = it.groupValues[2].toFloat()
+        placeByTaps("BUILD_SETTLEMENT", "Homestead placed with taps", { x, y ->
             x in display.widthPixels * .4f..display.widthPixels * .90f && y in display.heightPixels * .15f..display.heightPixels * .85f
-        }
-        val x = spot.groupValues[1].toFloat(); val y = spot.groupValues[2].toFloat()
-        tap(x, y); tap(x, y)
-        waitFor("Homestead placed with taps") { log("WGBG-TURN").lineSequence().last { it.contains("phase=") }.contains("phase=BUILD_INITIAL_ROAD") }
-        val roadLine = log("WGBG-TURN").lineSequence().last { it.contains("spots=") }
-        val road = Regex("BUILD_ROAD:[0-9]+@([0-9]+),([0-9]+)").find(roadLine)!!
-        tap(road.groupValues[1].toFloat(), road.groupValues[2].toFloat())
-        tap(road.groupValues[1].toFloat(), road.groupValues[2].toFloat())
-        waitFor("road placed with taps") { log("WGBG-TURN").lineSequence().last { it.contains("phase=") } != roadLine }
+        }) { phaseLine().contains("phase=BUILD_INITIAL_ROAD") }
+        val roadLine = phaseLine()
+        placeByTaps("BUILD_ROAD", "road placed with taps") { phaseLine() != roadLine }
         val bitmap = instrument.uiAutomation.takeScreenshot()
         context.cacheDir.resolve("live-device-after-twist.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
         bitmap.recycle()
