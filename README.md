@@ -52,3 +52,5 @@ Requires JDK 17 and the Android SDK (`local.properties` with `sdk.dir`, not comm
 Secrets (`google-services.json`, keystores, `.env`) are gitignored and must never be committed.
 
 Online play data model, AppRoot wiring, test plan and rules deployment: [docs/online-play.md](docs/online-play.md).
+
+Every test and test script, what CI runs, and the known gaps: [docs/testing/README.md](docs/testing/README.md).
