@@ -14,8 +14,8 @@ android {
         applicationId = "com.mauro.wgbg"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.2.7"
+        versionCode = 10
+        versionName = "0.2.7.5"
         // Instrumented tests (online play against the Firebase emulators, #35).
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -52,6 +52,10 @@ android {
 }
 
 dependencies {
+    // Keep gltfio and its native engine in lockstep. The live board is opt-in.
+    implementation("com.google.android.filament:filament-android:1.66.1")
+    implementation("com.google.android.filament:gltfio-android:1.66.1")
+    implementation("com.google.android.filament:filament-utils-android:1.66.1")
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation(project(":net"))
     implementation(project(":engine"))

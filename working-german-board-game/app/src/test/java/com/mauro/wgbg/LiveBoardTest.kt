@@ -1,0 +1,125 @@
+package com.mauro.wgbg
+
+import androidx.compose.ui.geometry.Offset
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
+import wgbg.engine.*
+import kotlin.math.*
+
+class LiveBoardTest {
+    private class Store : FloatStore {
+        val values = mutableMapOf<String, Float>()
+        override fun get(key: String, default: Float) = values[key] ?: default
+        override fun put(key: String, value: Float) { values[key] = value }
+    }
+
+    @Test fun `live board is off by default and independently persisted and reset`() {
+        val store = Store()
+        val env = EnvSettings(store)
+        assertFalse(env.liveBoard)
+        env.liveBoard = true; env.liveLod = 1; env.pirateTheme = true
+        val again = EnvSettings(store)
+        assertTrue(again.liveBoard); assertEquals(1, again.liveLod); assertTrue(again.pirateTheme)
+        assertFalse(again.tiles3d)
+        again.reset()
+        assertFalse(EnvSettings(store).liveBoard); assertEquals(0, EnvSettings(store).liveLod)
+        again.liveLod = -3; assertEquals(0, again.liveLod)
+        store.values[EnvSettings.LIVE_LOD] = 80f; assertEquals(1, EnvSettings(store).liveLod)
+    }
+
+    @Test fun `ground projection round trips every board vertex and hex through zoom pan tilt and orbit`() {
+        val b = Rules.newGame(GameConfig(), 17).board
+        val positions = (0 until b.vertexCount).map { liveVertex(b, it) } + (0 until b.hexCount).map { liveHex(b, it) }
+        for (tilt in listOf(0f, Camera.START_TILT, .48f, Camera.MAX_TILT))
+            for (rotation in (-8..8).map { it * PI.toFloat() / 4f })
+                for (scale in listOf(64f, 180f, 720f)) {
+                    val p = LiveProjection(Offset(1532f, 436f), scale, tilt, rotation)
+                    for (at in positions) {
+                        val roundTrip = p.unproject(p.project(at))
+                        assertEquals(at.x, roundTrip.x, 0.00001f)
+                        assertEquals(at.y, roundTrip.y, 0.00001f)
+                    }
+                }
+    }
+
+    @Test fun `projection follows Android screen axes and glTF height at cardinal rotations`() {
+        val flat = LiveProjection(Offset.Zero, 100f, 0f, 0f)
+        assertEquals(Offset(100f, 200f), flat.project(Offset(1f, 2f)))
+        val turn = LiveProjection(Offset.Zero, 100f, 0f, PI.toFloat() / 2)
+        assertEquals(-200f, turn.project(Offset(1f, 2f)).x, .001f)
+        assertEquals(100f, turn.project(Offset(1f, 2f)).y, .001f)
+        val tilted = LiveProjection(Offset.Zero, 100f, .48f, 0f)
+        assertTrue(tilted.project(Offset.Zero, 1f).y < 0f)
+    }
+
+    @Test fun `runtime glyph transform cancels camera orbit rather than doubling it`() {
+        for (i in 0..32) {
+            val yaw = i * PI.toFloat() / 16
+            val projection = LiveProjection(Offset.Zero, 100f, .48f, yaw)
+            val p = LivePlacement("digit_6", Offset(2f, -1f), heading = yaw)
+            val m = liveModelMatrix(p)
+            val origin = projection.project(p.position)
+            val localX = projection.project(p.position + Offset(m[0], m[2])) - origin
+            val localZ = projection.project(p.position + Offset(m[8], m[10])) - origin
+            assertEquals(100f, localX.x, .001f); assertEquals(0f, localX.y, .001f)
+            assertEquals(0f, localZ.x, .001f); assertTrue(localZ.y > 0f)
+        }
+    }
+
+    @Test fun `collection includes every imported model in both themes and LODs`() {
+        val models = liveInventoryPlacements().map { it.model }.filter { !it.startsWith("digit_") }.toSet()
+        assertEquals(33, models.size)
+        assertEquals(12, models.count { it.startsWith("tile_") })
+        assertEquals(9, models.count { it.startsWith("default_") })
+        assertEquals(9, models.count { it.startsWith("pirate_") })
+    }
+
+    @Test fun `garbage projection and LOD inputs are rejected without mutating the game`() {
+        for (scale in listOf(0f, -1f, Float.NaN, Float.POSITIVE_INFINITY))
+            assertThrows(IllegalArgumentException::class.java) { LiveProjection(Offset.Zero, scale, 0f, 0f) }
+        assertThrows(IllegalArgumentException::class.java) { LiveProjection(Offset.Zero, 1f, 1.4f, 0f) }
+        val s = Rules.newGame(GameConfig(), 3)
+        val hash = s.stateHash()
+        assertThrows(IllegalArgumentException::class.java) { livePlacements(s, false, 2) }
+        assertEquals(hash, s.stateHash())
+    }
+
+    @Test fun `only the wood body may receive player colour`() {
+        assertTrue(woodTint("WoodBody"))
+        for (name in listOf("BrassTrim", "FixedDetails", "RuntimeDigits", "WoodBodyTrim", "woodbody", "")) assertFalse(woodTint(name))
+    }
+
+    @Test fun `both themes and LODs use real terrain numbers roads and expansion pieces without state changes`() {
+        val s = Rules.newGame(GameConfig(expansion = Expansion.CITIES_AND_KNIGHTS), 5)
+        // A rendering fixture isolates all piece forms from rule progression.
+        s.edgeOwner[0] = 2
+        for (v in 0..2) { s.vertexOwner[v] = v; s.vertexBuilding[v] = if (v == 0) Piece.SETTLEMENT else Piece.CITY }
+        s.ck!!.wall[1] = 1; s.ck!!.metroVertex[0] = 2; s.ck!!.metroOwner[0] = 2
+        val hash = s.stateHash()
+        for (pirate in listOf(false, true)) for (lod in 0..1) {
+            val list = livePlacements(s, pirate, lod)
+            val theme = if (pirate) "pirate" else "default"
+            assertEquals(19, list.count { it.model.startsWith("tile_") && it.model.endsWith("lod$lod") })
+            assertEquals(18, list.count { it.model == "number_plate" })
+            assertEquals(2, list.count { it.model == "${theme}_road_v" && it.owner == 2 })
+            assertEquals(1, list.count { it.model == "${theme}_homestead" && it.owner == 0 })
+            assertEquals(1, list.count { it.model == "${theme}_ramparts" && it.owner == 1 })
+            assertEquals(1, list.count { it.model == "${theme}_capital_guilds" && it.owner == 2 })
+            assertEquals(hash, s.stateHash())
+            for (h in 0 until s.board.hexCount) if (s.board.hexNumber[h] > 0 && h != s.robberHex) {
+                assertTrue(list.any { it.model == "digit_${s.board.hexNumber[h]}" && it.position == liveHex(s.board, h) + LIVE_PLATE })
+            }
+        }
+    }
+
+    @Test fun `legal placement taps pick the same move after a full orbit at every tilt`() {
+        val s = Rules.newGame(GameConfig(), 91)
+        val actions = Rules.legalActions(s)
+        for (tilt in listOf(0f, .48f, .96f)) for (r in 0..15) {
+            val p = LiveProjection(Offset(1400f, 500f), 130f, tilt, r * PI.toFloat() / 8)
+            for (a in actions) spotOf(s.board, a)?.let { at ->
+                assertTrue(a in movesAt(s.board, actions, p.unproject(p.project(at))))
+            }
+        }
+    }
+}
