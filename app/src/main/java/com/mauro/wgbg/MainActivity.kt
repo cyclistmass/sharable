@@ -233,8 +233,8 @@ private val TERRAIN_COLORS = mapOf(
     Resource.NONE to Color(0xFFE8D9A8),
 )
 
-/** Seat colours. Mauro's pick (#59, 2026-10-11): scarlet and a hue-29 orange, both 20% lighter, so red and orange never blur. */
-internal val PLAYER_COLORS = listOf(Color(0xFFFF5C59), Color(0xFF1E63C6), Color(0xFFFF9B3E), Color(0xFFF5F5F5))
+/** Seat colours. Mauro's pick (#59, 2026-10-11): scarlet and a hue-29 orange, both 20% lighter, so red and orange never blur; blue is a sky celeste (2026-10-11) so it reads on the board. */
+internal val PLAYER_COLORS = listOf(Color(0xFFFF5C59), Color(0xFF3FB4EE), Color(0xFFFF9B3E), Color(0xFFF5F5F5))
 /** The brown (tan) for boat sails and the extra seats of six-player games (v3). */
 internal val PLAYER_BROWN = Color(0xFF8D6E63)
 internal val PLAYER_NAMES = listOf("Red", "Blue", "Orange", "White")
@@ -1395,7 +1395,7 @@ internal fun describe(t: ActionKind) = when (t) {
     ActionType.COUNTER_TRADE -> "made a counter-offer"
     // Age of Chivalry, in our words (the history said "Red build knight").
     wgbg.engine.CkActionType.BUILD_KNIGHT -> "raised a knight"
-    wgbg.engine.CkActionType.ACTIVATE_KNIGHT -> "roused a knight"
+    wgbg.engine.CkActionType.ACTIVATE_KNIGHT -> "supplied a knight"
     wgbg.engine.CkActionType.PROMOTE_KNIGHT -> "promoted a knight"
     wgbg.engine.CkActionType.MOVE_KNIGHT -> "moved a knight"
     wgbg.engine.CkActionType.DISPLACE_KNIGHT -> "chased off a knight"

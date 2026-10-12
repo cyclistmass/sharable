@@ -25,7 +25,7 @@ enum class BuildKind(val kind: ActionKind, val icon: MoveIcon, val label: String
     TOWN(ActionType.BUILD_CITY, MoveIcon.TOWN, "Town"),
     FORTUNE(ActionType.BUY_DEVELOPMENT_CARD, MoveIcon.CARD, "Fortune card", onBoard = false, chivalry = false),
     KNIGHT(CkActionType.BUILD_KNIGHT, MoveIcon.KNIGHT, "Raise a knight", chivalry = true),
-    ROUSE(CkActionType.ACTIVATE_KNIGHT, MoveIcon.ROUSE, "Rouse a knight", chivalry = true),
+    ROUSE(CkActionType.ACTIVATE_KNIGHT, MoveIcon.ROUSE, "Supply a knight", chivalry = true),
     PROMOTE(CkActionType.PROMOTE_KNIGHT, MoveIcon.PROMOTE, "Promote a knight", chivalry = true),
     RAMPARTS(CkActionType.BUILD_CITY_WALL, MoveIcon.RAMPARTS, "Ramparts", chivalry = true);
 
@@ -35,17 +35,24 @@ enum class BuildKind(val kind: ActionKind, val icon: MoveIcon, val label: String
     }
 }
 
+/**
+ * The entries the menu shows: only what can be done right now (Mauro: "only avail options should show"), plus the
+ * picked entry so it can be switched off.
+ */
+fun shownKinds(chivalry: Boolean, legal: List<Action>, mode: BuildKind?): List<BuildKind> =
+    BuildKind.forRuleset(chivalry).filter { k -> k == mode || legal.any { it.type == k.kind } }
+
 /** The legal moves the board should offer while [mode] is picked (all of them when nothing is). */
 fun boardMoves(legal: List<Action>, mode: BuildKind?): List<Action> = if (mode == null) legal else legal.filter { it.type == mode.kind }
 
 /**
- * The build menu: an icon per entry, greyed when it can't be done now, gold while it filters the board. A board entry
+ * The build menu: an icon per entry that can be done now, gold while it filters the board. A board entry
  * toggles [mode]; Fortune card buys at once.
  */
 @Composable
 fun BuildMenu(chivalry: Boolean, legal: List<Action>, mode: BuildKind?, onMode: (BuildKind?) -> Unit, onMove: (Action) -> Unit, modifier: Modifier = Modifier) {
     // Two columns (pieces, then knights and walls), so the menu ends well above Trade / Roll / End turn.
-    val kinds = BuildKind.forRuleset(chivalry)
+    val kinds = shownKinds(chivalry, legal, mode)
     Row(modifier.testTag("build-menu"), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         for (col in kinds.chunked(4)) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             for (k in col) {

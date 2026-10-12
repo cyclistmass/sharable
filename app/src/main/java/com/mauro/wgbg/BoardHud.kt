@@ -84,7 +84,7 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                 Box(Modifier.size(26.dp).background(PLAYER_COLORS[p], CircleShape).border(1.dp, Color(0xFFF1D58A), CircleShape).testTag("score-$p"),
                     contentAlignment = Alignment.Center) {
                     Text("${if (p == me) s.victoryPoints(p) else s.publicVictoryPoints(p)}", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                        color = if (PLAYER_COLORS[p].luminance() > 0.5f) Color(0xFF2B2118) else Color.White)
+                        color = if (PLAYER_COLORS[p].luminance() > 0.35f) Color(0xFF2B2118) else Color.White)
                 }
                 Column(Modifier.width(74.dp)) {
                     Text(names[p], color = Color(0xFFEDE6D8), fontSize = 13.sp, fontWeight = FontWeight.Bold)

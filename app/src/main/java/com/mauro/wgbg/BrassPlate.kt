@@ -128,7 +128,7 @@ fun IconPlateButton(icon: MoveIcon, label: String, tag: String, modifier: Modifi
                     drawCircle(ink, 0.11f * w, androidx.compose.ui.geometry.Offset(0.5f * w, 0.5f * h))
                 }
                 MoveIcon.KNIGHT, MoveIcon.ROUSE, MoveIcon.PROMOTE -> {
-                    // A shield; Rouse adds a pennant, Promote an upward chevron.
+                    // A shield; Supply adds a pennant, Promote an upward chevron.
                     val shield = androidx.compose.ui.graphics.Path().apply { moveTo(0.18f * w, 0.18f * h); lineTo(0.82f * w, 0.18f * h); lineTo(0.82f * w, 0.5f * h)
                         quadraticTo(0.8f * w, 0.82f * h, 0.5f * w, 0.95f * h); quadraticTo(0.2f * w, 0.82f * h, 0.18f * w, 0.5f * h); close() }
                     drawPath(shield, ink, style = stroke)

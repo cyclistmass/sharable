@@ -44,7 +44,7 @@ fun buildCosts(chivalry: Boolean): List<BuildCost> = buildList {
     if (chivalry) {
         add(BuildCost("Knight", CkCost.KNIGHT, "raised at a corner on your roads, level 1"))
         add(BuildCost("Promote a knight", CkCost.PROMOTE, "level 3 needs Crown improvement 3"))
-        add(BuildCost("Rouse a knight", CkCost.ACTIVATE, "an active knight defends and can act"))
+        add(BuildCost("Supply a knight", CkCost.ACTIVATE, "a supplied knight defends and can act"))
         add(BuildCost("Ramparts", CkCost.WALL, "on a town: hold 2 more cards on a 7"))
     }
 }
