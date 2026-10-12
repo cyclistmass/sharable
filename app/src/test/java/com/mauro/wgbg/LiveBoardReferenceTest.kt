@@ -6,6 +6,17 @@ import wgbg.engine.*
 
 /** Independent reference results for the distance, connectivity and longest-road rules used by board taps. */
 class LiveBoardReferenceTest {
+    @Test fun `a six road loop cut at one corner still has a six road trail`() {
+        val s = Rules.newGame(GameConfig(), 1)
+        val nodes = CatanatronMapping.nodeIds(s.board.topology)
+        val edges = CatanatronMapping.edges(s.board.topology)
+        // Fixture 93: Catanatron 3.2.1's helper returns 5 by refusing the last edge into node 40.
+        // Both endpoints of this open trail touch that blocked corner; no road passes through it.
+        for (edge in listOf(18 to 40, 17 to 18, 17 to 39, 39 to 41, 41 to 42, 40 to 42)) s.edgeOwner[edges.indexOf(edge)] = 0
+        s.vertexOwner[nodes.indexOf(40)] = 1; s.vertexBuilding[nodes.indexOf(40)] = Piece.SETTLEMENT
+        assertEquals(6, Rules.longestRoad(s, 0))
+    }
+
     @Test fun `core board queries agree with 200 Catanatron fixtures`() {
         val rows = javaClass.getResourceAsStream("/filament-reference.tsv")!!.bufferedReader().readLines().filter { !it.startsWith("#") }
         assertEquals(200, rows.size)

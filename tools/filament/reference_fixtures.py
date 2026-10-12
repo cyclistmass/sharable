@@ -29,8 +29,8 @@ def main():
         for color, roads in [(Color.RED, owned), (Color.BLUE, other)]:
             for a, b in roads:
                 board.roads[(a, b)] = color; board.roads[(b, a)] = color
-        # Its low-level longest-path helper undercounts trails with BOTH ends blocked by opponents.
-        # Cross-check unblocked paths here; the engine's existing cut-road tests cover those endpoints.
+        # Its low-level helper undercounts the closing edge of a loop cut by an opponent.
+        # Cross-check unblocked paths here; a separate regression checks that six-edge cut loop.
         unblocked_longest = len(longest_acyclic_path(board, set(range(54)), Color.RED))
         buildings = []
         for _ in range(case % 8):
