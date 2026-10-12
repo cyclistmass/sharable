@@ -1,0 +1,118 @@
+package com.mauro.wgbg
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import wgbg.engine.CkCost
+import wgbg.engine.Cost
+import wgbg.engine.Progress
+import wgbg.engine.Track
+
+/** One thing you can build or buy and what it costs, by card index (resources 0..4, commodities 5..7). */
+data class BuildCost(val name: String, val cards: IntArray, val note: String? = null)
+
+/**
+ * The build map (Mauro: "a build map for when we start making themes"): every piece and its cost, read from the
+ * engine's own cost tables so a theme that changes costs (#79) shows here as it is played.
+ */
+fun buildCosts(chivalry: Boolean): List<BuildCost> = buildList {
+    add(BuildCost("Road", Cost.ROAD))
+    add(BuildCost("Homestead", Cost.SETTLEMENT, "1 point"))
+    add(BuildCost("Town", Cost.CITY, "2 points; replaces a homestead"))
+    if (!chivalry) add(BuildCost("Fortune card", Cost.DEV_CARD))
+    if (chivalry) {
+        add(BuildCost("Knight", CkCost.KNIGHT, "raised at a corner on your roads, level 1"))
+        add(BuildCost("Promote a knight", CkCost.PROMOTE, "level 3 needs Crown improvement 3"))
+        add(BuildCost("Rouse a knight", CkCost.ACTIVATE, "an active knight defends and can act"))
+        add(BuildCost("Ramparts", CkCost.WALL, "on a town: hold 2 more cards on a 7"))
+    }
+}
+
+/** Where each card comes from (card index order). */
+val CARD_SOURCES = listOf("Forest", "Hills", "Pasture", "Fields", "Mountains",
+    "Towns on Forest", "Towns on Pasture", "Towns on Mountains")
+
+/** The three progress decks in engine card order: (deck name, track, first card, last card). */
+private val DECKS = listOf(Triple("Academy", Track.SCIENCE, 0..9), Triple("Guilds", Track.TRADE, 10..15), Triple("Crown", Track.POLITICS, 16 until Progress.COUNT))
+
+private val GUIDE_INK = Color(0xFFEDE6D8)
+private val GUIDE_GOLD = Color(0xFFF1D58A)
+
+/**
+ * The card guide (Mauro: "a map in the menu with the cards and what they are"): every card, where it comes from or
+ * what it does, and the build costs. Shows the ruleset being played ([chivalry]).
+ */
+@Composable
+fun CardGuide(chivalry: Boolean, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    @Composable fun heading(t: String) = Text(t, color = GUIDE_GOLD, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+    @Composable fun card(i: Int, w: Int = 30) = Image(painterResource(ALL_CARD_ART[i]), ALL_CARD_NAMES[i], Modifier.size(width = w.dp, height = (w * 1.4f).dp))
+    Column(modifier.widthIn(max = 720.dp).fillMaxHeight().brassEdgedWood().verticalScroll(rememberScrollState()).padding(16.dp).testTag("card-guide"),
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Card guide", color = GUIDE_GOLD, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            WoodButton("Close", "guide-close", onClick = onClose)
+        }
+        heading("Cards")
+        val kinds = if (chivalry) ALL_CARD_ART.size else CARD_ART.size
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            for (i in 0 until kinds) Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(74.dp)) {
+                card(i, 48)
+                Text(ALL_CARD_NAMES[i], color = GUIDE_INK, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(CARD_SOURCES[i], color = GUIDE_INK.copy(alpha = 0.75f), fontSize = 10.sp, lineHeight = 11.sp)
+            }
+        }
+        heading("Build")
+        for (b in buildCosts(chivalry)) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.testTag("cost-${b.name}")) {
+            Text(b.name, color = GUIDE_INK, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(140.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.width(190.dp)) {
+                for (i in b.cards.indices) repeat(b.cards[i]) { card(i) }
+            }
+            b.note?.let { Text(it, color = GUIDE_INK.copy(alpha = 0.75f), fontSize = 11.sp) }
+        }
+        if (chivalry) {
+            Text("Improve your towns: the next level costs as many commodities as its number (level 3 costs 3): " +
+                "Guilds Weave, Crown Silver, Academy Parchment. Level 3 gives the deck's power; level 4 first wins its Capital.",
+                color = GUIDE_INK.copy(alpha = 0.85f), fontSize = 12.sp)
+            heading("Progress cards")
+            for ((deck, track, range) in DECKS) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                    card(Track.commodity(track), 26)
+                    Text("$deck · ${ALL_CARD_NAMES[Track.commodity(track)]}", color = TRACK_COLORS[track], fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+                for (c in range) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(PROGRESS_NAMES[c], color = GUIDE_INK, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(150.dp))
+                    Text(progressHint(c), color = GUIDE_INK.copy(alpha = 0.85f), fontSize = 12.sp)
+                }
+            }
+        } else {
+            heading("Fortune cards")
+            for (c in FORTUNE.indices) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(FORTUNE[c], color = GUIDE_INK, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(150.dp))
+                Text(FORTUNE_HINTS[c], color = GUIDE_INK.copy(alpha = 0.85f), fontSize = 12.sp)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}

@@ -2,6 +2,7 @@ package com.mauro.wgbg
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -109,7 +110,7 @@ fun movesAt(b: Board, legal: List<Action>, p: Offset, second: Boolean = false): 
 // ------------------------------------------------------------------ the human's controls
 
 private val RES = RESOURCE_NAMES
-private val FORTUNE = listOf("Sentinel", "Windfall", "Corner the Market", "Trailblazers", "Landmark")
+internal val FORTUNE = listOf("Sentinel", "Windfall", "Corner the Market", "Trailblazers", "Landmark")
 
 /** What each Fortune card does (same order as [FORTUNE]). */
 val FORTUNE_HINTS = listOf(
@@ -124,7 +125,7 @@ private val INK_LIGHT = Color(0xFFEDE6D8)
 
 /** One-line instruction for what the human should do now. */
 fun prompt(s: GameState, legal: List<Action>, names: List<String>): String =
-    if (legal.isEmpty() && !s.isOver) "Waiting for ${names[s.actingPlayer]}…" else ckPrompt(s, legal) ?: when {
+    if (legal.isEmpty() && !s.isOver) "Waiting for ${names[s.actingPlayer]}…" else ckPrompt(s, legal, names) ?: when {
     s.phase == Phase.BUILD_INITIAL_SETTLEMENT -> "Tap a glowing corner to place a homestead"
     s.phase == Phase.BUILD_INITIAL_ROAD -> "Tap a glowing edge to place a road"
     s.phase == Phase.MOVE_ROBBER -> "Tap a tile to move the bandit"
@@ -133,7 +134,8 @@ fun prompt(s: GameState, legal: List<Action>, names: List<String>): String =
     s.phase == Phase.DECIDE_COUNTER -> "${names[s.counterFrom]} made a counter-offer"
     s.phase == Phase.DECIDE_ACCEPTEES -> "Pick who to trade with, or cancel"
     legal.any { it.type == ActionType.ROLL } -> "Your turn: roll the dice"
-    s.freeRoads > 0 -> "Trailblazers: tap glowing edges for ${s.freeRoads} free road${if (s.freeRoads > 1) "s" else ""}"
+    // Trailblazers, Pathfinders or Envoy (moving your own road): place the free road(s) before anything else.
+    s.freeRoads > 0 -> "Place ${if (s.freeRoads > 1) "${s.freeRoads} free roads" else "your free road"} first: tap a glowing edge"
     legal.any { it.type == ActionType.BUILD_ROAD || it.type == ActionType.BUILD_SETTLEMENT || it.type == ActionType.BUILD_CITY } ->
         "Tap a glowing spot to build, or trade, or end your turn"
     else -> if (s.ck != null) "Trade, improve your towns, or end your turn" else "Trade, buy a Fortune card, or end your turn"
@@ -165,25 +167,31 @@ fun HumanControls(
     modifier: Modifier = Modifier,
     /** A board card's choices: picked by tapping the board instead of from a list (Mauro, 2026-10-11). */
     onBoardPick: (List<Action>) -> Unit = {},
+    /** The Trade button, set beside Roll / End turn in the bottom-right corner (Mauro: "next to each other"). */
+    tradeButton: (@Composable () -> Unit)? = null,
+    /** Why you must discard, when it isn't a rolled 7 (Wrecker played against you); null for a 7. */
+    discardCause: String? = null,
 ) {
     var sheet by remember { mutableStateOf<String?>(null) } // which picker is open
     var ckChoices by remember { mutableStateOf<Pair<String, List<Action>>?>(null) }
     val types = legal.map { it.type }.toSet()
-    // Info on the left, the buttons in a column hugging the right edge with the main one (Roll /
-    // End turn) at the very bottom: everything within reach of a right thumb.
-    Row(modifier, verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // The buttons in a column hugging the right edge with the main one (Roll / End turn) at the very bottom, within
+    // reach of a right thumb. Every card sheet (pick, give, discard, name a card) sits in one place: bottom centre,
+    // the lower third of the screen, like the trade chest (Mauro: "same card puller/giver ... for thumb reach").
+    Box(modifier) {
         // Board A: the prompt, points and hand live elsewhere (TurnPrompt, PlayerStrip, HandRow); this
         // panel only appears for Fortune cards and the pickers.
         val fortune = (0 until DevCard.COUNT).filter { s.devHand[me * DevCard.COUNT + it] > 0 }
         if (fortune.isNotEmpty() || sheet != null) Column(
-            Modifier.widthIn(max = 300.dp).brassEdgedWood().padding(12.dp),
+            (if (sheet != null) Modifier.align(Alignment.BottomCenter).widthIn(max = 560.dp).chest()
+            else Modifier.align(Alignment.BottomEnd).padding(end = 184.dp).widthIn(max = 300.dp).brassEdgedWood().padding(12.dp)).testTag("card-sheet"),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             // Each Fortune card you hold, with what it does (Mauro: "add some hints on what a card does").
             if (fortune.isNotEmpty() && sheet == null) for (c in fortune) Text("${s.devHand[me * DevCard.COUNT + c]} ${FORTUNE[c]}: ${FORTUNE_HINTS[c]}",
                 color = INK_LIGHT, fontSize = 12.sp, modifier = Modifier.testTag("fortune-hint-$c"))
             when (sheet) {
-                "yop" -> Picker("Windfall: ${FORTUNE_HINTS[DevCard.YEAR_OF_PLENTY]} Take", legal.filter { it.type == ActionType.PLAY_YEAR_OF_PLENTY }
+                "yop" -> Picker("Windfall: ${FORTUNE_HINTS[DevCard.YEAR_OF_PLENTY]}", legal.filter { it.type == ActionType.PLAY_YEAR_OF_PLENTY }
                     .map { a -> (RES[a.yopFirst] + if (a.yopSecond >= 0) " + ${RES[a.yopSecond]}" else "") to a }, onMove) { sheet = null }
                 "mono" -> Picker("Corner the Market: everyone hands you all of the one you name:", legal.filter { it.type == ActionType.PLAY_MONOPOLY }
                     .map { a -> RES[a.payload.toInt()] to a }, onMove) { sheet = null }
@@ -195,18 +203,21 @@ fun HumanControls(
         }
         // On a 7: pick all the cards first, then discard them with one press (playtest: a tap per card,
         // on buttons that moved as card types ran out, lost the wrong card with no undo).
-        if (ActionType.DISCARD in types) { DiscardSheet(s, me, legal, onMove); return@Row }
+        if (ActionType.DISCARD in types) { Box(Modifier.align(Alignment.BottomCenter)) { DiscardSheet(s, me, legal, onMove, discardCause) }; return@Box }
+        if (wgbg.engine.CkActionType.CHOOSE_CARD in types) {
+            CardChoiceSheet(s, me, legal.filter { it.type == wgbg.engine.CkActionType.CHOOSE_CARD }, names, onMove, Modifier.align(Alignment.BottomCenter)); return@Box
+        }
         val buttonTypes = setOf(ActionType.ROLL, ActionType.END_TURN, ActionType.BUY_DEVELOPMENT_CARD,
             ActionType.PLAY_KNIGHT_CARD, ActionType.PLAY_ROAD_BUILDING, ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY)
-        if (sheet == null && (types.any { it in buttonTypes } || ckButtonGroups(s, legal, names).isNotEmpty())) Column(
-            Modifier.width(176.dp).testTag("thumb-buttons"),
+        if (sheet == null && (types.any { it in buttonTypes } || ckButtonGroups(s, legal, names).isNotEmpty() || tradeButton != null)) Column(
+            Modifier.align(Alignment.BottomEnd).width(176.dp).testTag("thumb-buttons"),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             @Composable fun single(t: ActionType, label: String, primary: Boolean = false) {
                 legal.firstOrNull { it.type == t }?.let { a -> MoveButton(label, primary) { onMove(a) } }
             }
-            single(ActionType.BUY_DEVELOPMENT_CARD, "Buy Fortune card")
+            // Buying a Fortune card lives in the build menu on the right edge now.
             single(ActionType.PLAY_KNIGHT_CARD, "Play Sentinel")
             single(ActionType.PLAY_ROAD_BUILDING, "Play Trailblazers")
             if (ActionType.PLAY_YEAR_OF_PLENTY in types) MoveButton("Play Windfall…") { sheet = "yop" }
@@ -217,9 +228,12 @@ fun HumanControls(
                 else if (isBoardCard(acts)) MoveButton("$label…") { onBoardPick(acts) }
                 else MoveButton("$label…") { ckChoices = label to acts; sheet = "ck" }
             }
-            // The main move last, in the bottom-right corner.
-            single(ActionType.ROLL, "Roll", primary = true)
-            single(ActionType.END_TURN, "End turn", primary = ActionType.ROLL !in types && legal.none { it.type == ActionType.BUILD_SETTLEMENT || it.type == ActionType.BUILD_CITY })
+            // The main move last, in the bottom-right corner, with Trade right beside it: icons, not words (Mauro).
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+                tradeButton?.invoke()
+                legal.firstOrNull { it.type == ActionType.ROLL }?.let { a -> BrassButton("Roll", "move-Roll", Modifier.width(96.dp).height(54.dp), size = 18.sp) { onMove(a) } }
+                legal.firstOrNull { it.type == ActionType.END_TURN }?.let { a -> IconPlateButton(MoveIcon.END_TURN, "End turn", "move-End turn") { onMove(a) } }
+            }
         }
     }
 }
@@ -238,49 +252,44 @@ fun discardPick(pile: IntArray, r: Int, add: Boolean, have: Int, owed: Int): Int
 fun discardMoves(pile: IntArray): List<Action> = pile.indices.flatMap { r -> List(pile[r]) { Action.discard(r) } }
 
 @Composable
-private fun DiscardSheet(s: GameState, me: Int, legal: List<Action>, onMove: (Action) -> Unit) {
+private fun DiscardSheet(s: GameState, me: Int, legal: List<Action>, onMove: (Action) -> Unit, cause: String? = null) {
+    // The same chest as the trade and the science bonus: title, the cards with "have N" under them, the chest's
+    // buttons on the right (Mauro: "the discard menu for 7 should be the same style as trade and science bonus").
     val owed = s.discardOwed[me]
     var pile by remember(s.turn, owed) { mutableStateOf(IntArray(tradeCards(s))) }
-    Column(
-        Modifier.brassEdgedWood().padding(12.dp).testTag("discard-sheet"),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text("Too many cards on a 7: choose $owed to discard (${pile.sum()} chosen)", color = INK_LIGHT, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Text("Tap a card to add it · hold to take it back", color = INK_LIGHT.copy(alpha = 0.7f), fontSize = 11.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (r in pile.indices) {
-                val have = holding(s, me, r)
-                if (have == 0) continue
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        Modifier.size(width = 42.dp, height = 60.dp)
-                            .pointerInput(r, have, owed) {
-                                detectTapGestures(onTap = { pile = discardPick(pile, r, true, have, owed) },
-                                    onLongPress = { pile = discardPick(pile, r, false, have, owed) })
-                            }.testTag("discard-card-$r"),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (r < ALL_CARD_ART.size) Image(painterResource(ALL_CARD_ART[r]), ALL_CARD_NAMES[r], Modifier.fillMaxSize())
-                        else Box(Modifier.fillMaxSize().background(Color(0xFFEFE3C8), RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
-                            Text(ALL_CARD_NAMES[r], color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+    val full = pile.sum() == owed
+    Row(Modifier.chest().testTag("discard-sheet"), verticalAlignment = Alignment.CenterVertically) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("${cause ?: "A 7: you hold too many cards"}. Choose $owed to discard (${pile.sum()} chosen)", color = CHEST_INK, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("Tap a card to add it · hold to take it back", color = CHEST_INK.copy(alpha = 0.7f), fontSize = 11.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (r in pile.indices) {
+                    val have = holding(s, me, r)
+                    if (have == 0) continue
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            Modifier.size(width = 42.dp, height = 60.dp)
+                                .pointerInput(r, have, owed) {
+                                    detectTapGestures(onTap = { pile = discardPick(pile, r, true, have, owed) },
+                                        onLongPress = { pile = discardPick(pile, r, false, have, owed) })
+                                }.testTag("discard-card-$r"),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Image(painterResource(ALL_CARD_ART[r]), ALL_CARD_NAMES[r], Modifier.fillMaxSize())
+                            if (pile[r] > 0) Text("−${pile[r]}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.align(Alignment.BottomCenter).background(Color(0xE0C0392B), CircleShape).padding(horizontal = 6.dp))
                         }
-                        if (pile[r] > 0) Text("−${pile[r]}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.align(Alignment.BottomCenter).background(Color(0xE0C0392B), CircleShape).padding(horizontal = 6.dp))
+                        Text("have $have", color = CHEST_INK, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                     }
-                    Text("have $have", color = INK_LIGHT, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
             }
         }
-        // The buttons are always there at a fixed height: the cards must never move while you pick them.
-        Row(Modifier.height(44.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            val full = pile.sum() == owed
-            PlateBox(Plate.STOP, enabled = full, onClick = {
-                val moves = discardMoves(pile); pile = IntArray(pile.size); moves.forEach(onMove)
-            }, modifier = Modifier.height(40.dp).testTag("discard-go")) {
-                Text("Discard $owed", color = if (full) Color.White else Color.White.copy(alpha = 0.5f), fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            }
-            if (pile.sum() > 0) WoodButton("Clear", "discard-clear") { pile = IntArray(pile.size) }
-            legal.firstOrNull { it.type == ActionType.DISCARD && it.discardResource < 0 }?.let { a -> WoodButton("At random", "discard-random") { onMove(a) } }
+        Box(Modifier.width(10.dp))
+        // Fixed buttons: the cards never move while you pick them.
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChestButton("Discard $owed", CHEST_YES, "discard-go", 104.dp, if (full) ({ val moves = discardMoves(pile); pile = IntArray(pile.size); moves.forEach(onMove) }) else null)
+            ChestButton("Clear", CHEST_NO, "discard-clear", 104.dp, if (pile.sum() > 0) ({ pile = IntArray(pile.size) }) else null)
+            legal.firstOrNull { it.type == ActionType.DISCARD && it.discardResource < 0 }?.let { a -> ChestButton("Random", CHEST_GOLD, "discard-random", 104.dp) { onMove(a) } }
         }
     }
 }
@@ -294,12 +303,33 @@ private fun MoveButton(label: String, primary: Boolean = false, onClick: () -> U
 
 @Composable
 private fun Picker(title: String, options: List<Pair<String, Action>>, onMove: (Action) -> Unit, close: () -> Unit) {
-    Text(title, color = INK_LIGHT, fontSize = 13.sp)
+    Text(title, color = INK_LIGHT, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    // Choices that are cards show the card art, as in the trade chest; the rest stay worded buttons.
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((label, a) in options) MoveButton(label) { close(); onMove(a) }
-        MoveButton("Back") { close() }
+        for ((label, a) in options) {
+            val cards = optionCards(a)
+            if (cards != null) Column(horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable { close(); onMove(a) }.testTag("pick-$label")) {
+                Row(horizontalArrangement = Arrangement.spacedBy((-14).dp)) {
+                    for (c in cards) Image(painterResource(ALL_CARD_ART[c]), ALL_CARD_NAMES[c], Modifier.size(width = 42.dp, height = 60.dp))
+                }
+                Text(label, color = INK_LIGHT, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            } else MoveButton(label) { close(); onMove(a) }
+        }
     }
+    ChestButton("Back", CHEST_NO, "pick-back") { close() }
 }
+
+/** The cards a picker choice stands for (Windfall's two, the card a Corner names), or null if it isn't cards. */
+internal fun optionCards(a: Action): List<Int>? = when (a.type) {
+    ActionType.PLAY_YEAR_OF_PLENTY -> listOfNotNull(a.yopFirst, a.yopSecond.takeIf { it >= 0 })
+    ActionType.PLAY_MONOPOLY -> listOf(a.payload.toInt())
+    wgbg.engine.CkActionType.PLAY_PROGRESS -> when (a.a) {
+        wgbg.engine.Progress.RESOURCE_MONOPOLY, wgbg.engine.Progress.TRADE_MONOPOLY, wgbg.engine.Progress.MERCHANT_FLEET -> listOf(a.b)
+        else -> null
+    }
+    else -> null
+}.takeIf { cs -> cs != null && cs.all { it in ALL_CARD_ART.indices } }
 
 // ------------------------------------------------------------------ confirming board taps
 

@@ -73,7 +73,7 @@ data class Lobby(
     /** A person takes the first open seat; returns null when there is none. */
     fun join(name: String, photo: String? = null): Lobby? {
         val i = seats.indexOfFirst { it.open }.takeIf { it > 0 } ?: return null
-        return update(i) { LobbySeat(name = name, photo = photo) }
+        return update(i) { LobbySeat(name = wgbg.net.uniqueSeatName(name, seats.mapNotNull { it.name }), photo = photo) }
     }
 
     /** A person leaves: the seat reopens, keeping any bot that was waiting for it. */
@@ -93,20 +93,20 @@ data class Lobby(
     private fun update(i: Int, f: (LobbySeat) -> LobbySeat) = copy(seats = seats.toMutableList().also { it[i] = f(it[i]) })
 
     companion object {
-        /** Short words that read aloud cleanly; codes look like ROVER-42. */
+        /** Short words that read aloud cleanly; codes look like ROVER-427 (older rooms have two digits, ROVER-42). */
         val CODE_WORDS = listOf(
             "ROVER", "HARBOR", "ANCHOR", "BARLEY", "CEDAR", "CLOVER", "COBALT", "DUNE", "EMBER", "FERRY",
             "FJORD", "GROVE", "HAVEN", "HERON", "ISLE", "JUNIPER", "KESTREL", "LANTERN", "MAPLE", "MEADOW",
             "OTTER", "PIER", "QUARRY", "RAVEN", "REEF", "SAFFRON", "TIMBER", "TIDE", "VALE", "WILLOW",
         )
-        private val CODE_REGEX = Regex("([A-Z]+)-([1-9][0-9])")
+        private val CODE_REGEX = Regex("([A-Z]+)-([1-9][0-9]{1,2})")
 
-        fun newCode(random: Random = Random.Default) = "${CODE_WORDS[random.nextInt(CODE_WORDS.size)]}-${random.nextInt(10, 100)}"
+        fun newCode(random: Random = Random.Default) = "${CODE_WORDS[random.nextInt(CODE_WORDS.size)]}-${random.nextInt(100, 1000)}"  // 30 words x 900: room for many rooms (#80)
 
         /** Accepts what people type: any case, spaces or a missing dash ("rover 42", "rover42"). */
         fun normalizeCode(typed: String): String? {
             val t = typed.trim().uppercase().replace(Regex("[\\s_-]+"), "")
-            val m = Regex("([A-Z]+)([1-9][0-9])").matchEntire(t) ?: return null
+            val m = Regex("([A-Z]+)([1-9][0-9]{1,2})").matchEntire(t) ?: return null
             return "${m.groupValues[1]}-${m.groupValues[2]}".takeIf(::isValidCode)
         }
 

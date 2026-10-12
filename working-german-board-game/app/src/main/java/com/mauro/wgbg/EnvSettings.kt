@@ -25,6 +25,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -161,15 +162,14 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
  * Reset puts scenery and sound back to their defaults.
  */
 @Composable
-fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = Modifier) {
+    // No Done button: every change saves as it is made, and the Menu button (showing Hide) closes the panel (Mauro).
     // Scrolls when the screen is too short for every setting (landscape phones).
     Column(modifier.width(360.dp).brassEdgedWood().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp).testTag("settings-panel"),
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Settings", fontSize = 18.sp, color = Color(0xFFF1D58A), modifier = Modifier.weight(1f))
             ResetButton { env.reset(); sound.reset() }
-            Spacer(Modifier.width(8.dp))
-            WoodButton("Done", "settings-done", onClick = onClose)
         }
         Text("Animations (off, or Density at 0: nothing moves)", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -215,15 +215,6 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, onClose: () -> Unit, m
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("Painted", selected = !env.tiles3d, tag = "tiles-painted", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.tiles3d = false }
             Choice("3D (preview)", selected = env.tiles3d, tag = "tiles-3d", modifier = Modifier.height(36.dp).width(130.dp), size = 13.sp) { env.tiles3d = true }
-        }
-        Text("Intro", fontSize = 13.sp, color = Color(0xFFD9B865))
-        val ctx = androidx.compose.ui.platform.LocalContext.current
-        var replay by remember { mutableStateOf(false) }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Choice("Play the intro again", selected = replay, tag = "intro-replay", modifier = Modifier.height(36.dp).width(170.dp), size = 13.sp) {
-                ctx.getSharedPreferences("intro", android.content.Context.MODE_PRIVATE).edit().putBoolean("seen", false).apply(); replay = true
-            }
-            if (replay) Text("Plays next time you open the app", fontSize = 12.sp, color = Color(0xFFEDE6D8))
         }
         Text("Tile edges", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -319,6 +310,17 @@ class SoundSettings(private val store: FloatStore) {
         get() = sounds.floatValue
         set(v) { sounds.floatValue = v.coerceIn(0f, 1f); store.put(SOUNDS, sounds.floatValue) }
 
+    private val held = mutableFloatStateOf(store.get(MUSIC_PAUSED, 0f))
+    /** The Pause button (saved, so paused music stays paused next time). */
+    var musicPaused: Boolean
+        get() = held.floatValue > 0.5f
+        set(v) { held.floatValue = if (v) 1f else 0f; store.put(MUSIC_PAUSED, held.floatValue) }
+    /** The index in [SONGS] of the song playing now, or -1 (set by the game's music player). */
+    var nowPlaying by mutableIntStateOf(-1)
+    /** Wired to the music player by the game screen: play song i, skip to the next. */
+    var onPlay: (Int) -> Unit = {}
+    var onNext: () -> Unit = {}
+
     /** Back to the defaults (saved). */
     fun reset() { musicVolume = DEFAULT_MUSIC; soundVolume = DEFAULT_SOUNDS }
 
@@ -327,10 +329,19 @@ class SoundSettings(private val store: FloatStore) {
         const val DEFAULT_SOUNDS = 0.8f
         const val MUSIC = "vol-music"
         const val SOUNDS = "vol-sounds"
+        const val MUSIC_PAUSED = "music-paused"
         /** The set list (#17, #58), our own recordings; more shanties to come. */
         val SONGS: List<Song> = listOf(
             Song("Drunken Sailor", R.raw.tune_drunken_sailor),
             Song("Carnival of Venice", R.raw.tune_carnival_of_venice),
+            Song("Blow the Man Down", R.raw.tune_blow_the_man_down),
+            Song("Haul Away Joe", R.raw.tune_haul_away_joe),
+            Song("Leave Her Johnny", R.raw.tune_leave_her_johnny),
+            Song("Spanish Ladies", R.raw.tune_spanish_ladies),
+            Song("South Australia", R.raw.tune_south_australia),
+            Song("Rio Grande", R.raw.tune_rio_grande),
+            Song("Shenandoah", R.raw.tune_shenandoah),
+            Song("Wellerman", R.raw.tune_wellerman),
         )
     }
 }
@@ -357,8 +368,19 @@ fun SoundControls(sound: SoundSettings) {
                 Text("Sounds ${(sound.soundVolume * 100).roundToInt()}%", fontSize = 12.sp, modifier = Modifier.width(96.dp))
                 VolumeSlider(sound.soundVolume, "vol-sounds", 200.dp) { sound.soundVolume = it }
             }
-            Text("Songs", fontSize = 12.sp)
-            for (song in SoundSettings.SONGS) Text("♪ ${song.title}", fontSize = 12.sp, color = Color(0xFFCDBFA6))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Choice(if (sound.musicPaused) "▶ Play" else "⏸ Pause", selected = sound.musicPaused, tag = "music-pause",
+                    modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { sound.musicPaused = !sound.musicPaused }
+                Choice("⏭ Next", selected = false, tag = "music-next", modifier = Modifier.height(36.dp).width(100.dp), size = 13.sp) {
+                    sound.musicPaused = false; sound.onNext()
+                }
+            }
+            Text("Songs (tap one to play it)", fontSize = 12.sp)
+            SoundSettings.SONGS.forEachIndexed { i, song ->
+                val now = i == sound.nowPlaying && !sound.musicPaused
+                Text((if (now) "▶ " else "♪ ") + song.title, fontSize = 12.sp, color = if (now) Color(0xFFD9B865) else Color(0xFFCDBFA6),
+                    modifier = Modifier.clickable { sound.musicPaused = false; sound.onPlay(i) }.testTag("song-$i").padding(vertical = 3.dp))
+            }
         }
     }
 }

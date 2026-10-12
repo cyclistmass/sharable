@@ -58,6 +58,15 @@ unless another path is given.
 - Carnival of Venice (`app/src/main/res/raw/tune_carnival_of_venice.ogg`): public-domain melody (the
   traditional 3/4 theme); our own arrangement and synthesis via `tools/make_sounds.py`.
 
+- Blow the Man Down (`app/src/main/res/raw/tune_blow_the_man_down.ogg`): traditional public-domain melody; melody source https://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/abc/mirror/melnets_big_abc_file/01322; arrangement and recording ours.
+- Haul Away Joe (`app/src/main/res/raw/tune_haul_away_joe.ogg`): traditional public-domain melody; melody source https://abcnotation.com/tunePage?a=www.norbeck.nu/abc/i/hnsong1/0102; arrangement and recording ours.
+- Leave Her Johnny (`app/src/main/res/raw/tune_leave_her_johnny.ogg`): traditional public-domain melody; melody source https://abcnotation.com/tunePage?a=www.norbeck.nu/abc/i/hnsong2/0014; arrangement and recording ours.
+- Spanish Ladies (`app/src/main/res/raw/tune_spanish_ladies.ogg`): traditional public-domain melody; melody source https://abcnotation.com/tunePage?a=back.numachi.com:8000/dtrad/abc_dtrad.tar.gz/abc_dtrad/SPANLAD1/0000; arrangement and recording ours.
+- South Australia (`app/src/main/res/raw/tune_south_australia.ogg`): traditional public-domain melody; melody source https://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/abc/mirror/folkinfo.org/South_Australia_Tune_name/0000; arrangement and recording ours.
+- Rio Grande (`app/src/main/res/raw/tune_rio_grande.ogg`): traditional public-domain melody; melody source https://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/abc/mirror/melodeon.net/melnets_big_abc_file/11085; arrangement and recording ours.
+- Shenandoah (`app/src/main/res/raw/tune_shenandoah.ogg`): traditional public-domain melody; melody source https://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/abc/song/Shenandoah_1/0000; arrangement and recording ours.
+- Wellerman (`app/src/main/res/raw/tune_wellerman.ogg`): melody commonly labelled traditional; public-domain attribution disputed (collected 1966, author unknown), included at the maintainer's decision; melody source https://abcnotation.com/tunePage?a=dmc.lizmilner.com/viewabc.vbhtml?file=Wellerman/0002; arrangement and recording ours. Provenance discussion: https://www.folksong.org.nz/soon_may_the_wellerman/index.html (confirm melody rights before release).
+
 ## Libraries
 
 - Kotlin standard library (JetBrains), Apache License 2.0.

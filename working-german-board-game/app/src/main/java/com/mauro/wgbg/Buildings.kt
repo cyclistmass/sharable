@@ -5,7 +5,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -33,7 +35,8 @@ class BuildingSprites(res: Resources, pirate: Boolean, chivalry: Boolean) {
     val roadV = load(res, BuildingArt.roadV(pirate))
     val roadP30 = load(res, BuildingArt.roadP30(pirate))
     val roadM30 = load(res, BuildingArt.roadM30(pirate))
-    val ramparts = if (chivalry) load(res, BuildingArt.ramparts(pirate)) else null
+    /** Ramparts by wall height, low to high (Age of Chivalry only); see [rampartsHeight]. */
+    val ramparts: List<Piece> = if (chivalry) BuildingArt.ramparts(pirate).map { load(res, it) } else emptyList()
     private val capitals = if (chivalry) BuildingArt.capitals(pirate).map { load(res, it) } else emptyList()
     /** The bell-buoy ports (PortArt.index order), 8 tilt steps each. */
     val ports: List<List<ImageBitmap>> = PortArt.TYPES.map { t -> t.map { ImageBitmap.imageResource(res, it) } }
@@ -55,6 +58,12 @@ class BuildingSprites(res: Resources, pirate: Boolean, chivalry: Boolean) {
         const val FRAME_UNITS = 256f / 193f
         /** The road policy from the art report: two 0.66-long sprites centred this far either side of an edge's middle. */
         const val ROAD_OFFSET = 0.17f
+
+        /**
+         * Which Ramparts height (0 low, 1 middle, 2 high) to draw for an owner whose best city improvement is [bestLevel]
+         * (0 to 5): the crenellations grow as the owner improves, at levels 0-1, 2-3 and 4-5.
+         */
+        fun rampartsHeight(bestLevel: Int): Int = (bestLevel / 2).coerceIn(0, 2)
 
         /** Index into BuildingArt.capitals (Guilds, Academy, Crown) for a metropolis [track], or -1. */
         fun capitalIndex(track: Int): Int = when (track) { Track.TRADE -> 0; Track.SCIENCE -> 1; Track.POLITICS -> 2; else -> -1 }
@@ -94,27 +103,23 @@ internal fun DrawScope.drawPieceSprite(piece: BuildingSprites.Piece, at: Offset,
     } else rotate(degrees, at) { layer(a, 1f); if (f > 0.02f) layer(b, f) }
 }
 
+/** Where an active knight's pennant goes, relative to the knight's contact point, for a frame [side] px across:
+ * the pole's foot, the pole's top, and the pennant's tip. Upright at any tilt, just right of the knight. */
+internal fun knightFlagPoints(side: Float): List<Offset> = listOf(
+    Offset(0.24f * side, -0.04f * side), Offset(0.24f * side, -0.46f * side), Offset(0.46f * side, -0.385f * side))
+
 /**
- * A knight's body colour: the player's colour multiplied in, and for an inactive knight a dimming on top,
- * inactive = [KNIGHT_IDLE_VALUE] * ([KNIGHT_IDLE_SAT] * tinted + (1 - [KNIGHT_IDLE_SAT]) * luma), folded into one colour
- * matrix. The knights contract asks 20% / 50%; that left every player's idle knights the same dark grey on the board,
- * so we keep enough colour to tell whose they are.
+ * An active knight flies a pennant in its owner's colour on a worn-brass pole (Mauro: "add a flag and stop
+ * highlighting the knights"); idle knights are the same colour, just without the flag.
  */
-internal fun knightBodyFilter(color: Color, active: Boolean): ColorFilter =
-    if (active) ColorFilter.tint(color, BlendMode.Modulate) else ColorFilter.colorMatrix(ColorMatrix(knightInactiveMatrix(color)))
-
-/** How much of the player's colour an inactive knight keeps, and how bright it is. */
-internal const val KNIGHT_IDLE_SAT = 0.5f
-internal const val KNIGHT_IDLE_VALUE = 0.6f
-
-/** The 4x5 colour matrix (row-major, values 0..1) for an inactive knight's body in [color]; see [knightBodyFilter]. */
-internal fun knightInactiveMatrix(color: Color): FloatArray {
-    val p = floatArrayOf(color.red, color.green, color.blue)
-    val luma = floatArrayOf(0.299f, 0.587f, 0.114f)
-    val m = FloatArray(20)
-    for (r in 0 until 3) for (c in 0 until 3) m[r * 5 + c] = KNIGHT_IDLE_VALUE * ((if (r == c) KNIGHT_IDLE_SAT else 0f) + (1f - KNIGHT_IDLE_SAT) * luma[c]) * p[c]
-    m[18] = 1f // alpha unchanged
-    return m
+internal fun DrawScope.drawKnightFlag(at: Offset, side: Float, color: Color) {
+    val (foot, top, tip) = knightFlagPoints(side).map { at + it }
+    drawLine(Color(0xFF6B5326), foot, top, 0.035f * side, StrokeCap.Round)
+    drawLine(Color(0xFFC9A04A), foot + Offset(-0.008f * side, 0f), top + Offset(-0.008f * side, 0f), 0.015f * side, StrokeCap.Round)
+    val flag = Path().apply { moveTo(top.x, top.y); lineTo(tip.x, tip.y); lineTo(top.x, top.y + 0.15f * side); close() }
+    drawPath(flag, color)
+    drawPath(flag, Color(0xFF2A1B10), style = Stroke(0.012f * side))
+    drawCircle(Color(0xFFE8C66A), 0.022f * side, top)
 }
 
 /** Degrees to turn a supply's pieces so they face their owner at [seatAngle] (radians; the viewer's seat is 90 degrees). */

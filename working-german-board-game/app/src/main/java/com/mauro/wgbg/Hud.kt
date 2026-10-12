@@ -21,6 +21,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.imageResource
@@ -44,6 +47,8 @@ private val HUD_TEXT = Color(0xFFEDE6D8)
 /** The roll and what came of it, pinned to a corner of the board. */
 @Composable
 fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PLAYER_NAMES, modifier: Modifier = Modifier,
+            /** This phone's player (their turns read "Your turn"), or -1 when only bots play. */
+            me: Int = -1,
             /** Earlier turns, newest first: shown below this turn so you can scroll back to see what everyone did (#65). */
             history: List<TurnReport> = emptyList(),
             /** Reports where the two dice are (root coordinates), so thrown dice can fly to them. */
@@ -63,17 +68,22 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             /** Width; inside the one left side panel it matches the player list above (#73), and the news wraps. */
             width: androidx.compose.ui.unit.Dp = 360.dp,
             /** False inside the one left side panel, which draws the frame for both halves. */
-            framed: Boolean = true) {
+            framed: Boolean = true,
+            /** A double tap on the dice: open the roll histogram (Mauro). */
+            onDiceDoubleTap: (() -> Unit)? = null) {
     if (report == null) return
     // Fixed size, so the dice always sit in the same spot. The dice and whose turn it is stay pinned at the top; this
     // turn's news and the earlier turns below scroll, with a brass scroll bar on the right (#65).
     Column(
         modifier.size(width = width, height = height)
             .then(if (framed) Modifier.brassEdgedWood() else Modifier)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(start = 14.dp, end = 14.dp, top = 2.dp, bottom = 10.dp),   // the dice sit right under the players (Mauro)
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.testTag("dice-row").then(if (onDiceDoubleTap != null) Modifier.pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = { onDiceDoubleTap() })
+            } else Modifier)) {
             val color = PLAYER_COLORS[report.player]
             run {
                 var r1 by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
@@ -83,7 +93,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
                     modifier = Modifier.onGloballyPositioned { onEventSlot?.invoke(it.boundsInRoot()) })
                 if (report.rolled && showDice) Text("= ${report.die1 + report.die2}", color = HUD_TEXT, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
-            Text(if (names[report.player] == "You") "Your turn" else "${names[report.player]}'s turn", color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            // No "X's turn" here: that player's row is already highlighted above (Mauro).
         }
         val scroll = androidx.compose.foundation.rememberScrollState()
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -96,7 +106,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             for (t in earlier) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    (if (names[t.player] == "You") "Your turn" else "${names[t.player]}'s turn") +
+                    (if (t.player == me) "Your turn" else "${names[t.player]}'s turn") +
                         (if (t.rolled) " · rolled ${t.die1 + t.die2}" else "") + " · turn ${t.turn + 1}",
                     color = PLAYER_COLORS[t.player].copy(alpha = 0.9f), fontWeight = FontWeight.Bold, fontSize = 12.sp,
                 )

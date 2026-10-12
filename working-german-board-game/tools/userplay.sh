@@ -40,7 +40,7 @@ dump() {
 # Centre of the first on-screen text exactly $1 (optionally in $2 = a dump already taken).
 find_text() {
   local d="${2:-$(dump)}"
-  echo "$d" | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | head -1 |
+  echo "$d" | grep -o "\(text\|content-desc\)=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | head -1 |
     grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | tr '\n' ' ' | awk '{split($1,a,",");split($2,b,",");print int((a[1]+b[1])/2), int((a[2]+b[2])/2)}'
 }
 tap_text() { local xy; xy=$(find_text "$1" "${2:-}"); [ -n "$xy" ] || return 1; "$ADB" shell input tap $xy; sleep 0.7; }
@@ -56,7 +56,7 @@ shot() { "$ADB" exec-out screencap -p > "$OUT/$TAG-$1.png"; }
 crashed() { [ "$("$ADB" logcat -d -b crash | grep -A8 'FATAL EXCEPTION' | grep -c "$PKG")" != 0 ]; }
 fail() { echo "USERPLAY $TAG FAILED: $1"; shot fail; "$ADB" logcat -d -b crash | grep -A30 "FATAL EXCEPTION" | head -40; exit 1; }
 # Centres of every element with text $1, left to right.
-all_text() { echo "$2" | grep -o "text=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | grep -o 'bounds=.*' | tr -c '0-9\n' ' ' |
+all_text() { echo "$2" | grep -o "\(text\|content-desc\)=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | grep -o 'bounds=.*' | tr -c '0-9\n' ' ' |
   awk '{print int(($1+$3)/2), int(($2+$4)/2)}' | sort -n -k1,1; }
 # Type into a text box (tap it, clear it, type).
 type_into() { tap $1 $2; sleep 0.5; "$ADB" shell input keyevent KEYCODE_MOVE_END; for _ in $(seq 1 14); do "$ADB" shell input keyevent KEYCODE_DEL; done
@@ -71,9 +71,11 @@ type_into() { tap $1 $2; sleep 0.5; "$ADB" shell input keyevent KEYCODE_MOVE_END
 sleep 2
 for _ in 1 2 3; do
   "$ADB" shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1; sleep 3
-  [ -n "$("$ADB" shell pidof $PKG | tr -d '')" ] && break
+  [ -n "$("$ADB" shell pidof $PKG | tr -d '
+')" ] && break
 done
-[ -n "$("$ADB" shell pidof $PKG | tr -d '')" ] || fail "the app wouldn't start"
+[ -n "$("$ADB" shell pidof $PKG | tr -d '
+')" ] || fail "the app wouldn't start"
 # Wait for the app to open (a slow phone shows the launch splash for a while): the intro or the start screen.
 for _ in $(seq 1 15); do d=$(dump); echo "$d" | grep -q 'text="Tap to skip"\|text="Play"' && break; sleep 2; done
 # First launch plays the intro fly-over; a player taps to skip it.
@@ -114,7 +116,7 @@ else
     sleep 8
     if [ "$MODE" = host ]; then
       # Read the room code off the lobby and hand it to the friend; Start game once they're in and ready.
-      code=$(dump | grep -o 'text="[^"]*"' | grep -o '[A-Z]\{3,\}-[1-9][0-9]' | head -1)
+      code=$(dump | grep -o 'text="[^"]*"' | grep -o '[A-Z]\{3,\}-[1-9][0-9]\{1,2\}' | head -1)
       [ -n "$code" ] || fail "no room code on the lobby screen"
       mkdir -p "$(dirname "$ROOM_FILE")"; echo "$code" > "$ROOM_FILE"; echo "USERPLAY $TAG: hosting $code"
       shot lobby
@@ -136,9 +138,9 @@ shot start
 for _ in $(seq 1 120); do "$ADB" logcat -d -s WGBG-TURN:I | grep -q 'phase=' && break; sleep 1; done
 "$ADB" logcat -d -s WGBG-TURN:I | grep -q 'phase=' || fail "the game never started (still on the start screen?)"
 # Animations off from the menu, like a player can (Mauro: test games skip the animation; it also makes reading the
-# screen fast, since a still screen needs no waiting): Menu, Settings, Animations Off, Done, Hide.
+# screen fast, since a still screen needs no waiting): Menu, Settings, Animations Off, Hide (it saves as you tap).
 if tap_text "Menu"; then
-  tap_desc "Settings" && { tap_text "Off" || echo "USERPLAY $TAG: no Animations Off switch"; tap_text "Done"; }
+  tap_desc "Settings" && { tap_text "Off" || echo "USERPLAY $TAG: no Animations Off switch"; }
   tap_text "Hide"
 fi
 # Local games: speed the bots up from the menu like a player can (Menu, tap the speed button up to Max, Hide).
@@ -179,6 +181,7 @@ while true; do
     pick=$(echo "$spots" | shuf -n 1); xy=${pick#*@}
     tap "${xy%,*}" "${xy#*,}"; sleep 0.6; tap "${xy%,*}" "${xy#*,}"
   elif echo ",$legal" | grep -q ',ROLL:' && tap_at "Roll"; then :
+  elif echo ",$legal" | grep -q ',BUY_DEVELOPMENT_CARD:' && [ $((RANDOM % 4)) = 0 ] && tap_desc "Fortune card"; then :   # the build menu's card icon
   elif echo ",$legal" | grep -q ',ACCEPT_TRADE:\|,REJECT_TRADE:'; then
     # A trade offered to you: answer it like a person, Yes or No (Counter is left out on purpose).
     if echo ",$legal" | grep -q ',ACCEPT_TRADE:' && [ $((RANDOM % 3)) = 0 ]; then tap_text "Yes" || tap_text "No"; else tap_text "No" || tap_text "Yes"; fi
@@ -187,26 +190,34 @@ while true; do
     # The discard sheet, the way a person does it: look once, tap cards you hold until enough are chosen, press
     # Discard. ("choose 5 to discard (2 chosen)"; each card shows "have N" under it.)
     echo "$(date +%T) discard sheet seen (${phase})" >&2
-    read -r owed chosen < <(echo "$d" | grep -o 'choose [0-9]* to discard ([0-9]* chosen)' | head -1 | sed 's/choose \([0-9]*\) to discard (\([0-9]*\) chosen)/\1 \2/')
+    read -r owed chosen < <(echo "$d" | grep -o '[Cc]hoose [0-9]* to discard ([0-9]* chosen)' | head -1 | sed 's/[Cc]hoose \([0-9]*\) to discard (\([0-9]*\) chosen)/\1 \2/')
     need=$(( ${owed:-0} - ${chosen:-0} ))
     # Two quick taps on one card count as one, so tap at a person's pace and look again until enough are chosen.
     for _round in 1 2 3; do
     [ "$need" -gt 0 ] || break
       # Every held card once per copy (centre x, y), shuffled; tap the first "need" of them.
       echo "$d" | grep -o '\(content-desc\|text\)="\(Timber\|Clay\|Fleece\|Grain\|Stone\|Parchment\|Weave\|Silver\)"[^/]*bounds="[^"]*"\|text="have [0-9]*"[^/]*bounds="[^"]*"' |
-        sed 's/^text="have \([0-9]*\)"[^/]*bounds="\[\([0-9]*\),[0-9]*\]\[\([0-9]*\),[0-9]*\]"/H \1 \2 \3/; s/^[a-z-]*="[A-Za-z]*"[^/]*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),\([0-9]*\)\]"/C \1 \2 \3 \4/' |
-        awk '$1=="C"{n++; x1[n]=$2; y1[n]=$3; x2[n]=$4; y2[n]=$5} $1=="H"{h[++m]=$2; hx[m]=($3+$4)/2}
-             END{for(i=1;i<=n;i++){cx=(x1[i]+x2[i])/2; for(k=1;k<=m;k++) if(hx[k]>=x1[i] && hx[k]<=x2[i]) for(c=0;c<h[k];c++) print int(cx), int((y1[i]+y2[i])/2)}}' |
+        sed 's/^text="have \([0-9]*\)"[^/]*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),[0-9]*\]"/H \1 \2 \4 \3/; s/^[a-z-]*="[A-Za-z]*"[^/]*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),\([0-9]*\)\]"/C \1 \2 \3 \4/' |
+        # A "have N" counts only for the card right above it (a hidden hand row under the sheet must not match).
+        awk '$1=="C"{n++; x1[n]=$2; y1[n]=$3; x2[n]=$4; y2[n]=$5} $1=="H"{h[++m]=$2; hx[m]=($3+$4)/2; hy[m]=$5}
+             END{for(i=1;i<=n;i++){cx=(x1[i]+x2[i])/2; for(k=1;k<=m;k++) if(hx[k]>=x1[i] && hx[k]<=x2[i] && hy[k]>=y2[i]-10 && hy[k]<=y2[i]+60) for(c=0;c<h[k];c++) print int(cx), int((y1[i]+y2[i])/2)}}' |
         shuf | head -n "$need" | while read -r x y; do tap "$x" "$y"; sleep 0.6; done
       d=$(dump)
-      read -r owed chosen < <(echo "$d" | grep -o 'choose [0-9]* to discard ([0-9]* chosen)' | head -1 | sed 's/choose \([0-9]*\) to discard (\([0-9]*\) chosen)/\1 \2/')
+      read -r owed chosen < <(echo "$d" | grep -o '[Cc]hoose [0-9]* to discard ([0-9]* chosen)' | head -1 | sed 's/[Cc]hoose \([0-9]*\) to discard (\([0-9]*\) chosen)/\1 \2/')
       need=$(( ${owed:-0} - ${chosen:-0} ))
     done
     tap_text "$(echo "$d" | grep -o 'text="Discard [0-9]*"' | head -1 | cut -d'"' -f2)" "$d" || true
   elif tap_text "Roll" "$d"; then :
+  elif echo "$d" | grep -q 'text="Card guide"' && echo "$d" | grep -q 'text="Close"'; then
+    tap_text "Close" "$d" || true   # the card guide got opened: close it, as a player would
+  elif echo "$d" | grep -q 'text="Hide"'; then
+    # The menu is open (a stray tap on the gear): carry on playing if it got paused, then close it, as a player would.
+    echo "$(date +%T) menu open, closing it" >&2
+    echo "$d" | grep -q 'text="Play"' && tap_text "Play" "$d"
+    tap_text "Hide" "$d" || true
   else
     # Any other on-screen choice (pickers, victims, Age of Chivalry buttons), else End turn.
-    opts=$(echo "$d" | grep -o 'text="[^"]\+"' | cut -d'"' -f2 | grep -v -x -E 'Menu|Trade|Hide|Exit|Leave|Settings|End turn|Roll|Counter|Offer|You|Blue|Orange|White|Red|Tester|Duo|\(.*\)|Your turn|[0-9/ ]+|.*turn.*|.*Tap .*|.*built.*|.*rolled.*|.*\+[0-9].*|Raiders|Zoom|Tilt|Players|Maritime|have [0-9]+|.*offers.*|.*chosen.*' | shuf)
+    opts=$(echo "$d" | grep -o 'text="[^"]\+"' | cut -d'"' -f2 | grep -v -x -E 'Menu|Trade|Hide|Exit|Leave|Settings|End turn|Roll|Counter|Offer|You|Blue|Orange|White|Red|Tester|Duo|\(.*\)|Your turn|[0-9/ ]+|.*turn.*|.*Tap .*|.*built.*|.*rolled.*|.*\+[0-9].*|Raiders|Zoom|Tilt|Players|Maritime|have [0-9]+|.*offers.*|.*chosen.*|Pause|Play|Slow|Normal|Fast|Max|Watch bots|Fit|Dice.*|v[0-9.]+|Sound|Music.*|Sounds.*|Inventory|Look.*|Card guide|Close' | shuf)
     # After a few taps that changed nothing, a player ends the turn.
     if [ -n "$opts" ] && [ "$tries" -lt 3 ] && [ $((RANDOM % 3)) != 0 ]; then tap_text "$(echo "$opts" | shuf -n 1)" "$d" || true
     else tap_text "End turn" "$d" || { [ -n "$opts" ] && tap_text "$(echo "$opts" | shuf -n 1)" "$d"; } || true; fi

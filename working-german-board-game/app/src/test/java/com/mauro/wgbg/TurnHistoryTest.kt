@@ -28,4 +28,30 @@ class TurnHistoryTest {
         assertEquals(setOf(0, 1, 2), h.map { it.player }.toSet(), "everyone's turns, not just yours")
         assertTrue(h.all { it.rolled || it.events.isNotEmpty() }, "only turns that did something")
     }
+
+    @Test
+    fun `players hit by someone else's card or bandit are told who, with what, and what they lost`() {
+        var hits = 0; var byCard = 0; var byBandit = 0
+        for (seed in 1L..20L) {
+            val s = Rules.newGame(GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS, numPlayers = 3), seed)
+            val tracker = TurnTracker(listOf("You", "Blue", "Orange"))
+            val bots = List(3) { GreedyBot(it.toLong() + seed) }
+            val buf = ActionBuffer()
+            while (!s.isOver && s.turn < 300) {
+                Rules.legalActions(s, buf)
+                val who = s.actingPlayer
+                val a = bots[who].choose(s, buf)
+                tracker.apply(s, who, a) { Rules.apply(s, a) }
+            }
+            for (h in tracker.hits) {
+                assertTrue(h.victim != h.by, "never your own turn: $h")
+                assertTrue(h.lost.isNotBlank(), "$h")
+                if (h.cause.startsWith("played ")) { byCard++; assertTrue(h.why != null && h.cause.removePrefix("played ") in PROGRESS_NAMES, "$h") }
+                if (h.cause.contains("bandit")) byBandit++
+            }
+            assertEquals((1..tracker.hits.size).toList(), tracker.hits.map { it.seq - tracker.hits.first().seq + 1 }, "seq counts up")
+            hits += tracker.hits.size
+        }
+        assertTrue(byCard > 10 && byBandit > 10, "cards $byCard, bandit $byBandit of $hits")
+    }
 }

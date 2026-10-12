@@ -78,6 +78,67 @@ class TradePanelTest {
     }
 
     @Test
+    fun `a free road to place closes trading with the real reason, not that it is not your turn`() {
+        // Mauro's playtest: Envoy on his own road gave a road to place again; the chest said it wasn't his turn.
+        val s = until(3, ::myRolledTurn)
+        assertEquals(TradeMode.COMPOSE, tradeMode(s, 0))
+        s.freeRoads = 1
+        assertEquals(TradeMode.CLOSED, tradeMode(s, 0))
+        assertEquals("Place your free road first, then trade", tradeClosedReason(s, 0))
+        assertEquals("Trade on your turn", tradeClosedReason(s, 1))
+        assertTrue(prompt(s, Rules.legalActions(s), listOf("You", "Blue", "Orange", "White")).startsWith("Place your free road first"))
+        s.freeRoads = 0
+        assertEquals(TradeMode.COMPOSE, tradeMode(s, 0))
+    }
+
+    @Test
+    fun `in Age of Chivalry, after any progress card your own turn never says it is not your turn, and trading comes back`() {
+        // Mauro wasn't sure which action card it was, so every card bots play in 40 games is covered.
+        var checked = 0; var cardsPlayed = 0
+        for (seed in 1L..40L) {
+            val s = Rules.newGame(GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS, numPlayers = 4), seed)
+            val bots = List(4) { GreedyBot(it.toLong() + seed) }
+            val buf = ActionBuffer()
+            var afterCard = false
+            while (!s.isOver && s.turn < 400) {
+                val p = s.currentPlayer
+                if (s.hasRolled && s.actingPlayer == p) {
+                    val mode = tradeMode(s, p)
+                    if (mode == TradeMode.CLOSED) assertTrue(tradeClosedReason(s, p) != "Trade on your turn", "seed $seed turn ${s.turn} phase ${s.phase}")
+                    if (s.phase == Phase.PLAY_TURN && s.freeRoads == 0) {
+                        assertEquals(TradeMode.COMPOSE, mode, "seed $seed turn ${s.turn}")
+                        if (afterCard) { checked++; afterCard = false }
+                    }
+                }
+                Rules.legalActions(s, buf)
+                val a = bots[s.actingPlayer].choose(s, buf)
+                if (a.type == wgbg.engine.CkActionType.PLAY_PROGRESS && s.actingPlayer == s.currentPlayer && s.hasRolled) { afterCard = true; cardsPlayed++ }
+                Rules.apply(s, a)
+            }
+        }
+        assertTrue(cardsPlayed > 50 && checked > 50, "cards $cardsPlayed, back to trading $checked")
+    }
+
+    @Test
+    fun `every pick-a-card moment says what it is for`() {
+        val seen = mutableSetOf<Phase>()
+        for (seed in 1L..40L) {
+            val s = Rules.newGame(GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS, numPlayers = 4), seed)
+            val bots = List(4) { GreedyBot(it.toLong() + seed) }
+            val buf = ActionBuffer()
+            while (!s.isOver && s.turn < 400) {
+                Rules.legalActions(s, buf)
+                if (Rules.legalActions(s).any { it.type == wgbg.engine.CkActionType.CHOOSE_CARD }) {
+                    assertTrue(cardChoiceTitle(s, listOf("You", "Blue", "Orange", "White")) != "Choose a card", "${s.phase}")
+                    seen += s.phase
+                }
+                Rules.apply(s, bots[s.actingPlayer].choose(s, buf))
+            }
+        }
+        assertTrue(Phase.AQUEDUCT in seen, "science bonus seen: $seen")
+    }
+
+    @Test
     fun `before rolling the panel is closed`() {
         val s = until(5) { it.phase == Phase.PLAY_TURN && it.currentPlayer == 0 && !it.hasRolled }
         assertEquals(TradeMode.CLOSED, tradeMode(s, 0))

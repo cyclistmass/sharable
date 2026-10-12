@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -130,6 +131,7 @@ import wgbg.engine.Piece
 import wgbg.engine.Port
 import wgbg.engine.Resource
 import wgbg.engine.Rules
+import wgbg.engine.Track
 import kotlin.math.min
 import kotlin.math.sqrt
 
@@ -139,7 +141,7 @@ class MainActivity : ComponentActivity() {
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE == 0) return Camera.FIT
         if (intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return Camera.FIT // stale extras from recents
         return Camera(intent.getFloatExtra("zoom", 1f).coerceIn(Camera.MIN_ZOOM, Camera.MAX_ZOOM), Offset.Zero,
-            intent.getFloatExtra("tilt", 0f).coerceIn(0f, Camera.MAX_TILT))
+            intent.getFloatExtra("tilt", Camera.START_TILT).coerceIn(0f, Camera.MAX_TILT))
     }
 
     /** Debug builds: moves sent by test drivers (`am broadcast -a com.mauro.wgbg.MOVE --es move TYPE:PAYLOAD`). */
@@ -389,7 +391,9 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 onJoinRoom = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); problem = null; screen = Screen.JOIN },
                 resumeRoom = resumeCode.takeIf { session == null && !busy },
                 onResume = { resumeCode?.let { rejoin(it) } },
-                onLookAndArt = { screen = Screen.LOOK },
+                // Look & art shows the ruleset chosen on screen, and the choices are still there on the way back.
+                onLookAndArt = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); screen = Screen.LOOK },
+                onPlayIntro = { intro = true },
             )
             Screen.JOIN -> {
                 BackHandler { screen = Screen.START }
@@ -408,13 +412,13 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 BackHandler { leaveRoom() }
                 OnlineLobbyScreen(s, onPlaying = { if (screen == Screen.ONLINE_LOBBY) { gameNo++; screen = Screen.ONLINE_GAME } },
                     onSettings = { leaveRoom() }, onError = { e -> scope.launch { problem = onlineProblem(e) } })
-            } ?: run { screen = Screen.START }
+            } ?: RejoiningOr(savedRoom) { screen = Screen.START }
             Screen.ONLINE_GAME -> session?.let { s ->
                 key(gameNo) {
                     WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { pauseRoom() }, online = s, autoplay = autoplay,
                         onDeleteRoom = { deleteRoom() }, onQuitRoom = { leaveRoom() })
                 }
-            } ?: run { screen = Screen.START }
+            } ?: RejoiningOr(savedRoom) { screen = Screen.START }
             Screen.LOOK -> WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), Camera.FIT, setup, onExit = { screen = Screen.START }, lookAndArt = true)
             Screen.GAME -> key(gameNo) {
                 // Back asks "Leave this game?" inside the game screen (same as Exit).
@@ -495,7 +499,7 @@ fun WatchGameScreen(
     // Play mode: you are seat 0 ("You"); Watch mode: bots in every seat at full speed. Online: your seat.
     var human by remember { mutableStateOf(!startWatching) }
     val me = net?.me ?: if (human) 0 else -1
-    val names = net?.names ?: if (human) listOf("You") + PLAYER_NAMES.drop(1) else PLAYER_NAMES
+    val names = net?.names ?: if (human) listOf(setup.name.ifBlank { "You" }) + PLAYER_NAMES.drop(1) else PLAYER_NAMES
     val seats = net?.players?.size ?: setup.players.size
     // Online, a rejected move rolls the room back: the screen then rebuilds its game from the room's moves.
     var epoch by remember { mutableIntStateOf(0) }
@@ -513,6 +517,8 @@ fun WatchGameScreen(
     }
     val log = remember(seed, seats) { mutableStateListOf<String>() }
     val tracker = remember(seed, seats, human, epoch) { TurnTracker(names) }
+    /** The last [Hit] notice the player dismissed. */
+    var seenHit by remember(tracker) { mutableIntStateOf(0) }
     // Moves from the human's taps and buttons; the game loop checks each against the rules.
     val humanMoves = remember { Channel<Action>(Channel.UNLIMITED) }
     var tradeOpen by remember { mutableStateOf(false) }
@@ -537,6 +543,12 @@ fun WatchGameScreen(
     // Music (#58): the set list at the Music volume; it pauses while the app is in the background.
     val music = remember { MusicPlayer(appContext, SoundSettings.SONGS) }
     LaunchedEffect(sound.musicVolume) { music.setVolume(sound.musicVolume) }
+    LaunchedEffect(sound.musicPaused) { music.hold(sound.musicPaused) }
+    LaunchedEffect(music) {
+        music.onSong = { sound.nowPlaying = it }
+        sound.onPlay = { music.play(it) }
+        sound.onNext = { music.next() }
+    }
     val gameLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     androidx.compose.runtime.DisposableEffect(gameLifecycle) {
         val o = androidx.lifecycle.LifecycleEventObserver { _, ev ->
@@ -577,6 +589,7 @@ fun WatchGameScreen(
         .map { ImageBitmap.imageResource(it) }
     val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile); it.boatColors = PLAYER_COLORS } }
     sea.gullFlap = gullFlap; sea.gullGlide = gullGlide; sea.gullShadow = gullShadow; sea.boatWake = boatWake; sea.boatSprites = boatSprites
+    if (sea.sprites3d == null) sea.sprites3d = SeaSprites3d(oceanRes)
     // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
     // read the current game's sea and board through these.
     val seaNow by rememberUpdatedState(sea)
@@ -750,6 +763,8 @@ fun WatchGameScreen(
     var panelOpen by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(lookAndArt) }
+    var guideOpen by remember { mutableStateOf(false) }
+    var histogramOpen by remember { mutableStateOf(false) }
     var hudTopRight by remember { mutableStateOf<Offset?>(null) }
     var diceFlying by remember { mutableStateOf(false) }
     var diceSlots by remember { mutableStateOf<Pair<androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect>?>(null) }
@@ -759,11 +774,14 @@ fun WatchGameScreen(
     var stripWidth by remember { mutableStateOf(0f) }
     var screenHeight by remember { mutableStateOf(0f) }
     val turnHudHeight = with(LocalDensity.current) {
-        if (screenHeight <= 0f) 210.dp else ((screenHeight - stripBottom).toDp() - 16.dp).coerceIn(110.dp, 210.dp)
+        // The dice sit right under the player list and the history takes the rest of the side (Mauro: "raise it up").
+        if (screenHeight <= 0f) 210.dp else ((screenHeight - stripBottom).toDp() - 10.dp).coerceAtLeast(110.dp)
     }
     // Back closes whatever is open on top first (Settings, the menu, the Inventory), then asks about leaving.
     BackHandler {
         when {
+            guideOpen -> guideOpen = false
+            histogramOpen -> histogramOpen = false
             settingsOpen -> settingsOpen = false
             panelOpen -> panelOpen = false
             inventory -> if (lookAndArt) onExit() else inventory = false
@@ -797,7 +815,12 @@ fun WatchGameScreen(
     if (cardPick.isNotEmpty() && cardPick.any { it !in legal }) { cardPick = emptyList(); cardSecond = false } // the turn moved on
     val cardPickNow by rememberUpdatedState(cardPick)
     val cardSecondNow by rememberUpdatedState(cardSecond)
-    val targets = if (cardPick.isNotEmpty()) Targets.ofCards(cardPick, cardSecond) else Targets.of(legal)
+    // The build menu (right edge): a picked kind narrows the board to just its spots; it lets go when it can't be done.
+    var buildMode by remember { mutableStateOf<BuildKind?>(null) }
+    if (buildMode != null && legal.none { it.type == buildMode!!.kind }) buildMode = null
+    val boardLegal = boardMoves(legal, buildMode)
+    val boardLegalNow by rememberUpdatedState(boardLegal)
+    val targets = if (cardPick.isNotEmpty()) Targets.ofCards(cardPick, cardSecond) else Targets.of(boardLegal)
     val chosen = pending.filter { it in legal } // a stale pick (the turn moved on) is dropped
     // Turn and trade alerts (#44): a tick when it becomes your move, a chime when an offer asks for cards you
     // hold, and an offer you can't pay is declined for you after a short countdown so turns keep flowing.
@@ -938,7 +961,7 @@ fun WatchGameScreen(
                     detectTapGestures(onTap = { at ->
                         val p = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera).unproject(at)
                         val picking = cardPickNow.isNotEmpty()
-                        val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else movesAt(boardNow, legalNow, p)
+                        val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else movesAt(boardNow, boardLegalNow, p)
                         // The Tinkerer swaps two tiles: the first tap narrows to that tile's swaps, the second picks the other tile.
                         if (picking && !cardSecondNow && moves.size > 1 && moves.all { it.a == wgbg.engine.Progress.INVENTOR }) {
                             cardPick = moves; cardSecond = true; return@detectTapGestures
@@ -959,7 +982,7 @@ fun WatchGameScreen(
                         val sz = Size(size.width.toFloat(), size.height.toFloat())
                         // A double-tap on a supply resets that pile (handled with its drag); the view stays.
                         if (supplyAt(stateNow, viewerNow, pileOffsetsNow, Layout.fit(boardNow, sz.width, sz.height, camera), at, 48.dp.toPx()) >= 0) return@detectTapGestures
-                        camera = if (camera.zoom > 1.05f || camera.tilt > 0.01f || camera.pan.getDistance() > 1f) Camera.FIT
+                        camera = if (camera.zoom > 1.05f || kotlin.math.abs(camera.tilt - Camera.START_TILT) > 0.01f || camera.pan.getDistance() > 1f) Camera.FIT
                         else camera.transform(at, Offset.Zero, Camera.DOUBLE_TAP_ZOOM / camera.zoom, sz)
                     })
                 },
@@ -967,7 +990,7 @@ fun WatchGameScreen(
             tick // redraw on every move
             if (!inventory) seaTick // and on every sea frame (the Inventory screen holds still)
             if (inventory) drawInventory(measurer, wood, banditSprites, tileFaces, tileLine,
-                InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide, buildings),
+                InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide, buildings, sea.sprites3d),
                 bottomInset = INVENTORY_CARDS_DP.dp.toPx()) else {
                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
                 val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
@@ -1000,6 +1023,7 @@ fun WatchGameScreen(
             verticalAlignment = Alignment.CenterVertically) {
             GoButton("Done", "look-done", true, Modifier.width(120.dp).height(44.dp)) { onExit() }
             BrassButton("Tiles: compare", "look-tile-compare", Modifier.height(44.dp)) { compareTiles = true }
+            BrassButton("Card guide", "look-guide", Modifier.height(44.dp)) { guideOpen = true }
         }
         if (inventory) Row(Modifier.align(Alignment.BottomCenter).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((r, art) in CARD_ART.withIndex()) androidx.compose.foundation.Image(
@@ -1029,9 +1053,9 @@ fun WatchGameScreen(
             if (stripWidth > 0f) Box(Modifier.align(Alignment.TopStart).padding(8.dp).width(sideWidth).fillMaxHeight()
                 .brassEdgedWood(woodAlpha = if (env.seeThrough) 0.4f else 1f))
             if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
-                TurnHud(report, previous, names, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
+                TurnHud(report, previous, names, me = me, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
                     eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight,
-                    width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f)
+                    width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f, onDiceDoubleTap = { histogramOpen = true })
             }
             if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
@@ -1047,17 +1071,32 @@ fun WatchGameScreen(
             }
         }
         if (me >= 0 && !inventory) tick.let {
+            // Another player's card or bandit cost you something: say who, with what card and why, until OK.
+            tracker.hits.lastOrNull { it.victim == me && it.seq > seenHit }?.let { hit ->
+                Column(Modifier.align(Alignment.TopCenter).padding(top = 64.dp).widthIn(max = 460.dp).chest().testTag("hit-notice"),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("${names[hit.by]} ${hit.cause}", color = Color(0xFFF1D58A), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    hit.why?.let { Text(it, color = Color(0xFFEDE6D8), fontSize = 12.sp) }
+                    Text("You lost ${hit.lost}", color = Color(0xFFFFB4A0), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    ColorButton("OK", Color(0xFF3E9B4F), "hit-ok") { seenHit = hit.seq }
+                }
+            }
             TurnPrompt(tapHint ?: prompt(state, legal, names), Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
-            if (!tradeOpen && !tradeNeedsMe(state, me)) HandRow(state, me, tick,
+            // The hand row steps aside while a card sheet (a 7's discard, a card to pick) covers the bottom centre.
+            val cardSheet = legal.any { it.type == ActionType.DISCARD || it.type == wgbg.engine.CkActionType.CHOOSE_CARD }
+            if (!tradeOpen && !tradeNeedsMe(state, me) && !cardSheet) HandRow(state, me, tick,
                 // Between the left panel and the move buttons (playtest: progress cards slid under End turn).
                 Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 384.dp, end = 196.dp, bottom = 6.dp))
         }
         if (me >= 0 && !inventory) {
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
             val needsMe = tradeNeedsMe(state, me)
-            // The trade chest docks where the move buttons sit and takes their place while it is open.
-            if (chestOpen) TradePanel(state, me, legal, names, send, onClose = { tradeOpen = false }, responses = responses, version = tick, autoNoSeconds = autoNo,
-                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
+            // The trade chest floats over the board (0.2.6), centred right of the side panel so the turn history stays in view.
+            val panelEdge = with(LocalDensity.current) { stripWidth.toDp() } + 16.dp
+            if (chestOpen) Box(Modifier.fillMaxSize().padding(start = panelEdge, bottom = 8.dp, end = 8.dp)) {
+                TradePanel(state, me, legal, names, send, onClose = { tradeOpen = false }, responses = responses, version = tick, autoNoSeconds = autoNo,
+                    modifier = Modifier.align(Alignment.BottomCenter))
+            }
             else if (cardPick.isNotEmpty() && chosen.isEmpty()) Column(
                 // Aiming a board card: say what to tap, with a way out.
                 Modifier.align(Alignment.BottomEnd).padding(8.dp).width(260.dp).brassEdgedWood().padding(12.dp).testTag("card-pick"),
@@ -1070,8 +1109,14 @@ fun WatchGameScreen(
                     color = Color(0xFFF1D58A), fontWeight = FontWeight.Bold)
                 ColorButton("Cancel", Color(0xFFC0392B), "card-pick-cancel") { cardPick = emptyList(); cardSecond = false }
             }
-            else if (legal.isNotEmpty()) HumanControls(state, me, legal, names, send, Modifier.align(Alignment.BottomEnd).padding(8.dp),
-                onBoardPick = { cardPick = it; cardSecond = false; pending = emptyList() })
+            else if (legal.isNotEmpty()) HumanControls(state, me, legal, names, send, Modifier.fillMaxSize().padding(start = panelEdge, end = 8.dp, bottom = 8.dp),
+                onBoardPick = { cardPick = it; cardSecond = false; pending = emptyList() },
+                discardCause = tick.let {
+                    if (tracker.turnCard == wgbg.engine.Progress.SABOTEUR && state.currentPlayer != me) "${names[state.currentPlayer]} played Wrecker against you" else null
+                },
+                tradeButton = if (tick.let { tradeButtonVisible(state) }) ({
+                    IconPlateButton(MoveIcon.TRADE, "Trade", "trade-toggle", lit = tradeOpen || tradeNeedsMe(state, me)) { tradeOpen = !tradeOpen }
+                }) else null)
             if (chosen.isNotEmpty()) Column(
                 Modifier.align(Alignment.TopCenter).padding(top = 8.dp).chest(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -1121,6 +1166,8 @@ fun WatchGameScreen(
                         modifier = Modifier.border(1.dp, Color(0xFF8A6A2A), RoundedCornerShape(10.dp))
                             .clickable { confirmExit = true }.padding(horizontal = 10.dp, vertical = 3.dp).testTag("menu-exit"))
                 }
+                // Every card and what it does, and what everything costs (Mauro: "make a map in the menu").
+                WoodButton("Card guide", "menu-guide") { guideOpen = true; panelOpen = false }
                 if (online != null) Text("Online · room ${online.id}", fontWeight = FontWeight.Bold, modifier = Modifier.testTag("menu-room"))
                 if (online == null) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
@@ -1151,10 +1198,19 @@ fun WatchGameScreen(
             color = Color(0xFFFFB4A0), fontSize = 12.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 14.dp, end = 120.dp).background(Color(0xCC2A1B10), RoundedCornerShape(8.dp))
                 .padding(horizontal = 8.dp, vertical = 3.dp).testTag("debug-badge"))
-        BrassButton(if (panelOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) { panelOpen = !panelOpen }
+        BrassButton(if (panelOpen || settingsOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) {
+            if (settingsOpen) settingsOpen = false else panelOpen = !panelOpen
+        }
         if (compareTiles) { BackHandler { compareTiles = false }; TileCompare(onBack = { compareTiles = false }) }
         // Settings open from the gear inside the Menu, so the board stays clean.
-        if (settingsOpen) SettingsPanel(env, sound, onClose = { settingsOpen = false },
+        if (histogramOpen) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            // Copies, so each move's new counts reach the screen (the arrays themselves never change identity).
+            tick.let { DiceHistogram(tracker.rollCounts.copyOf(), tracker.eventCounts.copyOf(), state.ck != null, onClose = { histogramOpen = false }) }
+        }
+        if (guideOpen) Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
+            CardGuide(state.ck != null, onClose = { guideOpen = false })
+        }
+        if (settingsOpen) SettingsPanel(env, sound,
             Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp))
         if (confirmExit) Column(
             Modifier.align(Alignment.Center).brassEdgedWood().padding(18.dp).testTag("exit-confirm"),
@@ -1175,18 +1231,32 @@ fun WatchGameScreen(
             }
         }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.
+        // The build menu down the right edge, on your turn: an icon per thing you can build or do to a knight.
+        if (me >= 0 && !inventory && !panelOpen && !settingsOpen && !chestOpen && tick.let { state.phase == Phase.PLAY_TURN && state.currentPlayer == me && state.actingPlayer == me })
+            BuildMenu(state.ck != null, legal, buildMode, { buildMode = it }, { a -> pending = emptyList(); humanMoves.trySend(a) },
+                Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (env.viewBars) 156.dp else 8.dp))
         // Zoom and Tilt bars on the right edge (pinch and two-finger drag do the same).
         if (env.viewBars && !inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
             onZoom = { z -> camera = camera.transform(Offset(boardSize.width / 2f, boardSize.height / 2f), Offset.Zero, z / camera.zoom, boardSize) },
             onTilt = { t -> camera = camera.copy(tilt = t) },
             // Upper right under Trade, short, clear of the move buttons that stack up from the bottom right.
             Modifier.align(Alignment.TopEnd).padding(top = 104.dp, end = 8.dp))
-        if (me >= 0 && !inventory && tick.let { tradeButtonVisible(state) }) TradeToggle(
-            open = tradeOpen || tradeNeedsMe(state, me),
-            attention = tick.let { tradeNeedsMe(state, me) },
-            onClick = { tradeOpen = !tradeOpen },
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (panelOpen || settingsOpen) 376.dp else 8.dp),
-        )
+    }
+}
+
+/**
+ * Android brought the app back without its room connection (it closed the app in the background): while the saved
+ * room is being rejoined, say so on the game's wood instead of flashing the start screen (Mauro: "the lobby is
+ * visible for a sec"). With no room to rejoin, [orElse] goes back to the start screen.
+ */
+@Composable
+private fun RejoiningOr(savedRoom: android.content.SharedPreferences, orElse: () -> Unit) {
+    val code = savedRoom.getString("room", null)
+    if (code == null || savedRoom.getBoolean("paused", false)) { LaunchedEffect(Unit) { orElse() }; return }
+    // A rejoin that never starts (or hangs) falls back to the start screen, which offers Resume.
+    LaunchedEffect(code) { kotlinx.coroutines.delay(15_000); orElse() }
+    Box(Modifier.fillMaxSize().background(Wood.NIGHT), contentAlignment = Alignment.Center) {
+        Text("Rejoining room $code…", style = Wood.sans(20.sp, FontWeight.Bold, Color(0xFFF1D58A)), modifier = Modifier.testTag("rejoining"))
     }
 }
 
@@ -1323,6 +1393,25 @@ internal fun describe(t: ActionKind) = when (t) {
     ActionType.DISCARD -> "discarded"
     ActionType.CONFIRM_TRADE -> "traded"
     ActionType.COUNTER_TRADE -> "made a counter-offer"
+    // Age of Chivalry, in our words (the history said "Red build knight").
+    wgbg.engine.CkActionType.BUILD_KNIGHT -> "raised a knight"
+    wgbg.engine.CkActionType.ACTIVATE_KNIGHT -> "roused a knight"
+    wgbg.engine.CkActionType.PROMOTE_KNIGHT -> "promoted a knight"
+    wgbg.engine.CkActionType.MOVE_KNIGHT -> "moved a knight"
+    wgbg.engine.CkActionType.DISPLACE_KNIGHT -> "chased off a knight"
+    wgbg.engine.CkActionType.CHASE_ROBBER -> "chased the bandit away"
+    wgbg.engine.CkActionType.BUILD_CITY_WALL -> "built Ramparts"
+    wgbg.engine.CkActionType.IMPROVE_CITY -> "improved a town"
+    wgbg.engine.CkActionType.PLAY_PROGRESS -> "played a progress card"
+    wgbg.engine.CkActionType.RELOCATE_KNIGHT -> "set a knight down elsewhere"
+    wgbg.engine.CkActionType.DISCARD_PROGRESS -> "discarded a progress card"
+    wgbg.engine.CkActionType.CHOOSE_CARD -> "chose a card"
+    wgbg.engine.CkActionType.CHOOSE_VERTEX -> "chose a corner"
+    wgbg.engine.CkActionType.CHOOSE_PROGRESS_DECK -> "drew a progress card"
+    wgbg.engine.CkActionType.TAKE_PROGRESS -> "took a progress card"
+    wgbg.engine.CkActionType.COMMERCIAL_HARBOR_OFFER -> "offered a Harbor Charter swap"
+    wgbg.engine.CkActionType.CK_DONE -> "finished"
+    wgbg.engine.CkActionType.OFFER_TRADE_CK -> "offered a trade"
     else -> t.toString().lowercase().replace('_', ' ')
 }
 
@@ -1521,7 +1610,9 @@ data class Camera(val zoom: Float = 1f, val pan: Offset = Offset.Zero, val tilt:
         const val PAN_EXTRA = 0.4f
         /** Steepest table tilt, in radians (about 55 degrees). */
         const val MAX_TILT = 0.96f
-        val FIT = Camera()
+        /** The board starts tipped up a little, 15% of the way to full tilt (Mauro: "start the board at a 10 or 15% uptilt"). */
+        const val START_TILT = 0.15f * MAX_TILT
+        val FIT = Camera(tilt = START_TILT)
     }
 }
 
@@ -1578,14 +1669,18 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             val at = l.project(pose.x, pose.y)
             val size = 1.15f * scale * l.kAt(pose.y)
             val right = kotlin.math.cos(pose.heading) >= 0f
-            sea?.boatWake?.let { wake ->
+            val s3d = sea?.sprites3d
+            // The 3D ship (#63), bow-first along its course; the painted side view while it isn't loaded.
+            if (s3d != null) drawSeaProp(s3d, at, SeaSprites3d.RAIDERS_FRAME * scale * l.kAt(pose.y), SeaSprites3d.headingIndex(pose.heading, l.squash),
+                SeaSprites3d.tiltStep(l.tilt), SeaArt.raiders, wake = SeaArt.raidersWake)
+            else sea?.boatWake?.let { wake ->
                 val stern = l.project(pose.x - kotlin.math.cos(pose.heading) * 0.35f, pose.y - kotlin.math.sin(pose.heading) * 0.35f)
                 withTransform({ rotate(Math.toDegrees(pose.heading.toDouble()).toFloat(), stern) }) {
                     drawImage(wake, dstOffset = IntOffset((stern.x - size * 0.6f).toInt(), (stern.y - size * 0.15f).toInt()),
                         dstSize = IntSize((size * 0.7f).toInt(), (size * 0.3f).toInt()), alpha = 0.4f)
                 }
             }
-            withTransform({ if (!right) scale(-1f, 1f, at) }) {
+            if (s3d == null) withTransform({ if (!right) scale(-1f, 1f, at) }) {
                 drawImage(raiders, dstOffset = IntOffset((at.x - size / 2).toInt(), (at.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()),
                     filterQuality = FilterQuality.Medium)
             }
@@ -1608,7 +1703,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             // 3D preview: the rendered tile (base and thickness baked in) at this tilt, then our number plate on top.
             val hs = scale * l.hexK(h)
             drawSteppedSprite(r3d, c, Tile3dArt.FRAME_UNITS * hs, l.tilt)
-            if (board.hexNumber[h] != 0) drawNumberToken(board.hexNumber[h], c + Offset(NUMBER_TOKEN_X * hs, NUMBER_TOKEN_Y * hs * l.squash), hs, measurer, wood)
+            if (board.hexNumber[h] != 0) drawNumberToken(board.hexNumber[h], c + Offset(TILE3D_PLATE_X * hs, TILE3D_PLATE_Y * hs * l.squash), hs, measurer, wood)
         } else drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]), tileLine)
     }
 
@@ -1669,7 +1764,9 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         if (bandit != null) {
             // Mauro: the bandit stands ON the number plate and hides it (drawn after the tiles and their tokens).
             val hs = scale * l.hexK(s.robberHex)
-            drawBandit(bandit, l.hexCenter(s.robberHex) + Offset(NUMBER_TOKEN_X * hs, NUMBER_TOKEN_Y * hs * l.squash), hs, l.tilt)
+            // On the number plate, wherever this tile style puts it (the 3D tiles have it further right and higher).
+            val plate = if (tiles3d != null) Offset(TILE3D_PLATE_X, TILE3D_PLATE_Y) else Offset(NUMBER_TOKEN_X, NUMBER_TOKEN_Y)
+            drawBandit(bandit, l.hexCenter(s.robberHex) + Offset(plate.x * hs, plate.y * hs * l.squash), hs, l.tilt)
         } else {
             val rs = scale * l.hexK(s.robberHex) * stand
             drawRobber(l.hexCenter(s.robberHex) + Offset(0.15f * rs, 0.15f * rs * l.squash), rs)
@@ -1683,8 +1780,8 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         if (kOwner >= 0 && rendered3dKnights) {
             val level = ck!!.knightLevel[v].coerceIn(1, 3)
             val color = PLAYER_COLORS[kOwner]
-            drawPieceSprite(buildings!!.knights[level - 1], l.at(v), scale * l.k(v) * KNIGHT_SCALE / BuildingSprites.FRAME_UNITS, l.tilt, color,
-                bodyFilter = knightBodyFilter(color, ck.isActive(v)))
+            drawPieceSprite(buildings!!.knights[level - 1], l.at(v), scale * l.k(v) * KNIGHT_SCALE / BuildingSprites.FRAME_UNITS, l.tilt, color)
+            if (ck.isActive(v)) drawKnightFlag(l.at(v), scale * l.k(v) * KNIGHT_SCALE, color)
             continue
         }
         val owner = s.vertexOwner[v]
@@ -1696,16 +1793,15 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             val ckNow = s.ck
             // Ramparts (Mauro's pick C): the walls at 65%, the town perched on top of them, a little smaller and lifted.
             val walled = ckNow != null && ckNow.wall[v] == 1
-            if (walled) buildings.ramparts?.let { drawPieceSprite(it, at, unit * RAMPARTS_SCALE, l.tilt, color) }
-            val perch = if (walled) Offset(0f, -RAMPARTS_PERCH_LIFT * BuildingSprites.FRAME_UNITS * unit) else Offset.Zero
-            val townUnit = if (walled) unit * RAMPARTS_TOWN_SCALE else unit
+            // Taller crenellations as the owner improves their towns (0.2.6), the town perched on whichever height.
+            val height = if (walled) BuildingSprites.rampartsHeight((0 until Track.COUNT).maxOf { ckNow!!.level(owner, it) }) else -1
             val metro = ckNow?.metroVertex?.indexOf(v) ?: -1
             val piece = when {
                 metro >= 0 -> buildings.capital(metro) ?: buildings.town
                 s.vertexBuilding[v] == Piece.CITY -> buildings.town
                 else -> buildings.homestead
             }
-            drawPieceSprite(piece, at + perch, townUnit, l.tilt, color)
+            drawWalledPiece(buildings, piece, at, unit, l.tilt, color, height)
             continue
         }
         with(wood) {
@@ -1893,7 +1989,7 @@ private fun DrawScope.drawRobber(c: Offset, scale: Float) {
 
 /** Bitmap art the Inventory lays out beside the drawn pieces (knights in the current theme). */
 private class InventoryArt(val knights: List<ImageBitmap>, val raiders: ImageBitmap, val cliffs: List<ImageBitmap>, val boats: List<ImageBitmap>,
-                           val gull: ImageBitmap, val buildings: BuildingSprites? = null)
+                           val gull: ImageBitmap, val buildings: BuildingSprites? = null, val sea3d: SeaSprites3d? = null)
 
 /** Height of the Inventory's bottom row of cards and dice (a Compose overlay); the canvas fits above it. */
 private const val INVENTORY_CARDS_DP = 126
@@ -1922,7 +2018,7 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
     ports.forEachIndexed { i, type ->
         val c = Offset(left + i * 2.05f * scale, 4.0f * scale)
         val buoy = art?.buildings?.ports?.getOrNull(PortArt.index(type))
-        if (buoy != null) drawSteppedSprite(buoy, c, BuildingSprites.FRAME_UNITS * scale * 1.4f, 0.55f)
+        if (buoy != null) drawSteppedSprite(buoy, c, BuildingSprites.FRAME_UNITS * scale * 1.4f * PORT_BUOY_SCALE, 0.55f)
         else drawPortToken(type, c, scale * 1.4f, measurer, wood)
         label(if (type == Port.GENERIC) "3:1 port" else "2:1 port", c + Offset(0f, 0.6f * scale))
     }
@@ -1936,7 +2032,9 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
             val unit = scale * 2.2f
             drawPieceSprite(sprites.roadP30, Offset(x - 0.5f * scale, y), unit, 0.55f, PLAYER_COLORS[p])
             drawPieceSprite(sprites.homestead, Offset(x + 0.5f * scale, y), unit, 0.55f, PLAYER_COLORS[p])
-            drawPieceSprite(sprites.town, Offset(x + 1.35f * scale, y), unit, 0.55f, PLAYER_COLORS[p])
+            // Age of Chivalry: the first three towns sit on low, middle and high Ramparts, the last stands plain.
+            val walls = if (sprites.ramparts.isNotEmpty() && p < 3) p else -1
+            drawWalledPiece(sprites, sprites.town, Offset(x + 1.35f * scale, y), unit, 0.55f, PLAYER_COLORS[p], walls)
         } else with(wood) {
             road(Offset(x - 0.9f * scale, y + 0.2f * scale), Offset(x - 0.1f * scale, y - 0.4f * scale), p, scale * 1.3f)
             settlement(Offset(x + 0.5f * scale, y), p, scale * 1.3f)
@@ -1956,10 +2054,11 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
     val y4 = 8.75f * scale
     val knights3d = art.buildings?.knights.orEmpty()
     if (knights3d.isNotEmpty()) for (i in 0 until 6) {
-        // The 3D knights (Age of Chivalry games): levels 1-3, idle (dimmed) then active, in the owner colours.
+        // The 3D knights (Age of Chivalry games): levels 1-3, idle then active (flying its flag), in the owner colours.
         val c = Offset(left - 0.6f * scale + i * 0.95f * scale, y4)
         val color = PLAYER_COLORS[(i / 2) % PLAYER_COLORS.size]
-        drawPieceSprite(knights3d[i / 2], c + Offset(0f, 0.15f * scale), scale * 1.5f, 0.55f, color, bodyFilter = knightBodyFilter(color, i % 2 == 1))
+        drawPieceSprite(knights3d[i / 2], c + Offset(0f, 0.15f * scale), scale * 1.5f, 0.55f, color)
+        if (i % 2 == 1) drawKnightFlag(c + Offset(0f, 0.15f * scale), BuildingSprites.FRAME_UNITS * scale * 1.5f, color)
         label("L${i / 2 + 1}${if (i % 2 == 1) " on" else ""}", c + Offset(0f, 0.5f * scale))
     } else art.knights.forEachIndexed { i, k ->
         val c = Offset(left - 0.6f * scale + i * 0.95f * scale, y4)
@@ -1967,13 +2066,23 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
         label("L${i / 2 + 1}${if (i % 2 == 1) " on" else ""}", c + Offset(0f, 0.5f * scale))
     }
     val shipAt = Offset(left + 5.3f * scale, y4)
-    image(art.raiders, shipAt, 1.1f); label("Raiders", shipAt + Offset(0f, 0.6f * scale))
+    val s3d = art.sea3d
+    // The 3D sea props (#63) as the board draws them at this tilt, side on; else the painted ones.
+    val invStep = SeaSprites3d.tiltStep(0.55f)
+    if (s3d != null) drawSeaProp(s3d, shipAt, SeaSprites3d.RAIDERS_FRAME * scale, 0, invStep, SeaArt.raiders)
+    else image(art.raiders, shipAt, 1.1f)
+    label("Raiders", shipAt + Offset(0f, 0.6f * scale))
     val cliffAt = Offset(left + 7.4f * scale, y4 - 0.15f * scale)
     image(art.cliffs[0], cliffAt, 2.4f); label("Cliff", cliffAt + Offset(0f, 0.45f * scale))
-    art.boats.take(4).forEachIndexed { i, bt -> image(bt, Offset(left + 9.2f * scale + (i % 2) * 0.7f * scale, y4 - 0.35f * scale + (i / 2) * 0.6f * scale), 0.7f) }
+    art.boats.take(4).forEachIndexed { i, bt ->
+        val at = Offset(left + 9.2f * scale + (i % 2) * 0.7f * scale, y4 - 0.35f * scale + (i / 2) * 0.6f * scale)
+        if (s3d != null) drawSeaProp(s3d, at, SeaSprites3d.SLOOP_FRAME * scale * 0.8f, 8 * (i % 2), invStep, SeaArt.sloop, SeaArt.sloopTrim, tint = PLAYER_COLORS[i])
+        else image(bt, at, 0.7f)
+    }
     label("Boats", Offset(left + 9.55f * scale, y4 + 0.6f * scale))
     val gullAt = Offset(left + 10.7f * scale, y4)
-    image(art.gull, gullAt, 0.8f); label("Gull", gullAt + Offset(0f, 0.5f * scale))
+    if (s3d != null) drawSeaProp(s3d, gullAt, SeaSprites3d.GULL_FRAME * scale * 2f, 4, invStep, SeaArt.gull) else image(art.gull, gullAt, 0.8f)
+    label("Gull", gullAt + Offset(0f, 0.5f * scale))
 }
 
 private class PortGeom(val type: Int, val a: Offset, val b: Offset, val mid: Offset, val out: Offset, val token: Offset, val scale: Float)
@@ -2044,11 +2153,11 @@ private fun DrawScope.drawPortPiersAndToken(pg: PortGeom, scale: Float, measurer
     }
     // Crest's bell buoy with the trade good on deck (3:1 an anchor); the old wooden token if the art isn't loaded.
     if (buoy != null) {
-        drawSteppedSprite(buoy, pg.token, BuildingSprites.FRAME_UNITS * scale, tilt)
+        drawSteppedSprite(buoy, pg.token, BuildingSprites.FRAME_UNITS * scale * PORT_BUOY_SCALE, tilt)
         // The rate on a little worn-wood tag at the buoy's foot, so you never have to remember which is which.
         val label = measurer.measure(if (pg.type == Port.GENERIC) "3:1" else "2:1",
-            TextStyle(fontSize = (0.17f * scale / density).sp, fontWeight = FontWeight.Bold, color = Color(0xFFF6EBD2)))
-        val at = pg.token + Offset(0f, 0.30f * scale)
+            TextStyle(fontSize = (0.17f * PORT_BUOY_SCALE * scale / density).sp, fontWeight = FontWeight.Bold, color = Color(0xFFF6EBD2)))
+        val at = pg.token + Offset(0f, 0.30f * PORT_BUOY_SCALE * scale)
         val w = label.size.width + 0.10f * scale; val h = label.size.height.toFloat()
         drawRoundRect(Color(0xE6372312), Offset(at.x - w / 2, at.y - h / 2), Size(w, h), androidx.compose.ui.geometry.CornerRadius(h / 3, h / 3))
         drawRoundRect(Color(0xFFA9863F), Offset(at.x - w / 2, at.y - h / 2), Size(w, h), androidx.compose.ui.geometry.CornerRadius(h / 3, h / 3), style = Stroke(0.012f * scale))
@@ -2113,9 +2222,23 @@ internal const val BUILDING_SCALE = 1.8f   // Mauro 2026-10-11: 25% smaller than
 /** Ramparts under a town (pick C): the walls this share of a building, the town on top this share, lifted by this share of a frame. */
 internal const val RAMPARTS_SCALE = 0.65f
 /** How far out to sea a port buoy sits from the coast edge's middle, in hex units (the old token sat at 0.58). */
-internal const val PORT_BUOY_OUT = 0.70f
+internal const val PORT_BUOY_OUT = 0.80f   // 0.70 before the buoys grew 30%
+/** Port buoys this many times their art-spec size (Mauro, 2026-10-11: "ports need to be 30% bigger"). */
+internal const val PORT_BUOY_SCALE = 1.3f
 internal const val RAMPARTS_TOWN_SCALE = 0.88f
-internal const val RAMPARTS_PERCH_LIFT = 12f / 256f
+
+/**
+ * Draws [piece] at [at] ([unit] as for drawPieceSprite), on Ramparts of [height] (0 low to 2 high) when that is 0 or
+ * more: the walls at [RAMPARTS_SCALE], the piece perched on top of them a little smaller (Mauro's pick C).
+ */
+internal fun DrawScope.drawWalledPiece(buildings: BuildingSprites, piece: BuildingSprites.Piece, at: Offset, unit: Float, tilt: Float, color: Color, height: Int) {
+    val walls = buildings.ramparts.getOrNull(height)
+    if (walls == null) { drawPieceSprite(piece, at, unit, tilt, color); return }
+    drawPieceSprite(walls, at, unit * RAMPARTS_SCALE, tilt, color)
+    drawPieceSprite(piece, at + Offset(0f, -RAMPARTS_PERCH_LIFT[height] * BuildingSprites.FRAME_UNITS * unit), unit * RAMPARTS_TOWN_SCALE, tilt, color)
+}
+/** The perch lift per Ramparts height (low, middle, high): the taller walls lift the town a little more. */
+internal val RAMPARTS_PERCH_LIFT = floatArrayOf(12f / 256f, 14f / 256f, 17f / 256f)
 
 /** Draws the tilt-stepped sprite [frames] centred on [c], [side] px square, cross-fading the two nearest steps. */
 private fun DrawScope.drawSteppedSprite(frames: List<ImageBitmap>, c: Offset, side: Float, tilt: Float) {
@@ -2144,6 +2267,12 @@ internal const val ROAD_SPREAD = 0.2f
  */
 internal const val NUMBER_TOKEN_X = 0.36f
 internal const val NUMBER_TOKEN_Y = 0.3f
+/**
+ * The number plate on a V3 3D tile, in hex units: the models are turned so the clearing sits in the lower half, lower
+ * right, at every tilt (Mauro, 2026-10-11: "the number is on the lower half of the tile").
+ */
+internal const val TILE3D_PLATE_X = 0.44f
+internal const val TILE3D_PLATE_Y = 0.162f
 
 private fun DrawScope.drawNumberToken(n: Int, t: Offset, scale: Float, measurer: TextMeasurer, wood: WoodPieces) {
     val r = NUMBER_TOKEN_R * scale

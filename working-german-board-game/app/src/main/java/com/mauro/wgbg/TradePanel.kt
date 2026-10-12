@@ -77,6 +77,14 @@ fun tradeMode(s: GameState, me: Int): TradeMode {
 }
 
 /** True when the game is waiting on [me] to answer a trade: the panel opens itself. */
+/** Why the chest can't trade right now, in the player's words (Mauro's playtest: after Envoy it wrongly said "Trade on your turn"). */
+internal fun tradeClosedReason(s: GameState, me: Int): String = when {
+    s.currentPlayer != me -> "Trade on your turn"
+    !s.hasRolled -> "Roll first, then trade"
+    s.phase == Phase.PLAY_TURN && s.freeRoads > 0 -> "Place your free road first, then trade"
+    else -> "Finish what you're doing, then trade"
+}
+
 fun tradeNeedsMe(s: GameState, me: Int) = tradeMode(s, me).let {
     it == TradeMode.RESPOND || it == TradeMode.REVIEW_COUNTER || it == TradeMode.PICK_PARTNER
 }
@@ -131,7 +139,8 @@ fun bankRate(s: GameState, p: Int, r: Int): Int {
 // ------------------------------------------------------------------ the chest
 
 /** Parchment, Weave, Silver edge colours (Academy green, Guilds gold, Crown blue). */
-private val COMMODITY_COLORS = listOf(Color(0xFF4CAF50), Color(0xFFE0B23A), Color(0xFF3F7FD6))
+/** Parchment, Weave, Silver: their deck colours (forest green, pale white-green, blue-grey). */
+private val COMMODITY_COLORS = listOf(TRACK_COLORS[wgbg.engine.Track.SCIENCE], TRACK_COLORS[wgbg.engine.Track.TRADE], TRACK_COLORS[wgbg.engine.Track.POLITICS])
 
 /** Illustrated resource cards (Mauro's art), indexed like RESOURCE_NAMES. */
 val CARD_ART = listOf(R.drawable.card_timber, R.drawable.card_clay, R.drawable.card_fleece, R.drawable.card_grain, R.drawable.card_stone)
@@ -302,7 +311,7 @@ private fun status(s: GameState, me: Int, mode: TradeMode, names: List<String>, 
     mode == TradeMode.REVIEW_COUNTER -> "${names[s.counterFrom]} counters your offer"
     mode == TradeMode.PICK_PARTNER -> "Pick who to trade with"
     mode == TradeMode.WAITING -> "Waiting for ${names[s.actingPlayer]}…"
-    else -> if (s.currentPlayer == me && !s.hasRolled) "Roll first, then trade" else "Trade on your turn"
+    else -> tradeClosedReason(s, me)
 }
 
 @Composable
@@ -382,6 +391,34 @@ private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, under:
     }
 }
 
+/** What a "Choose a card" moment is for, in words: the science bonus, Harbor Charter, Grand Factor or Feast. */
+internal fun cardChoiceTitle(s: GameState, names: List<String>): String = when (s.phase) {
+    Phase.AQUEDUCT -> "Science bonus: nothing came your way, so take any one card free"
+    Phase.COMMERCIAL_HARBOR_RESPOND -> "${names[s.currentPlayer]} played Harbor Charter: give back one commodity"
+    Phase.MASTER_MERCHANT -> "Grand Factor: take a card from ${names[s.ck?.pendingTarget ?: 0]}"
+    Phase.WEDDING -> "${names[s.currentPlayer]} played Feast against you: give them ${s.ck?.giveOwed?.getOrNull(s.actingPlayer) ?: 2} card(s), one at a time"
+    else -> "Choose a card"
+}
+
+/**
+ * The trade chest's card picker, reused wherever the game asks you to pick one card (Mauro): the illustrated cards
+ * on offer, with how many you (or, for Grand Factor, they) hold under each. One tap picks.
+ */
+@Composable
+fun CardChoiceSheet(s: GameState, me: Int, choices: List<Action>, names: List<String>, onMove: (Action) -> Unit, modifier: Modifier = Modifier) {
+    val owner = if (s.phase == Phase.MASTER_MERCHANT) s.ck?.pendingTarget ?: me else me
+    Column(modifier.chest().testTag("card-choice"), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(cardChoiceTitle(s, names), color = INK, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (a in choices.sortedBy { it.a }) Column(horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable { onMove(a) }.testTag("choose-card-${a.a}")) {
+                Image(painterResource(ALL_CARD_ART[a.a]), ALL_CARD_NAMES[a.a], Modifier.size(width = 42.dp, height = 60.dp))
+                Text("${if (owner == me) "have" else "has"} ${s.card(owner, a.a)}", color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            }
+        }
+    }
+}
+
 /** Five resource cards; tap adds one (or picks it, for the bank), the "−" under a card takes one back. */
 @Composable
 private fun CardRow(counts: IntArray, editable: Boolean, single: Boolean, badge: (Int) -> String?, change: (Int, Int) -> Unit) {
@@ -414,11 +451,21 @@ private fun CardRow(counts: IntArray, editable: Boolean, single: Boolean, badge:
     }
 }
 
+/** The chest's buttons (green yes, red no, gold counter), shared by every card sheet so they all look alike. */
+internal val CHEST_YES = Color(0xFF3E9B4F)
+internal val CHEST_NO = Color(0xFFC0392B)
+internal val CHEST_GOLD = Color(0xFFE0B23A)
+/** The chest's text colour. */
+internal val CHEST_INK = Color(0xFFEDE6D8)
+
 @Composable
-private fun BigButton(label: String, color: Color, tag: String, onClick: (() -> Unit)?) {
+internal fun ChestButton(label: String, color: Color, tag: String, width: androidx.compose.ui.unit.Dp = 78.dp, onClick: (() -> Unit)?) = BigButton(label, color, tag, onClick, width)
+
+@Composable
+private fun BigButton(label: String, color: Color, tag: String, onClick: (() -> Unit)?, width: androidx.compose.ui.unit.Dp = 78.dp) {
     val on = onClick != null
     Box(
-        Modifier.size(width = 78.dp, height = 38.dp)
+        Modifier.size(width = width, height = 38.dp)
             .background(if (on) color else color.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
             .border(2.dp, if (on) BRASS_LIGHT else BRASS_DARK, RoundedCornerShape(10.dp))
             .then(if (on) Modifier.clickable { onClick!!() } else Modifier).testTag(tag),
@@ -434,17 +481,6 @@ private fun Pill(label: String, color: Color, tag: String, onClick: () -> Unit) 
     ) { Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
 }
 
-/** The always-visible Trade toggle; glows when a trade is waiting on you. */
-@Composable
-fun TradeToggle(open: Boolean, attention: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier.size(width = 84.dp, height = 40.dp)
-            .background(if (open) BRASS else WOOD_DARK, RoundedCornerShape(10.dp))
-            .border(if (attention) 3.dp else 2.dp, if (attention) COUNTER else BRASS, RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick).testTag("trade-toggle"),
-        contentAlignment = Alignment.Center,
-    ) { Text("Trade", color = if (open) WOOD_DARK else INK, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
-}
 
 /** The Trade button appears once setup is over (no trading while placing the first homesteads). */
 fun tradeButtonVisible(s: GameState) = s.phase != Phase.BUILD_INITIAL_SETTLEMENT && s.phase != Phase.BUILD_INITIAL_ROAD

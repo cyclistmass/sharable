@@ -39,7 +39,7 @@ class OnlineLobbyTest {
         org.junit.jupiter.api.Assertions.assertEquals(listOf(0, 2, 3), guest.players)   // the empty open seat doesn't play
         org.junit.jupiter.api.Assertions.assertEquals(2, guest.me)
         org.junit.jupiter.api.Assertions.assertEquals(3, guest.config.numPlayers)
-        org.junit.jupiter.api.Assertions.assertEquals(listOf("Mauro", "Blue (Easy)", "You"), guest.names)
+        org.junit.jupiter.api.Assertions.assertEquals(listOf("Mauro", "Blue (Easy)", "Erin"), guest.names)  // your own seat shows your name
         org.junit.jupiter.api.Assertions.assertEquals(BotLevel.EASY, guest.bot(1))
         org.junit.jupiter.api.Assertions.assertNull(guest.bot(0)); org.junit.jupiter.api.Assertions.assertNull(guest.bot(2))
         org.junit.jupiter.api.Assertions.assertEquals(3, guest.seatOf(2))
@@ -118,5 +118,11 @@ class OnlineLobbyTest {
         s.close()
         val stuck = runCatching { LobbySession.host(InMemoryTransport("h2", store), setup, 5, code = "ROVER-42", attempts = 2) { "HARBOR-43" }.join() }
         assertTrue(stuck.isFailure, "two taken codes and two tries: fails")
+    }
+
+    @Test fun `local lobby numbers a name that is already seated`() {
+        val l = Lobby.host(GameSetup(name = "Erin").withSeat(1, SeatKind.FRIEND).withSeat(2, SeatKind.FRIEND), code = "ROVER-42")
+            .join("Erin")!!.join("erin")!!
+        assertEquals(listOf("Erin", "Erin 2", "erin 3"), l.seats.take(3).map { it.name })
     }
 }

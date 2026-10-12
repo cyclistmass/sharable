@@ -18,6 +18,17 @@ data class MoveUpdate(val room: Room, val moves: List<Move>, val fromCache: Bool
 fun interface Subscription { fun close() }
 fun moveId(seq: Long) = seq.toString().padStart(10, '0')
 
+/**
+ * [name] as it should sit in a room where [taken] are already seated: trimmed, and when someone there already has it
+ * (ignoring case), numbered "Erin 2", "Erin 3"... so two players never share a name on the board or in the history.
+ */
+fun uniqueSeatName(name: String, taken: List<String>): String {
+    val base = name.trim()
+    val used = taken.map { it.trim().lowercase() }.toSet()
+    if (base.lowercase() !in used) return base
+    return generateSequence(2) { it + 1 }.map { "$base $it" }.first { it.lowercase() !in used }
+}
+
 /** Methods complete exceptionally for conflicts/denials. Callbacks may run off the UI thread. */
 interface GameTransport {
     fun signIn(): CompletableFuture<String>

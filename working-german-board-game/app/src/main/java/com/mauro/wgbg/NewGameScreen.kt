@@ -81,8 +81,10 @@ fun NewGameScreen(
     /** An online game you left for now (room code): shows a green Resume button until it ends or is deleted. */
     resumeRoom: String? = null,
     onResume: (() -> Unit)? = null,
-    /** Look & art (#71): pick the theme, dice, tiles and see every piece, before the game. */
-    onLookAndArt: (() -> Unit)? = null,
+    /** Look & art (#71): pick the theme, dice, tiles and see every piece, before the game; gets the choices on screen. */
+    onLookAndArt: ((GameSetup) -> Unit)? = null,
+    /** Plays the intro fly-over now (Mauro: a button on the start screen, not a setting in the game). */
+    onPlayIntro: (() -> Unit)? = null,
 ) {
     var setup by remember { mutableStateOf(initial) }
     // The deck size to come back to when switching Random -> Card deck (72 by default, as drawn).
@@ -129,7 +131,9 @@ fun NewGameScreen(
                 Choice("+", false, "points-up", Modifier.size(34.dp), size = 18.sp,
                     enabled = setup.points < GameSetup.POINTS_RANGE.last) { setup = setup.withPoints(setup.points + 1) }
                 Spacer(Modifier.weight(1f))
-                if (onLookAndArt != null) BrassButton("Look & art", "look-and-art", Modifier.height(40.dp)) { onLookAndArt() }
+                if (onPlayIntro != null) WoodButton("Intro", "play-intro", Modifier.height(40.dp)) { onPlayIntro() }
+                if (onPlayIntro != null) Spacer(Modifier.width(8.dp))
+                if (onLookAndArt != null) BrassButton("Look & art", "look-and-art", Modifier.height(40.dp)) { onLookAndArt(setup) }
             }
         }
         Panel(Modifier.width(300.dp)) {
