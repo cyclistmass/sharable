@@ -36,6 +36,17 @@ jobs:
       - name: Engine, AI and app tests (rules, fuzz, break-it, dice fairness, trading, camera)
         run: bash ./gradlew --no-daemon :engine:test :ai:test :net:test :app:testDebugUnitTest
 
+      # Differential test against Catanatron (#12): the engine tests above wrote 200 random base games as traces;
+      # Catanatron replays them and every legal-move list and state must match (allowing for its documented
+      # simplifications, see tools/catanatron/diff.py).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Rules cross-check against Catanatron (200 games, every move)
+        run: |
+          python -m pip install --quiet catanatron==3.2.1
+          python tools/catanatron/diff.py engine/build/catanatron-traces
+
       # The Firebase app config is kept out of git; CI gets it from a repository secret so the APK can play online
       # and send crash reports. Without the secret the build still works, offline only.
       - name: Firebase config for the APK
