@@ -58,13 +58,22 @@ class LiveLiftTest {
     }
 
     @Test
-    fun `the lift matches the flat board's steps and never looks past the steepest view`() {
-        val step = Camera.MAX_TILT / 7f
-        assertEquals(4 * step, liveLift(0f, 4f), 1e-6f)
-        assertEquals(4 * step, liveLift(Camera.START_TILT, 4f), 1e-6f)
-        assertEquals(Camera.MAX_TILT - 5 * step, liveLift(5 * step, 4f), 1e-5f)
-        assertEquals(0f, liveLift(Camera.MAX_TILT, 4f), 1e-6f)
-        assertEquals(0f, liveLift(0.3f, 0f), 1e-6f)
+    fun `pieces are seen from 10 degrees above the table until the board tilts past that`() {
+        // Mauro picked it, 2026-10-12: side-on with fronts showing on a flat or low board.
+        for (tilt in listOf(0f, Camera.START_TILT, 0.5f, Camera.MAX_TILT)) {
+            val seenFrom = Math.PI.toFloat() / 2f - (tilt + liveLift(tilt)) // elevation of the eye above the piece's table
+            assertEquals(LIVE_PIECE_VIEW, seenFrom, 1e-5f, "tilt $tilt")
+        }
+        assertEquals(0f, liveLift(1.5f), 1e-6f)  // tilted past 10° above the table: true 3D, no extra lean
+        assertEquals(0f, liveLift(Math.PI.toFloat() / 2f - LIVE_PIECE_VIEW), 1e-6f)
+    }
+
+    @Test
+    fun `with the switch off, pieces keep the board's heading`() {
+        val p = LivePlacement("default_town", Offset(0f, 0f), scale = 1f)
+        val m = liveStandingMatrix(p, 0f, 1.2f, facing = false)
+        assertArrayEquals(liveModelMatrix(p, 0f, 1.2f), m, 1e-6f)
+        assertEquals(0f, m[8], 1e-6f); assertEquals(1f, m[10], 1e-6f)  // front still +Z, not turned to the eye
     }
 
     @Test

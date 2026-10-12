@@ -95,8 +95,8 @@ class Sea(board: Board, seed: Int = 1) {
         // Harbor mouths: the water just off each port's edge gets a little extra activity.
         val harbors = board.ports.map { p ->
             val mx = (lx(p.v1) + lx(p.v2)) / 2; val my = (ly(p.v1) + ly(p.v2)) / 2
-            val d = hypot(mx, my)
-            Offset(mx + mx / d * 0.45f, my + my / d * 0.45f)
+            val n = coastOutward(board, p.v1, p.v2)
+            Offset(mx + n.x * 0.45f, my + n.y * 0.45f)
         }
 
         fun color(): Color = rnd.nextFloat().let { if (it < 0.55f) LIGHT_BLUE else if (it < 0.9f) CYAN else PALE }

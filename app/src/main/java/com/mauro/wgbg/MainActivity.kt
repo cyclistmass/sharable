@@ -976,7 +976,7 @@ fun WatchGameScreen(
                 if (inventory) liveInventoryPlacements() else livePlacements(state, env.pirateTheme, env.liveLod) { it in liveModels }
             }
             val projection = if (boardSize.minDimension > 0f) liveProjection(boardSize.width, boardSize.height) else null
-            LiveBoardView(placements, projection, Modifier.fillMaxSize()) { reason ->
+            LiveBoardView(placements, projection, Modifier.fillMaxSize(), env.facePieces) { reason ->
                 liveFailure = reason; env.liveBoard = false
                 android.widget.Toast.makeText(appContext, "3D board unavailable; using the sprite board", android.widget.Toast.LENGTH_LONG).show()
             }
@@ -1883,7 +1883,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         val a = l.at(p.v1)
         val b = l.at(p.v2)
         val mid = Offset((a.x + b.x) / 2, (a.y + b.y) / 2)
-        val n = (mid - l.center).let { it / it.getDistance() }
+        val n = coastOutward(board, p.v1, p.v2) // straight out from this edge, not from the board's centre
         val ps = scale * (l.k(p.v1) + l.k(p.v2)) / 2f
         // The rendered buoys are 1.5x the old token, so they sit a little further out (Mauro, 2026-10-11).
         PortGeom(p.type, a, b, mid, n, mid + Offset(n.x, n.y * l.squash) * ((if (buildings != null) PORT_BUOY_OUT else 0.58f) * ps), ps)

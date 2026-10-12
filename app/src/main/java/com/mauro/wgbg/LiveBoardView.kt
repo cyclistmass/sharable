@@ -21,6 +21,8 @@ import kotlin.math.*
 
 @Composable
 internal fun LiveBoardView(placements: List<LivePlacement>, projection: LiveProjection?, modifier: Modifier,
+    /** Standing pieces turn to face you when the board turns (Settings, default on). */
+    facing: Boolean = true,
     onFailure: (String) -> Unit) {
     val holder = remember { arrayOfNulls<LiveBoardRenderer>(1) }
     val latestFailure by rememberUpdatedState(onFailure)
@@ -34,6 +36,7 @@ internal fun LiveBoardView(placements: List<LivePlacement>, projection: LiveProj
         holder[0]?.let { renderer ->
             renderer.placements = placements
             renderer.projection = projection
+            renderer.facing = facing
             renderer.running = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
         }
     })
@@ -69,6 +72,7 @@ internal class LiveBoardRenderer(private val surfaceView: SurfaceView, private v
     private var scheduled = false
     var placements = emptyList<LivePlacement>()
     var projection: LiveProjection? = null
+    var facing = true
     private var shown = emptyList<LivePlacement>()
     private var active = mutableListOf<FilamentInstance>()
     private data class Model(val asset: FilamentAsset, val first: FilamentInstance)
@@ -143,7 +147,7 @@ internal class LiveBoardRenderer(private val surfaceView: SurfaceView, private v
 
     private fun model(name: String): Model = models.getOrPut(name) {
         val bytes = if (name.startsWith("digit_")) liveNumberGlb(context, name.removePrefix("digit_").toInt()) else {
-            val data = context.assets.open("filament/$name.glb").use { it.readBytes() }
+            val data = context.assets.open("filament/${liveModelFile(name)}.glb").use { it.readBytes() }
             ByteBuffer.allocateDirect(data.size).apply { put(data); flip() }
         }
         val instances = arrayOfNulls<FilamentInstance>(1)
@@ -167,10 +171,10 @@ internal class LiveBoardRenderer(private val surfaceView: SurfaceView, private v
             rm.setCastShadows(renderable, false); rm.setReceiveShadows(renderable, false)
             for (primitive in 0 until rm.getPrimitiveCount(renderable)) {
                 val material = rm.getMaterialInstanceAt(renderable, primitive)
-                if (p.owner >= 0 && woodTint(material.name)) {
+                val color = liveTint(p.model, material.name, p.owner)
+                if (color != null) {
                     val tint = tints.getOrPut(key) {
                         MaterialInstance.duplicate(material, "${p.model}-player-${p.owner}").apply {
-                            val color = PLAYER_COLORS[p.owner]
                             setParameter("baseColorFactor", Colors.RgbaType.SRGB, color.red, color.green, color.blue, 1f)
                         }
                     }
@@ -213,7 +217,7 @@ internal class LiveBoardRenderer(private val surfaceView: SurfaceView, private v
         for ((index, placement) in shown.withIndex()) {
             val m = when {
                 placement.model.startsWith("digit_") -> liveModelMatrix(placement.copy(heading = p.rotation))
-                liveStanding(placement.model) -> liveStandingMatrix(placement, lift, p.rotation)
+                liveStanding(placement.model) -> liveStandingMatrix(placement, lift, p.rotation, facing)
                 else -> continue
             }
             engine.transformManager.setTransform(engine.transformManager.getInstance(active[index].root), m)

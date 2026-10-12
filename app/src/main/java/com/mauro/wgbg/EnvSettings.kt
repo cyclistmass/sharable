@@ -109,6 +109,12 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         get() = liveBoardState.floatValue > 0.5f
         set(v) { liveBoardState.floatValue = if (v) 1f else 0f; store.put(LIVE_BOARD, liveBoardState.floatValue) }
 
+    private val faceState = mutableFloatStateOf(store.get(FACE_PIECES, 1f))
+    /** 3D board: buildings, knights and the Bandit turn to face you when you turn the board (Mauro, 2026-10-12). */
+    var facePieces: Boolean
+        get() = faceState.floatValue > 0.5f
+        set(v) { faceState.floatValue = if (v) 1f else 0f; store.put(FACE_PIECES, faceState.floatValue) }
+
     private val paceState = mutableFloatStateOf(store.get(PACE, Pace.NORMAL.ordinal.toFloat()))
     /** How fast the dice fall, moves follow each other and hints stay up (Mauro, 2026-10-12). */
     var pace: Pace
@@ -148,7 +154,7 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         set(v) { eventDie.floatValue = v.coerceIn(0, DiceArt.EVENT_STYLES.size - 1).toFloat(); store.put(EVENT_DIE, eventDie.floatValue) }
 
     /** Back to the defaults (saved). */
-    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0; liveBoard = false; liveLod = 0; pace = Pace.NORMAL }
+    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0; liveBoard = false; liveLod = 0; facePieces = true; pace = Pace.NORMAL }
 
     val clouds get() = this[Item.CLOUDS]
     val birds get() = this[Item.BIRDS]
@@ -165,6 +171,7 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         const val TILES_3D = "tiles-3d"
         const val LIVE_BOARD = "live-board"
         const val LIVE_LOD = "live-board-lod"
+        const val FACE_PIECES = "live-face-pieces"
         const val ANIMATIONS = "animations"
         const val PACE = "pace"
         const val SEE_THROUGH = "side-panel-see-through"
@@ -197,6 +204,13 @@ fun LiveBoardChoice(env: EnvSettings) {
     if (env.liveBoard) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Choice("Detail: LOD0", selected = env.liveLod == 0, tag = "live-lod-0", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.liveLod = 0 }
         Choice("Detail: LOD1", selected = env.liveLod == 1, tag = "live-lod-1", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.liveLod = 1 }
+    }
+    if (env.liveBoard) {
+        Text("Buildings face me when I turn the board", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("On", selected = env.facePieces, tag = "face-pieces-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.facePieces = true }
+            Choice("Off", selected = !env.facePieces, tag = "face-pieces-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.facePieces = false }
+        }
     }
 }
 

@@ -35,7 +35,7 @@ internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights:
     }
     for (port in s.board.ports) {
         val mid = (liveVertex(s.board, port.v1) + liveVertex(s.board, port.v2)) / 2f
-        val at = p.project(mid + mid / mid.getDistance() * .75f)
+        val at = p.project(mid + coastOutward(s.board, port.v1, port.v2) * PORT_BUOY_OUT)
         val r = p.scale * .29f
         drawCircle(Color(0xFF422A1B), r, at)
         drawCircle(Color(0xFFAD8745), r, at, style = Stroke(p.scale * .025f))
