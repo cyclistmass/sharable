@@ -11,6 +11,19 @@ internal fun liveVertex(board: Board, v: Int): Offset = board.topology.vertexPos
     Offset(it.x * sqrt(3f) / 2f, it.y / 2f)
 }
 
+/**
+ * Straight out to sea from the middle of the coast edge [v1]-[v2], as a unit vector in lattice units: from the centre of
+ * the edge's one land hex through the edge's middle. Harbours go along this, so one between two tiles sits square on its
+ * edge; aiming from the board's centre put most of them off to one side (Mauro: "not in the middle ... looks offset").
+ */
+internal fun coastOutward(board: Board, v1: Int, v2: Int): Offset {
+    val t = board.topology
+    val hex = t.vertexHexes[v1].first { it in t.vertexHexes[v2] }
+    val centre = t.hexVertices[hex].fold(Offset.Zero) { acc, v -> acc + liveVertex(board, v) } / 6f
+    val n = (liveVertex(board, v1) + liveVertex(board, v2)) / 2f - centre
+    return n / n.getDistance()
+}
+
 internal fun liveHex(board: Board, h: Int): Offset = board.topology.hexVertices[h]
     .map { liveVertex(board, it) }.reduce { a, b -> a + b } / 6f
 
@@ -37,6 +50,30 @@ internal data class LiveProjection(val center: Offset, val scale: Float, val til
 }
 
 internal fun woodTint(materialName: String): Boolean = materialName == "WoodBody"
+
+/**
+ * The knight's pedestal until the modelled base comes (#101, 0.2.9): the number-plate disc twice over, a player-colour
+ * ring with a dark road-coloured disc on it, so a blue knight still reads on blue sea or a blue road (Mauro: "a ring of
+ * the player color then has a dark roadlike circle for contrast"). The ring is 20% of the radius (Crest: at least 15%).
+ */
+internal const val KNIGHT_RING = "knight_ring"
+internal const val KNIGHT_BAND = "knight_band"
+internal const val KNIGHT_RING_SCALE = 1.15f   // radius 0.31 (the plate is 0.27 across its radius, 0.024 thick)
+internal const val KNIGHT_BAND_SCALE = 0.92f   // radius 0.25: 0.80 of the ring
+internal const val KNIGHT_BAND_HEIGHT = 0.008f // its top just above the ring's
+internal const val KNIGHT_ON_BASE = 0.031f     // the knight stands on the dark disc
+internal val KNIGHT_BAND_COLOR = androidx.compose.ui.graphics.Color(0xFF2B2622)
+
+/** The GLB file a model name loads: the pedestal discs reuse the number plate. */
+internal fun liveModelFile(model: String): String = if (model == KNIGHT_RING || model == KNIGHT_BAND) "number_plate" else model
+
+/** The colour to paint [material] of [model] for [owner], or null to keep its own: wood in the player colour, the pedestal whole. */
+internal fun liveTint(model: String, material: String, owner: Int): androidx.compose.ui.graphics.Color? = when {
+    model == KNIGHT_BAND -> KNIGHT_BAND_COLOR
+    model == KNIGHT_RING -> PLAYER_COLORS.getOrNull(owner)
+    owner >= 0 && woodTint(material) -> PLAYER_COLORS.getOrNull(owner)
+    else -> null
+}
 
 /** Runtime plate moved into the lower third, inside the low foreground of the realtime exports. */
 internal val LIVE_PLATE = Offset(0.36f, 0.45f)
@@ -70,20 +107,22 @@ internal fun liveModelMatrix(p: LivePlacement, lift: Float = 0f, rotation: Float
  * the way the digits cancel the orbit) and then tipped [lift] toward it. Without the turn, a piece leaned toward the
  * eye side-on or back-first after the Turn bar or a twist (Mauro: "buildings should tilt towards viewer after rotate").
  */
-internal fun liveStandingMatrix(p: LivePlacement, lift: Float, rotation: Float): FloatArray =
-    liveModelMatrix(p.copy(heading = p.heading + rotation), lift, rotation)
+internal fun liveStandingMatrix(p: LivePlacement, lift: Float, rotation: Float, facing: Boolean = true): FloatArray =
+    liveModelMatrix(if (facing) p.copy(heading = p.heading + rotation) else p, lift, rotation)
 
 /** Pieces that stand up (buildings, the Bandit): tipped toward the camera like the flat board's sprites. */
 internal fun liveStanding(model: String): Boolean =
     model == "bandit" || model.endsWith("_homestead") || model.endsWith("_town") || model.endsWith("_ramparts") || "_capital_" in model ||
         "_knight_" in model
 
+/** Standing pieces are seen from this far above the table (Mauro picked 10°, 2026-10-12): side-on, fronts showing. */
+internal const val LIVE_PIECE_VIEW = 0.17453292f
+
 /**
- * How far standing pieces tip toward the camera at board [tilt]: the flat board shows them [pieceLiftSteps] of its 8
- * tilt steps steeper than the land (Mauro: "3d view does not have tilt on buildings"), never past the steepest view.
+ * How far standing pieces tip toward the camera at board [tilt] (0 = straight down): enough that they're seen from
+ * [LIVE_PIECE_VIEW] above the table, until the board itself is tilted past that view; then none, true 3D.
  */
-internal fun liveLift(tilt: Float, steps: Float = pieceLiftSteps): Float =
-    (minOf(Camera.MAX_TILT, tilt + steps * Camera.MAX_TILT / 7f) - tilt).coerceAtLeast(0f)
+internal fun liveLift(tilt: Float): Float = (PI.toFloat() / 2f - LIVE_PIECE_VIEW - tilt).coerceAtLeast(0f)
 
 /**
  * The knight model at [v] (Mauro: "those knights all of them need to be models"): `<theme>_knight_l<level>`, with
@@ -143,7 +182,10 @@ internal fun livePlacements(s: GameState, pirate: Boolean, lod: Int, hasModel: (
     }
     for (v in 0 until b.vertexCount) {
         val model = liveKnightModel(s, v, pirate)?.takeIf(hasModel) ?: continue
-        add(LivePlacement(model, liveVertex(b, v), scale = LIVE_KNIGHT_MODEL_SCALE, owner = s.ck!!.knightOwner[v]))
+        val owner = s.ck!!.knightOwner[v]
+        add(LivePlacement(KNIGHT_RING, liveVertex(b, v), scale = KNIGHT_RING_SCALE, owner = owner))
+        add(LivePlacement(KNIGHT_BAND, liveVertex(b, v), KNIGHT_BAND_HEIGHT, KNIGHT_BAND_SCALE))
+        add(LivePlacement(model, liveVertex(b, v), KNIGHT_ON_BASE, LIVE_KNIGHT_MODEL_SCALE, owner = owner))
     }
 }
 
