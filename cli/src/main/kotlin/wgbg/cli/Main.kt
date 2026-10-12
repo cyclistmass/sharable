@@ -118,14 +118,14 @@ private fun runBots(r: Record, s: GameState) {
 
 private fun hexText(s: GameState, h: Int): String {
     val r = s.board.hexResource[h]
-    val name = if (r == Resource.NONE) "Desert" else "${RES[r]} ${s.board.hexNumber[h]}"
+    val name = if (r == Resource.NONE) "Desert" else "${RES[r]} ${s.numberAt(h)}"
     return "H$h $name" + if (h == s.robberHex) " (bandit)" else ""
 }
 
 private fun vertexText(s: GameState, v: Int): String {
     val hexes = s.board.topology.vertexHexes[v].joinToString(", ") { h ->
         val r = s.board.hexResource[h]
-        if (r == Resource.NONE) "Desert" else "${RES[r]} ${s.board.hexNumber[h]}" + if (h == s.robberHex) "*" else ""
+        if (r == Resource.NONE) "Desert" else "${RES[r]} ${s.numberAt(h)}" + if (h == s.robberHex) "*" else ""
     }
     val port = s.board.ports.firstOrNull { it.v1 == v || it.v2 == v }?.let { if (it.type == Port.GENERIC) " +3:1 harbor" else " +2:1 ${RES[it.type]} harbor" } ?: ""
     return "v$v [$hexes]$port"

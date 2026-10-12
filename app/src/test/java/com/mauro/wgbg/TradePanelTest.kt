@@ -148,8 +148,10 @@ class TradePanelTest {
     fun `no Trade button while placing the first homesteads and roads`() {
         val s = Rules.newGame(GameConfig(numPlayers = 4), 1)
         assertFalse(tradeButtonVisible(s), "setup: first homestead")
-        val after = until(1) { it.phase == Phase.PLAY_TURN }
-        assertTrue(tradeButtonVisible(after), "visible from the first real turn")
+        val before = until(1) { it.phase == Phase.PLAY_TURN && !it.hasRolled }
+        assertFalse(tradeButtonVisible(before), "no trading before the roll (Mauro: trading before rolling broke the game)")
+        val after = until(1) { it.phase == Phase.PLAY_TURN && it.hasRolled }
+        assertTrue(tradeButtonVisible(after), "visible once the dice are rolled")
     }
 
     @Test

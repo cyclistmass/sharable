@@ -174,7 +174,7 @@ class GreedyBot(seed: Long = 0, override val name: String = "Greedy") : Bot {
         val kinds = HashSet<Int>()
         for (h in b.topology.vertexHexes[v]) {
             if (b.hexResource[h] == Resource.NONE || h == s.robberHex) continue
-            pips += pips(b.hexNumber[h])
+            pips += pips(s.numberAt(h))
             kinds += b.hexResource[h]
         }
         return pips + 1.5 * kinds.size
@@ -198,7 +198,7 @@ class GreedyBot(seed: Long = 0, override val name: String = "Greedy") : Bot {
 
     private fun robberScore(s: GameState, me: Int, hex: Int, victim: Int): Double {
         var score = 0.0
-        val number = pips(s.board.hexNumber[hex]).toDouble()
+        val number = pips(s.numberAt(hex)).toDouble()
         for (v in s.board.topology.hexVertices[hex]) {
             val owner = s.vertexOwner[v]
             if (owner < 0) continue

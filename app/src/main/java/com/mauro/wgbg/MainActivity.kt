@@ -385,9 +385,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     if (intro && screen == Screen.START) { IntroScreen { intro = false }; return }
     var feedback by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
-        // Which build this is, for testers (bumped with each major merge).
-        if (screen == Screen.START) Text("v${appVersion()}", color = Color(0xFFD9B865), fontSize = 12.sp,
-            modifier = Modifier.align(Alignment.BottomEnd).zIndex(1f).padding(10.dp).testTag("app-version"))
+        // The build version shows inside the start screen's right panel (NewGameScreen).
         when (screen) {
             Screen.START -> NewGameScreen(
                 onStart = { setup = it; savedSetup.edit().putString("last", it.encode()).apply(); resuming = null; gameNo++; screen = Screen.GAME },
@@ -673,6 +671,7 @@ fun WatchGameScreen(
         when (action.type) {
             ActionType.REJECT_TRADE, ActionType.ACCEPT_TRADE, ActionType.COUNTER_TRADE, ActionType.END_TURN, ActionType.OFFER_TRADE -> {}
             ActionType.ROLL -> log.add(0, "${names[who]} rolled ${state.lastRoll}")
+            wgbg.engine.CkActionType.PLAY_PROGRESS -> log.add(0, if ((action.payload and 0xff).toInt() == wgbg.engine.Progress.ALCHEMIST) "${names[who]} set the dice: ${state.lastRoll}" else "${names[who]}: ${describe(action.type)}")
             else -> log.add(0, "${names[who]}: ${describe(action.type)}")
         }
         if (log.size > 4) log.removeRange(4, log.size)
@@ -1875,8 +1874,8 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
             // 3D preview: the rendered tile (base and thickness baked in) at this tilt, then our number plate on top.
             val hs = scale * l.hexK(h)
             drawSteppedSprite(r3d, c, Tile3dArt.FRAME_UNITS * hs, l.tilt, TILE_FILTER)
-            if (board.hexNumber[h] != 0) drawNumberToken(board.hexNumber[h], c + Offset(TILE3D_PLATE_X * hs, TILE3D_PLATE_Y * hs * l.squash), hs, measurer, wood)
-        } else drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]), tileLine)
+            if (s.numberAt(h) != 0) drawNumberToken(s.numberAt(h), c + Offset(TILE3D_PLATE_X * hs, TILE3D_PLATE_Y * hs * l.squash), hs, measurer, wood)
+        } else drawTile(board.hexResource[h], s.numberAt(h), h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]), tileLine)
     }
 
     // Ports: water patch and wooden piers first, then the raised trade-rate tokens.

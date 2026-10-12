@@ -200,6 +200,8 @@ fun HumanControls(
                 "mono" -> Picker("Corner the Market: everyone hands you all of the one you name:", legal.filter { it.type == ActionType.PLAY_MONOPOLY }
                     .map { a -> RES[a.payload.toInt()] to a }, onMove) { sheet = null }
                 "ck" -> ckChoices?.let { (label, acts) ->
+                    // The Transmuter picks two dice: show two rows of dice, not 36 "1 / 5" buttons (Mauro, 2026-10-12).
+                    if (isAlchemist(acts)) { DicePicker(label, acts, onMove) { sheet = null }; return@let }
                     val hint = acts.firstOrNull { it.type == wgbg.engine.CkActionType.PLAY_PROGRESS }?.let { progressHint(it.a) }
                     Picker(if (hint.isNullOrEmpty()) label else "$label: $hint", acts.map { a -> (if (a.type == wgbg.engine.CkActionType.PLAY_PROGRESS) progressOption(s, a, names) else if (a.type == ActionType.MARITIME_TRADE) bankLabel(a) else ckLabel(s, a, names) ?: a.toString()) to a }, onMove) { sheet = null }
                 }
@@ -303,6 +305,32 @@ private fun MoveButton(label: String, primary: Boolean = false, onClick: () -> U
     // Primary (Roll / End turn): a big brass plate; the rest: wood with a brass rim.
     if (primary) BrassButton(label, "move-$label", Modifier.fillMaxWidth().height(54.dp), size = 18.sp, onClick = onClick)
     else WoodButton(label, "move-$label", Modifier.fillMaxWidth(), onClick = onClick)
+}
+
+/** True when [acts] are the Transmuter's (Alchemist's) dice choices. */
+internal fun isAlchemist(acts: List<Action>) = acts.isNotEmpty() && acts.all { it.type == wgbg.engine.CkActionType.PLAY_PROGRESS && it.a == wgbg.engine.Progress.ALCHEMIST }
+
+/** The Transmuter's choice: tap a face on the red die and on the ivory die, then set them. */
+@Composable
+private fun DicePicker(label: String, acts: List<Action>, onMove: (Action) -> Unit, close: () -> Unit) {
+    var red by remember { mutableStateOf(0) }
+    var ivory by remember { mutableStateOf(0) }
+    Text("$label: choose what the two number dice show", color = INK_LIGHT, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    @Composable fun row(isRed: Boolean, picked: Int, pick: (Int) -> Unit) = Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(if (isRed) "Red die" else "Ivory die", color = INK_LIGHT, fontSize = 13.sp, modifier = Modifier.width(76.dp))
+        for (v in 1..6) Image(painterResource(DiceArt.face(isRed, false, v)), "$v",
+            Modifier.size(44.dp).background(if (picked == v) Color(0xFFD9B865) else Color.Transparent, RoundedCornerShape(8.dp)).padding(3.dp)
+                .clickable { pick(v) }.testTag("die-${if (isRed) "red" else "ivory"}-$v"))
+    }
+    row(true, red) { red = it }
+    row(false, ivory) { ivory = it }
+    val chosen = acts.firstOrNull { it.b == red && it.c == ivory }
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        ChestButton("Back", CHEST_NO, "pick-back") { close() }
+        GoButton(if (chosen != null) "Set the dice: ${red + ivory}" else "Pick both dice", "dice-set", chosen != null, Modifier.height(44.dp)) {
+            chosen?.let { close(); onMove(it) }
+        }
+    }
 }
 
 @Composable

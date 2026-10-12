@@ -40,7 +40,7 @@ class SetupWordingTest {
             if (expansion == Expansion.BASE) assertEquals(0 to 6, towns to homesteads)
             else assertEquals(3 to 3, towns to homesteads)
             assertFalse(inSetup(s))
-            assertTrue(tradeButtonVisible(s))
+            assertFalse(tradeButtonVisible(s)) // setup over, but no trade before the first roll
         }
     }
 
