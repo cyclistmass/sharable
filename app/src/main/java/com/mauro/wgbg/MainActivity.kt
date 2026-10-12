@@ -1114,8 +1114,11 @@ fun WatchGameScreen(
                 tradeButton = if (tick.let { tradeButtonVisible(state) }) ({
                     IconPlateButton(MoveIcon.TRADE, "Trade", "trade-toggle", lit = tradeOpen || tradeNeedsMe(state, me)) { tradeOpen = !tradeOpen }
                 }) else null)
+            // The confirm box keeps clear of the spot it asks about: at the bottom when the spot is high on the board.
+            val confirmLow = chosen.isNotEmpty() && boardSize.minDimension > 0f && confirmBelow(spotOf(state.board, chosen[0])
+                ?.let { Layout.fit(state.board, boardSize.width, boardSize.height, camera).project(it.x, it.y).y }, boardSize.height)
             if (chosen.isNotEmpty()) Column(
-                Modifier.align(Alignment.TopCenter).padding(top = 8.dp).chest(),
+                (if (confirmLow) Modifier.align(Alignment.BottomCenter).padding(bottom = 130.dp) else Modifier.align(Alignment.TopCenter).padding(top = 8.dp)).chest(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
