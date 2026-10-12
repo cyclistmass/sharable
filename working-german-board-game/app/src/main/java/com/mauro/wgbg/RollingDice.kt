@@ -84,6 +84,8 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
                 /** Age of Chivalry: the event die's face (-1 = none) and the pad it lands on (root coordinates). */
                 event: Int = -1,
                 eventSlot: Rect? = null,
+                /** How long the throw takes (the Pace setting scales it). */
+                fallMs: Int = (DiceSprites.FALL_S * 1000).toInt(),
                 /** True while the dice are in the air; the panel hides its resting dice until they land. */
                 onFlying: (Boolean) -> Unit = {}) {
     var origin by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(Offset.Zero) }
@@ -94,7 +96,7 @@ fun RollingDice(die1: Int, die2: Int, rollKey: Any?, rest: Offset?, modifier: Mo
         onFlying(true)
         var landed = false
         try {
-            t.animateTo(1f, tween((DiceSprites.FALL_S * 1000).toInt(), easing = LinearEasing)) {
+            t.animateTo(1f, tween(fallMs, easing = LinearEasing)) {
                 // Hand over to the panel's resting dice once both have settled (the second die lags 7%).
                 if (!landed && value >= DiceSprites.HANDOVER) { landed = true; onFlying(false) }
             }

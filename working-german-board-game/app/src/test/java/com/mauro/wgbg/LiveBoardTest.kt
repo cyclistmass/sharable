@@ -112,6 +112,23 @@ class LiveBoardTest {
         }
     }
 
+    @Test fun `knights become tinted standing models by theme, level and active, and stay sprites without a model`() {
+        val s = Rules.newGame(GameConfig(expansion = Expansion.CITIES_AND_KNIGHTS), 5)
+        val ck = s.ck!!
+        ck.knightOwner[4] = 1; ck.knightLevel[4] = 2; ck.knightFlags[4] = ck.knightFlags[4] or CkState.ACTIVE
+        ck.knightOwner[9] = 3; ck.knightLevel[9] = 3
+        assertEquals("default_knight_l2", liveKnightModel(s, 4, false))
+        assertEquals("pirate_knight_l3_inactive", liveKnightModel(s, 9, true))
+        assertNull(liveKnightModel(s, 0, false))
+        assertNull(liveKnightModel(Rules.newGame(GameConfig(), 5), 4, false), "no knights in the base game")
+        assertTrue(livePlacements(s, false, 0).none { "_knight_" in it.model }, "no model files: the overlay keeps drawing sprites")
+        val all = livePlacements(s, true, 0) { true }
+        val knights = all.filter { "_knight_" in it.model }
+        assertEquals(listOf("pirate_knight_l2" to 1, "pirate_knight_l3_inactive" to 3), knights.map { it.model to it.owner })
+        assertEquals(liveVertex(s.board, 4), knights[0].position)
+        assertTrue(knights.all { liveStanding(it.model) }, "knights tip toward the camera like the buildings")
+    }
+
     @Test fun `legal placement taps pick the same move after a full orbit at every tilt`() {
         val s = Rules.newGame(GameConfig(), 91)
         val actions = Rules.legalActions(s)

@@ -97,4 +97,32 @@ class EnvSettingsTest {
         again.reset()
         org.junit.jupiter.api.Assertions.assertEquals(EnvSettings.DEFAULT, again.density)
     }
+
+    @Test
+    fun `Pace starts Normal, persists, resets, and a bad saved value falls back safely`() {
+        val store = MapStore()
+        assertEquals(Pace.NORMAL, EnvSettings(store).pace)
+        EnvSettings(store).pace = Pace.RELAXED
+        assertEquals(Pace.RELAXED, EnvSettings(store).pace, "kept after a restart")
+        EnvSettings(store).apply { reset(); assertEquals(Pace.NORMAL, pace) }
+        store.put(EnvSettings.PACE, 99f)
+        assertEquals(Pace.QUICK, EnvSettings(store).pace)
+        store.put(EnvSettings.PACE, -3f)
+        assertEquals(Pace.RELAXED, EnvSettings(store).pace)
+    }
+
+    @Test
+    fun `Pace slows or quickens the dice and the pause after moves, and a roll still waits for the dice`() {
+        val road = wgbg.engine.ActionType.BUILD_ROAD; val roll = wgbg.engine.ActionType.ROLL
+        val (relaxed, normal, quick) = Pace.entries.map { it.factor }
+        org.junit.jupiter.api.Assertions.assertTrue(Pace.fallMs(relaxed) > Pace.fallMs(normal) && Pace.fallMs(normal) > Pace.fallMs(quick))
+        assertEquals((DiceSprites.FALL_S * 1000).toInt(), Pace.fallMs(normal), "Normal is today's throw")
+        for (speed in listOf(1, 2, 4, 8)) {
+            org.junit.jupiter.api.Assertions.assertTrue(pauseAfter(road, speed, relaxed) > pauseAfter(road, speed, quick), "speed $speed")
+            assertEquals(pauseAfter(road, speed), pauseAfter(road, speed, normal), "Normal changes nothing")
+            for (p in Pace.entries) org.junit.jupiter.api.Assertions.assertTrue(
+                pauseAfter(roll, speed, p.factor) > Pace.fallMs(p.factor) * DiceSprites.HANDOVER, "${p.label} at $speed")
+            assertEquals(0L, pauseAfter(wgbg.engine.ActionType.END_TURN, speed, relaxed))
+        }
+    }
 }

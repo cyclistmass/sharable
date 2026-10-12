@@ -109,6 +109,12 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         get() = liveBoardState.floatValue > 0.5f
         set(v) { liveBoardState.floatValue = if (v) 1f else 0f; store.put(LIVE_BOARD, liveBoardState.floatValue) }
 
+    private val paceState = mutableFloatStateOf(store.get(PACE, Pace.NORMAL.ordinal.toFloat()))
+    /** How fast the dice fall, moves follow each other and hints stay up (Mauro, 2026-10-12). */
+    var pace: Pace
+        get() = Pace.entries[paceState.floatValue.toInt().coerceIn(0, Pace.entries.size - 1)]
+        set(v) { paceState.floatValue = v.ordinal.toFloat(); store.put(PACE, paceState.floatValue) }
+
     private val liveLodState = mutableFloatStateOf(store.get(LIVE_LOD, 0f))
     var liveLod: Int
         get() = liveLodState.floatValue.toInt().coerceIn(0, 1)
@@ -142,7 +148,7 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         set(v) { eventDie.floatValue = v.coerceIn(0, DiceArt.EVENT_STYLES.size - 1).toFloat(); store.put(EVENT_DIE, eventDie.floatValue) }
 
     /** Back to the defaults (saved). */
-    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0; liveBoard = false; liveLod = 0 }
+    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0; liveBoard = false; liveLod = 0; pace = Pace.NORMAL }
 
     val clouds get() = this[Item.CLOUDS]
     val birds get() = this[Item.BIRDS]
@@ -160,6 +166,7 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         const val LIVE_BOARD = "live-board"
         const val LIVE_LOD = "live-board-lod"
         const val ANIMATIONS = "animations"
+        const val PACE = "pace"
         const val SEE_THROUGH = "side-panel-see-through"
 
         /** True on an Android emulator (where there's no pinch), from the build's hardware and product names. */
@@ -170,12 +177,36 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
     }
 }
 
+/** The Pace setting: [factor] scales the dice throw, the pause after each move and how long hints stay up. */
+enum class Pace(val label: String, val factor: Float) {
+    RELAXED("Relaxed", 1.5f), NORMAL("Normal", 1f), QUICK("Quick", 0.6f);
+    companion object {
+        /** The dice throw in milliseconds at [factor]. */
+        fun fallMs(factor: Float): Int = (DiceSprites.FALL_S * 1000 * factor).toInt()
+    }
+}
+
+/** The 3D board (test) On/Off switch and its detail level; in the game's Menu, and in Settings on Look & art. */
+@Composable
+fun LiveBoardChoice(env: EnvSettings) {
+    Text("3D board (test)", fontSize = 13.sp, color = Color(0xFFD9B865))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Choice("On", selected = env.liveBoard, tag = "live-board-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.liveBoard = true }
+        Choice("Off", selected = !env.liveBoard, tag = "live-board-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.liveBoard = false }
+    }
+    if (env.liveBoard) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Choice("Detail: LOD0", selected = env.liveLod == 0, tag = "live-lod-0", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.liveLod = 0 }
+        Choice("Detail: LOD1", selected = env.liveLod == 1, tag = "live-lod-1", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.liveLod = 1 }
+    }
+}
+
 /**
  * The gear menu: every setting in one wood-and-brass panel. Changes save as they happen;
  * Reset puts scenery and sound back to their defaults.
  */
 @Composable
-fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = Modifier) {
+fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = Modifier,
+                  gameControls: (@Composable () -> Unit)? = null, liveBoardChoice: Boolean = true) {
     // No Done button: every change saves as it is made, and the Menu button (showing Hide) closes the panel (Mauro).
     // Scrolls when the screen is too short for every setting (landscape phones).
     Column(modifier.width(360.dp).brassEdgedWood().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp).testTag("settings-panel"),
@@ -184,14 +215,18 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = M
             Text("Settings", fontSize = 18.sp, color = Color(0xFFF1D58A), modifier = Modifier.weight(1f))
             ResetButton { env.reset(); sound.reset() }
         }
-        Text("3D board (test)", fontSize = 13.sp, color = Color(0xFFD9B865))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Choice("On", selected = env.liveBoard, tag = "live-board-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.liveBoard = true }
-            Choice("Off", selected = !env.liveBoard, tag = "live-board-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.liveBoard = false }
+        // In a game: Pause, speed and Watch bots first (Mauro, 2026-10-12: "should be under the gear menu").
+        if (gameControls != null) {
+            Text("This game", fontSize = 13.sp, color = Color(0xFFD9B865))
+            gameControls()
         }
-        if (env.liveBoard) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Choice("Detail: LOD0", selected = env.liveLod == 0, tag = "live-lod-0", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.liveLod = 0 }
-            Choice("Detail: LOD1", selected = env.liveLod == 1, tag = "live-lod-1", modifier = Modifier.height(36.dp).width(140.dp), size = 13.sp) { env.liveLod = 1 }
+        AccountSection()
+        // In a game the 3D switch sits in the main Menu instead (Mauro: "3d board should move out to that main menu").
+        if (liveBoardChoice) LiveBoardChoice(env)
+        Text("Pace: dice, moves and how long hints stay up", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (p in Pace.entries) Choice(p.label, selected = env.pace == p, tag = "pace-${p.name.lowercase()}",
+                modifier = Modifier.height(36.dp).width(100.dp), size = 13.sp) { env.pace = p }
         }
         Text("Animations (off, or Density at 0: nothing moves)", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

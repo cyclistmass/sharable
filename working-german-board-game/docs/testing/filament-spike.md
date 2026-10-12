@@ -1,6 +1,6 @@
 # Live board spike test plan
 
-The sprite board remains the default. Enable **Settings > 3D board (test)** to exercise the spike,
+The sprite board remains the default. Enable **Menu > 3D board (test)** (in a game; on Look & art it is in Settings) to exercise the spike,
 and choose either detail level there. Pinch, pan and two-finger vertical tilt retain the existing
 controls; two-finger twist adds an orbit. Double-tap resets the view.
 

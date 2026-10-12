@@ -18,11 +18,11 @@ import kotlin.math.roundToInt
 internal const val LIVE_KNIGHT_SHARE = 0.49f
 
 /** Existing knight sprites and trade labels remain screen overlays for this prototype. */
-internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights: List<ImageBitmap>) {
+internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights: List<ImageBitmap>, knightModel: (Int) -> Boolean = { false }) {
     val ck = s.ck
     if (ck != null) for (v in 0 until s.board.vertexCount) {
         val owner = ck.knightOwner[v]
-        if (owner < 0) continue
+        if (owner < 0 || knightModel(v)) continue   // drawn as a 3D model instead
         val at = p.project(liveVertex(s.board, v))
         val size = p.scale * KNIGHT_SCALE * LIVE_KNIGHT_SHARE
         val image = knights.getOrNull((ck.knightLevel[v].coerceIn(1, 3) - 1) * 2 + if (ck.isActive(v)) 1 else 0)
@@ -46,9 +46,14 @@ internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights:
     }
 }
 
-internal fun DrawScope.drawLiveTargets(b: Board, targets: Targets, p: LiveProjection, color: Color) {
+internal fun DrawScope.drawLiveTargets(b: Board, targets: Targets, p: LiveProjection, color: Color, pieceOn: (Int) -> Boolean = { false }) {
     for (v in targets.vertices) drawCircle(color, p.scale * .13f, p.project(liveVertex(b, v)), style = Stroke(p.scale * .035f))
-    for (e in targets.edges) drawLine(color, p.project(liveVertex(b, b.edgeA[e])), p.project(liveVertex(b, b.edgeB[e])), p.scale * .055f)
+    for (e in targets.edges) {
+        // Clear of the pieces at its ends, like the flat board (the glow never covers a homestead).
+        val v0 = liveVertex(b, b.edgeA[e]); val v1 = liveVertex(b, b.edgeB[e])
+        val (f0, f1) = edgeGlowSpan(pieceOn(b.edgeA[e]), pieceOn(b.edgeB[e]))
+        drawLine(color, p.project(v0 + (v1 - v0) * f0), p.project(v0 + (v1 - v0) * f1), p.scale * .055f)
+    }
     for (h in targets.hexes) {
         val at = p.project(liveHex(b, h)); val r = p.scale * .33f
         drawOval(color, at - Offset(r, r * cos(p.tilt)), androidx.compose.ui.geometry.Size(r * 2f, r * cos(p.tilt) * 2f),

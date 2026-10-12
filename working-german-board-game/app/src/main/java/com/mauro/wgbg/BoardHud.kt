@@ -168,13 +168,20 @@ private val MINI_STEP = 10.5.dp
 private const val MINI_MAX = 4
 private val MINI_SLOT = 21.dp + MINI_STEP * (MINI_MAX - 1)
 
-/** A progress card's art: its deck's commodity card (Guilds Weave, Crown Silver, Academy Parchment). */
+/** A progress card's art: its deck's commodity card (Guilds Fabric, Crown Silver, Academy Parchment). */
 fun progressArt(card: Int): Int = ALL_CARD_ART[wgbg.engine.Track.commodity(wgbg.engine.Progress.track(card))]
 
 /** Age of Chivalry deck colours by track: Guilds gold (trade), Crown blue (politics), Academy green (science). */
-// Mauro: themed by commodity and its land. Guilds / Weave (pasture) pale white-green, Crown / Silver (mountains)
+// Mauro: themed by commodity and its land. Guilds / Fabric (pasture) pale white-green, Crown / Silver (mountains)
 // blue-grey, Academy / Parchment (forest) forest green.
 internal val TRACK_COLORS = listOf(Color(0xFFD3E8C4), Color(0xFF8A9FB2), Color(0xFF3E8E48))
+
+/** Name type size on a [w] dp card face: 8 sp, smaller only when the longest word would not fit on one line. */
+fun cardNameSp(name: String, w: Int): Float {
+    val longest = name.split(' ').maxOf { it.length }
+    // Bold Alegreya Sans runs about 0.5 em a letter; the name has the face width less 14 dp of margins.
+    return minOf(8f, (w - 14) / (longest * 0.5f))
+}
 
 /**
  * The drawn card face shared by a progress card in hand and the card guide (#4, #71): a cream panel edged in
@@ -189,7 +196,9 @@ fun ProgressCardFace(name: String, edge: Color, art: Int?, small: String? = null
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(3.dp)
             .background(Color(0xE6EFE3C8), RoundedCornerShape(3.dp)).padding(2.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(name, color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold, lineHeight = 9.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            // A long single word (Trailblazers) gets smaller type rather than breaking mid-word (0.2.7 test).
+            val nameSp = cardNameSp(name, w)
+            Text(name, color = Color(0xFF2B2118), fontSize = nameSp.sp, fontWeight = FontWeight.Bold, lineHeight = (nameSp + 1f).sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             // What it does, in small print on the card itself (Mauro); a tap still shows it large.
             if (small != null) Text(small, color = Color(0xFF4A3B2C), fontSize = 6.5.sp, lineHeight = 7.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.padding(top = 1.dp))
@@ -202,14 +211,14 @@ fun ProgressCardFace(name: String, edge: Color, art: Int?, small: String? = null
  * Chivalry also your commodities and your progress cards (named, edged in their deck's colour) (#4).
  */
 @Composable
-fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) {
+fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, pace: Float = 1f) {
     version // see PlayerStrip
     @Composable
     fun count(n: Int) = Text("$n", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(2.dp).background(Color(0xE62A1B10), CircleShape).border(1.dp, Color(0xFFC9A04A), CircleShape).padding(horizontal = 6.dp))
     // Tap a progress card to see what it does (Mauro: "add some hints on what a card does").
     var hint by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
-    androidx.compose.runtime.LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay(5000); hint = null } }
+    androidx.compose.runtime.LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay((5000L * pace).toLong()); hint = null } }
     // A long press on any card shows it big with everything about it (Mauro); a tap anywhere on it closes.
     var detail by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<CardDetail?>(null) }
     fun Modifier.longPressFor(d: CardDetail) = this.pointerInput(d) { detectTapGestures(onLongPress = { detail = d }) }
@@ -218,7 +227,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
         modifier = Modifier.testTag(tag).then(if (onTap != null || long != null) Modifier.pointerInput(long) {
             detectTapGestures(onTap = { onTap?.invoke() }, onLongPress = { long?.let { detail = it } })
         } else Modifier)) {
-        // Themed by its deck's commodity (Mauro): Guilds on Weave, Crown on Silver, Academy on Parchment.
+        // Themed by its deck's commodity (Mauro): Guilds on Fabric, Crown on Silver, Academy on Parchment.
         ProgressCardFace(name, edge, art, small, w, h)
         if (n > 1) count(n)
     }
@@ -247,7 +256,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
             }
         }
         val ck = s.ck ?: return@Row
-        // Commodities: Parchment, Weave, Silver, with their card art (#62).
+        // Commodities: Parchment, Fabric, Silver, with their card art (#62).
         for (c in 0 until wgbg.engine.Commodity.COUNT) {
             val n = s.card(me, CARD_TYPES + c)
             if (n > 0) Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.testTag("hand-commodity-$c").longPressFor(cardDetail(CARD_TYPES + c, true))) {

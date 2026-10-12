@@ -19,6 +19,34 @@ it with this page.
    per progress deck tied to its commodity, and the Fortune cards.
 6. **Dice**: the two number dice and the event die faces.
 
+## Recommended sizes
+
+How big each object ends up on the board, in **hex units** (1 = a tile hex's side; a tile is 2 tall and 1.732
+wide). Make a theme's objects at these sizes so they sit with the shipped ones; "frame" is the square image or model
+bounding box, "body" the visible object inside it. These are the sizes the game draws today (scale factors already
+applied); the art spec gives the base frames and file sizes they come from.
+
+| Object | Recommended size on the board | Where it sits |
+|---|---|---|
+| Tile | 1 hex, edge to edge | Number clearing kept plain: radius 0.31 at (+0.36, +0.30) |
+| Number plate | radius 0.27 | Lower right of the tile, (+0.36, +0.30) from its centre |
+| Homestead | body about **0.45 wide × 0.27 deep** (frame 2.4) | On a corner, door to the viewer |
+| Town | body about **0.81 × 0.45**, about twice a homestead's mass | On a corner |
+| Road | **0.53 × 0.15**, two pieces per edge, centred ±0.20 from the edge's middle | Along an edge |
+| Ramparts (Age of Chivalry) | ring about **0.64** across; the town on top at 0.88 of its size | Under a town or Capital |
+| Capital (Age of Chivalry) | a town plus a central keep, about **0.85** across, dome top highest | Replaces a town |
+| Knight (Age of Chivalry) | frame **1.30** on the flat board, **0.64** on the 3D board (0.49 of flat) | Stands on a corner, base at the lower centre |
+| Bandit | frame **2.65** | Feet on the number plate; its base hides the plate |
+| Port buoy | radius about **0.39** | 0.80 out to sea from the middle of its coast edge |
+| Cliff strip | **1.16** along a coast edge × **0.55** deep | Along each coast edge |
+| Boat (sloop) | frame **1.08**, hull about 0.76 long | On the sea |
+| Raiders' ship | frame **1.40**, hull about 1.0 long | On the sea, larger than any boat |
+| Gull | frame **0.32**, wingspan about 0.25 | Over the sea |
+| Whale (optional) | frame up to **5.3**, body well inside it | On the open sea, clear of the coast |
+
+Rules of thumb: a piece's footprint stays inside the corner's share of the tiles around it (no wider than about 0.85),
+nothing on a tile reaches the number plate, and sea life and boats stay smaller than a tile (the whale aside).
+
 ## Optional
 
 Boats, birds, a whale or other sea life, clouds, a music set list and sounds (dice, Raiders), an intro fly-over.
@@ -42,6 +70,6 @@ Boats, birds, a whale or other sea life, clouds, a music set list and sounds (di
 
 | Theme | Status | Names |
 |---|---|---|
-| Default | shipped | Timber, Clay, Fleece, Grain, Stone; Parchment, Weave, Silver |
+| Default | shipped | Timber, Clay, Fleece, Grain, Stone; Parchment, Fabric, Silver |
 | Pirate | shipped (art only) | default names |
 | Edo fishing village (#76) | planned | Bamboo, Kawara, Silk, Rice, Platinum (or Copper); commodities proposed Washi, Brocade, Koban; Knights are Samurai. Other piece names proposed on #76 |

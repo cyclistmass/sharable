@@ -21,7 +21,7 @@ Never use the original game's names in UI, art, card text or docs. Our names:
 
 - Resources: Timber, Clay, Fleece, Grain, Stone. Pieces: Homestead, Town, road. The robber is the **Bandit**.
 - Development cards are **Fortune cards**: Sentinel, Landmark, Trailblazers, Windfall, Corner the Market.
-- Expansion **Age of Chivalry**: commodities Parchment, Weave, Silver; progress decks Guilds, Academy, Crown;
+- Expansion **Age of Chivalry**: commodities Parchment, Fabric, Silver; progress decks Guilds, Academy, Crown;
   the **Raiders** (barbarians), Capital (metropolis), Ramparts (city walls).
 
 Keep the "Not affiliated with or endorsed by Catan GmbH" line in the README. Code identifiers may use the
@@ -51,7 +51,7 @@ counter/primary gold.
    rather than flipping images.
 1. New or changed art is shown as options side by side for the maintainer to pick from before it goes in.
 2. Approved art goes into `app/src/main/res/drawable-nodpi/` and onto the in-app **Inventory** screen
-   (Menu › Inventory, `drawInventory` in `MainActivity.kt`), so every object can be checked together.
+   (start screen › Look & art, `drawInventory` in `MainActivity.kt`), so every object can be checked together.
 3. Screenshot the Inventory screen and the board to confirm.
 4. Art must be CC0 or our own. Record every source in `CREDITS.md`.
 

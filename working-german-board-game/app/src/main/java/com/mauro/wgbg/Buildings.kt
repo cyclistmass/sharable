@@ -134,8 +134,22 @@ internal fun pieceTint(color: Color): ColorFilter = pieceTints.getOrPut(color) {
 internal const val PIECE_SATURATION = 1.2f
 internal const val PIECE_BRIGHTNESS = 1.15f
 /** ...and "10% less on the tiles". */
-internal const val TILE_SATURATION = 0.72f // 0.9, then 20% less (Mauro, 2026-10-12: "20% less sat on the tiles")
-internal val TILE_FILTER: ColorFilter by lazy { ColorFilter.colorMatrix(ColorMatrix(saturationMatrix(TILE_SATURATION))) }
+/**
+ * The whole board's art (tiles, sea, cliffs) at this saturation, so it reads less like over-saturated AI art (Mauro,
+ * 2026-10-12, picked 85% from 100/90/80/70 sheets). Pieces, dice and the sea's boats, gulls, Raiders and whale stay
+ * at full colour. Try 0.8 or 0.9 here.
+ */
+internal const val BOARD_SATURATION = 0.85f
+internal const val TILE_SATURATION = 0.72f * BOARD_SATURATION // 0.9, then 20% less ("20% less sat on the tiles"), then the board's 85%
+/** The board's art a touch warmer: red up, blue down by this share (Mauro, 2026-10-12: "a little more warmth - 3%"). */
+internal const val BOARD_WARMTH = 0.03f
+/** [saturationMatrix] at [sat], then warmed by [BOARD_WARMTH]. */
+internal fun boardMatrix(sat: Float): FloatArray = saturationMatrix(sat).also { m ->
+    for (c in 0 until 3) { m[c] *= 1f + BOARD_WARMTH; m[10 + c] *= 1f - BOARD_WARMTH }
+}
+internal val TILE_FILTER: ColorFilter by lazy { ColorFilter.colorMatrix(ColorMatrix(boardMatrix(TILE_SATURATION))) }
+/** The sea and cliffs at [BOARD_SATURATION], warmed like the tiles. */
+internal val BOARD_FILTER: ColorFilter by lazy { ColorFilter.colorMatrix(ColorMatrix(boardMatrix(BOARD_SATURATION))) }
 
 /** Where an active knight's pennant goes, relative to the knight's contact point, for a frame [side] px across:
  * the pole's foot, the pole's top, and the pennant's tip. Upright at any tilt, just right of the knight. */

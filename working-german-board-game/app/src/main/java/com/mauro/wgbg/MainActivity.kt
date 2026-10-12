@@ -250,13 +250,14 @@ private val TOKEN_WOOD_INDEX = PLAYER_COLORS.size
 internal const val MAX_SPEED = 16
 
 /**
- * Milliseconds the game waits after a move of [type] at [speed] (below Max). A roll always waits for its
- * dice to land on the panel, at every speed: otherwise the next turn's panel showed while they were in the air.
+ * Milliseconds the game waits after a move of [type] at [speed] (below Max) and [pace] (the Pace setting's factor). A
+ * roll always waits for its dice to land on the panel, at every speed: otherwise the next turn's panel showed while
+ * they were in the air. The dice fall at the same pace ([Pace.fallMs]).
  */
-internal fun pauseAfter(type: wgbg.engine.ActionKind, speed: Int): Long = when (type) {
+internal fun pauseAfter(type: wgbg.engine.ActionKind, speed: Int, pace: Float = 1f): Long = when (type) {
     ActionType.END_TURN, ActionType.REJECT_TRADE -> 0L
-    ActionType.ROLL -> maxOf(500L / speed, (DiceSprites.FALL_S * 1000 * DiceSprites.HANDOVER).toLong() + 150L)
-    else -> 350L / speed
+    ActionType.ROLL -> maxOf((500L * pace / speed).toLong(), (Pace.fallMs(pace) * DiceSprites.HANDOVER).toLong() + 150L)
+    else -> (350L * pace / speed).toLong()
 }
 
 private fun Color.shade(f: Float) = lerp(this, Color.Black, f)
@@ -293,6 +294,12 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     }
     var lobby by remember { mutableStateOf<Lobby?>(null) }
     var gameNo by rememberSaveable { mutableIntStateOf(0) }
+    // Your local game, saved after every move (#82). Android brought the app back on the game screen (it had stopped
+    // it in the background): carry on with the saved game, never a fresh one over it.
+    val localStore = remember { LocalSaveStore(java.io.File(context0.filesDir, "local-game.txt")) }
+    var resuming by remember { mutableStateOf(if (screen == Screen.GAME && start == null) localStore.load() else null) }
+    var localSave by remember { mutableStateOf<LocalSave?>(null) }
+    LaunchedEffect(screen) { if (screen == Screen.START) localSave = localStore.load() }
     val context = LocalContext.current.applicationContext
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // Created on first online use only: offline play never touches Firebase.
@@ -376,13 +383,14 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     // The intro fly-over, the first time the app opens (never over a debug start or a rejoin).
     var intro by remember { mutableStateOf(start == null && !Intro.seen(ctx)) }
     if (intro && screen == Screen.START) { IntroScreen { intro = false }; return }
+    var feedback by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         // Which build this is, for testers (bumped with each major merge).
         if (screen == Screen.START) Text("v${appVersion()}", color = Color(0xFFD9B865), fontSize = 12.sp,
             modifier = Modifier.align(Alignment.BottomEnd).zIndex(1f).padding(10.dp).testTag("app-version"))
         when (screen) {
             Screen.START -> NewGameScreen(
-                onStart = { setup = it; savedSetup.edit().putString("last", it.encode()).apply(); gameNo++; screen = Screen.GAME },
+                onStart = { setup = it; savedSetup.edit().putString("last", it.encode()).apply(); resuming = null; gameNo++; screen = Screen.GAME },
                 initial = setup,
                 onOpenLobby = { s ->
                     setup = s; savedSetup.edit().putString("last", s.encode()).apply(); busy = true; problem = null
@@ -393,9 +401,12 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 onJoinRoom = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); problem = null; screen = Screen.JOIN },
                 resumeRoom = resumeCode.takeIf { session == null && !busy },
                 onResume = { resumeCode?.let { rejoin(it) } },
+                resumeGame = localSave?.let { "Resume your ${it.setup.ruleset.label} game" },
+                onResumeGame = { localSave?.let { setup = it.setup; resuming = it; gameNo++; screen = Screen.GAME } },
                 // Look & art shows the ruleset chosen on screen, and the choices are still there on the way back.
                 onLookAndArt = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); screen = Screen.LOOK },
                 onPlayIntro = { intro = true },
+                onFeedback = { feedback = true },
             )
             Screen.JOIN -> {
                 BackHandler { screen = Screen.START }
@@ -424,8 +435,13 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             Screen.LOOK -> WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), Camera.FIT, setup, onExit = { screen = Screen.START }, lookAndArt = true)
             Screen.GAME -> key(gameNo) {
                 // Back asks "Leave this game?" inside the game screen (same as Exit).
-                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup, startWatching = watch)
+                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup, startWatching = watch,
+                    resume = resuming, saveStore = localStore.takeIf { start == null })
             }
+        }
+        if (feedback && screen == Screen.START) {
+            BackHandler { feedback = false }
+            FeedbackPanel(null, emptyList(), null) { feedback = false }
         }
         problem?.let { msg ->
             Row(Modifier.align(Alignment.BottomCenter).padding(12.dp).brassEdgedWood().padding(horizontal = 14.dp, vertical = 8.dp).testTag("online-problem"),
@@ -494,8 +510,12 @@ fun WatchGameScreen(
     autoSetup: Boolean = false,
     /** Debug: start in Watch mode at Max speed (bots in every seat, games back to back). */
     startWatching: Boolean = false,
+    /** A saved local game to pick up where it was (#82). */
+    resume: LocalSave? = null,
+    /** Where your local game is saved after every move (#82); null keeps nothing (debug starts, Look & art). */
+    saveStore: LocalSaveStore? = null,
 ) {
-    var seed by remember { mutableLongStateOf(System.nanoTime() and 0xffffffL) }
+    var seed by remember { mutableLongStateOf(resume?.seed ?: (System.nanoTime() and 0xffffffL)) }
     // Who sits where in an online room (frozen once it starts); null offline.
     val net = remember(online) { online?.let { s -> s.client.view().room?.let { OnlineSeats(it, s.uid) } } }
     // Play mode: you are seat 0 ("You"); Watch mode: bots in every seat at full speed. Online: your seat.
@@ -519,6 +539,19 @@ fun WatchGameScreen(
     }
     val log = remember(seed, seats) { mutableStateListOf<String>() }
     val tracker = remember(seed, seats, human, epoch) { TurnTracker(names) }
+    // Every move applied to this game, in order: a bug report carries them so the game replays exactly.
+    val played = remember(seed, seats, human, epoch) { mutableListOf<Action>() }
+    // A saved local game (#82): its moves replayed once, through the tracker so the history comes back too. Every
+    // other game you play is saved from its first move; Watch mode keeps nothing.
+    remember(seed, seats, human) {
+        val resumed = online == null && resume != null && seed == resume.seed
+        if (resumed) resume!!.replay(state) { who, a, applyIt -> tracker.apply(state, who, a, applyIt); played += a }
+        if (saveStore != null && online == null && !lookAndArt) when {
+            !human -> saveStore.clear()
+            !resumed -> saveStore.start(setup, seed)
+        }
+        0
+    }
     /** The last [Hit] notice the player dismissed. */
     var seenHit by remember(tracker) { mutableIntStateOf(0) }
     // Moves from the human's taps and buttons; the game loop checks each against the rules.
@@ -526,6 +559,8 @@ fun WatchGameScreen(
     var tradeOpen by remember { mutableStateOf(false) }
     // A tapped board move waits here for Confirm (or a second tap on the same spot).
     var pending by remember { mutableStateOf<List<Action>>(emptyList()) }
+    // Where the pending pick was tapped (lattice), for moves with no spot of their own (town improvements).
+    var pendingAt by remember { mutableStateOf<Offset?>(null) }
     val responses = remember(seed, seats) { mutableStateMapOf<Int, String>() }
     // Dice setting cycles: random, then deck stacks of 1-4 x 36 cards (asked per game once the new-game screen exists).
     var diceSetting by remember { mutableIntStateOf(setup.decks) } // 0 = random, n = n decks
@@ -542,6 +577,8 @@ fun WatchGameScreen(
     // Scenery settings (density and motion), kept across restarts; the sea reads them once it supports them.
     val appContext = LocalContext.current.applicationContext
     val env = remember { EnvSettings(PrefsStore(appContext), viewBarsDefault = EnvSettings.isEmulator()) }
+    // The 3D models in the app (knights become models once their GLBs are added; until then they stay sprites).
+    val liveModels = remember { appContext.assets.list("filament")?.map { it.removeSuffix(".glb") }?.toSet() ?: emptySet() }
     val sound = remember { SoundSettings(PrefsStore(appContext)) }
     // Music (#58): the set list at the Music volume; it pauses while the app is in the background.
     val music = remember { MusicPlayer(appContext, SoundSettings.SONGS) }
@@ -600,7 +637,7 @@ fun WatchGameScreen(
     val stateNow by rememberUpdatedState(state)
     // A short note when a board tap did nothing for a reason worth saying (shown in place of the prompt).
     var tapHint by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(tapHint) { if (tapHint != null) { delay(2500); tapHint = null } }
+    LaunchedEffect(tapHint) { if (tapHint != null) { delay((2500L * env.pace.factor).toLong()); tapHint = null } }
     var seaTick by remember { mutableIntStateOf(0) }
     LaunchedEffect(sea) { // the sea keeps moving even when the game is paused
         var last = 0L
@@ -648,7 +685,7 @@ fun WatchGameScreen(
         suspend fun step(): ActionKind {
             Rules.legalActions(state, buf)
             val who = state.actingPlayer
-            val placing = state.phase == Phase.BUILD_INITIAL_SETTLEMENT || state.phase == Phase.BUILD_INITIAL_ROAD
+            val placing = inSetup(state)
             var action = if (who == me && !(autoSetup && placing)) {
                 tick++ // show the human what they can do
                 var a: Action
@@ -659,6 +696,8 @@ fun WatchGameScreen(
             if (action.type == ActionType.ROLL) action = dice.next(withEvent = state.ck != null).toAction()
             noteResponse(who, action)
             tracker.apply(state, who, action) { Rules.apply(state, action) }
+            played += action
+            if (me >= 0) saveStore?.add(action)
             logMove(who, action)
             if (liveFreezeTurn > 0 && state.turn >= liveFreezeTurn) {
                 playing = false
@@ -669,7 +708,7 @@ fun WatchGameScreen(
                 if (appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
                     val snapshot = org.json.JSONObject().apply {
                         put("turn", state.turn); put("hash", state.stateHash().toString())
-                        put("placements", org.json.JSONArray(livePlacements(state, env.pirateTheme, env.liveLod).map { p ->
+                        put("placements", org.json.JSONArray(livePlacements(state, env.pirateTheme, env.liveLod) { it in liveModels }.map { p ->
                             org.json.JSONObject().apply {
                                 put("model", p.model); put("x", p.position.x); put("z", p.position.y)
                                 put("height", p.height); put("scale", p.scale); put("heading", p.heading); put("owner", p.owner)
@@ -693,10 +732,11 @@ fun WatchGameScreen(
             while (playing && !state.isOver) {
                 val type = step()
                 tick++
-                if (pauseAfter(type, speed) > 0) delay(pauseAfter(type, speed))
+                if (pauseAfter(type, speed, env.pace.factor) > 0) delay(pauseAfter(type, speed, env.pace.factor))
             }
         }
         if (state.isOver) {
+            saveStore?.clear() // a finished game has nothing to resume
             wins[if (state.winner >= 0) state.winner else 4]++
             // One line per finished game: CI self-play counts these and checks every game ends (#46).
             runCatching { android.util.Log.i("WGBG-GAME", "over ruleset=${if (state.ck != null) "chivalry" else "base"} winner=${state.winner} turns=${state.turn} hash=${state.stateHash()}") }
@@ -736,6 +776,7 @@ fun WatchGameScreen(
                     runCatching { android.util.Log.i("WGBG-MOVES", "${online.id} #${applied.size} p$who ${names[who]} ${a.type}:${a.payload}${if (applied.size > v.confirmedSeq) " (mine, unconfirmed)" else ""}") }
                     noteResponse(who, a)
                     tracker.apply(state, who, a) { Rules.apply(state, a) }
+                    played += a
                     logMove(who, a)
                     applied += a
                     rolled = a.type == ActionType.ROLL
@@ -757,7 +798,7 @@ fun WatchGameScreen(
                     }
                     (n.isHost && (n.bot(who) != null || quitToBot(v.room, n.seatOf(who)))) || (autoplay && who == n.me) -> {
                         // The host's phone plays the room's bots, at a watchable pace (dice land first).
-                        delay(if (rolled) pauseAfter(ActionType.ROLL, 1) else 450L)
+                        delay(if (rolled) pauseAfter(ActionType.ROLL, 1, env.pace.factor) else (450L * env.pace.factor).toLong())
                         val fresh = views.tryReceive().getOrNull()
                         if (fresh != null) fresh else {
                             Rules.legalActions(state, buf)
@@ -800,6 +841,7 @@ fun WatchGameScreen(
     var confirmExit by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(lookAndArt) }
     var guideOpen by remember { mutableStateOf(false) }
+    var feedbackOpen by remember { mutableStateOf(false) }
     var histogramOpen by remember { mutableStateOf(false) }
     var hudTopRight by remember { mutableStateOf<Offset?>(null) }
     var diceFlying by remember { mutableStateOf(false) }
@@ -877,6 +919,7 @@ fun WatchGameScreen(
     if (buildMode != null && legal.none { it.type == buildMode!!.kind }) buildMode = null
     val boardLegal = boardMoves(legal, buildMode)
     val boardLegalNow by rememberUpdatedState(boardLegal)
+    val buildModeNow by rememberUpdatedState(buildMode)
     val targets = if (cardPick.isNotEmpty()) Targets.ofCards(cardPick, cardSecond) else Targets.of(boardLegal)
     val chosen = pending.filter { it in legal } // a stale pick (the turn moved on) is dropped
     // Turn and trade alerts (#44): a tick when it becomes your move, a chime when an offer asks for cards you
@@ -931,7 +974,7 @@ fun WatchGameScreen(
         val waterLayerKey = remember { arrayOfNulls<WaterLayerKey>(1) }
         if (liveBoard) {
             val placements = remember(tick, state, env.pirateTheme, env.liveLod, inventory) {
-                if (inventory) liveInventoryPlacements() else livePlacements(state, env.pirateTheme, env.liveLod)
+                if (inventory) liveInventoryPlacements() else livePlacements(state, env.pirateTheme, env.liveLod) { it in liveModels }
             }
             val projection = if (boardSize.minDimension > 0f) liveProjection(boardSize.width, boardSize.height) else null
             LiveBoardView(placements, projection, Modifier.fillMaxSize()) { reason ->
@@ -1035,7 +1078,7 @@ fun WatchGameScreen(
                         val l = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera)
                         val p = if (liveBoardNow) LiveProjection(l.center, l.scale, camera.tilt, boardRotation).unproject(at) else l.unproject(at)
                         val picking = cardPickNow.isNotEmpty()
-                        val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else movesAt(boardNow, boardLegalNow, p)
+                        val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else tapMoves(stateNow, boardLegalNow, legalNow, p, me, buildModeNow != null)
                         // The Tinkerer swaps two tiles: the first tap narrows to that tile's swaps, the second picks the other tile.
                         if (picking && !cardSecondNow && moves.size > 1 && moves.all { it.a == wgbg.engine.Progress.INVENTOR }) {
                             cardPick = moves; cardSecond = true; return@detectTapGestures
@@ -1047,7 +1090,7 @@ fun WatchGameScreen(
                                     else android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                                 pending = emptyList(); humanMoves.trySend(moves[0])
                             }
-                            moves.isNotEmpty() -> { pending = moves; hostView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
+                            moves.isNotEmpty() -> { pending = moves; pendingAt = p; hostView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
                             pending.isNotEmpty() -> pending = emptyList() // tapping elsewhere cancels
                             !inventory && boardTapHint(boardNow, legalNow, stateNow.robberHex, p) != null -> tapHint = boardTapHint(boardNow, legalNow, stateNow.robberHex, p)
                             !inventory && seaNow.isWater(p) -> seaNow.splash(p)
@@ -1077,9 +1120,10 @@ fun WatchGameScreen(
                 InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide, buildings, sea.sprites3d),
                 bottomInset = INVENTORY_CARDS_DP.dp.toPx()) else if (liveBoard) {
                 val projection = liveProjection(size.width, size.height)
-                drawLiveOverlay(state, projection, if (env.pirateTheme) knightsPirate else knightsNormal)
-                if (!targets.isEmpty) drawLiveTargets(state.board, targets, projection, targetGlow(me))
-                if (chosen.isNotEmpty()) drawLiveTargets(state.board, Targets.of(chosen), projection, Color.White)
+                drawLiveOverlay(state, projection, if (env.pirateTheme) knightsPirate else knightsNormal) { v ->
+                    liveKnightModel(state, v, env.pirateTheme) in liveModels }
+                if (!targets.isEmpty) drawLiveTargets(state.board, targets, projection, targetGlow(me)) { pieceAt(state, it) }
+                if (chosen.isNotEmpty()) drawLiveTargets(state.board, Targets.of(chosen), projection, Color.White) { pieceAt(state, it) }
             } else {
                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
                 val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
@@ -1102,8 +1146,8 @@ fun WatchGameScreen(
                 }
                 drawLayer(boardLayer)
                 drawGame(state, measurer, wood, camera, sea.takeIf { env.animating }, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER, banditSprites)
-                if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me))
-                if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
+                if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me)) { pieceAt(state, it) }
+                if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White) { pieceAt(state, it) }
             }
         }
         // Inventory: the illustrated resource cards along the bottom, then the dice faces.
@@ -1142,11 +1186,11 @@ fun WatchGameScreen(
             if (stripWidth > 0f) Box(Modifier.align(Alignment.TopStart).padding(8.dp).width(sideWidth).fillMaxHeight()
                 .brassEdgedWood(woodAlpha = if (env.seeThrough) 0.4f else 1f))
             if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
-                TurnHud(report, previous, names, me = me, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
+                TurnHud(report, previous, names, me = me, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, dicePads = !inSetup(state), pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
                     eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight,
                     width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f, onDiceDoubleTap = { histogramOpen = true; settingsOpen = false })
             }
-            if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
+            if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, fallMs = Pace.fallMs(env.pace.factor), onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
@@ -1159,7 +1203,7 @@ fun WatchGameScreen(
                 OnlineConnectionStatus(v)
             }
         }
-        if (me >= 0 && !inventory && !state.isOver) tick.let {
+        if (me >= 0 && !inventory && !state.isOver && pending.isEmpty()) tick.let {
             // Another player's card or bandit cost you something: say who, with what card and why, until OK.
             tracker.hits.lastOrNull { it.victim == me && it.seq > seenHit }?.let { hit ->
                 Column(Modifier.align(Alignment.TopCenter).padding(top = 64.dp).widthIn(max = 460.dp).chest().testTag("hit-notice"),
@@ -1175,7 +1219,7 @@ fun WatchGameScreen(
             val cardSheet = legal.any { it.type == ActionType.DISCARD || it.type == wgbg.engine.CkActionType.CHOOSE_CARD }
             if (!tradeOpen && !tradeNeedsMe(state, me) && !cardSheet) HandRow(state, me, tick,
                 // Between the left panel and the move buttons (playtest: progress cards slid under End turn).
-                Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 384.dp, end = 196.dp, bottom = 6.dp))
+                Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 384.dp, end = 196.dp, bottom = 6.dp), pace = env.pace.factor)
         }
         if (me >= 0 && !inventory) {
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
@@ -1207,7 +1251,7 @@ fun WatchGameScreen(
                     IconPlateButton(MoveIcon.TRADE, "Trade", "trade-toggle", lit = tradeOpen || tradeNeedsMe(state, me)) { tradeOpen = !tradeOpen }
                 }) else null)
             // The confirm box keeps clear of the spot it asks about: at the bottom when the spot is high on the board.
-            val confirmLow = chosen.isNotEmpty() && boardSize.minDimension > 0f && confirmBelow(spotOf(state.board, chosen[0])
+            val confirmLow = chosen.isNotEmpty() && boardSize.minDimension > 0f && confirmBelow((spotOf(state.board, chosen[0]) ?: pendingAt)
                 ?.let { Layout.fit(state.board, boardSize.width, boardSize.height, camera).project(it.x, it.y).y }, boardSize.height)
             if (chosen.isNotEmpty()) Column(
                 (if (confirmLow) Modifier.align(Alignment.BottomCenter).padding(bottom = 130.dp) else Modifier.align(Alignment.TopCenter).padding(top = 8.dp)).chest(),
@@ -1260,17 +1304,10 @@ fun WatchGameScreen(
                 }
                 // Every card and what it does, and what everything costs (Mauro: "make a map in the menu").
                 WoodButton("Card guide", "menu-guide") { guideOpen = true; panelOpen = false; settingsOpen = false }
+                // A bug or an idea, typed or spoken, with this whole game attached (Mauro, 2026-10-12).
+                WoodButton("Report a bug or idea", "menu-feedback") { feedbackOpen = true; panelOpen = false; settingsOpen = false }
                 if (online != null) Text("Online · room ${online.id}", fontWeight = FontWeight.Bold, modifier = Modifier.testTag("menu-room"))
-                if (online == null) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
-                    WoodButton(if (speed == MAX_SPEED) "Max" else "${speed}×", "menu-speed") { speed = if (speed == MAX_SPEED) 1 else speed * 2 }
-                    WoodButton(if (human) "Watch bots" else "Play", "menu-watch") { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }
-                    if (!human) WoodButton(if (oneGame) "One game" else "Nonstop", "menu-one-game") {
-                        oneGame = !oneGame
-                        if (!oneGame && state.isOver) seed++
-                    }
-                    if (!human && oneGame && tick.let { state.isOver }) WoodButton("Next game", "menu-next-game") { seed++ }
-                }
+                if (!lookAndArt) LiveBoardChoice(env)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
  // Inventory and Tiles: compare live on the Look & art page before the game now (#71, Mauro: clean up the menu).
                     WoodButton("Fit", "menu-fit") { camera = Camera.FIT }
@@ -1300,11 +1337,36 @@ fun WatchGameScreen(
             // Copies, so each move's new counts reach the screen (the arrays themselves never change identity).
             tick.let { DiceHistogram(tracker.rollCounts.copyOf(), tracker.eventCounts.copyOf(), state.ck != null, onClose = { histogramOpen = false }) }
         }
+        if (feedbackOpen) {
+            BackHandler { feedbackOpen = false }
+            val game = remember {
+                if (net != null) "online room ${online?.id} · seed ${net.seed} · ${net.config}\n" + played.joinToString("\n") { wgbg.net.MoveCodec.encode(it) }
+                else LocalSave(setup, seed, played.toList()).encode()
+            }
+            FeedbackPanel(game, remember { Feedback.historyLines(tracker.history, names) }, remember { Feedback.position(state, names) },
+                onClose = { feedbackOpen = false })
+        }
         if (guideOpen) Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
             CardGuide(state.ck != null, env.pirateTheme, onClose = { guideOpen = false })
         }
+        // Pause, speed and Watch bots live under the gear (Mauro, 2026-10-12); local games only, not on Look & art.
         if (settingsOpen) SettingsPanel(env, sound,
-            Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp))
+            Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp),
+            gameControls = if (online == null && !lookAndArt) {
+                {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
+                        WoodButton(if (speed == MAX_SPEED) "Max" else "${speed}×", "menu-speed") { speed = if (speed == MAX_SPEED) 1 else speed * 2 }
+                        WoodButton(if (human) "Watch bots" else "Play", "menu-watch") { human = !human; speed = if (human) 2 else MAX_SPEED; tradeOpen = false; seed++; playing = true }
+                        if (!human) WoodButton(if (oneGame) "One game" else "Nonstop", "menu-one-game") {
+                            oneGame = !oneGame
+                            if (!oneGame && state.isOver) seed++
+                        }
+                        if (!human && oneGame && tick.let { state.isOver }) WoodButton("Next game", "menu-next-game") { seed++ }
+                    }
+                }
+            } else null,
+            liveBoardChoice = lookAndArt)
         if (confirmExit) Column(
             Modifier.align(Alignment.Center).brassEdgedWood().padding(18.dp).testTag("exit-confirm"),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -1313,7 +1375,8 @@ fun WatchGameScreen(
             Text("Leave this game?", color = Color(0xFFF1D58A), fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text(if (online != null) "Leave for now: Resume from the start screen any time, until the host deletes the game. " +
                     (if (net?.isHost == true) "Delete game ends it for everyone." else "Quit: leave for good.")
-                else "It won't be saved.", color = Color(0xFFEDE6D8), fontSize = 13.sp)
+                else if (saveStore != null && human) "Leave for now: Resume it from the start screen any time." else "It won't be saved.",
+                color = Color(0xFFEDE6D8), fontSize = 13.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 WoodButton("Keep playing", "exit-no") { confirmExit = false }
                 ColorButton(if (online != null) "Leave for now" else "Leave", Color(0xFFC0392B), "exit-yes") { confirmExit = false; onExit() }
@@ -1324,16 +1387,21 @@ fun WatchGameScreen(
             }
         }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.
-        // The build menu down the right edge, on your turn: an icon per thing you can build or do to a knight.
-        if (me >= 0 && !inventory && !panelOpen && !settingsOpen && !chestOpen && tick.let { state.phase == Phase.PLAY_TURN && state.currentPlayer == me && state.actingPlayer == me })
+        // The build menu down the right edge, on your turn: an icon per thing you can build or do to a knight; also while
+        // placing your first pieces (Mauro: "add the build menu during setup"), showing the homestead, town or road due.
+        if (me >= 0 && !inventory && !panelOpen && !settingsOpen && !chestOpen && tick.let {
+                (state.phase == Phase.PLAY_TURN && state.currentPlayer == me || inSetup(state)) && state.actingPlayer == me })
             BuildMenu(state.ck != null, legal, buildMode, { buildMode = it }, { a -> pending = emptyList(); humanMoves.trySend(a) },
-                Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (env.viewBars) 156.dp else 8.dp))
-        // Zoom and Tilt bars on the right edge (pinch and two-finger drag do the same).
-        if (env.viewBars && !inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
+                Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (env.viewBars) 156.dp else if (liveBoard) 64.dp else 8.dp))
+        // Zoom and Tilt bars on the right edge (pinch and two-finger drag do the same). On the 3D board the Turn bar
+        // always shows, even with the bars hidden (phones hide them by default; Mauro: "did we lose the rotate slider?").
+        if ((env.viewBars || liveBoard) && !inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
             onZoom = { z -> camera = camera.transform(Offset(boardSize.width / 2f, boardSize.height / 2f), Offset.Zero, z / camera.zoom, boardSize) },
             onTilt = { t -> camera = camera.copy(tilt = t) },
+            // The 3D board also turns (Mauro: "a rotate slider - start it in the middle"); the flat board doesn't.
+            rotation = boardRotation.takeIf { liveBoard }, onTurn = { r -> boardRotation = r }, zoomTilt = env.viewBars,
             // Upper right under Trade, short, clear of the move buttons that stack up from the bottom right.
-            Modifier.align(Alignment.TopEnd).padding(top = 104.dp, end = 8.dp))
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 104.dp, end = 8.dp))
     }
 }
 
@@ -1360,7 +1428,8 @@ private fun RejoiningOr(savedRoom: android.content.SharedPreferences, orElse: ()
  * marks never fade below 60% and swell a little, rather than flash. A thin dark outline keeps them readable on
  * light tiles (and for White).
  */
-private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, pulse: Float, glow: Color = Color(0xFFFFE08A)) {
+private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, pulse: Float, glow: Color = Color(0xFFFFE08A),
+                                   pieceOn: (Int) -> Boolean = { false }) {
     if (size.minDimension < 2f) return
     val l = Layout.fit(board, size.width, size.height, camera)
     if (!l.scale.isFinite() || l.scale <= 0f) return
@@ -1380,8 +1449,9 @@ private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, puls
         val ends = board.topology.edgeVertices[e]
         val p0 = vertexLattice(board, ends[0])
         val p1 = vertexLattice(board, ends[1])
-        val a0 = l.project(p0.x + (p1.x - p0.x) * 0.2f, p0.y + (p1.y - p0.y) * 0.2f)
-        val a1 = l.project(p1.x + (p0.x - p1.x) * 0.2f, p1.y + (p0.y - p1.y) * 0.2f)
+        val (f0, f1) = edgeGlowSpan(pieceOn(ends[0]), pieceOn(ends[1]))
+        val a0 = l.project(p0.x + (p1.x - p0.x) * f0, p0.y + (p1.y - p0.y) * f0)
+        val a1 = l.project(p0.x + (p1.x - p0.x) * f1, p0.y + (p1.y - p0.y) * f1)
         val w = BUILD_MARK_W * l.scale * l.kAt((p0.y + p1.y) / 2) * swell
         drawLine(glow.copy(alpha = 0.35f * a), a0, a1, w * 2.8f, StrokeCap.Round)    // soft halo
         drawLine(ink.copy(alpha = 0.55f), a0, a1, w * 1.35f, StrokeCap.Round)        // outline
@@ -2446,7 +2516,7 @@ private fun DrawScope.drawCliffs(board: Board, l: Layout, cliffs: List<ImageBitm
         mtx.values[0] = ue.x / img.width; mtx.values[1] = ue.y / img.width
         mtx.values[4] = un.x / img.height; mtx.values[5] = un.y / img.height
         mtx.values[12] = o.x; mtx.values[13] = o.y
-        withTransform({ transform(mtx) }) { drawImage(img, filterQuality = FilterQuality.Medium) }
+        withTransform({ transform(mtx) }) { drawImage(img, filterQuality = FilterQuality.Medium, colorFilter = BOARD_FILTER) }
     }
 }
 
@@ -2477,7 +2547,7 @@ internal fun turnHeader(tracker: TurnTracker, s: GameState): TurnReport? {
     val cur = tracker.current
     if (s.isOver) return cur ?: tracker.last
     // Setup: whoever places now, even before their first piece (the placing order snakes back).
-    if (s.phase == wgbg.engine.Phase.BUILD_INITIAL_SETTLEMENT || s.phase == wgbg.engine.Phase.BUILD_INITIAL_ROAD)
+    if (inSetup(s))
         return if (cur != null && cur.player == s.actingPlayer) cur else TurnReport(s.actingPlayer, s.turn)
     return if (cur != null && cur.player == s.currentPlayer && cur.turn == s.turn) cur else TurnReport(s.currentPlayer, s.turn)
 }

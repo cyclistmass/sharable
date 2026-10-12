@@ -30,4 +30,19 @@ class ViewBarsTest {
         assertEquals(0f, ViewBars.zoomToBar(0.1f), 0f)
         assertEquals(1f, ViewBars.tiltToBar(5f), 0f)
     }
+
+    @Test
+    fun `the Turn bar starts in the middle, turns half a turn each way, and reads back any twist`() {
+        val pi = Math.PI.toFloat()
+        assertEquals(0.5f, ViewBars.turnToBar(0f), 1e-6f)
+        assertEquals(0f, ViewBars.barToTurn(0.5f), 1e-6f)
+        assertEquals(pi, ViewBars.barToTurn(1f), 1e-5f)
+        assertEquals(-pi, ViewBars.barToTurn(0f), 1e-5f)
+        for (t in listOf(0.05f, 0.3f, 0.5f, 0.77f, 0.95f)) assertEquals(t, ViewBars.turnToBar(ViewBars.barToTurn(t)), 1e-5f)
+        // A finger twist can leave any angle; the knob shows it wrapped, never off the bar.
+        assertEquals(ViewBars.turnToBar(0.4f), ViewBars.turnToBar(0.4f + 2 * pi), 1e-5f)
+        assertEquals(ViewBars.turnToBar(-0.4f), ViewBars.turnToBar(2 * pi - 0.4f), 1e-5f)
+        assertEquals(0.5f, ViewBars.turnToBar(Float.NaN), 1e-6f)
+        for (r in listOf(-20f, -3.2f, 3.2f, 20f)) assertEquals(true, ViewBars.turnToBar(r) in 0f..1f)
+    }
 }

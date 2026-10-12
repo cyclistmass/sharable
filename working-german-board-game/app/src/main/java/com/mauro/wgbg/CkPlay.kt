@@ -162,6 +162,40 @@ fun ckPrompt(s: GameState, legal: List<Action>, names: List<String> = PLAYER_NAM
     }
 }
 
+/**
+ * Town improvements offered by tapping one of [me]'s towns at lattice point [p] (Mauro: "put the city upgrade on the
+ * city"): every legal improvement, in deck order; one that wins the Capital only for the tapped town. Empty when the tap
+ * isn't on a town of yours, or no improvement can be paid for now.
+ */
+fun townMovesAt(s: GameState, legal: List<Action>, p: androidx.compose.ui.geometry.Offset, me: Int): List<Action> {
+    if (me < 0 || legal.none { it.type == CkActionType.IMPROVE_CITY }) return emptyList()
+    val town = townAt(s, p, me) ?: return emptyList()
+    return legal.filter { it.type == CkActionType.IMPROVE_CITY && (it.b == 0 || it.b - 1 == town) }.sortedBy { it.a }
+}
+
+/** The town of [me]'s within a finger's reach of lattice point [p], nearest first, or null. */
+fun townAt(s: GameState, p: androidx.compose.ui.geometry.Offset, me: Int): Int? {
+    fun d(v: Int) = vertexLattice(s.board, v).let { kotlin.math.hypot(it.x - p.x, it.y - p.y) }
+    return (0 until s.board.topology.vertexCount).filter { s.vertexOwner[it] == me && s.vertexBuilding[it] == wgbg.engine.Piece.CITY && d(it) < TAP_RADIUS }
+        .minByOrNull { d(it) }
+}
+
+/**
+ * What a board tap at [p] offers: the moves at the nearest spot ([boardLegal], narrowed by the build menu), plus the town
+ * improvements when the tap is on one of your towns and nothing nearer claims it (Ramparts on that town share the box).
+ * A picked build-menu entry ([menuPicked]) keeps the tap to that entry.
+ */
+fun tapMoves(s: GameState, boardLegal: List<Action>, legal: List<Action>, p: androidx.compose.ui.geometry.Offset, me: Int, menuPicked: Boolean): List<Action> {
+    val board = movesAt(s.board, boardLegal, p)
+    if (menuPicked) return board
+    val town = townMovesAt(s, legal, p, me)
+    if (town.isEmpty() || board.isEmpty()) return board.ifEmpty { town }
+    val townPos = vertexLattice(s.board, townAt(s, p, me)!!)
+    val boardPos = spotOf(s.board, board[0]) ?: return board
+    return if (kotlin.math.hypot(boardPos.x - townPos.x, boardPos.y - townPos.y) < 1e-3f) board + town
+    else if (kotlin.math.hypot(boardPos.x - p.x, boardPos.y - p.y) < kotlin.math.hypot(townPos.x - p.x, townPos.y - p.y)) board else town
+}
+
 /** Track of the improvement an IMPROVE_CITY action raises (for colouring its button). */
 fun improveTrack(a: Action) = if (a.type == CkActionType.IMPROVE_CITY) a.a else -1
 

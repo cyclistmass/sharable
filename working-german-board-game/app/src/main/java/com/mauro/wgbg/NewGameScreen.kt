@@ -75,10 +75,15 @@ fun NewGameScreen(
     /** An online game you left for now (room code): shows a green Resume button until it ends or is deleted. */
     resumeRoom: String? = null,
     onResume: (() -> Unit)? = null,
+    /** A local game left mid-way (#82): the label of a green Resume button that picks it up where it was. */
+    resumeGame: String? = null,
+    onResumeGame: (() -> Unit)? = null,
     /** Look & art (#71): pick the theme, dice, tiles and see every piece, before the game; gets the choices on screen. */
     onLookAndArt: ((GameSetup) -> Unit)? = null,
     /** Plays the intro fly-over now (Mauro: a button on the start screen, not a setting in the game). */
     onPlayIntro: (() -> Unit)? = null,
+    /** Opens the bug report / idea panel (Mauro: "put it on the main landing page menu as well"). */
+    onFeedback: (() -> Unit)? = null,
 ) {
     var setup by remember { mutableStateOf(initial) }
     // The deck size to come back to when switching Random -> Card deck (72 by default, as drawn).
@@ -125,6 +130,8 @@ fun NewGameScreen(
                 Choice("+", false, "points-up", Modifier.size(34.dp), size = 18.sp,
                     enabled = setup.points < GameSetup.POINTS_RANGE.last) { setup = setup.withPoints(setup.points + 1) }
                 Spacer(Modifier.weight(1f))
+                if (onFeedback != null) WoodButton("Report", "start-feedback", Modifier.height(40.dp)) { onFeedback() }
+                if (onFeedback != null) Spacer(Modifier.width(8.dp))
                 if (onPlayIntro != null) WoodButton("Intro", "play-intro", Modifier.height(40.dp)) { onPlayIntro() }
                 if (onPlayIntro != null) Spacer(Modifier.width(8.dp))
                 if (onLookAndArt != null) BrassButton("Look & art", "look-and-art", Modifier.height(40.dp)) { onLookAndArt(setup) }
@@ -145,6 +152,8 @@ fun NewGameScreen(
             }
             Text("Reshuffles when 5 cards are left.", style = Wood.sans(12.sp, color = Wood.INK_SOFT))
             Spacer(Modifier.weight(1f))
+            // Sign in on the start screen (Mauro, 2026-10-12); hidden when the build has no Firebase.
+            AccountSection(compact = true)
             setup.problems.firstOrNull()?.let {
                 Text(it, style = Wood.sans(13.sp, FontWeight.Bold, Wood.WAITING), modifier = Modifier.testTag("setup-problem"))
             }
@@ -153,6 +162,8 @@ fun NewGameScreen(
                 // Online needs a real name (friends see it); say so plainly, it read as "online is broken" when grey.
                 Text("To play online, type your name above (not \"You\")", style = Wood.sans(13.sp, FontWeight.Bold, Wood.WAITING),
                     modifier = Modifier.testTag("online-name-hint"))
+            if (resumeGame != null && onResumeGame != null)
+                GoButton(resumeGame, "resume-game", true, Modifier.fillMaxWidth().height(40.dp)) { onResumeGame() }
             if (resumeRoom != null && onResume != null)
                 GoButton("Resume online game $resumeRoom", "resume-room", true, Modifier.fillMaxWidth().height(40.dp)) { onResume() }
             // Online buttons turn green (go) once online is possible, i.e. you've typed a name (Mauro, 2026-10-11).

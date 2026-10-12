@@ -50,6 +50,10 @@ class FirestoreTransport(private val auth: FirebaseAuth, private val db: Firebas
     private var signingIn: CompletableFuture<String>? = null
     private val games get() = db.collection("games")
     private val uid get() = auth.currentUser?.uid ?: error("Sign in first")
+    /** The account calls for Settings' Google sign-in (#83). */
+    val account: GoogleAccount.Ops get() = GoogleAccount.FirebaseOps(auth)
+    /** After a Google sign-in or sign-out: forget the cached sign-in so the next call uses the new user. */
+    @Synchronized fun accountChanged() { signingIn = null }
     @Synchronized override fun signIn(): CompletableFuture<String> {
         signingIn?.takeUnless { it.isCompletedExceptionally }?.let { return it }
         val fresh = { auth.signInAnonymously().future().thenApply { it.user!!.uid } }
