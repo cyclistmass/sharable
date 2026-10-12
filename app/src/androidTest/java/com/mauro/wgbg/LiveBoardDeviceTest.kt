@@ -63,7 +63,7 @@ class LiveBoardDeviceTest {
             .putFloat(EnvSettings.ANIMATIONS, 0f).putFloat(EnvSettings.THEME, 0f).commit()
         context.cacheDir.resolve("live-board-frames.jsonl").delete()
         instrument.uiAutomation.executeShellCommand("logcat -c").use { FileInputStream(it.fileDescriptor).readBytes() }
-        instrument.startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        val activity = instrument.startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             .putExtra("start", "base").putExtra("tilt", .48f))
         waitFor("live board frame") { log("WGBG-3D-PERF").contains("rotation=0.0") }
         val display = context.resources.displayMetrics
@@ -98,5 +98,18 @@ class LiveBoardDeviceTest {
         context.cacheDir.resolve("live-device-after-twist.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
         bitmap.recycle()
         assertTrue(context.getSharedPreferences("wgbg-settings", 0).getFloat(EnvSettings.LIVE_BOARD, 0f) > .5f)
+        // The view must resume after BOTH a fallback switch and a stopped native surface.
+        fun switch(live: Boolean) = context.sendBroadcast(Intent("com.mauro.wgbg.FILAMENT_VIEW").setPackage(context.packageName).putExtra("live", live))
+        switch(false); Thread.sleep(800)
+        context.cacheDir.resolve("live-board-frames.jsonl").delete()
+        switch(true)
+        waitFor("rendering resumes after sprite fallback") { context.cacheDir.resolve("live-board-frames.jsonl").exists() }
+        instrument.runOnMainSync { activity.moveTaskToBack(true) }
+        Thread.sleep(700)
+        context.cacheDir.resolve("live-board-frames.jsonl").delete()
+        instrument.runOnMainSync {
+            context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        }
+        waitFor("rendering resumes after backgrounding") { context.cacheDir.resolve("live-board-frames.jsonl").exists() }
     }
 }

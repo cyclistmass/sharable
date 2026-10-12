@@ -3,7 +3,7 @@ package com.mauro.wgbg
 import android.content.Context
 import android.util.Log
 import android.view.Choreographer
-import android.view.Surface
+import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -14,7 +14,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.android.filament.*
 import com.google.android.filament.android.DisplayHelper
-import com.google.android.filament.android.UiHelper
 import com.google.android.filament.gltfio.*
 import com.google.android.filament.utils.Utils
 import java.nio.ByteBuffer
@@ -48,8 +47,8 @@ internal fun LiveBoardView(placements: List<LivePlacement>, projection: LiveProj
 }
 
 /** All engine access is on the main thread, as required by Filament's Android API. */
-internal class LiveBoardRenderer(surfaceView: SurfaceView, private val context: Context, private val fail: (String) -> Unit) :
-    Choreographer.FrameCallback, AutoCloseable {
+internal class LiveBoardRenderer(private val surfaceView: SurfaceView, private val context: Context, private val fail: (String) -> Unit) :
+    Choreographer.FrameCallback, SurfaceHolder.Callback, AutoCloseable {
     companion object {
         init { Utils.init(); Gltfio.init() }
     }
@@ -63,7 +62,6 @@ internal class LiveBoardRenderer(surfaceView: SurfaceView, private val context: 
     private val loader = AssetLoader(engine, provider, EntityManager.get())
     private val resources = ResourceLoader(engine, true)
     private val display = DisplayHelper(context)
-    private val ui = UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK)
     private var swapChain: SwapChain? = null
     private var width = 0
     private var height = 0
@@ -103,23 +101,37 @@ internal class LiveBoardRenderer(surfaceView: SurfaceView, private val context: 
         // Direction is where the rays travel: source (-x, +y, -z), upper left on the board.
         addLight(0.5f, -0.8f, 0.6f, 80_000f, 1f, 0.91f, 0.78f)
         addLight(-0.5f, -0.4f, -0.4f, 12_000f, 0.75f, 0.85f, 1f)
-        ui.renderCallback = object : UiHelper.RendererCallback {
-            override fun onNativeWindowChanged(surface: Surface) {
-                swapChain?.let { engine.destroySwapChain(it) }
-                swapChain = engine.createSwapChain(surface)
-                display.attach(renderer, surfaceView.display)
-            }
-            override fun onDetachedFromSurface() {
-                display.detach()
-                swapChain?.let { engine.destroySwapChain(it); engine.flushAndWait() }
-                swapChain = null
-            }
-            override fun onResized(w: Int, h: Int) {
-                width = w; height = h; view.viewport = Viewport(0, 0, w, h)
-                engine.flushAndWait()
-            }
+        surfaceView.holder.addCallback(this)
+        // Compose can reuse an already-sized native surface after the sprite fallback. Adding a
+        // callback alone doesn't replay surfaceChanged; adopt its current frame explicitly.
+        if (surfaceView.holder.surface.isValid) {
+            surfaceCreated(surfaceView.holder)
+            val frame = surfaceView.holder.surfaceFrame
+            surfaceChanged(surfaceView.holder, 0, frame.width(), frame.height())
         }
-        ui.attachTo(surfaceView)
+    }
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        if (closed) return
+        swapChain?.let { engine.destroySwapChain(it) }
+        swapChain = engine.createSwapChain(holder.surface)
+        display.attach(renderer, surfaceView.display)
+        Log.i("WGBG-3D", "surface created")
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {
+        if (closed) return
+        width = w; height = h
+        view.viewport = Viewport(0, 0, w, h)
+        engine.flushAndWait()
+        Log.i("WGBG-3D", "surface resized ${w}x$h")
+    }
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        if (closed) return
+        display.detach()
+        swapChain?.let { engine.destroySwapChain(it); engine.flushAndWait() }
+        swapChain = null
     }
 
     private fun addLight(x: Float, y: Float, z: Float, intensity: Float, r: Float, g: Float, b: Float) {
@@ -207,7 +219,14 @@ internal class LiveBoardRenderer(surfaceView: SurfaceView, private val context: 
         if (!running || closed) return
         scheduled = true; Choreographer.getInstance().postFrameCallback(this)
         val p = projection ?: return
-        if (!ui.isReadyToRender || width == 0 || height == 0) return
+        if (swapChain == null || width == 0 || height == 0) {
+            // A static Compose canvas can attach a new SurfaceView after the window's pre-draw
+            // pass, then schedule no more draws. Request that pass so SurfaceView creates its
+            // native window; otherwise enabling 3D after a sprite frame can stay black forever.
+            surfaceView.requestLayout()
+            surfaceView.invalidate()
+            return
+        }
         try {
             updateScene(); updateCamera(p)
             val start = System.nanoTime()
@@ -253,7 +272,8 @@ internal class LiveBoardRenderer(surfaceView: SurfaceView, private val context: 
     override fun close() {
         if (closed) return
         running = false
-        ui.detach()
+        surfaceView.holder.removeCallback(this)
+        surfaceDestroyed(surfaceView.holder)
         closed = true
         scene.removeEntities(lights.toIntArray())
         for (i in active) scene.removeEntities(i.entities)
