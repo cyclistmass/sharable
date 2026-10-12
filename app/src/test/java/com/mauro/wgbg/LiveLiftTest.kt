@@ -40,6 +40,24 @@ class LiveLiftTest {
     }
 
     @Test
+    fun `after a turn every standing piece faces the camera, then leans toward it`() {
+        // Mauro: "buildings should tilt towards viewer after rotate". Their front (+Z, like the digits) must point at the
+        // eye's ground direction (sin r, cos r) at every Turn-bar step and twist, not stay at the board's 0.
+        val pieces = listOf("bandit", "default_homestead", "pirate_town", "default_ramparts", "default_capital_crown", "pirate_knight_1")
+        for (model in pieces) for (rotation in listOf(0f, 1.5707964f, 3.1415927f, 4.712389f, 0.7f, -2.5f)) for (lift in listOf(0f, 0.4f, 0.9f)) {
+            val p = LivePlacement(model, Offset(0.4f, 1.1f), scale = 0.8f)
+            val m = liveStandingMatrix(p, lift, rotation)
+            val front = floatArrayOf(m[8], m[9], m[10]).map { it / p.scale }
+            assertEquals(cos(lift) * sin(rotation), front[0], 1e-5f, "$model at $rotation")
+            assertEquals(cos(lift) * cos(rotation), front[2], 1e-5f, "$model at $rotation")
+            val up = floatArrayOf(m[4], m[5], m[6]).map { it / p.scale }
+            assertEquals(sin(lift) * sin(rotation), up[0], 1e-5f, "$model leans toward the eye")
+            assertEquals(sin(lift) * cos(rotation), up[2], 1e-5f, "$model leans toward the eye")
+            assertEquals(0.4f, m[12]); assertEquals(1.1f, m[14])
+        }
+    }
+
+    @Test
     fun `the lift matches the flat board's steps and never looks past the steepest view`() {
         val step = Camera.MAX_TILT / 7f
         assertEquals(4 * step, liveLift(0f, 4f), 1e-6f)
@@ -51,7 +69,7 @@ class LiveLiftTest {
 
     @Test
     fun `buildings and the Bandit stand, while tiles, roads, plates and the sea lie flat`() {
-        for (m in listOf("bandit", "default_homestead", "pirate_town", "default_ramparts", "pirate_capital_crown")) assertTrue(liveStanding(m), m)
+        for (m in listOf("bandit", "default_homestead", "pirate_town", "default_ramparts", "pirate_capital_crown", "pirate_knight_1", "samurai_knight_3")) assertTrue(liveStanding(m), m)
         for (m in listOf("sea", "tile_grain_lod0", "default_road_v", "number_plate", "digit_8")) assertFalse(liveStanding(m), m)
     }
 }
