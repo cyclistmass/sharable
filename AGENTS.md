@@ -41,7 +41,7 @@ counter/primary gold.
 
 ## Graphics workflow
 
-0. **Before making or changing any art, read `docs/design/art-spec.md`** (only then; it isn't needed for
+0. **Before making or changing any art, read `docs/design/art-spec.md`** (and for a new theme, `docs/design/theme-spec.md`) (only then; it isn't needed for
    code work). It has the house style and the file and on-board size of every object: tiles, number plate,
    bandit, pieces, knights, ports, cliffs, sea, boats, gulls, Raiders, cards, dice, buttons and icons. Key
    rule: the number plate sits **lower right** on each tile (centre +0.36, +0.30, radius 0.27) on a plain
