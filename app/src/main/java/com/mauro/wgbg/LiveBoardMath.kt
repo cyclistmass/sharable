@@ -104,11 +104,13 @@ internal fun liveModelMatrix(p: LivePlacement, lift: Float = 0f, rotation: Float
 
 /**
  * A standing piece under a camera orbited by [rotation]: turned to face the eye (its front, +Z, toward (sin r, cos r),
- * the way the digits cancel the orbit) and then tipped [lift] toward it. Without the turn, a piece leaned toward the
- * eye side-on or back-first after the Turn bar or a twist (Mauro: "buildings should tilt towards viewer after rotate").
+ * the way the digits cancel the orbit) and then laid back [lift] away from it, so its front tips up at the camera and
+ * its roof sits toward the top of the screen, like the flat board's sprites. Tipping toward the eye showed the back
+ * wall upside down (#104). Without the turn, a piece leaned side-on or back-first after the Turn bar or a twist
+ * (Mauro: "buildings should tilt towards viewer after rotate").
  */
 internal fun liveStandingMatrix(p: LivePlacement, lift: Float, rotation: Float, facing: Boolean = true): FloatArray =
-    liveModelMatrix(if (facing) p.copy(heading = p.heading + rotation) else p, lift, rotation)
+    liveModelMatrix(if (facing) p.copy(heading = p.heading + rotation) else p, -lift, rotation)
 
 /** Pieces that stand up (buildings, the Bandit): tipped toward the camera like the flat board's sprites. */
 internal fun liveStanding(model: String): Boolean =
@@ -119,7 +121,7 @@ internal fun liveStanding(model: String): Boolean =
 internal const val LIVE_PIECE_VIEW = 0.17453292f
 
 /**
- * How far standing pieces tip toward the camera at board [tilt] (0 = straight down): enough that they're seen from
+ * How far standing pieces lie back from the camera at board [tilt] (0 = straight down): enough that they're seen from
  * [LIVE_PIECE_VIEW] above the table, until the board itself is tilted past that view; then none, true 3D.
  */
 internal fun liveLift(tilt: Float): Float = (PI.toFloat() / 2f - LIVE_PIECE_VIEW - tilt).coerceAtLeast(0f)

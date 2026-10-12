@@ -1119,6 +1119,7 @@ fun WatchGameScreen(
                 InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide, buildings, sea.sprites3d),
                 bottomInset = INVENTORY_CARDS_DP.dp.toPx()) else if (liveBoard) {
                 val projection = liveProjection(size.width, size.height)
+                drawLivePorts(state.board, projection, measurer, wood, buildings)
                 drawLiveOverlay(state, projection, if (env.pirateTheme) knightsPirate else knightsNormal) { v ->
                     liveKnightModel(state, v, env.pirateTheme) in liveModels }
                 if (!targets.isEmpty) drawLiveTargets(state.board, targets, projection, targetGlow(me)) { pieceAt(state, it) }
@@ -2255,6 +2256,25 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
     val gullAt = Offset(left + 10.7f * scale, y4)
     if (s3d != null) drawSeaProp(s3d, gullAt, SeaSprites3d.GULL_FRAME * scale * 2f, 4, invStep, SeaArt.gull) else image(art.gull, gullAt, 0.8f)
     label("Gull", gullAt + Offset(0f, 0.5f * scale))
+}
+
+/**
+ * The flat board's harbours on the 3D board (#104): the same shallows, plank piers from both coast corners and bell buoy,
+ * placed through the 3D camera and square to their edge. They used to be plain discs off the coast with no piers.
+ */
+private fun DrawScope.drawLivePorts(board: Board, p: LiveProjection, measurer: TextMeasurer, wood: WoodPieces, buildings: BuildingSprites?) {
+    val c = kotlin.math.cos(p.rotation); val s = kotlin.math.sin(p.rotation)
+    val ports = board.ports.map { port ->
+        val v1 = liveVertex(board, port.v1); val v2 = liveVertex(board, port.v2)
+        val n = coastOutward(board, port.v1, port.v2)
+        val mid = p.project((v1 + v2) / 2f)
+        // Out on screen before the tilt squash, which the water and piers apply themselves.
+        PortGeom(port.type, p.project(v1), p.project(v2), mid, Offset(c * n.x - s * n.y, s * n.x + c * n.y),
+            p.project((v1 + v2) / 2f + n * (if (buildings != null) PORT_BUOY_OUT else 0.58f)), p.scale)
+    }
+    val squash = kotlin.math.cos(p.tilt)
+    for (pg in ports) drawPortWater(pg, pg.scale, squash)
+    for (pg in ports) drawPortPiersAndToken(pg, pg.scale, measurer, wood, buildings?.ports?.getOrNull(PortArt.index(pg.type)), p.tilt)
 }
 
 private class PortGeom(val type: Int, val a: Offset, val b: Offset, val mid: Offset, val out: Offset, val token: Offset, val scale: Float)

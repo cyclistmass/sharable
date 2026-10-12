@@ -17,7 +17,7 @@ import kotlin.math.roundToInt
 /** The 3D board's knights at this share of the flat board's size (Mauro: "scale down a little", then 30% smaller again). */
 internal const val LIVE_KNIGHT_SHARE = 0.49f
 
-/** Existing knight sprites and trade labels remain screen overlays for this prototype. */
+/** Knight sprites (where no model is loaded) remain screen overlays for this prototype. */
 internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights: List<ImageBitmap>, knightModel: (Int) -> Boolean = { false }) {
     val ck = s.ck
     if (ck != null) for (v in 0 until s.board.vertexCount) {
@@ -30,20 +30,7 @@ internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights:
         if (image != null) drawImage(image, dstOffset = IntOffset((at.x - size / 2).roundToInt(), (at.y - size * .92f).roundToInt()),
             dstSize = IntSize(size.roundToInt(), size.roundToInt()))
     }
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.CENTER; textSize = p.scale * .14f; color = 0xFFF1D58A.toInt()
-    }
-    for (port in s.board.ports) {
-        val mid = (liveVertex(s.board, port.v1) + liveVertex(s.board, port.v2)) / 2f
-        val at = p.project(mid + coastOutward(s.board, port.v1, port.v2) * PORT_BUOY_OUT)
-        val r = p.scale * .29f
-        drawCircle(Color(0xFF422A1B), r, at)
-        drawCircle(Color(0xFFAD8745), r, at, style = Stroke(p.scale * .025f))
-        val label = if (port.type < 0) "3:1" else "2:1"
-        drawContext.canvas.nativeCanvas.drawText(label, at.x, at.y, paint)
-        if (port.type >= 0) drawContext.canvas.nativeCanvas.drawText(
-            listOf("Timber", "Clay", "Fleece", "Grain", "Stone")[port.type], at.x, at.y + p.scale * .15f, paint)
-    }
+    // Harbours: the flat board's shallows, piers and buoys, projected (drawLivePorts in MainActivity.kt, #104).
 }
 
 internal fun DrawScope.drawLiveTargets(b: Board, targets: Targets, p: LiveProjection, color: Color, pieceOn: (Int) -> Boolean = { false }) {
