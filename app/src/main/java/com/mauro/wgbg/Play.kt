@@ -94,9 +94,12 @@ fun spotOf(b: Board, a: Action, second: Boolean = false): Offset? = when (a.type
     else -> null
 }
 
+/** How near a tap must land to a spot, in hex sides: generous enough for fingers, tight enough to be unambiguous. */
+const val TAP_RADIUS = 0.42f
+
 fun movesAt(b: Board, legal: List<Action>, p: Offset, second: Boolean = false): List<Action> {
     var best: List<Action> = emptyList()
-    var bestD = 0.42f // hex sides; generous enough for fingers, tight enough to be unambiguous
+    var bestD = TAP_RADIUS
     for (a in legal) {
         val at = spotOf(b, a, second) ?: continue
         val tile = a.type == ActionType.MOVE_ROBBER || (a.type == wgbg.engine.CkActionType.PLAY_PROGRESS && cardSpotKind(a.a) == CardSpot.HEX)
@@ -346,6 +349,7 @@ fun confirmTitle(s: GameState, a: Action): String = when (a.type) {
         Phase.DESERTER_REMOVE -> "Turncoat: remove this knight of yours?"
         else -> "Choose what to do here"
     }
+    wgbg.engine.CkActionType.IMPROVE_CITY -> "Improve your towns?"
     else -> "Choose what to do here"
 }
 

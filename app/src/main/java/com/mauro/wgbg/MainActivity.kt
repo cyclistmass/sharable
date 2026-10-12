@@ -548,6 +548,8 @@ fun WatchGameScreen(
     var tradeOpen by remember { mutableStateOf(false) }
     // A tapped board move waits here for Confirm (or a second tap on the same spot).
     var pending by remember { mutableStateOf<List<Action>>(emptyList()) }
+    // Where the pending pick was tapped (lattice), for moves with no spot of their own (town improvements).
+    var pendingAt by remember { mutableStateOf<Offset?>(null) }
     val responses = remember(seed, seats) { mutableStateMapOf<Int, String>() }
     // Dice setting cycles: random, then deck stacks of 1-4 x 36 cards (asked per game once the new-game screen exists).
     var diceSetting by remember { mutableIntStateOf(setup.decks) } // 0 = random, n = n decks
@@ -901,6 +903,7 @@ fun WatchGameScreen(
     if (buildMode != null && legal.none { it.type == buildMode!!.kind }) buildMode = null
     val boardLegal = boardMoves(legal, buildMode)
     val boardLegalNow by rememberUpdatedState(boardLegal)
+    val buildModeNow by rememberUpdatedState(buildMode)
     val targets = if (cardPick.isNotEmpty()) Targets.ofCards(cardPick, cardSecond) else Targets.of(boardLegal)
     val chosen = pending.filter { it in legal } // a stale pick (the turn moved on) is dropped
     // Turn and trade alerts (#44): a tick when it becomes your move, a chime when an offer asks for cards you
@@ -1059,7 +1062,7 @@ fun WatchGameScreen(
                         val l = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera)
                         val p = if (liveBoardNow) LiveProjection(l.center, l.scale, camera.tilt, boardRotation).unproject(at) else l.unproject(at)
                         val picking = cardPickNow.isNotEmpty()
-                        val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else movesAt(boardNow, boardLegalNow, p)
+                        val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else tapMoves(stateNow, boardLegalNow, legalNow, p, me, buildModeNow != null)
                         // The Tinkerer swaps two tiles: the first tap narrows to that tile's swaps, the second picks the other tile.
                         if (picking && !cardSecondNow && moves.size > 1 && moves.all { it.a == wgbg.engine.Progress.INVENTOR }) {
                             cardPick = moves; cardSecond = true; return@detectTapGestures
@@ -1071,7 +1074,7 @@ fun WatchGameScreen(
                                     else android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                                 pending = emptyList(); humanMoves.trySend(moves[0])
                             }
-                            moves.isNotEmpty() -> { pending = moves; hostView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
+                            moves.isNotEmpty() -> { pending = moves; pendingAt = p; hostView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
                             pending.isNotEmpty() -> pending = emptyList() // tapping elsewhere cancels
                             !inventory && boardTapHint(boardNow, legalNow, stateNow.robberHex, p) != null -> tapHint = boardTapHint(boardNow, legalNow, stateNow.robberHex, p)
                             !inventory && seaNow.isWater(p) -> seaNow.splash(p)
@@ -1231,7 +1234,7 @@ fun WatchGameScreen(
                     IconPlateButton(MoveIcon.TRADE, "Trade", "trade-toggle", lit = tradeOpen || tradeNeedsMe(state, me)) { tradeOpen = !tradeOpen }
                 }) else null)
             // The confirm box keeps clear of the spot it asks about: at the bottom when the spot is high on the board.
-            val confirmLow = chosen.isNotEmpty() && boardSize.minDimension > 0f && confirmBelow(spotOf(state.board, chosen[0])
+            val confirmLow = chosen.isNotEmpty() && boardSize.minDimension > 0f && confirmBelow((spotOf(state.board, chosen[0]) ?: pendingAt)
                 ?.let { Layout.fit(state.board, boardSize.width, boardSize.height, camera).project(it.x, it.y).y }, boardSize.height)
             if (chosen.isNotEmpty()) Column(
                 (if (confirmLow) Modifier.align(Alignment.BottomCenter).padding(bottom = 130.dp) else Modifier.align(Alignment.TopCenter).padding(top = 8.dp)).chest(),
