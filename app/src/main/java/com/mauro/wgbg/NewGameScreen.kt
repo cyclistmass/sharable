@@ -152,6 +152,8 @@ fun NewGameScreen(
             }
             Text("Reshuffles when 5 cards are left.", style = Wood.sans(12.sp, color = Wood.INK_SOFT))
             Spacer(Modifier.weight(1f))
+            // Sign in on the start screen (Mauro, 2026-10-12); hidden when the build has no Firebase.
+            AccountSection(compact = true)
             setup.problems.firstOrNull()?.let {
                 Text(it, style = Wood.sans(13.sp, FontWeight.Bold, Wood.WAITING), modifier = Modifier.testTag("setup-problem"))
             }

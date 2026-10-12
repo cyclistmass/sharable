@@ -116,9 +116,12 @@ object GoogleAccount {
     }
 }
 
-/** Settings' Account rows: who you are online, and Sign in with Google / Sign out (#83). Hidden without Firebase. */
+/**
+ * Settings' Account rows: who you are online, and Sign in with Google / Sign out (#83). Hidden without Firebase.
+ * [compact]: one line for the start screen (Mauro: "sign in should be on landing page").
+ */
 @androidx.compose.runtime.Composable
-fun AccountSection() {
+fun AccountSection(compact: Boolean = false) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val transport = androidx.compose.runtime.remember { runCatching { LobbyRepository.create(context) as? FirestoreTransport }.getOrNull() } ?: return
     val clientId = androidx.compose.runtime.remember { GoogleAccount.webClientId(context) } ?: return
@@ -127,20 +130,18 @@ fun AccountSection() {
     var note by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
     var busy by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val gold = androidx.compose.ui.graphics.Color(0xFFD9B865)
-    androidx.compose.material3.Text("Account", fontSize = 13.sp, color = gold)
-    androidx.compose.material3.Text(if (status.signedIn) "Signed in as ${status.email ?: "your Google account"}" else "Guest on this phone (no sign-in needed)",
-        fontSize = 13.sp, color = androidx.compose.ui.graphics.Color(0xFFEDE6D8),
-        modifier = androidx.compose.ui.Modifier.testTag("account-status"))
-    if (status.signedIn) WoodButton("Sign out", "account-sign-out", androidx.compose.ui.Modifier.height(40.dp)) {
-        if (busy) return@WoodButton
-        busy = true
-        scope.launch {
-            note = runCatching { GoogleAccount.signOut(transport.account) }.fold({ "Signed out: playing as a new guest" }, { "Couldn't sign out (offline?)" })
-            transport.accountChanged(); status = GoogleAccount.status(transport.account); busy = false
+    val signOut: () -> Unit = {
+        if (!busy) {
+            busy = true
+            scope.launch {
+                note = runCatching { GoogleAccount.signOut(transport.account) }.fold({ "Signed out: playing as a new guest" }, { "Couldn't sign out (offline?)" })
+                transport.accountChanged(); status = GoogleAccount.status(transport.account); busy = false
+            }
         }
-    } else BrassButton("Sign in with Google", "account-sign-in", androidx.compose.ui.Modifier.height(40.dp)) {
-        val activity = context as? android.app.Activity ?: return@BrassButton
-        if (busy) return@BrassButton
+    }
+    val signIn: () -> Unit = signIn@{
+        val activity = context as? android.app.Activity ?: return@signIn
+        if (busy) return@signIn
         busy = true; note = ""
         scope.launch {
             val (token, early) = GoogleAccount.pick(activity, clientId)
@@ -149,5 +150,23 @@ fun AccountSection() {
             note = GoogleAccount.message(outcome); busy = false
         }
     }
+    val ink = androidx.compose.ui.graphics.Color(0xFFEDE6D8)
+    if (compact) {
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.Text(if (status.signedIn) status.email ?: "Signed in" else "Playing as a guest",
+                fontSize = 12.sp, color = ink, maxLines = 2, modifier = androidx.compose.ui.Modifier.weight(1f).testTag("account-status"))
+            if (status.signedIn) WoodButton("Sign out", "account-sign-out", androidx.compose.ui.Modifier.height(36.dp)) { signOut() }
+            else BrassButton("Sign in with Google", "account-sign-in", androidx.compose.ui.Modifier.height(36.dp)) { signIn() }
+        }
+        if (note.isNotEmpty()) androidx.compose.material3.Text(note, fontSize = 12.sp, color = gold, modifier = androidx.compose.ui.Modifier.testTag("account-note"))
+        return
+    }
+    androidx.compose.material3.Text("Account", fontSize = 13.sp, color = gold)
+    androidx.compose.material3.Text(if (status.signedIn) "Signed in as ${status.email ?: "your Google account"}" else "Guest on this phone (no sign-in needed)",
+        fontSize = 13.sp, color = ink,
+        modifier = androidx.compose.ui.Modifier.testTag("account-status"))
+    if (status.signedIn) WoodButton("Sign out", "account-sign-out", androidx.compose.ui.Modifier.height(40.dp)) { signOut() }
+    else BrassButton("Sign in with Google", "account-sign-in", androidx.compose.ui.Modifier.height(40.dp)) { signIn() }
     if (note.isNotEmpty()) androidx.compose.material3.Text(note, fontSize = 12.sp, color = gold, modifier = androidx.compose.ui.Modifier.testTag("account-note"))
 }

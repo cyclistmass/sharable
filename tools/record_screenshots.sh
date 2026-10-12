@@ -60,7 +60,7 @@ play_setup() { # place your opening pieces through the agent hooks (no debug bad
   done
 }
 one_game() { # watching: stop on the finished board instead of starting the next
-  tap_text "Menu"; tap_text "Nonstop"; tap_text_opt "Hide"; sleep 6
+  tap_text "Menu"; tap_text "Settings"; tap_text "Nonstop"; tap_text_opt "Hide"; sleep 6   # Nonstop is under the gear
 }
 
 # 1. The tilted board late in a game (Default theme): rendered towns and roads, Bandit V2.
@@ -97,6 +97,7 @@ tap_text "Menu"; tap_text "Settings"; sleep 1.2
 "$A" shell input swipe 1900 950 1900 520 500; sleep 1
 shot settings
 "$A" shell am start --activity-clear-task -n $PKG/.MainActivity >/dev/null; sleep 4
+tap_text_opt "Tap to skip"; sleep 1   # the intro fly-over plays first on a cold start
 tap_text "Look & art"; tap_text_opt "Hide"; sleep 1
 shot inventory
 ls -la docs/screenshots

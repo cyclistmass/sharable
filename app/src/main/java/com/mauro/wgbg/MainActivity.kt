@@ -1389,13 +1389,14 @@ fun WatchGameScreen(
         if (me >= 0 && !inventory && !panelOpen && !settingsOpen && !chestOpen && tick.let {
                 (state.phase == Phase.PLAY_TURN && state.currentPlayer == me || inSetup(state)) && state.actingPlayer == me })
             BuildMenu(state.ck != null, legal, buildMode, { buildMode = it }, { a -> pending = emptyList(); humanMoves.trySend(a) },
-                Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (env.viewBars) 156.dp else 8.dp))
-        // Zoom and Tilt bars on the right edge (pinch and two-finger drag do the same).
-        if (env.viewBars && !inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
+                Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (env.viewBars) 156.dp else if (liveBoard) 64.dp else 8.dp))
+        // Zoom and Tilt bars on the right edge (pinch and two-finger drag do the same). On the 3D board the Turn bar
+        // always shows, even with the bars hidden (phones hide them by default; Mauro: "did we lose the rotate slider?").
+        if ((env.viewBars || liveBoard) && !inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
             onZoom = { z -> camera = camera.transform(Offset(boardSize.width / 2f, boardSize.height / 2f), Offset.Zero, z / camera.zoom, boardSize) },
             onTilt = { t -> camera = camera.copy(tilt = t) },
             // The 3D board also turns (Mauro: "a rotate slider - start it in the middle"); the flat board doesn't.
-            rotation = boardRotation.takeIf { liveBoard }, onTurn = { r -> boardRotation = r },
+            rotation = boardRotation.takeIf { liveBoard }, onTurn = { r -> boardRotation = r }, zoomTilt = env.viewBars,
             // Upper right under Trade, short, clear of the move buttons that stack up from the bottom right.
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 104.dp, end = 8.dp))
     }
