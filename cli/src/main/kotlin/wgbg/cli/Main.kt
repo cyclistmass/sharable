@@ -38,7 +38,7 @@ import kotlin.system.exitProcess
  */
 
 /** Card names by engine card index (resources, then Age of Chivalry commodities): never index past these. */
-private val RES = listOf("Timber", "Clay", "Fleece", "Grain", "Stone", "Parchment", "Weave", "Silver")
+private val RES = listOf("Timber", "Clay", "Fleece", "Grain", "Stone", "Parchment", "Fabric", "Silver")
 private val FORTUNE = listOf("Sentinel", "Windfall", "Corner the Market", "Trailblazers", "Landmark")
 
 private class Record(val dir: File, val seats: List<String>, val seed: Long, val vp: Int, val actions: MutableList<Action>, /** 0 = true-random dice, else 1-4 stacked 36-card decks. */ val dice: Int = 0) {

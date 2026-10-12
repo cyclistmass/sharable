@@ -168,11 +168,11 @@ private val MINI_STEP = 10.5.dp
 private const val MINI_MAX = 4
 private val MINI_SLOT = 21.dp + MINI_STEP * (MINI_MAX - 1)
 
-/** A progress card's art: its deck's commodity card (Guilds Weave, Crown Silver, Academy Parchment). */
+/** A progress card's art: its deck's commodity card (Guilds Fabric, Crown Silver, Academy Parchment). */
 fun progressArt(card: Int): Int = ALL_CARD_ART[wgbg.engine.Track.commodity(wgbg.engine.Progress.track(card))]
 
 /** Age of Chivalry deck colours by track: Guilds gold (trade), Crown blue (politics), Academy green (science). */
-// Mauro: themed by commodity and its land. Guilds / Weave (pasture) pale white-green, Crown / Silver (mountains)
+// Mauro: themed by commodity and its land. Guilds / Fabric (pasture) pale white-green, Crown / Silver (mountains)
 // blue-grey, Academy / Parchment (forest) forest green.
 internal val TRACK_COLORS = listOf(Color(0xFFD3E8C4), Color(0xFF8A9FB2), Color(0xFF3E8E48))
 
@@ -227,7 +227,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
         modifier = Modifier.testTag(tag).then(if (onTap != null || long != null) Modifier.pointerInput(long) {
             detectTapGestures(onTap = { onTap?.invoke() }, onLongPress = { long?.let { detail = it } })
         } else Modifier)) {
-        // Themed by its deck's commodity (Mauro): Guilds on Weave, Crown on Silver, Academy on Parchment.
+        // Themed by its deck's commodity (Mauro): Guilds on Fabric, Crown on Silver, Academy on Parchment.
         ProgressCardFace(name, edge, art, small, w, h)
         if (n > 1) count(n)
     }
@@ -256,7 +256,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) 
             }
         }
         val ck = s.ck ?: return@Row
-        // Commodities: Parchment, Weave, Silver, with their card art (#62).
+        // Commodities: Parchment, Fabric, Silver, with their card art (#62).
         for (c in 0 until wgbg.engine.Commodity.COUNT) {
             val n = s.card(me, CARD_TYPES + c)
             if (n > 0) Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.testTag("hand-commodity-$c").longPressFor(cardDetail(CARD_TYPES + c, true))) {

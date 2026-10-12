@@ -143,6 +143,8 @@ class MainActivity : ComponentActivity() {
     private fun debugCamera(): Camera {
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE == 0) return Camera.FIT
         if (intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return Camera.FIT // stale extras from recents
+        // Comparing piece angles for Mauro (debug only): --ef pieceLift <tilt steps>.
+        if (intent.hasExtra("pieceLift")) pieceLiftSteps = intent.getFloatExtra("pieceLift", PIECE_LIFT_STEPS).coerceIn(0f, 7f)
         return Camera(intent.getFloatExtra("zoom", 1f).coerceIn(Camera.MIN_ZOOM, Camera.MAX_ZOOM), Offset.Zero,
             intent.getFloatExtra("tilt", Camera.START_TILT).coerceIn(0f, Camera.MAX_TILT))
     }
@@ -1105,8 +1107,8 @@ fun WatchGameScreen(
                 bottomInset = INVENTORY_CARDS_DP.dp.toPx()) else if (liveBoard) {
                 val projection = liveProjection(size.width, size.height)
                 drawLiveOverlay(state, projection, if (env.pirateTheme) knightsPirate else knightsNormal)
-                if (!targets.isEmpty) drawLiveTargets(state.board, targets, projection, targetGlow(me))
-                if (chosen.isNotEmpty()) drawLiveTargets(state.board, Targets.of(chosen), projection, Color.White)
+                if (!targets.isEmpty) drawLiveTargets(state.board, targets, projection, targetGlow(me)) { pieceAt(state, it) }
+                if (chosen.isNotEmpty()) drawLiveTargets(state.board, Targets.of(chosen), projection, Color.White) { pieceAt(state, it) }
             } else {
                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
                 val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
@@ -1129,8 +1131,8 @@ fun WatchGameScreen(
                 }
                 drawLayer(boardLayer)
                 drawGame(state, measurer, wood, camera, sea.takeIf { env.animating }, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER, banditSprites)
-                if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me))
-                if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White)
+                if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me)) { pieceAt(state, it) }
+                if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White) { pieceAt(state, it) }
             }
         }
         // Inventory: the illustrated resource cards along the bottom, then the dice faces.
@@ -1352,8 +1354,10 @@ fun WatchGameScreen(
             }
         }
         // The Trade button is always there in Play mode; it lights up when a trade waits on you.
-        // The build menu down the right edge, on your turn: an icon per thing you can build or do to a knight.
-        if (me >= 0 && !inventory && !panelOpen && !settingsOpen && !chestOpen && tick.let { state.phase == Phase.PLAY_TURN && state.currentPlayer == me && state.actingPlayer == me })
+        // The build menu down the right edge, on your turn: an icon per thing you can build or do to a knight; also while
+        // placing your first pieces (Mauro: "add the build menu during setup"), showing the homestead, town or road due.
+        if (me >= 0 && !inventory && !panelOpen && !settingsOpen && !chestOpen && tick.let {
+                (state.phase == Phase.PLAY_TURN && state.currentPlayer == me || inSetup(state)) && state.actingPlayer == me })
             BuildMenu(state.ck != null, legal, buildMode, { buildMode = it }, { a -> pending = emptyList(); humanMoves.trySend(a) },
                 Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (env.viewBars) 156.dp else 8.dp))
         // Zoom and Tilt bars on the right edge (pinch and two-finger drag do the same).
@@ -1388,7 +1392,8 @@ private fun RejoiningOr(savedRoom: android.content.SharedPreferences, orElse: ()
  * marks never fade below 60% and swell a little, rather than flash. A thin dark outline keeps them readable on
  * light tiles (and for White).
  */
-private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, pulse: Float, glow: Color = Color(0xFFFFE08A)) {
+private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, pulse: Float, glow: Color = Color(0xFFFFE08A),
+                                   pieceOn: (Int) -> Boolean = { false }) {
     if (size.minDimension < 2f) return
     val l = Layout.fit(board, size.width, size.height, camera)
     if (!l.scale.isFinite() || l.scale <= 0f) return
@@ -1408,8 +1413,9 @@ private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, puls
         val ends = board.topology.edgeVertices[e]
         val p0 = vertexLattice(board, ends[0])
         val p1 = vertexLattice(board, ends[1])
-        val a0 = l.project(p0.x + (p1.x - p0.x) * 0.2f, p0.y + (p1.y - p0.y) * 0.2f)
-        val a1 = l.project(p1.x + (p0.x - p1.x) * 0.2f, p1.y + (p0.y - p1.y) * 0.2f)
+        val (f0, f1) = edgeGlowSpan(pieceOn(ends[0]), pieceOn(ends[1]))
+        val a0 = l.project(p0.x + (p1.x - p0.x) * f0, p0.y + (p1.y - p0.y) * f0)
+        val a1 = l.project(p0.x + (p1.x - p0.x) * f1, p0.y + (p1.y - p0.y) * f1)
         val w = BUILD_MARK_W * l.scale * l.kAt((p0.y + p1.y) / 2) * swell
         drawLine(glow.copy(alpha = 0.35f * a), a0, a1, w * 2.8f, StrokeCap.Round)    // soft halo
         drawLine(ink.copy(alpha = 0.55f), a0, a1, w * 1.35f, StrokeCap.Round)        // outline
@@ -1426,6 +1432,10 @@ private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, puls
 }
 
 /** Build-mark sizes in hex units: corner radius and edge half-width (Mauro, 2026-10-10: 25% smaller than 0.26 / 0.15). */
+/** Tilt steps (of 7) pieces are seen steeper than the board; see [banditSteps]. */
+internal const val PIECE_LIFT_STEPS = 4f
+internal var pieceLiftSteps = PIECE_LIFT_STEPS
+
 internal const val BUILD_MARK_R = 0.195f
 internal const val BUILD_MARK_W = 0.1125f
 
@@ -2082,9 +2092,13 @@ private fun DrawScope.drawTile(
 internal val BANDIT_SPRITES = listOf(R.drawable.bandit_tilt_0, R.drawable.bandit_tilt_1, R.drawable.bandit_tilt_2, R.drawable.bandit_tilt_3,
     R.drawable.bandit_tilt_4, R.drawable.bandit_tilt_5, R.drawable.bandit_tilt_6, R.drawable.bandit_tilt_7)
 
-/** Which two tilt sprites to show for board [tilt], and how much of the second (0..1). */
+/**
+ * Which two tilt sprites to show for board [tilt], and how much of the second (0..1). Pieces are seen [pieceLiftSteps]
+ * steps steeper than the board: the painted land reads at a steeper angle than the board's own tilt, and pieces at
+ * the board's angle looked flat, roofs only (Mauro: "the houses are flat ... hard to see, same with robber and knights").
+ */
 internal fun banditSteps(tilt: Float): Triple<Int, Int, Float> {
-    val pos = (tilt / Camera.MAX_TILT * 7f).coerceIn(0f, 7f)
+    val pos = (tilt / Camera.MAX_TILT * 7f + pieceLiftSteps).coerceIn(0f, 7f)
     val i = pos.toInt().coerceAtMost(6)
     return Triple(i, i + 1, pos - i)
 }
@@ -2096,10 +2110,7 @@ internal fun banditSteps(tilt: Float): Triple<Int, Int, Float> {
 private fun DrawScope.drawBandit(sprites: List<ImageBitmap>, at: Offset, hexScale: Float, tilt: Float) {
     val side = 2.65f * hexScale
     val dst = IntOffset((at.x - side / 2).toInt(), (at.y - side / 2).toInt())
-    val pos = (tilt / Camera.MAX_TILT * 7f).coerceIn(0f, 7f)
-    val a = pos.toInt().coerceAtMost(6)
-    val b = a + 1
-    val f = pos - a
+    val (a, b, f) = banditSteps(tilt)
     fun draw(img: ImageBitmap, alpha: Float) = drawImage(img, IntOffset.Zero, IntSize(img.width, img.height), dst,
         IntSize(side.toInt(), side.toInt()), alpha = alpha, filterQuality = FilterQuality.Medium)
     draw(sprites.getOrNull(a) ?: return, 1f)

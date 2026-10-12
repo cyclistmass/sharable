@@ -138,13 +138,13 @@ fun bankRate(s: GameState, p: Int, r: Int): Int {
 
 // ------------------------------------------------------------------ the chest
 
-/** Parchment, Weave, Silver edge colours (Academy green, Guilds gold, Crown blue). */
-/** Parchment, Weave, Silver: their deck colours (forest green, pale white-green, blue-grey). */
+/** Parchment, Fabric, Silver edge colours (Academy green, Guilds gold, Crown blue). */
+/** Parchment, Fabric, Silver: their deck colours (forest green, pale white-green, blue-grey). */
 private val COMMODITY_COLORS = listOf(TRACK_COLORS[wgbg.engine.Track.SCIENCE], TRACK_COLORS[wgbg.engine.Track.TRADE], TRACK_COLORS[wgbg.engine.Track.POLITICS])
 
 /** Illustrated resource cards (Mauro's art), indexed like RESOURCE_NAMES. */
 val CARD_ART = listOf(R.drawable.card_timber, R.drawable.card_clay, R.drawable.card_fleece, R.drawable.card_grain, R.drawable.card_stone)
-/** Age of Chivalry commodities, in ALL_CARD_NAMES order: Parchment, Weave, Silver (Crest's still lifes, #62). */
+/** Age of Chivalry commodities, in ALL_CARD_NAMES order: Parchment, Fabric, Silver (Crest's still lifes, #62). */
 val COMMODITY_ART = listOf(R.drawable.card_parchment, R.drawable.card_weave, R.drawable.card_silver)
 /** Every card's art in ALL_CARD_NAMES order: the five resources, then the three commodities. */
 val ALL_CARD_ART = CARD_ART + COMMODITY_ART
@@ -352,7 +352,7 @@ fun askOffer(get: IntArray, give: IntArray, r: Int, tap: CardTap, have: Int, ban
 
 /**
  * One row of cards for a trade: green "+N" on a card's top edge is asked for, red "−N" on its bottom edge is
- * offered. Tap the top half to ask, the bottom half to offer, hold to take one back.
+ * offered. Tap the top half to ask, the bottom half to offer; the "−" under a card (or a long press) takes one back.
  */
 @Composable
 private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, under: (Int) -> String?, onTap: (Int, CardTap) -> Unit) {
@@ -387,6 +387,12 @@ private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, under:
             }
             // How many you hold (or the bank rate), big enough to read at a glance (#66).
             under(r)?.let { Text(it, color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }
+            // A "−" to take one back, down to none, like the discard sheet (Mauro: "need to be able to get back to
+            // zero"; the long press that also does it was never found). The row keeps its height so nothing jumps.
+            Box(Modifier.height(18.dp), contentAlignment = Alignment.Center) {
+                if (editable && lit) Text("−", color = INK, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { onTap(r, CardTap.TAKE_BACK) }.padding(horizontal = 12.dp).testTag("take-back-$r"))
+            }
         }
     }
 }

@@ -21,7 +21,7 @@ Never use the original game's names in UI, art, card text or docs. Our names:
 
 - Resources: Timber, Clay, Fleece, Grain, Stone. Pieces: Homestead, Town, road. The robber is the **Bandit**.
 - Development cards are **Fortune cards**: Sentinel, Landmark, Trailblazers, Windfall, Corner the Market.
-- Expansion **Age of Chivalry**: commodities Parchment, Weave, Silver; progress decks Guilds, Academy, Crown;
+- Expansion **Age of Chivalry**: commodities Parchment, Fabric, Silver; progress decks Guilds, Academy, Crown;
   the **Raiders** (barbarians), Capital (metropolis), Ramparts (city walls).
 
 Keep the "Not affiliated with or endorsed by Catan GmbH" line in the README. Code identifiers may use the

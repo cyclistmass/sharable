@@ -353,6 +353,20 @@ fun confirmTitle(s: GameState, a: Action): String = when (a.type) {
     else -> "Choose what to do here"
 }
 
+/**
+ * Where a road's glow starts and ends along its edge (0 = first corner, 1 = second): clear of a homestead, town or
+ * knight standing at either end, so a road being laid never covers the piece it grows from (Mauro: "the road should
+ * not hide the building, it should be under it").
+ */
+fun edgeGlowSpan(pieceAt0: Boolean, pieceAt1: Boolean): Pair<Float, Float> =
+    (if (pieceAt0) EDGE_GLOW_CLEAR else 0.2f) to (if (pieceAt1) 1f - EDGE_GLOW_CLEAR else 0.8f)
+
+/** How far a road glow stays from a corner with a piece on it, in edge lengths. */
+const val EDGE_GLOW_CLEAR = 0.42f
+
+/** Whether a homestead, town or knight stands on corner [v]. */
+fun pieceAt(s: GameState, v: Int): Boolean = s.vertexOwner[v] >= 0 || (s.ck?.knightOwner?.get(v) ?: -1) >= 0
+
 /** The first homesteads and roads are being placed: no dice, no trading yet. */
 fun inSetup(s: GameState): Boolean = s.phase == Phase.BUILD_INITIAL_SETTLEMENT || s.phase == Phase.BUILD_INITIAL_ROAD
 

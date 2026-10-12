@@ -42,6 +42,6 @@ Boats, birds, a whale or other sea life, clouds, a music set list and sounds (di
 
 | Theme | Status | Names |
 |---|---|---|
-| Default | shipped | Timber, Clay, Fleece, Grain, Stone; Parchment, Weave, Silver |
+| Default | shipped | Timber, Clay, Fleece, Grain, Stone; Parchment, Fabric, Silver |
 | Pirate | shipped (art only) | default names |
 | Edo fishing village (#76) | planned | Bamboo, Kawara, Silk, Rice, Platinum (or Copper); commodities proposed Washi, Brocade, Koban; Knights are Samurai. Other piece names proposed on #76 |

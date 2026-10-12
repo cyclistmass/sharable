@@ -236,4 +236,20 @@ class TradePanelTest {
         s.hands[to * wgbg.engine.CARD_TYPES + 4] = 0
         assertFalse(canPayOffer(s, to))
     }
+
+    @Test
+    fun `the take-back control always brings a card back to none, asked or offered, player or bank trade`() {
+        var g = IntArray(5); var v = IntArray(5)
+        repeat(4) { askOffer(g, v, 1, CardTap.ASK, have = 0).let { g = it.first; v = it.second } }
+        repeat(3) { askOffer(g, v, 2, CardTap.OFFER, have = 3).let { g = it.first; v = it.second } }
+        assertEquals(4, g[1]); assertEquals(3, v[2])
+        repeat(4) { askOffer(g, v, 1, CardTap.TAKE_BACK, have = 0).let { g = it.first; v = it.second } }
+        repeat(3) { askOffer(g, v, 2, CardTap.TAKE_BACK, have = 3).let { g = it.first; v = it.second } }
+        assertTrue(g.all { it == 0 } && v.all { it == 0 })
+        // One more never goes below none.
+        askOffer(g, v, 1, CardTap.TAKE_BACK, have = 0).let { assertTrue(it.first.all { n -> n == 0 } && it.second.all { n -> n == 0 }) }
+        // The bank: one tap clears the card either way.
+        askOffer(IntArray(5).also { it[0] = 1 }, IntArray(5).also { it[3] = 4 }, 3, CardTap.TAKE_BACK, have = 4, bankRate = 4)
+            .let { assertEquals(0, it.second[3]); assertEquals(1, it.first[0]) }
+    }
 }

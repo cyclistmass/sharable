@@ -99,7 +99,7 @@ fun CardGuide(chivalry: Boolean, pirate: Boolean, onClose: () -> Unit, modifier:
         }
         if (chivalry) {
             Text("Improve your towns: the next level costs as many commodities as its number (level 3 costs 3): " +
-                "Guilds Weave, Crown Silver, Academy Parchment. Level 3 gives the deck's power; level 4 first wins its Capital.",
+                "Guilds Fabric, Crown Silver, Academy Parchment. Level 3 gives the deck's power; level 4 first wins its Capital.",
                 color = GUIDE_INK.copy(alpha = 0.85f), fontSize = 12.sp)
             heading("Progress cards")
             for ((deck, track, range) in DECKS) {

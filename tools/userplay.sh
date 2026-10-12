@@ -177,7 +177,21 @@ while true; do
   # A taken tap that didn't land twice: forget the remembered button spots and read the screen again.
   [ "$tries" -ge 2 ] && POS=()
   # Reading the screen takes ~5 s (the sea never stops moving), so only read it when the log can't say what to tap.
-  if [ -n "$spots" ] && [ $((RANDOM % 5)) != 0 ]; then
+  # BUILDMENU=1: build through the build menu like a player who uses it: tap the piece's button (Town, Homestead,
+  # Road), then its glowing spot, then confirm; the move must then leave the legal list (it was really built).
+  menu_pick=""
+  if [ "${BUILDMENU:-0}" = 1 ] && [ -n "$spots" ]; then
+    for t in BUILD_CITY BUILD_SETTLEMENT BUILD_ROAD; do menu_pick=$(echo "$spots" | grep "^$t:" | shuf -n 1); [ -n "$menu_pick" ] && break; done
+  fi
+  if [ -n "$menu_pick" ]; then
+    mv_=${menu_pick%@*}; label=$(case ${mv_%%:*} in BUILD_CITY) echo Town;; BUILD_SETTLEMENT) echo Homestead;; *) echo Road;; esac)
+    if tap_desc "$label"; then
+      sleep 0.6; xy=${menu_pick#*@}; tap "${xy%,*}" "${xy#*,}"; sleep 0.6; tap "${xy%,*}" "${xy#*,}"
+      for _ in $(seq 1 10); do sleep 0.5; after=$("$ADB" logcat -d -s WGBG-TURN:I | tail -1); [ "$after" != "$line" ] && break; done
+      if echo "$after" | grep -q "legal=[^ ]*$mv_"; then echo "MENUBUILD FAIL $label $mv_: still legal after menu, spot, confirm"; MENU_FAIL=$((${MENU_FAIL:-0} + 1)); shot "menufail-$label"
+      else echo "MENUBUILD ok $label $mv_"; MENU_OK=$((${MENU_OK:-0} + 1)); fi
+    else echo "MENUBUILD FAIL $label: no $label button in the build menu while $mv_ is legal"; MENU_FAIL=$((${MENU_FAIL:-0} + 1)); shot "menufail-nobutton-$label"; fi
+  elif [ -n "$spots" ] && [ $((RANDOM % 5)) != 0 ]; then
     pick=$(echo "$spots" | shuf -n 1); xy=${pick#*@}
     tap "${xy%,*}" "${xy#*,}"; sleep 0.6; tap "${xy%,*}" "${xy#*,}"
   elif echo ",$legal" | grep -q ',ROLL:' && tap_at "Roll"; then :
@@ -196,7 +210,7 @@ while true; do
     for _round in 1 2 3; do
     [ "$need" -gt 0 ] || break
       # Every held card once per copy (centre x, y), shuffled; tap the first "need" of them.
-      echo "$d" | grep -o '\(content-desc\|text\)="\(Timber\|Clay\|Fleece\|Grain\|Stone\|Parchment\|Weave\|Silver\)"[^/]*bounds="[^"]*"\|text="have [0-9]*"[^/]*bounds="[^"]*"' |
+      echo "$d" | grep -o '\(content-desc\|text\)="\(Timber\|Clay\|Fleece\|Grain\|Stone\|Parchment\|Fabric\|Silver\)"[^/]*bounds="[^"]*"\|text="have [0-9]*"[^/]*bounds="[^"]*"' |
         sed 's/^text="have \([0-9]*\)"[^/]*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),[0-9]*\]"/H \1 \2 \4 \3/; s/^[a-z-]*="[A-Za-z]*"[^/]*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),\([0-9]*\)\]"/C \1 \2 \3 \4/' |
         # A "have N" counts only for the card right above it (a hidden hand row under the sheet must not match).
         awk '$1=="C"{n++; x1[n]=$2; y1[n]=$3; x2[n]=$4; y2[n]=$5} $1=="H"{h[++m]=$2; hx[m]=($3+$4)/2; hy[m]=$5}
@@ -227,4 +241,8 @@ while true; do
 done
 anr=$("$ADB" logcat -d | grep -c "ANR in $PKG" || true)
 [ "$anr" = 0 ] || fail "ANR"
+if [ "${BUILDMENU:-0}" = 1 ]; then
+  echo "USERPLAY $TAG build menu: ${MENU_OK:-0} built, ${MENU_FAIL:-0} failed"
+  [ "${MENU_FAIL:-0}" = 0 ] && [ "${MENU_OK:-0}" -gt 0 ] || fail "build menu: ${MENU_OK:-0} built, ${MENU_FAIL:-0} failed"
+fi
 echo "USERPLAY $TAG PASSED"
