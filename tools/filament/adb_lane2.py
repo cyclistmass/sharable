@@ -45,6 +45,8 @@ def connect(command):
 
 def stream(command):
     with connect(command) as sock:
+        # Instrumentation and monkey may be silent for more than the handshake timeout.
+        sock.settimeout(300)
         result = bytearray()
         while True:
             chunk = sock.recv(65536)

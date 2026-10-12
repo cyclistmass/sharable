@@ -76,6 +76,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -603,7 +604,7 @@ fun WatchGameScreen(
         var last = 0L
         while (true) {
             // Animations off (or Density 0): the scenery code doesn't run at all, so it can't take a game down.
-            if (!env.animating || (env.liveBoard && !inventory)) { last = 0L; delay(300); continue }
+            if (!env.animating || env.liveBoard) { last = 0L; delay(300); continue }
             withFrameNanos { now ->
             sea.clouds01 = env.clouds; sea.birds01 = env.birds; sea.boats01 = env.boats; sea.waves01 = env.waves; sea.density01 = env.density
             // Clamp both ends: on some phones (Pixel 9/10, Android 17) the frame clock can step back a little,
@@ -663,6 +664,18 @@ fun WatchGameScreen(
                 android.util.Log.i("WGBG-3D-SNAPSHOT", "turn=${state.turn} hash=${state.stateHash()} " +
                     "roads=${state.edgeOwner.count { it >= 0 }} buildings=${state.vertexOwner.count { it >= 0 }} " +
                     "towns=${state.vertexBuilding.count { it == Piece.CITY }} walls=${state.ck?.wall?.sum()} capitals=${state.ck?.metroVertex?.count { it >= 0 }}")
+                if (appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+                    val snapshot = org.json.JSONObject().apply {
+                        put("turn", state.turn); put("hash", state.stateHash().toString())
+                        put("placements", org.json.JSONArray(livePlacements(state, env.pirateTheme, env.liveLod).map { p ->
+                            org.json.JSONObject().apply {
+                                put("model", p.model); put("x", p.position.x); put("z", p.position.y)
+                                put("height", p.height); put("scale", p.scale); put("heading", p.heading); put("owner", p.owner)
+                            }
+                        }))
+                    }
+                    appContext.cacheDir.resolve("live-board-scene.json").writeText(snapshot.toString())
+                }
             }
             return action.type
         }
@@ -760,9 +773,15 @@ fun WatchGameScreen(
     var camera by remember { mutableStateOf(initialCamera) }
     var boardRotation by remember { mutableFloatStateOf(0f) }
     var liveFailure by remember { mutableStateOf<String?>(null) }
-    val liveBoard = env.liveBoard && !inventory && liveFailure == null
+    val liveBoard = env.liveBoard && liveFailure == null
     val liveBoardNow by rememberUpdatedState(liveBoard)
+    val liveDensity = LocalDensity.current
     fun liveProjection(width: Float, height: Float): LiveProjection {
+        if (inventory) {
+            val available = (height - with(liveDensity) { INVENTORY_CARDS_DP.dp.toPx() }).coerceAtLeast(height * .4f)
+            val scale = minOf(width / 18f, available / 12f) * camera.zoom
+            return LiveProjection(Offset(width / 2, available / 2) + camera.pan, scale, camera.tilt, boardRotation)
+        }
         val fitted = Layout.fit(state.board, width, height, camera)
         return LiveProjection(fitted.center, fitted.scale, camera.tilt, boardRotation)
     }
@@ -832,8 +851,8 @@ fun WatchGameScreen(
                     if (intent.hasExtra("lod")) env.liveLod = intent.getIntExtra("lod", 0)
                     if (intent.hasExtra("pirate")) env.pirateTheme = intent.getBooleanExtra("pirate", false)
                     if (intent.hasExtra("sprites3d")) env.tiles3d = intent.getBooleanExtra("sprites3d", false)
-                    if (intent.hasExtra("tilt")) camera = camera.copy(tilt = intent.getFloatExtra("tilt", Camera.START_TILT).coerceIn(0f, Camera.MAX_TILT))
-                    if (intent.hasExtra("zoom")) camera = camera.copy(zoom = intent.getFloatExtra("zoom", 1f).coerceIn(Camera.MIN_ZOOM, Camera.MAX_ZOOM))
+                    if (intent.hasExtra("tilt")) camera = camera.copy(tilt = (intent.getFloatExtra("tilt", Camera.START_TILT).takeIf { it.isFinite() } ?: Camera.START_TILT).coerceIn(0f, Camera.MAX_TILT))
+                    if (intent.hasExtra("zoom")) camera = camera.copy(zoom = (intent.getFloatExtra("zoom", 1f).takeIf { it.isFinite() } ?: 1f).coerceIn(Camera.MIN_ZOOM, Camera.MAX_ZOOM))
                     if (intent.hasExtra("rotation")) boardRotation = intent.getFloatExtra("rotation", 0f).takeIf { it.isFinite() } ?: 0f
                     if (intent.hasExtra("freezeTurn")) liveFreezeTurn = intent.getIntExtra("freezeTurn", 0).coerceAtLeast(0)
                     if (intent.hasExtra("playing")) playing = intent.getBooleanExtra("playing", false)
@@ -909,7 +928,9 @@ fun WatchGameScreen(
         val waterLayer = rememberGraphicsLayer().apply { compositingStrategy = CompositingStrategy.Offscreen }
         val waterLayerKey = remember { arrayOfNulls<WaterLayerKey>(1) }
         if (liveBoard) {
-            val placements = remember(tick, state, env.pirateTheme, env.liveLod) { livePlacements(state, env.pirateTheme, env.liveLod) }
+            val placements = remember(tick, state, env.pirateTheme, env.liveLod, inventory) {
+                if (inventory) liveInventoryPlacements() else livePlacements(state, env.pirateTheme, env.liveLod)
+            }
             val projection = if (boardSize.minDimension > 0f) liveProjection(boardSize.width, boardSize.height) else null
             LiveBoardView(placements, projection, Modifier.fillMaxSize()) { reason ->
                 liveFailure = reason; env.liveBoard = false
@@ -1040,7 +1061,17 @@ fun WatchGameScreen(
         ) {
             tick // redraw on every move
             if (!inventory) seaTick // and on every sea frame (the Inventory screen holds still)
-            if (inventory) drawInventory(measurer, wood, banditSprites, tileFaces, tileLine,
+            if (inventory && liveBoard) {
+                val projection = liveProjection(size.width, size.height)
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xFFF1D58A.toInt(); textSize = 16.dp.toPx(); textAlign = android.graphics.Paint.Align.CENTER
+                    typeface = resources.getFont(R.font.alegreya_sans_regular)
+                }
+                for ((text, z) in listOf("Terrain LOD0" to -5.3f, "Terrain LOD1" to -2.6f, "Default pieces" to .45f, "Pirate pieces" to 2.5f, "Bandit and runtime plate" to 6.1f)) {
+                    val at = projection.project(Offset(0f, z))
+                    drawContext.canvas.nativeCanvas.drawText(text, at.x, at.y, paint)
+                }
+            } else if (inventory) drawInventory(measurer, wood, banditSprites, tileFaces, tileLine,
                 InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide, buildings, sea.sprites3d),
                 bottomInset = INVENTORY_CARDS_DP.dp.toPx()) else if (liveBoard) {
                 val projection = liveProjection(size.width, size.height)
@@ -1238,6 +1269,7 @@ fun WatchGameScreen(
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
  // Inventory and Tiles: compare live on the Look & art page before the game now (#71, Mauro: clean up the menu).
                     WoodButton("Fit", "menu-fit") { camera = Camera.FIT }
+                    if (env.liveBoard) WoodButton("3D collection (test)", "menu-live-collection") { inventory = true; panelOpen = false; settingsOpen = false; camera = Camera.FIT; boardRotation = 0f }
                     if (online == null) WoodButton(if (diceSetting == 0) "Dice: random" else "Dice: ${36 * diceSetting} deck · ${(dice as? DiceDeck)?.remaining ?: ""}", "menu-dice") {
                         diceSetting = (diceSetting + 1) % 5
                     }

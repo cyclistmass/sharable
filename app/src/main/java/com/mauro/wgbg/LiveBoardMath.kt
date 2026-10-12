@@ -44,6 +44,13 @@ internal val LIVE_PLATE = Offset(0.36f, 0.45f)
 internal data class LivePlacement(val model: String, val position: Offset, val height: Float = 0f,
     val scale: Float = 1f, val heading: Float = 0f, val owner: Int = -1)
 
+/** Column-major glTF Y-axis transform; positive heading cancels the camera's screen orbit. */
+internal fun liveModelMatrix(p: LivePlacement): FloatArray {
+    val c = cos(p.heading) * p.scale; val s = sin(p.heading) * p.scale
+    return floatArrayOf(c, 0f, -s, 0f, 0f, p.scale, 0f, 0f, s, 0f, c, 0f,
+        p.position.x, p.height, p.position.y, 1f)
+}
+
 /** Reads only real game state. No fixture pieces are added to the playing board. */
 internal fun livePlacements(s: GameState, pirate: Boolean, lod: Int): List<LivePlacement> = buildList {
     require(lod in 0..1)
@@ -84,4 +91,22 @@ internal fun livePlacements(s: GameState, pirate: Boolean, lod: Int): List<LiveP
         add(LivePlacement("${theme}_$kind", at, if (walled) 0.10f * BUILDING_SCALE else 0f,
             BUILDING_SCALE * if (walled) 0.9f else 1f, owner = owner))
     }
+}
+
+/** Side-by-side imported models for maintainer review; never mixed into a game state. */
+internal fun liveInventoryPlacements(): List<LivePlacement> = buildList {
+    add(LivePlacement("sea", Offset.Zero, -.24f, 2f))
+    val terrains = listOf("timber", "clay", "fleece", "grain", "stone", "desert")
+    for (lod in 0..1) for ((i, terrain) in terrains.withIndex()) {
+        val at = Offset(-6.5f + i * 2.6f, -4f + lod * 2.7f)
+        add(LivePlacement("tile_${terrain}_lod$lod", at))
+        add(LivePlacement("number_plate", at + LIVE_PLATE, .012f))
+        add(LivePlacement("digit_${listOf(6, 8, 5, 9, 10, 11)[i]}", at + LIVE_PLATE, .039f))
+    }
+    val kinds = listOf("homestead", "town", "ramparts", "capital_guilds", "capital_academy", "capital_crown", "road_v", "road_p30", "road_m30")
+    for ((row, theme) in listOf("default", "pirate").withIndex()) for ((i, kind) in kinds.withIndex())
+        add(LivePlacement("${theme}_$kind", Offset(-7.2f + 1.8f * i, 1.3f + 2f * row), scale = 1.8f, owner = i % 4))
+    add(LivePlacement("bandit", Offset(-4f, 5.4f)))
+    add(LivePlacement("number_plate", Offset(0f, 5.4f), .012f))
+    add(LivePlacement("digit_6", Offset(0f, 5.4f), .039f))
 }

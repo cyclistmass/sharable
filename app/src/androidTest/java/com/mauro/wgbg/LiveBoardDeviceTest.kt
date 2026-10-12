@@ -1,0 +1,102 @@
+package com.mauro.wgbg
+
+import android.content.Intent
+import android.os.SystemClock
+import android.view.InputDevice
+import android.view.MotionEvent
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.*
+import org.junit.Test
+import java.io.FileInputStream
+import kotlin.math.*
+
+/** Actual input events against the live view: native surface, Compose overlay, and two-pointer gestures. */
+class LiveBoardDeviceTest {
+    private val instrument = InstrumentationRegistry.getInstrumentation()
+    private val context get() = instrument.targetContext
+
+    private fun log(tag: String): String = instrument.uiAutomation.executeShellCommand("logcat -d -s $tag:I").use {
+        FileInputStream(it.fileDescriptor).bufferedReader().readText()
+    }
+
+    private fun waitFor(label: String, timeout: Long = 15_000, condition: () -> Boolean) {
+        val deadline = SystemClock.uptimeMillis() + timeout
+        while (SystemClock.uptimeMillis() < deadline) {
+            if (condition()) return
+            Thread.sleep(100)
+        }
+        fail("Timed out: $label")
+    }
+
+    private fun gesture(two: Boolean, start: (Int) -> Pair<Float, Float>, end: (Int) -> Pair<Float, Float>) {
+        val count = if (two) 2 else 1
+        val properties = Array(count) { i -> MotionEvent.PointerProperties().apply { id = i; toolType = MotionEvent.TOOL_TYPE_FINGER } }
+        val down = SystemClock.uptimeMillis()
+        fun send(action: Int, fraction: Float, pointers: Int = count) {
+            val coordinates = Array(pointers) { i ->
+                val a = start(i); val b = end(i)
+                MotionEvent.PointerCoords().apply { x = a.first + (b.first - a.first) * fraction; y = a.second + (b.second - a.second) * fraction; pressure = 1f; size = .1f }
+            }
+            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, pointers, properties, coordinates,
+                0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
+            assertTrue(instrument.uiAutomation.injectInputEvent(event, true)); event.recycle()
+        }
+        send(MotionEvent.ACTION_DOWN, 0f, 1)
+        if (two) send(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 0f)
+        for (step in 1..30) { send(MotionEvent.ACTION_MOVE, step / 30f); Thread.sleep(15) }
+        if (two) send(MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 1f)
+        send(MotionEvent.ACTION_UP, 1f, 1)
+    }
+
+    private fun tap(x: Float, y: Float) {
+        val down = SystemClock.uptimeMillis()
+        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, x, y, 0).apply { source = InputDevice.SOURCE_TOUCHSCREEN }
+            assertTrue(instrument.uiAutomation.injectInputEvent(event, true)); event.recycle()
+            Thread.sleep(40)
+        }
+        Thread.sleep(650) // Let detectTapGestures finish its double-tap window.
+    }
+
+    @Test fun twistPinchTiltPanAndPlacementOnLiveSurface() {
+        context.getSharedPreferences("wgbg-settings", 0).edit().putFloat(EnvSettings.LIVE_BOARD, 1f)
+            .putFloat(EnvSettings.ANIMATIONS, 0f).putFloat(EnvSettings.THEME, 0f).commit()
+        context.cacheDir.resolve("live-board-frames.jsonl").delete()
+        instrument.uiAutomation.executeShellCommand("logcat -c").use { FileInputStream(it.fileDescriptor).readBytes() }
+        instrument.startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            .putExtra("start", "base").putExtra("tilt", .48f))
+        waitFor("live board frame") { log("WGBG-3D-PERF").contains("rotation=0.0") }
+        val display = context.resources.displayMetrics
+        val cx = display.widthPixels * .70f; val cy = display.heightPixels * .48f; val radius = display.heightPixels * .12f
+        gesture(true, { i -> (cx + if (i == 0) -radius else radius) to cy },
+            { i -> cx to (cy + if (i == 0) -radius else radius) })
+        waitFor("90 degree twist") {
+            val rotations = Regex("rotation=([-0-9.]+)").findAll(log("WGBG-3D-PERF")).map { it.groupValues[1].toFloat() }.toList()
+            rotations.any { abs(it) in 1.0f..1.8f }
+        }
+        gesture(true, { i -> (cx + if (i == 0) -radius else radius) to cy },
+            { i -> (cx + if (i == 0) -radius * 1.3f else radius * 1.3f) to cy })
+        gesture(true, { i -> (cx + if (i == 0) -radius else radius) to cy },
+            { i -> (cx + if (i == 0) -radius else radius) to (cy - radius * .5f) })
+        gesture(false, { cx to cy }, { cx - 60f to cy + 20f })
+        Thread.sleep(800)
+        // AgentHooks supplies screen positions only; placement and confirmation use real pointer events.
+        val before = log("WGBG-TURN").lineSequence().last { it.contains("spots=") }
+        val spot = Regex("BUILD_SETTLEMENT:[0-9]+@([0-9]+),([0-9]+)").findAll(before).first {
+            val x = it.groupValues[1].toFloat(); val y = it.groupValues[2].toFloat()
+            x in display.widthPixels * .4f..display.widthPixels * .90f && y in display.heightPixels * .15f..display.heightPixels * .85f
+        }
+        val x = spot.groupValues[1].toFloat(); val y = spot.groupValues[2].toFloat()
+        tap(x, y); tap(x, y)
+        waitFor("Homestead placed with taps") { log("WGBG-TURN").lineSequence().last { it.contains("phase=") }.contains("phase=BUILD_INITIAL_ROAD") }
+        val roadLine = log("WGBG-TURN").lineSequence().last { it.contains("spots=") }
+        val road = Regex("BUILD_ROAD:[0-9]+@([0-9]+),([0-9]+)").find(roadLine)!!
+        tap(road.groupValues[1].toFloat(), road.groupValues[2].toFloat())
+        tap(road.groupValues[1].toFloat(), road.groupValues[2].toFloat())
+        waitFor("road placed with taps") { log("WGBG-TURN").lineSequence().last { it.contains("phase=") } != roadLine }
+        val bitmap = instrument.uiAutomation.takeScreenshot()
+        context.cacheDir.resolve("live-device-after-twist.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+        assertTrue(context.getSharedPreferences("wgbg-settings", 0).getFloat(EnvSettings.LIVE_BOARD, 0f) > .5f)
+    }
+}

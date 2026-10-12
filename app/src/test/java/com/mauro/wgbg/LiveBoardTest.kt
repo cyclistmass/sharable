@@ -52,6 +52,28 @@ class LiveBoardTest {
         assertTrue(tilted.project(Offset.Zero, 1f).y < 0f)
     }
 
+    @Test fun `runtime glyph transform cancels camera orbit rather than doubling it`() {
+        for (i in 0..32) {
+            val yaw = i * PI.toFloat() / 16
+            val projection = LiveProjection(Offset.Zero, 100f, .48f, yaw)
+            val p = LivePlacement("digit_6", Offset(2f, -1f), heading = yaw)
+            val m = liveModelMatrix(p)
+            val origin = projection.project(p.position)
+            val localX = projection.project(p.position + Offset(m[0], m[2])) - origin
+            val localZ = projection.project(p.position + Offset(m[8], m[10])) - origin
+            assertEquals(100f, localX.x, .001f); assertEquals(0f, localX.y, .001f)
+            assertEquals(0f, localZ.x, .001f); assertTrue(localZ.y > 0f)
+        }
+    }
+
+    @Test fun `collection includes every imported model in both themes and LODs`() {
+        val models = liveInventoryPlacements().map { it.model }.filter { !it.startsWith("digit_") }.toSet()
+        assertEquals(33, models.size)
+        assertEquals(12, models.count { it.startsWith("tile_") })
+        assertEquals(9, models.count { it.startsWith("default_") })
+        assertEquals(9, models.count { it.startsWith("pirate_") })
+    }
+
     @Test fun `garbage projection and LOD inputs are rejected without mutating the game`() {
         for (scale in listOf(0f, -1f, Float.NaN, Float.POSITIVE_INFINITY))
             assertThrows(IllegalArgumentException::class.java) { LiveProjection(Offset.Zero, scale, 0f, 0f) }

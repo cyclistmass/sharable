@@ -59,7 +59,9 @@ def main():
                 print(json.dumps(result), flush=True)
                 capture(args.output, name)
                 layers = shell(['dumpsys', 'SurfaceFlinger', '--list']).decode().splitlines()
-                layer = next((x for x in reversed(layers) if 'com.mauro.wgbg/com.mauro.wgbg.MainActivity#' in x), '')
+                layer = next((x for x in reversed(layers) if 'SurfaceView' in x and 'com.mauro.wgbg' in x), '')
+                if not layer:
+                    layer = next((x for x in reversed(layers) if 'com.mauro.wgbg/com.mauro.wgbg.MainActivity#' in x), '')
                 if layer:
                     (args.output / (name + '-presentation.txt')).write_bytes(shell(['dumpsys', 'SurfaceFlinger', '--latency', layer]))
                 (args.output / 'metrics.json').write_text(json.dumps(cases, indent=2))

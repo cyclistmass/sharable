@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import android.view.Choreographer
 import android.view.Surface
-import android.view.TextureView
+import android.view.SurfaceView
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -27,8 +27,8 @@ internal fun LiveBoardView(placements: List<LivePlacement>, projection: LiveProj
     val latestFailure by rememberUpdatedState(onFailure)
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     AndroidView(modifier = modifier, factory = { context ->
-        TextureView(context).also { texture ->
-            try { holder[0] = LiveBoardRenderer(texture, context) { latestFailure(it) } }
+        SurfaceView(context).also { surface ->
+            try { holder[0] = LiveBoardRenderer(surface, context) { latestFailure(it) } }
             catch (e: Exception) { Log.e("WGBG-3D", "Initialisation failed", e); latestFailure(e.message ?: "Initialisation failed") }
         }
     }, update = {
@@ -48,7 +48,7 @@ internal fun LiveBoardView(placements: List<LivePlacement>, projection: LiveProj
 }
 
 /** All engine access is on the main thread, as required by Filament's Android API. */
-internal class LiveBoardRenderer(texture: TextureView, private val context: Context, private val fail: (String) -> Unit) :
+internal class LiveBoardRenderer(surfaceView: SurfaceView, private val context: Context, private val fail: (String) -> Unit) :
     Choreographer.FrameCallback, AutoCloseable {
     companion object {
         init { Utils.init(); Gltfio.init() }
@@ -100,13 +100,14 @@ internal class LiveBoardRenderer(texture: TextureView, private val context: Cont
         view.dynamicResolutionOptions = View.DynamicResolutionOptions().apply { enabled = false }
         camera.setExposure(16f, 1f / 125f, 100f)
         scene.indirectLight = fill; scene.skybox = sky
-        addLight(-0.5f, -0.8f, -0.6f, 80_000f, 1f, 0.91f, 0.78f)
-        addLight(0.5f, -0.4f, 0.4f, 12_000f, 0.75f, 0.85f, 1f)
+        // Direction is where the rays travel: source (-x, +y, -z), upper left on the board.
+        addLight(0.5f, -0.8f, 0.6f, 80_000f, 1f, 0.91f, 0.78f)
+        addLight(-0.5f, -0.4f, -0.4f, 12_000f, 0.75f, 0.85f, 1f)
         ui.renderCallback = object : UiHelper.RendererCallback {
             override fun onNativeWindowChanged(surface: Surface) {
                 swapChain?.let { engine.destroySwapChain(it) }
                 swapChain = engine.createSwapChain(surface)
-                display.attach(renderer, texture.display)
+                display.attach(renderer, surfaceView.display)
             }
             override fun onDetachedFromSurface() {
                 display.detach()
@@ -118,7 +119,7 @@ internal class LiveBoardRenderer(texture: TextureView, private val context: Cont
                 engine.flushAndWait()
             }
         }
-        ui.attachTo(texture)
+        ui.attachTo(surfaceView)
     }
 
     private fun addLight(x: Float, y: Float, z: Float, intensity: Float, r: Float, g: Float, b: Float) {
@@ -178,10 +179,7 @@ internal class LiveBoardRenderer(texture: TextureView, private val context: Cont
             val key = p.model to p.owner
             val index = counts.getOrDefault(key, 0); counts[key] = index + 1
             val i = instance(p, index)
-            val c = cos(p.heading) * p.scale; val s = sin(p.heading) * p.scale
-            val matrix = floatArrayOf(c, 0f, -s, 0f, 0f, p.scale, 0f, 0f, s, 0f, c, 0f,
-                p.position.x, p.height, p.position.y, 1f)
-            engine.transformManager.setTransform(engine.transformManager.getInstance(i.root), matrix)
+            engine.transformManager.setTransform(engine.transformManager.getInstance(i.root), liveModelMatrix(p))
             scene.addEntities(i.entities); active.add(i)
         }
         shown = placements
@@ -199,10 +197,8 @@ internal class LiveBoardRenderer(texture: TextureView, private val context: Cont
             -(height - p.center.y).toDouble() / p.scale, p.center.y.toDouble() / p.scale, 0.1, 100.0)
         // Keep digits upright under twist, while retaining their horizontal plane and real depth.
         for ((index, placement) in shown.withIndex()) if (placement.model.startsWith("digit_")) {
-            val c = cos(p.rotation); val s = sin(p.rotation)
             engine.transformManager.setTransform(engine.transformManager.getInstance(active[index].root),
-                floatArrayOf(c, 0f, s, 0f, 0f, 1f, 0f, 0f, -s, 0f, c, 0f,
-                    placement.position.x, placement.height, placement.position.y, 1f))
+                liveModelMatrix(placement.copy(heading = p.rotation)))
         }
     }
 
