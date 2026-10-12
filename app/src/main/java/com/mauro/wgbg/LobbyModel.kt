@@ -7,7 +7,7 @@ import kotlin.random.Random
 
 /** Where invite links point. Placeholder until #7 picks the real domain and App Link. */
 /** Invite links open the join page on GitHub Pages (a real address), which opens the game with wgbg://join/CODE. */
-const val JOIN_BASE = "https://cyclistmass.github.io/sharable/join/#"
+const val JOIN_BASE = "https://cyclistmass.github.io/shareable/join/#"
 
 /** The room code in an invite link or a wgbg://join/CODE link, or null. */
 fun joinCodeFrom(link: String?): String? {

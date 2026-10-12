@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# Publishes release wgbg-v<versionName> on cyclistmass/sharable: the debug APK built by CI for the pushed
+# Publishes release wgbg-v<versionName> on cyclistmass/shareable: the debug APK built by CI for the pushed
 # commit, plus the gameplay video from tools/record_showcase.sh. Asset names never change, so
-#   https://github.com/cyclistmass/sharable/releases/latest/download/working-german-board-game.apk
+#   https://github.com/cyclistmass/shareable/releases/latest/download/working-german-board-game.apk
 # always serves the newest version. Run from the project root after CI is green for the pushed commit.
 # The GitHub token comes from Git Credential Manager for one command at a time; it is never printed or saved.
 # Usage: tools/publish_release.sh [path to gameplay mp4]
 set -euo pipefail
 VERSION=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)
 VIDEO="${1:-$TEMP/wgbg-showcase/working-german-board-game-gameplay.mp4}"
-REPO=cyclistmass/sharable
-SHARABLE="${SHARABLE:-../sharable}"
+REPO=cyclistmass/shareable
+SHAREABLE="${SHAREABLE:-../shareable}"
 WORK="$(mktemp -d)"
 tok() { printf "protocol=https\nhost=github.com\npath=%s.git\n\n" "$REPO" | git -c credential.useHttpPath=true credential fill | sed -n 's/^password=//p'; }
 api() { curl -s -m 60 -H "Authorization: Bearer $(tok)" "$@"; }
 
-SHA=$(git -C "$SHARABLE" rev-parse origin/main)
+SHA=$(git -C "$SHAREABLE" rev-parse origin/main)
 RUN=$(api "https://api.github.com/repos/$REPO/actions/runs?head_sha=$SHA" | py -c "
 import json,sys
 r=[w for w in json.load(sys.stdin)['workflow_runs'] if 'working' in w['name']]

@@ -99,10 +99,10 @@ honestly. Never call something done with failing or skipped tests.
 
 ## Issues, commits and CI
 
-- Plans and bugs are GitHub issues on `cyclistmass/sharable` (labels: v1, post-v1, art, ui, engine, ai,
+- Plans and bugs are GitHub issues on `cyclistmass/shareable` (labels: v1, post-v1, art, ui, engine, ai,
   multiplayer, testing, bug, age-of-chivalry). Reference the issue in commits ("#45"); close it only when
   the work is done and verified.
-- CI (`.github/workflows/wgbg-ci.yml` in the sharable repo) runs every test, builds the APK, then runs
+- CI (`.github/workflows/wgbg-ci.yml` in the shareable repo) runs every test, builds the APK, then runs
   monkey, bot self-play and a two-client online game on an emulator. A red CI is stop-and-fix.
 - Every push that changes how the game looks re-records the README GIFs (`tools/record_showcase.sh`) and, if
   the screens changed, the gallery (`tools/record_screenshots.sh`), in the same commit.
