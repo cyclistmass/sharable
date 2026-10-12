@@ -211,14 +211,14 @@ fun ProgressCardFace(name: String, edge: Color, art: Int?, small: String? = null
  * Chivalry also your commodities and your progress cards (named, edged in their deck's colour) (#4).
  */
 @Composable
-fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier) {
+fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, pace: Float = 1f) {
     version // see PlayerStrip
     @Composable
     fun count(n: Int) = Text("$n", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(2.dp).background(Color(0xE62A1B10), CircleShape).border(1.dp, Color(0xFFC9A04A), CircleShape).padding(horizontal = 6.dp))
     // Tap a progress card to see what it does (Mauro: "add some hints on what a card does").
     var hint by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
-    androidx.compose.runtime.LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay(5000); hint = null } }
+    androidx.compose.runtime.LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay((5000L * pace).toLong()); hint = null } }
     // A long press on any card shows it big with everything about it (Mauro); a tap anywhere on it closes.
     var detail by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<CardDetail?>(null) }
     fun Modifier.longPressFor(d: CardDetail) = this.pointerInput(d) { detectTapGestures(onLongPress = { detail = d }) }

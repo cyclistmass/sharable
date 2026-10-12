@@ -250,13 +250,14 @@ private val TOKEN_WOOD_INDEX = PLAYER_COLORS.size
 internal const val MAX_SPEED = 16
 
 /**
- * Milliseconds the game waits after a move of [type] at [speed] (below Max). A roll always waits for its
- * dice to land on the panel, at every speed: otherwise the next turn's panel showed while they were in the air.
+ * Milliseconds the game waits after a move of [type] at [speed] (below Max) and [pace] (the Pace setting's factor). A
+ * roll always waits for its dice to land on the panel, at every speed: otherwise the next turn's panel showed while
+ * they were in the air. The dice fall at the same pace ([Pace.fallMs]).
  */
-internal fun pauseAfter(type: wgbg.engine.ActionKind, speed: Int): Long = when (type) {
+internal fun pauseAfter(type: wgbg.engine.ActionKind, speed: Int, pace: Float = 1f): Long = when (type) {
     ActionType.END_TURN, ActionType.REJECT_TRADE -> 0L
-    ActionType.ROLL -> maxOf(500L / speed, (DiceSprites.FALL_S * 1000 * DiceSprites.HANDOVER).toLong() + 150L)
-    else -> 350L / speed
+    ActionType.ROLL -> maxOf((500L * pace / speed).toLong(), (Pace.fallMs(pace) * DiceSprites.HANDOVER).toLong() + 150L)
+    else -> (350L * pace / speed).toLong()
 }
 
 private fun Color.shade(f: Float) = lerp(this, Color.Black, f)
@@ -634,7 +635,7 @@ fun WatchGameScreen(
     val stateNow by rememberUpdatedState(state)
     // A short note when a board tap did nothing for a reason worth saying (shown in place of the prompt).
     var tapHint by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(tapHint) { if (tapHint != null) { delay(2500); tapHint = null } }
+    LaunchedEffect(tapHint) { if (tapHint != null) { delay((2500L * env.pace.factor).toLong()); tapHint = null } }
     var seaTick by remember { mutableIntStateOf(0) }
     LaunchedEffect(sea) { // the sea keeps moving even when the game is paused
         var last = 0L
@@ -729,7 +730,7 @@ fun WatchGameScreen(
             while (playing && !state.isOver) {
                 val type = step()
                 tick++
-                if (pauseAfter(type, speed) > 0) delay(pauseAfter(type, speed))
+                if (pauseAfter(type, speed, env.pace.factor) > 0) delay(pauseAfter(type, speed, env.pace.factor))
             }
         }
         if (state.isOver) {
@@ -795,7 +796,7 @@ fun WatchGameScreen(
                     }
                     (n.isHost && (n.bot(who) != null || quitToBot(v.room, n.seatOf(who)))) || (autoplay && who == n.me) -> {
                         // The host's phone plays the room's bots, at a watchable pace (dice land first).
-                        delay(if (rolled) pauseAfter(ActionType.ROLL, 1) else 450L)
+                        delay(if (rolled) pauseAfter(ActionType.ROLL, 1, env.pace.factor) else (450L * env.pace.factor).toLong())
                         val fresh = views.tryReceive().getOrNull()
                         if (fresh != null) fresh else {
                             Rules.legalActions(state, buf)
@@ -1186,7 +1187,7 @@ fun WatchGameScreen(
                     eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight,
                     width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f, onDiceDoubleTap = { histogramOpen = true; settingsOpen = false })
             }
-            if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
+            if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, fallMs = Pace.fallMs(env.pace.factor), onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
@@ -1215,7 +1216,7 @@ fun WatchGameScreen(
             val cardSheet = legal.any { it.type == ActionType.DISCARD || it.type == wgbg.engine.CkActionType.CHOOSE_CARD }
             if (!tradeOpen && !tradeNeedsMe(state, me) && !cardSheet) HandRow(state, me, tick,
                 // Between the left panel and the move buttons (playtest: progress cards slid under End turn).
-                Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 384.dp, end = 196.dp, bottom = 6.dp))
+                Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 384.dp, end = 196.dp, bottom = 6.dp), pace = env.pace.factor)
         }
         if (me >= 0 && !inventory) {
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
