@@ -3,6 +3,7 @@ package com.mauro.wgbg
 import android.content.res.Resources
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
@@ -92,7 +93,7 @@ internal fun DrawScope.drawPieceSprite(piece: BuildingSprites.Piece, at: Offset,
     val (a, b, f) = banditSteps(tilt)
     val dst = IntOffset((at.x - side / 2).toInt(), (at.y - side / 2).toInt())
     val size = IntSize(side.toInt(), side.toInt())
-    val tint = bodyFilter ?: ColorFilter.tint(color, BlendMode.Modulate)
+    val tint = bodyFilter ?: pieceTint(color)
     fun layer(i: Int, alpha: Float) {
         val body = piece.body[i]; val trim = piece.trim[i]
         drawImage(body, IntOffset.Zero, IntSize(body.width, body.height), dst, size, alpha = alpha, colorFilter = tint, filterQuality = FilterQuality.Medium)
@@ -102,6 +103,39 @@ internal fun DrawScope.drawPieceSprite(piece: BuildingSprites.Piece, at: Offset,
         layer(a, 1f); if (f > 0.02f) layer(b, f)
     } else rotate(degrees, at) { layer(a, 1f); if (f > 0.02f) layer(b, f) }
 }
+
+/**
+ * A 4x5 colour matrix (row-major) that scales saturation by [s] around Rec. 601 luma: 1 leaves colour alone, more is
+ * more vivid, less is greyer.
+ */
+internal fun saturationMatrix(s: Float): FloatArray {
+    val w = floatArrayOf(0.299f, 0.587f, 0.114f)
+    val m = FloatArray(20)
+    for (r in 0 until 3) for (c in 0 until 3) m[r * 5 + c] = (1f - s) * w[c] + if (r == c) s else 0f
+    m[18] = 1f
+    return m
+}
+
+/** Pieces in a player's colour: the wood tinted, then [PIECE_SATURATION] more vivid and [PIECE_BRIGHTNESS] brighter. */
+internal fun pieceMatrix(color: Color): FloatArray {
+    val sat = saturationMatrix(PIECE_SATURATION)
+    val p = floatArrayOf(color.red, color.green, color.blue)
+    val m = FloatArray(20)
+    for (r in 0 until 3) for (c in 0 until 3) m[r * 5 + c] = PIECE_BRIGHTNESS * sat[r * 5 + c] * p[c]
+    m[18] = 1f
+    return m
+}
+
+private val pieceTints = HashMap<Color, ColorFilter>()
+/** The colour filter for a piece of [color] (cached: there are only a few player colours). */
+internal fun pieceTint(color: Color): ColorFilter = pieceTints.getOrPut(color) { ColorFilter.colorMatrix(ColorMatrix(pieceMatrix(color))) }
+
+/** Mauro, 2026-10-11: "all the wood pieces need to be much brighter to see on the board, 20% more sat". */
+internal const val PIECE_SATURATION = 1.2f
+internal const val PIECE_BRIGHTNESS = 1.15f
+/** ...and "10% less on the tiles". */
+internal const val TILE_SATURATION = 0.9f
+internal val TILE_FILTER: ColorFilter by lazy { ColorFilter.colorMatrix(ColorMatrix(saturationMatrix(TILE_SATURATION))) }
 
 /** Where an active knight's pennant goes, relative to the knight's contact point, for a frame [side] px across:
  * the pole's foot, the pole's top, and the pennant's tip. Upright at any tilt, just right of the knight. */

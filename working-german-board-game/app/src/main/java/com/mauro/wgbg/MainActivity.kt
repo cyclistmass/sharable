@@ -218,9 +218,6 @@ private val KNIGHTS_NORMAL = listOf(
     R.drawable.knight_normal_l2_active, R.drawable.knight_normal_l3_inactive, R.drawable.knight_normal_l3_active,
 )
 
-private val KNIGHT_CARDS_NORMAL = listOf(R.drawable.card_knight_normal_1, R.drawable.card_knight_normal_2, R.drawable.card_knight_normal_3)
-private val KNIGHT_CARDS_PIRATE = listOf(R.drawable.card_knight_pirate_1, R.drawable.card_knight_pirate_2, R.drawable.card_knight_pirate_3)
-
 /** How thick a tile stands, in hex sides (frame option B was 0.26; Mauro 2026-10-11: "too thick", halved). */
 private const val TILE_THICKNESS = 0.13f
 
@@ -233,8 +230,8 @@ private val TERRAIN_COLORS = mapOf(
     Resource.NONE to Color(0xFFE8D9A8),
 )
 
-/** Seat colours. Mauro's pick (#59, 2026-10-11): scarlet and a hue-29 orange, both 20% lighter, so red and orange never blur. */
-internal val PLAYER_COLORS = listOf(Color(0xFFFF5C59), Color(0xFF1E63C6), Color(0xFFFF9B3E), Color(0xFFF5F5F5))
+/** Seat colours. Mauro's pick (#59, 2026-10-11): scarlet and a hue-29 orange, both 20% lighter, so red and orange never blur; blue is a sky celeste (2026-10-11) so it reads on the board. */
+internal val PLAYER_COLORS = listOf(Color(0xFFFF5C59), Color(0xFF3FB4EE), Color(0xFFFF9B3E), Color(0xFFF5F5F5))
 /** The brown (tan) for boat sails and the extra seats of six-player games (v3). */
 internal val PLAYER_BROWN = Color(0xFF8D6E63)
 internal val PLAYER_NAMES = listOf("Red", "Blue", "Orange", "White")
@@ -1022,15 +1019,15 @@ fun WatchGameScreen(
         if (lookAndArt) Row(Modifier.align(Alignment.TopStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically) {
             GoButton("Done", "look-done", true, Modifier.width(120.dp).height(44.dp)) { onExit() }
-            BrassButton("Tiles: compare", "look-tile-compare", Modifier.height(44.dp)) { compareTiles = true }
-            BrassButton("Card guide", "look-guide", Modifier.height(44.dp)) { guideOpen = true }
+            BrassButton("Tiles: compare", "look-tile-compare", Modifier.height(44.dp)) { compareTiles = true; settingsOpen = false }
+            BrassButton("Card guide", "look-guide", Modifier.height(44.dp)) { guideOpen = true; settingsOpen = false }
         }
         if (inventory) Row(Modifier.align(Alignment.BottomCenter).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((r, art) in CARD_ART.withIndex()) androidx.compose.foundation.Image(
                 androidx.compose.ui.res.painterResource(art), RESOURCE_NAMES[r], Modifier.size(width = 76.dp, height = 110.dp))
             // Knight cards in the chosen theme (Normal / Pirate themed).
             for (lv in 1..3) androidx.compose.foundation.Image(
-                androidx.compose.ui.res.painterResource(if (env.pirateTheme) KNIGHT_CARDS_PIRATE[lv - 1] else KNIGHT_CARDS_NORMAL[lv - 1]),
+                androidx.compose.ui.res.painterResource(GuideArt.knightCard(lv, env.pirateTheme)),
                 "Knight level $lv", Modifier.size(width = 76.dp, height = 110.dp))
             // Dice in the chosen theme: yellow 1-6, red 1-6, the event die's six faces.
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1055,7 +1052,7 @@ fun WatchGameScreen(
             if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
                 TurnHud(report, previous, names, me = me, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
                     eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight,
-                    width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f, onDiceDoubleTap = { histogramOpen = true })
+                    width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f, onDiceDoubleTap = { histogramOpen = true; settingsOpen = false })
             }
             if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
@@ -1167,7 +1164,7 @@ fun WatchGameScreen(
                             .clickable { confirmExit = true }.padding(horizontal = 10.dp, vertical = 3.dp).testTag("menu-exit"))
                 }
                 // Every card and what it does, and what everything costs (Mauro: "make a map in the menu").
-                WoodButton("Card guide", "menu-guide") { guideOpen = true; panelOpen = false }
+                WoodButton("Card guide", "menu-guide") { guideOpen = true; panelOpen = false; settingsOpen = false }
                 if (online != null) Text("Online · room ${online.id}", fontWeight = FontWeight.Bold, modifier = Modifier.testTag("menu-room"))
                 if (online == null) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
@@ -1208,7 +1205,7 @@ fun WatchGameScreen(
             tick.let { DiceHistogram(tracker.rollCounts.copyOf(), tracker.eventCounts.copyOf(), state.ck != null, onClose = { histogramOpen = false }) }
         }
         if (guideOpen) Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
-            CardGuide(state.ck != null, onClose = { guideOpen = false })
+            CardGuide(state.ck != null, env.pirateTheme, onClose = { guideOpen = false })
         }
         if (settingsOpen) SettingsPanel(env, sound,
             Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp))
@@ -1395,7 +1392,7 @@ internal fun describe(t: ActionKind) = when (t) {
     ActionType.COUNTER_TRADE -> "made a counter-offer"
     // Age of Chivalry, in our words (the history said "Red build knight").
     wgbg.engine.CkActionType.BUILD_KNIGHT -> "raised a knight"
-    wgbg.engine.CkActionType.ACTIVATE_KNIGHT -> "roused a knight"
+    wgbg.engine.CkActionType.ACTIVATE_KNIGHT -> "supplied a knight"
     wgbg.engine.CkActionType.PROMOTE_KNIGHT -> "promoted a knight"
     wgbg.engine.CkActionType.MOVE_KNIGHT -> "moved a knight"
     wgbg.engine.CkActionType.DISPLACE_KNIGHT -> "chased off a knight"
@@ -1702,7 +1699,7 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         if (r3d != null) {
             // 3D preview: the rendered tile (base and thickness baked in) at this tilt, then our number plate on top.
             val hs = scale * l.hexK(h)
-            drawSteppedSprite(r3d, c, Tile3dArt.FRAME_UNITS * hs, l.tilt)
+            drawSteppedSprite(r3d, c, Tile3dArt.FRAME_UNITS * hs, l.tilt, TILE_FILTER)
             if (board.hexNumber[h] != 0) drawNumberToken(board.hexNumber[h], c + Offset(TILE3D_PLATE_X * hs, TILE3D_PLATE_Y * hs * l.squash), hs, measurer, wood)
         } else drawTile(board.hexResource[h], board.hexNumber[h], h, c, scale * l.hexK(h), measurer, wood, l.squash, lift, faces?.get(board.hexResource[h]), tileLine)
     }
@@ -1921,7 +1918,7 @@ private fun DrawScope.drawTile(
         val w = sqrt(3f) * r
         val hgt = 2 * r * squash
         drawImage(face, dstOffset = IntOffset((c.x - w / 2).toInt(), (c.y - hgt / 2).toInt()), dstSize = IntSize(w.toInt(), hgt.toInt()),
-            filterQuality = FilterQuality.Medium)
+            filterQuality = FilterQuality.Medium, colorFilter = TILE_FILTER)   // a little greyer, so the pieces stand out
         // Tile edges: Thin line = a fine dark outline in a deeper shade of the terrain.
         if (line) drawPath(polygon(top), base.shade(0.55f).copy(alpha = 0.75f), style = Stroke(0.025f * scale))
         if (number != 0) drawNumberToken(number, c + Offset(NUMBER_TOKEN_X * scale, NUMBER_TOKEN_Y * scale * squash), scale, measurer, wood)
@@ -2241,12 +2238,12 @@ internal fun DrawScope.drawWalledPiece(buildings: BuildingSprites, piece: Buildi
 internal val RAMPARTS_PERCH_LIFT = floatArrayOf(12f / 256f, 14f / 256f, 17f / 256f)
 
 /** Draws the tilt-stepped sprite [frames] centred on [c], [side] px square, cross-fading the two nearest steps. */
-private fun DrawScope.drawSteppedSprite(frames: List<ImageBitmap>, c: Offset, side: Float, tilt: Float) {
+private fun DrawScope.drawSteppedSprite(frames: List<ImageBitmap>, c: Offset, side: Float, tilt: Float, filter: androidx.compose.ui.graphics.ColorFilter? = null) {
     if (side < 2f || !side.isFinite()) return
     val (a, b, f) = banditSteps(tilt)
     val dst = IntOffset((c.x - side / 2).toInt(), (c.y - side / 2).toInt()); val sz = IntSize(side.toInt(), side.toInt())
-    frames.getOrNull(a)?.let { drawImage(it, IntOffset.Zero, IntSize(it.width, it.height), dst, sz, filterQuality = FilterQuality.Medium) }
-    if (f > 0.02f) frames.getOrNull(b)?.let { drawImage(it, IntOffset.Zero, IntSize(it.width, it.height), dst, sz, alpha = f, filterQuality = FilterQuality.Medium) }
+    frames.getOrNull(a)?.let { drawImage(it, IntOffset.Zero, IntSize(it.width, it.height), dst, sz, filterQuality = FilterQuality.Medium, colorFilter = filter) }
+    if (f > 0.02f) frames.getOrNull(b)?.let { drawImage(it, IntOffset.Zero, IntSize(it.width, it.height), dst, sz, alpha = f, filterQuality = FilterQuality.Medium, colorFilter = filter) }
 }
 
 /** Corners 0 until [count] ordered back to front: by [screenY] (smaller is farther away), ties by index. */

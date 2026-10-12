@@ -57,12 +57,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** What each bot level does, shown under the picker (copy from the canvas). */
-private val BOT_NOTES = mapOf(
-    BotLevel.EASY to "Easy: random legal moves, good for learning",
-    BotLevel.GREEDY to "Greedy: builds and trades for what it needs",
-    BotLevel.STRONG to "Strong: trained AI (arrives with issue #6)",
-)
 
 /**
  * The game-start screen (#3), ported from docs/design/NewGame.dc.html: your name and photo,
@@ -207,7 +201,6 @@ private fun SeatCard(i: Int, seat: SeatSetup, modifier: Modifier, onKind: (SeatK
                     for (b in BotLevel.entries) Choice(b.label, seat.bot == b, "seat-$i-bot-${b.name}", Modifier.weight(1f).height(26.dp),
                         radius = 7.dp, size = 11.sp) { onBot(b) }
                 }
-                Text(BOT_NOTES.getValue(seat.bot), style = Wood.sans(11.sp, color = Wood.INK_SOFT))
             }
             SeatKind.FRIEND -> Text("Invite from the lobby, or pass this phone", style = Wood.sans(12.sp, color = Wood.INK_SOFT))
             SeatKind.EMPTY -> Text("Nobody sits here", style = Wood.sans(12.sp, color = Wood.INK_SOFT))

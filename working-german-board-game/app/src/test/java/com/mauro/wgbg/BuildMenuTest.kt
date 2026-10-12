@@ -3,6 +3,7 @@ package com.mauro.wgbg
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import wgbg.engine.Action
 import wgbg.engine.ActionType
 import wgbg.engine.GameConfig
 import wgbg.engine.Phase
@@ -14,7 +15,7 @@ class BuildMenuTest {
     @Test
     fun `each ruleset gets its own entries, Fortune cards only in the base game`() {
         assertEquals(listOf("Road", "Homestead", "Town", "Fortune card"), BuildKind.forRuleset(false).map { it.label })
-        assertEquals(listOf("Road", "Homestead", "Town", "Raise a knight", "Rouse a knight", "Promote a knight", "Ramparts"), BuildKind.forRuleset(true).map { it.label })
+        assertEquals(listOf("Road", "Homestead", "Town", "Raise a knight", "Supply a knight", "Promote a knight", "Ramparts"), BuildKind.forRuleset(true).map { it.label })
     }
 
     @Test
@@ -33,5 +34,13 @@ class BuildMenuTest {
             Rules.legalActions(s, buf); Rules.apply(s, bots[s.actingPlayer].choose(s, buf))
         }
         assertTrue(checked > 5, "road moments seen: $checked")
+    }
+
+    @Test
+    fun `the menu shows only what can be done now, plus the picked entry`() {
+        val road = Action.of(ActionType.BUILD_ROAD, 3L)
+        assertEquals(listOf(BuildKind.ROAD), shownKinds(false, listOf(road), null))
+        assertEquals(emptyList<BuildKind>(), shownKinds(true, emptyList(), null))
+        assertEquals(listOf(BuildKind.ROAD, BuildKind.TOWN), shownKinds(false, listOf(road), BuildKind.TOWN))
     }
 }
