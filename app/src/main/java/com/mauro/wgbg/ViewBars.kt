@@ -22,12 +22,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.PI
 import kotlin.math.ln
 import kotlin.math.pow
 
 /**
  * On-screen view controls (Mauro, 2026-10-10): two upright brass bars on the board's right edge, Zoom and
- * Tilt, beside the pinch / two-finger gestures. Positions are 0 (bottom) .. 1 (top).
+ * Tilt, beside the pinch / two-finger gestures, and on the 3D board a Turn bar. Positions are 0 (bottom) .. 1 (top).
  */
 object ViewBars {
     /** Zoom grows evenly per bar step (1x at the bottom, [Camera.MAX_ZOOM] at the top). */
@@ -40,23 +41,43 @@ object ViewBars {
 
     fun barToTilt(t: Float): Float = t.coerceIn(0f, 1f) * Camera.MAX_TILT
 
+    /**
+     * The 3D board's turn: the bar's middle is unturned, the top half a turn one way, the bottom half a turn the other
+     * (Mauro: "start it in the middle and rotate left/right up/down"). Any angle reads back on the bar, wrapped.
+     */
+    fun turnToBar(rotation: Float): Float {
+        if (!rotation.isFinite()) return 0.5f
+        val full = 2f * PI.toFloat()
+        var r = rotation % full
+        if (r > PI) r -= full
+        if (r <= -PI) r += full
+        return (r / full + 0.5f).coerceIn(0f, 1f)
+    }
+
+    fun barToTurn(t: Float): Float = (t.coerceIn(0f, 1f) - 0.5f) * 2f * PI.toFloat()
+
     /** Bar position for a touch at [y] px in a bar [height] px tall (top = 1). */
     fun barAt(y: Float, height: Float): Float = if (height <= 0f || !y.isFinite()) 0f else (1f - y / height).coerceIn(0f, 1f)
 }
 
-/** The Zoom and Tilt bars on a small wood plate with a brass edge. */
+/** The Zoom and Tilt bars (and Turn, when [rotation] isn't null) on a small wood plate with a brass edge. */
 @Composable
-fun ViewBarsPanel(camera: Camera, onZoom: (Float) -> Unit, onTilt: (Float) -> Unit, modifier: Modifier = Modifier) {
+fun ViewBarsPanel(camera: Camera, onZoom: (Float) -> Unit, onTilt: (Float) -> Unit, modifier: Modifier = Modifier,
+                  rotation: Float? = null, onTurn: (Float) -> Unit = {}) {
     Row(modifier.brassEdgedWood(3.dp).padding(horizontal = 6.dp, vertical = 8.dp).testTag("view-bars"),
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         BrassBar("Zoom", ViewBars.zoomToBar(camera.zoom), "bar-zoom", height = 110.dp) { onZoom(ViewBars.barToZoom(it)) }
         BrassBar("Tilt", ViewBars.tiltToBar(camera.tilt), "bar-tilt", height = 110.dp) { onTilt(ViewBars.barToTilt(it)) }
+        if (rotation != null) BrassBar("Turn", ViewBars.turnToBar(rotation), "bar-turn", height = 110.dp, fromMiddle = true) {
+            onTurn(ViewBars.barToTurn(it))
+        }
     }
 }
 
 /** An upright brass slider, 0 at the bottom to 1 at the top (view bars, Settings' Density). */
 @Composable
-internal fun BrassBar(label: String, value: Float, tag: String, height: androidx.compose.ui.unit.Dp = 150.dp, onChange: (Float) -> Unit) {
+internal fun BrassBar(label: String, value: Float, tag: String, height: androidx.compose.ui.unit.Dp = 150.dp,
+                      fromMiddle: Boolean = false, onChange: (Float) -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Canvas(
             Modifier.width(30.dp).height(height).testTag(tag)
@@ -73,9 +94,12 @@ internal fun BrassBar(label: String, value: Float, tag: String, height: androidx
             val knob = 11.dp.toPx()
             val top = knob; val bottom = size.height - knob
             val y = bottom - (bottom - top) * value
-            // Dark groove, brass fill from the bottom up to the knob, then the brass knob.
+            // Dark groove, brass fill from the bottom (or, centred bars, from the middle) to the knob, then the brass knob.
             drawRoundRect(Color(0xFF2A190D), Offset(x - w / 2, top), Size(w, bottom - top), CornerRadius(w / 2))
-            drawRoundRect(Brush.verticalGradient(listOf(Color(0xFFE3C477), Color(0xFFA77F33))), Offset(x - w / 2, y), Size(w, bottom - y), CornerRadius(w / 2))
+            val from = if (fromMiddle) (top + bottom) / 2f else bottom
+            drawRoundRect(Brush.verticalGradient(listOf(Color(0xFFE3C477), Color(0xFFA77F33))), Offset(x - w / 2, minOf(y, from)),
+                Size(w, kotlin.math.abs(from - y)), CornerRadius(w / 2))
+            if (fromMiddle) drawLine(Color(0xFFE3C477), Offset(x - w, from), Offset(x + w, from), 1.5.dp.toPx())
             drawCircle(Brush.radialGradient(listOf(Color(0xFFF3DC94), Color(0xFFB08436), Color(0xFF6E4E1C)), Offset(x - knob * 0.3f, y - knob * 0.3f), knob * 1.3f), knob, Offset(x, y))
             drawCircle(Color(0xFF4A3020), knob, Offset(x, y), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
         }

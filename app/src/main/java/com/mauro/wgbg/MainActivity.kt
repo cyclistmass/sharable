@@ -382,6 +382,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     // The intro fly-over, the first time the app opens (never over a debug start or a rejoin).
     var intro by remember { mutableStateOf(start == null && !Intro.seen(ctx)) }
     if (intro && screen == Screen.START) { IntroScreen { intro = false }; return }
+    var feedback by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         // Which build this is, for testers (bumped with each major merge).
         if (screen == Screen.START) Text("v${appVersion()}", color = Color(0xFFD9B865), fontSize = 12.sp,
@@ -404,6 +405,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 // Look & art shows the ruleset chosen on screen, and the choices are still there on the way back.
                 onLookAndArt = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); screen = Screen.LOOK },
                 onPlayIntro = { intro = true },
+                onFeedback = { feedback = true },
             )
             Screen.JOIN -> {
                 BackHandler { screen = Screen.START }
@@ -435,6 +437,10 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup, startWatching = watch,
                     resume = resuming, saveStore = localStore.takeIf { start == null })
             }
+        }
+        if (feedback && screen == Screen.START) {
+            BackHandler { feedback = false }
+            FeedbackPanel(null, emptyList(), null) { feedback = false }
         }
         problem?.let { msg ->
             Row(Modifier.align(Alignment.BottomCenter).padding(12.dp).brassEdgedWood().padding(horizontal = 14.dp, vertical = 8.dp).testTag("online-problem"),
@@ -532,11 +538,13 @@ fun WatchGameScreen(
     }
     val log = remember(seed, seats) { mutableStateListOf<String>() }
     val tracker = remember(seed, seats, human, epoch) { TurnTracker(names) }
+    // Every move applied to this game, in order: a bug report carries them so the game replays exactly.
+    val played = remember(seed, seats, human, epoch) { mutableListOf<Action>() }
     // A saved local game (#82): its moves replayed once, through the tracker so the history comes back too. Every
     // other game you play is saved from its first move; Watch mode keeps nothing.
     remember(seed, seats, human) {
         val resumed = online == null && resume != null && seed == resume.seed
-        if (resumed) resume!!.replay(state) { who, a, applyIt -> tracker.apply(state, who, a, applyIt) }
+        if (resumed) resume!!.replay(state) { who, a, applyIt -> tracker.apply(state, who, a, applyIt); played += a }
         if (saveStore != null && online == null && !lookAndArt) when {
             !human -> saveStore.clear()
             !resumed -> saveStore.start(setup, seed)
@@ -685,6 +693,7 @@ fun WatchGameScreen(
             if (action.type == ActionType.ROLL) action = dice.next(withEvent = state.ck != null).toAction()
             noteResponse(who, action)
             tracker.apply(state, who, action) { Rules.apply(state, action) }
+            played += action
             if (me >= 0) saveStore?.add(action)
             logMove(who, action)
             if (liveFreezeTurn > 0 && state.turn >= liveFreezeTurn) {
@@ -764,6 +773,7 @@ fun WatchGameScreen(
                     runCatching { android.util.Log.i("WGBG-MOVES", "${online.id} #${applied.size} p$who ${names[who]} ${a.type}:${a.payload}${if (applied.size > v.confirmedSeq) " (mine, unconfirmed)" else ""}") }
                     noteResponse(who, a)
                     tracker.apply(state, who, a) { Rules.apply(state, a) }
+                    played += a
                     logMove(who, a)
                     applied += a
                     rolled = a.type == ActionType.ROLL
@@ -828,6 +838,7 @@ fun WatchGameScreen(
     var confirmExit by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(lookAndArt) }
     var guideOpen by remember { mutableStateOf(false) }
+    var feedbackOpen by remember { mutableStateOf(false) }
     var histogramOpen by remember { mutableStateOf(false) }
     var hudTopRight by remember { mutableStateOf<Offset?>(null) }
     var diceFlying by remember { mutableStateOf(false) }
@@ -1188,7 +1199,7 @@ fun WatchGameScreen(
                 OnlineConnectionStatus(v)
             }
         }
-        if (me >= 0 && !inventory && !state.isOver) tick.let {
+        if (me >= 0 && !inventory && !state.isOver && pending.isEmpty()) tick.let {
             // Another player's card or bandit cost you something: say who, with what card and why, until OK.
             tracker.hits.lastOrNull { it.victim == me && it.seq > seenHit }?.let { hit ->
                 Column(Modifier.align(Alignment.TopCenter).padding(top = 64.dp).widthIn(max = 460.dp).chest().testTag("hit-notice"),
@@ -1289,6 +1300,8 @@ fun WatchGameScreen(
                 }
                 // Every card and what it does, and what everything costs (Mauro: "make a map in the menu").
                 WoodButton("Card guide", "menu-guide") { guideOpen = true; panelOpen = false; settingsOpen = false }
+                // A bug or an idea, typed or spoken, with this whole game attached (Mauro, 2026-10-12).
+                WoodButton("Report a bug or idea", "menu-feedback") { feedbackOpen = true; panelOpen = false; settingsOpen = false }
                 if (online != null) Text("Online · room ${online.id}", fontWeight = FontWeight.Bold, modifier = Modifier.testTag("menu-room"))
                 if (online == null) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     WoodButton(if (playing) "Pause" else "Play", "menu-pause") { playing = !playing }
@@ -1329,6 +1342,15 @@ fun WatchGameScreen(
             // Copies, so each move's new counts reach the screen (the arrays themselves never change identity).
             tick.let { DiceHistogram(tracker.rollCounts.copyOf(), tracker.eventCounts.copyOf(), state.ck != null, onClose = { histogramOpen = false }) }
         }
+        if (feedbackOpen) {
+            BackHandler { feedbackOpen = false }
+            val game = remember {
+                if (net != null) "online room ${online?.id} · seed ${net.seed} · ${net.config}\n" + played.joinToString("\n") { wgbg.net.MoveCodec.encode(it) }
+                else LocalSave(setup, seed, played.toList()).encode()
+            }
+            FeedbackPanel(game, remember { Feedback.historyLines(tracker.history, names) }, remember { Feedback.position(state, names) },
+                onClose = { feedbackOpen = false })
+        }
         if (guideOpen) Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
             CardGuide(state.ck != null, env.pirateTheme, onClose = { guideOpen = false })
         }
@@ -1364,8 +1386,10 @@ fun WatchGameScreen(
         if (env.viewBars && !inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
             onZoom = { z -> camera = camera.transform(Offset(boardSize.width / 2f, boardSize.height / 2f), Offset.Zero, z / camera.zoom, boardSize) },
             onTilt = { t -> camera = camera.copy(tilt = t) },
+            // The 3D board also turns (Mauro: "a rotate slider - start it in the middle"); the flat board doesn't.
+            rotation = boardRotation.takeIf { liveBoard }, onTurn = { r -> boardRotation = r },
             // Upper right under Trade, short, clear of the move buttons that stack up from the bottom right.
-            Modifier.align(Alignment.TopEnd).padding(top = 104.dp, end = 8.dp))
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 104.dp, end = 8.dp))
     }
 }
 

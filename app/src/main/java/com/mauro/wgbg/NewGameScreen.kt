@@ -82,6 +82,8 @@ fun NewGameScreen(
     onLookAndArt: ((GameSetup) -> Unit)? = null,
     /** Plays the intro fly-over now (Mauro: a button on the start screen, not a setting in the game). */
     onPlayIntro: (() -> Unit)? = null,
+    /** Opens the bug report / idea panel (Mauro: "put it on the main landing page menu as well"). */
+    onFeedback: (() -> Unit)? = null,
 ) {
     var setup by remember { mutableStateOf(initial) }
     // The deck size to come back to when switching Random -> Card deck (72 by default, as drawn).
@@ -128,6 +130,8 @@ fun NewGameScreen(
                 Choice("+", false, "points-up", Modifier.size(34.dp), size = 18.sp,
                     enabled = setup.points < GameSetup.POINTS_RANGE.last) { setup = setup.withPoints(setup.points + 1) }
                 Spacer(Modifier.weight(1f))
+                if (onFeedback != null) WoodButton("Report", "start-feedback", Modifier.height(40.dp)) { onFeedback() }
+                if (onFeedback != null) Spacer(Modifier.width(8.dp))
                 if (onPlayIntro != null) WoodButton("Intro", "play-intro", Modifier.height(40.dp)) { onPlayIntro() }
                 if (onPlayIntro != null) Spacer(Modifier.width(8.dp))
                 if (onLookAndArt != null) BrassButton("Look & art", "look-and-art", Modifier.height(40.dp)) { onLookAndArt(setup) }

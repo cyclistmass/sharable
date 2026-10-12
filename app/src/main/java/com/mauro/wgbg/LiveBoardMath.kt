@@ -44,12 +44,37 @@ internal val LIVE_PLATE = Offset(0.36f, 0.45f)
 internal data class LivePlacement(val model: String, val position: Offset, val height: Float = 0f,
     val scale: Float = 1f, val heading: Float = 0f, val owner: Int = -1)
 
-/** Column-major glTF Y-axis transform; positive heading cancels the camera's screen orbit. */
-internal fun liveModelMatrix(p: LivePlacement): FloatArray {
+/**
+ * Column-major glTF Y-axis transform; positive heading cancels the camera's screen orbit. A [lift] (radians) then tips
+ * the model about its base toward a camera orbited by [rotation], so it is seen from that much steeper than the board.
+ */
+internal fun liveModelMatrix(p: LivePlacement, lift: Float = 0f, rotation: Float = 0f): FloatArray {
     val c = cos(p.heading) * p.scale; val s = sin(p.heading) * p.scale
-    return floatArrayOf(c, 0f, -s, 0f, 0f, p.scale, 0f, 0f, s, 0f, c, 0f,
+    val h = floatArrayOf(c, 0f, -s, 0f, p.scale, 0f, s, 0f, c) // columns
+    if (lift == 0f) return floatArrayOf(h[0], h[1], h[2], 0f, h[3], h[4], h[5], 0f, h[6], h[7], h[8], 0f,
         p.position.x, p.height, p.position.y, 1f)
+    // Rodrigues about the camera's ground-level right axis (cos r, 0, -sin r): up turns toward the eye (sin r, 0, cos r).
+    val ax = cos(rotation); val az = -sin(rotation)
+    val ct = cos(lift); val st = sin(lift); val k = 1f - ct
+    val r = floatArrayOf( // columns
+        ct + ax * ax * k, az * st, ax * az * k,
+        -az * st, ct, ax * st,
+        ax * az * k, -ax * st, ct + az * az * k)
+    val m = FloatArray(9)
+    for (col in 0..2) for (row in 0..2) m[col * 3 + row] = (0..2).sumOf { (r[it * 3 + row] * h[col * 3 + it]).toDouble() }.toFloat()
+    return floatArrayOf(m[0], m[1], m[2], 0f, m[3], m[4], m[5], 0f, m[6], m[7], m[8], 0f, p.position.x, p.height, p.position.y, 1f)
 }
+
+/** Pieces that stand up (buildings, the Bandit): tipped toward the camera like the flat board's sprites. */
+internal fun liveStanding(model: String): Boolean =
+    model == "bandit" || model.endsWith("_homestead") || model.endsWith("_town") || model.endsWith("_ramparts") || "_capital_" in model
+
+/**
+ * How far standing pieces tip toward the camera at board [tilt]: the flat board shows them [pieceLiftSteps] of its 8
+ * tilt steps steeper than the land (Mauro: "3d view does not have tilt on buildings"), never past the steepest view.
+ */
+internal fun liveLift(tilt: Float, steps: Float = pieceLiftSteps): Float =
+    (minOf(Camera.MAX_TILT, tilt + steps * Camera.MAX_TILT / 7f) - tilt).coerceAtLeast(0f)
 
 /** Reads only real game state. No fixture pieces are added to the playing board. */
 internal fun livePlacements(s: GameState, pirate: Boolean, lod: Int): List<LivePlacement> = buildList {

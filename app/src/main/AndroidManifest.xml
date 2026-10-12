@@ -4,6 +4,11 @@
     <!-- Dice and tap haptics (#57): a normal permission, granted without asking. -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Voice reports (Feedback.kt): is a speech recognizer installed? -->
+    <queries>
+        <intent><action android:name="android.speech.action.RECOGNIZE_SPEECH" /></intent>
+    </queries>
+
     <application
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
