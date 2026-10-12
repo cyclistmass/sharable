@@ -49,7 +49,7 @@ nothing on a tile reaches the number plate, and sea life and boats stay smaller 
 
 ## Optional
 
-Boats, birds, a whale or other sea life, clouds, a music set list and sounds (dice, Raiders), an intro fly-over.
+Critters: boats, birds, a whale or other sea life, clouds, each a module with a model and a movement spec (see [critter-spec.md](critter-spec.md)). A music set list and sounds (dice, Raiders), an intro fly-over.
 
 ## Rules every theme passes
 
