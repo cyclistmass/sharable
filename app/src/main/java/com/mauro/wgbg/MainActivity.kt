@@ -291,6 +291,12 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     }
     var lobby by remember { mutableStateOf<Lobby?>(null) }
     var gameNo by rememberSaveable { mutableIntStateOf(0) }
+    // Your local game, saved after every move (#82). Android brought the app back on the game screen (it had stopped
+    // it in the background): carry on with the saved game, never a fresh one over it.
+    val localStore = remember { LocalSaveStore(java.io.File(context0.filesDir, "local-game.txt")) }
+    var resuming by remember { mutableStateOf(if (screen == Screen.GAME && start == null) localStore.load() else null) }
+    var localSave by remember { mutableStateOf<LocalSave?>(null) }
+    LaunchedEffect(screen) { if (screen == Screen.START) localSave = localStore.load() }
     val context = LocalContext.current.applicationContext
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // Created on first online use only: offline play never touches Firebase.
@@ -380,7 +386,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             modifier = Modifier.align(Alignment.BottomEnd).zIndex(1f).padding(10.dp).testTag("app-version"))
         when (screen) {
             Screen.START -> NewGameScreen(
-                onStart = { setup = it; savedSetup.edit().putString("last", it.encode()).apply(); gameNo++; screen = Screen.GAME },
+                onStart = { setup = it; savedSetup.edit().putString("last", it.encode()).apply(); resuming = null; gameNo++; screen = Screen.GAME },
                 initial = setup,
                 onOpenLobby = { s ->
                     setup = s; savedSetup.edit().putString("last", s.encode()).apply(); busy = true; problem = null
@@ -391,6 +397,8 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 onJoinRoom = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); problem = null; screen = Screen.JOIN },
                 resumeRoom = resumeCode.takeIf { session == null && !busy },
                 onResume = { resumeCode?.let { rejoin(it) } },
+                resumeGame = localSave?.let { "Resume your ${it.setup.ruleset.label} game" },
+                onResumeGame = { localSave?.let { setup = it.setup; resuming = it; gameNo++; screen = Screen.GAME } },
                 // Look & art shows the ruleset chosen on screen, and the choices are still there on the way back.
                 onLookAndArt = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); screen = Screen.LOOK },
                 onPlayIntro = { intro = true },
@@ -422,7 +430,8 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             Screen.LOOK -> WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), Camera.FIT, setup, onExit = { screen = Screen.START }, lookAndArt = true)
             Screen.GAME -> key(gameNo) {
                 // Back asks "Leave this game?" inside the game screen (same as Exit).
-                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup, startWatching = watch)
+                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup, startWatching = watch,
+                    resume = resuming, saveStore = localStore.takeIf { start == null })
             }
         }
         problem?.let { msg ->
@@ -492,8 +501,12 @@ fun WatchGameScreen(
     autoSetup: Boolean = false,
     /** Debug: start in Watch mode at Max speed (bots in every seat, games back to back). */
     startWatching: Boolean = false,
+    /** A saved local game to pick up where it was (#82). */
+    resume: LocalSave? = null,
+    /** Where your local game is saved after every move (#82); null keeps nothing (debug starts, Look & art). */
+    saveStore: LocalSaveStore? = null,
 ) {
-    var seed by remember { mutableLongStateOf(System.nanoTime() and 0xffffffL) }
+    var seed by remember { mutableLongStateOf(resume?.seed ?: (System.nanoTime() and 0xffffffL)) }
     // Who sits where in an online room (frozen once it starts); null offline.
     val net = remember(online) { online?.let { s -> s.client.view().room?.let { OnlineSeats(it, s.uid) } } }
     // Play mode: you are seat 0 ("You"); Watch mode: bots in every seat at full speed. Online: your seat.
@@ -517,6 +530,17 @@ fun WatchGameScreen(
     }
     val log = remember(seed, seats) { mutableStateListOf<String>() }
     val tracker = remember(seed, seats, human, epoch) { TurnTracker(names) }
+    // A saved local game (#82): its moves replayed once, through the tracker so the history comes back too. Every
+    // other game you play is saved from its first move; Watch mode keeps nothing.
+    remember(seed, seats, human) {
+        val resumed = online == null && resume != null && seed == resume.seed
+        if (resumed) resume!!.replay(state) { who, a, applyIt -> tracker.apply(state, who, a, applyIt) }
+        if (saveStore != null && online == null && !lookAndArt) when {
+            !human -> saveStore.clear()
+            !resumed -> saveStore.start(setup, seed)
+        }
+        0
+    }
     /** The last [Hit] notice the player dismissed. */
     var seenHit by remember(tracker) { mutableIntStateOf(0) }
     // Moves from the human's taps and buttons; the game loop checks each against the rules.
@@ -657,6 +681,7 @@ fun WatchGameScreen(
             if (action.type == ActionType.ROLL) action = dice.next(withEvent = state.ck != null).toAction()
             noteResponse(who, action)
             tracker.apply(state, who, action) { Rules.apply(state, action) }
+            if (me >= 0) saveStore?.add(action)
             logMove(who, action)
             if (liveFreezeTurn > 0 && state.turn >= liveFreezeTurn) {
                 playing = false
@@ -695,6 +720,7 @@ fun WatchGameScreen(
             }
         }
         if (state.isOver) {
+            saveStore?.clear() // a finished game has nothing to resume
             wins[if (state.winner >= 0) state.winner else 4]++
             // One line per finished game: CI self-play counts these and checks every game ends (#46).
             runCatching { android.util.Log.i("WGBG-GAME", "over ruleset=${if (state.ck != null) "chivalry" else "base"} winner=${state.winner} turns=${state.turn} hash=${state.stateHash()}") }
@@ -1311,7 +1337,8 @@ fun WatchGameScreen(
             Text("Leave this game?", color = Color(0xFFF1D58A), fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text(if (online != null) "Leave for now: Resume from the start screen any time, until the host deletes the game. " +
                     (if (net?.isHost == true) "Delete game ends it for everyone." else "Quit: leave for good.")
-                else "It won't be saved.", color = Color(0xFFEDE6D8), fontSize = 13.sp)
+                else if (saveStore != null && human) "Leave for now: Resume it from the start screen any time." else "It won't be saved.",
+                color = Color(0xFFEDE6D8), fontSize = 13.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 WoodButton("Keep playing", "exit-no") { confirmExit = false }
                 ColorButton(if (online != null) "Leave for now" else "Leave", Color(0xFFC0392B), "exit-yes") { confirmExit = false; onExit() }

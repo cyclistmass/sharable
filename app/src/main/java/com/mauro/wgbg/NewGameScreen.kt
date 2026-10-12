@@ -75,6 +75,9 @@ fun NewGameScreen(
     /** An online game you left for now (room code): shows a green Resume button until it ends or is deleted. */
     resumeRoom: String? = null,
     onResume: (() -> Unit)? = null,
+    /** A local game left mid-way (#82): the label of a green Resume button that picks it up where it was. */
+    resumeGame: String? = null,
+    onResumeGame: (() -> Unit)? = null,
     /** Look & art (#71): pick the theme, dice, tiles and see every piece, before the game; gets the choices on screen. */
     onLookAndArt: ((GameSetup) -> Unit)? = null,
     /** Plays the intro fly-over now (Mauro: a button on the start screen, not a setting in the game). */
@@ -153,6 +156,8 @@ fun NewGameScreen(
                 // Online needs a real name (friends see it); say so plainly, it read as "online is broken" when grey.
                 Text("To play online, type your name above (not \"You\")", style = Wood.sans(13.sp, FontWeight.Bold, Wood.WAITING),
                     modifier = Modifier.testTag("online-name-hint"))
+            if (resumeGame != null && onResumeGame != null)
+                GoButton(resumeGame, "resume-game", true, Modifier.fillMaxWidth().height(40.dp)) { onResumeGame() }
             if (resumeRoom != null && onResume != null)
                 GoButton("Resume online game $resumeRoom", "resume-room", true, Modifier.fillMaxWidth().height(40.dp)) { onResume() }
             // Online buttons turn green (go) once online is possible, i.e. you've typed a name (Mauro, 2026-10-11).
