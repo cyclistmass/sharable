@@ -64,6 +64,8 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             height: androidx.compose.ui.unit.Dp = 210.dp,
             /** False while thrown dice are still in the air (the resting dice appear when they land). */
             showDice: Boolean = true,
+            /** False while the first pieces are placed: no dice are rolled yet, so no empty pads either. */
+            dicePads: Boolean = true,
             /** Dice set: false = Normal (carved red + ivory), true = Pirate (ship-timber + bone, dark brass pips). */
             pirate: Boolean = false,
             /** Settings > Event die: which pirate event die art (DiceArt.EVENT_STYLES). */
@@ -88,7 +90,7 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
                 detectTapGestures(onDoubleTap = { onDiceDoubleTap() })
             } else Modifier)) {
             val color = PLAYER_COLORS[report.player]
-            run {
+            if (dicePads) run {
                 var r1 by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
                 Die3d(report.die1, red = true, pirate = pirate, pad = color, visible = showDice && report.rolled, modifier = Modifier.onGloballyPositioned { r1 = it.boundsInRoot() })
                 Die3d(report.die2, red = false, pirate = pirate, pad = color, visible = showDice && report.rolled, modifier = Modifier.onGloballyPositioned { c -> r1?.let { a -> onDiceSlots?.invoke(a, c.boundsInRoot()) } })

@@ -670,7 +670,7 @@ fun WatchGameScreen(
         suspend fun step(): ActionKind {
             Rules.legalActions(state, buf)
             val who = state.actingPlayer
-            val placing = state.phase == Phase.BUILD_INITIAL_SETTLEMENT || state.phase == Phase.BUILD_INITIAL_ROAD
+            val placing = inSetup(state)
             var action = if (who == me && !(autoSetup && placing)) {
                 tick++ // show the human what they can do
                 var a: Action
@@ -1166,7 +1166,7 @@ fun WatchGameScreen(
             if (stripWidth > 0f) Box(Modifier.align(Alignment.TopStart).padding(8.dp).width(sideWidth).fillMaxHeight()
                 .brassEdgedWood(woodAlpha = if (env.seeThrough) 0.4f else 1f))
             if (!chestOpen) Box(Modifier.align(Alignment.BottomStart).padding(8.dp).onGloballyPositioned { hudTopRight = it.boundsInParent().topRight }) {
-                TurnHud(report, previous, names, me = me, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
+                TurnHud(report, previous, names, me = me, history = tick.let { tracker.history }, onDiceSlots = { a, b -> diceSlots = a to b }, showDice = !diceFlying, dicePads = !inSetup(state), pirate = env.pirateTheme, eventStyle = env.eventDieStyle,
                     eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight,
                     width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f, onDiceDoubleTap = { histogramOpen = true; settingsOpen = false })
             }
@@ -2497,7 +2497,7 @@ internal fun turnHeader(tracker: TurnTracker, s: GameState): TurnReport? {
     val cur = tracker.current
     if (s.isOver) return cur ?: tracker.last
     // Setup: whoever places now, even before their first piece (the placing order snakes back).
-    if (s.phase == wgbg.engine.Phase.BUILD_INITIAL_SETTLEMENT || s.phase == wgbg.engine.Phase.BUILD_INITIAL_ROAD)
+    if (inSetup(s))
         return if (cur != null && cur.player == s.actingPlayer) cur else TurnReport(s.actingPlayer, s.turn)
     return if (cur != null && cur.player == s.currentPlayer && cur.turn == s.turn) cur else TurnReport(s.currentPlayer, s.turn)
 }

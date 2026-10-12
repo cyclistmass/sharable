@@ -126,7 +126,8 @@ private val INK_LIGHT = Color(0xFFEDE6D8)
 /** One-line instruction for what the human should do now. */
 fun prompt(s: GameState, legal: List<Action>, names: List<String>): String =
     if (legal.isEmpty() && !s.isOver) "Waiting for ${names[s.actingPlayer]}…" else ckPrompt(s, legal, names) ?: when {
-    s.phase == Phase.BUILD_INITIAL_SETTLEMENT -> "Tap a glowing corner to place a homestead"
+    // Age of Chivalry: the second piece placed is a town, straight onto an empty corner.
+    s.phase == Phase.BUILD_INITIAL_SETTLEMENT -> "Tap a glowing corner to place a ${if (legal.any { it.type == ActionType.BUILD_CITY }) "town" else "homestead"}"
     s.phase == Phase.BUILD_INITIAL_ROAD -> "Tap a glowing edge to place a road"
     s.phase == Phase.MOVE_ROBBER -> "Tap a tile to move the bandit"
     s.phase == Phase.DISCARD -> "Too many cards on a 7: discard ${s.discardOwed[s.actingPlayer]}"
@@ -336,7 +337,7 @@ internal fun optionCards(a: Action): List<Int>? = when (a.type) {
 /** The question asked before a tapped board move is made. */
 fun confirmTitle(s: GameState, a: Action): String = when (a.type) {
     ActionType.BUILD_SETTLEMENT -> if (s.phase == Phase.BUILD_INITIAL_SETTLEMENT) "Place your homestead here?" else "Build a homestead here?"
-    ActionType.BUILD_CITY -> "Upgrade this homestead to a town?"
+    ActionType.BUILD_CITY -> if (s.phase == Phase.BUILD_INITIAL_SETTLEMENT) "Place your town here?" else "Upgrade this homestead to a town?"
     ActionType.BUILD_ROAD -> if (s.phase == Phase.BUILD_INITIAL_ROAD || s.freeRoads > 0) "Place a free road here?" else "Build a road here?"
     ActionType.MOVE_ROBBER -> "Move the bandit here?"
     wgbg.engine.CkActionType.PLAY_PROGRESS -> "Play ${PROGRESS_NAMES.getOrElse(a.a) { "this card" }} here?"
@@ -347,6 +348,9 @@ fun confirmTitle(s: GameState, a: Action): String = when (a.type) {
     }
     else -> "Choose what to do here"
 }
+
+/** The first homesteads and roads are being placed: no dice, no trading yet. */
+fun inSetup(s: GameState): Boolean = s.phase == Phase.BUILD_INITIAL_SETTLEMENT || s.phase == Phase.BUILD_INITIAL_ROAD
 
 /**
  * Whether the confirm box goes to the bottom of the screen instead of the top: when the tapped spot ([spotY] on a board

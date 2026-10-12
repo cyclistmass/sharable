@@ -176,6 +176,13 @@ fun progressArt(card: Int): Int = ALL_CARD_ART[wgbg.engine.Track.commodity(wgbg.
 // blue-grey, Academy / Parchment (forest) forest green.
 internal val TRACK_COLORS = listOf(Color(0xFFD3E8C4), Color(0xFF8A9FB2), Color(0xFF3E8E48))
 
+/** Name type size on a [w] dp card face: 8 sp, smaller only when the longest word would not fit on one line. */
+fun cardNameSp(name: String, w: Int): Float {
+    val longest = name.split(' ').maxOf { it.length }
+    // Bold Alegreya Sans runs about 0.5 em a letter; the name has the face width less 14 dp of margins.
+    return minOf(8f, (w - 14) / (longest * 0.5f))
+}
+
 /**
  * The drawn card face shared by a progress card in hand and the card guide (#4, #71): a cream panel edged in
  * [edge] (a deck's track colour, or brass for a Fortune card), the background [art] cropped behind it, the
@@ -189,7 +196,9 @@ fun ProgressCardFace(name: String, edge: Color, art: Int?, small: String? = null
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(3.dp)
             .background(Color(0xE6EFE3C8), RoundedCornerShape(3.dp)).padding(2.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(name, color = Color(0xFF2B2118), fontSize = 8.sp, fontWeight = FontWeight.Bold, lineHeight = 9.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            // A long single word (Trailblazers) gets smaller type rather than breaking mid-word (0.2.7 test).
+            val nameSp = cardNameSp(name, w)
+            Text(name, color = Color(0xFF2B2118), fontSize = nameSp.sp, fontWeight = FontWeight.Bold, lineHeight = (nameSp + 1f).sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             // What it does, in small print on the card itself (Mauro); a tap still shows it large.
             if (small != null) Text(small, color = Color(0xFF4A3B2C), fontSize = 6.5.sp, lineHeight = 7.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.padding(top = 1.dp))

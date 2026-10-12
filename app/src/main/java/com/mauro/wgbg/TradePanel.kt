@@ -483,4 +483,4 @@ private fun Pill(label: String, color: Color, tag: String, onClick: () -> Unit) 
 
 
 /** The Trade button appears once setup is over (no trading while placing the first homesteads). */
-fun tradeButtonVisible(s: GameState) = s.phase != Phase.BUILD_INITIAL_SETTLEMENT && s.phase != Phase.BUILD_INITIAL_ROAD
+fun tradeButtonVisible(s: GameState) = !inSetup(s)
