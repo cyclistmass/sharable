@@ -143,6 +143,8 @@ class MainActivity : ComponentActivity() {
     private fun debugCamera(): Camera {
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE == 0) return Camera.FIT
         if (intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return Camera.FIT // stale extras from recents
+        // Comparing piece angles for Mauro (debug only): --ef pieceLift <tilt steps>.
+        if (intent.hasExtra("pieceLift")) pieceLiftSteps = intent.getFloatExtra("pieceLift", PIECE_LIFT_STEPS).coerceIn(0f, 7f)
         return Camera(intent.getFloatExtra("zoom", 1f).coerceIn(Camera.MIN_ZOOM, Camera.MAX_ZOOM), Offset.Zero,
             intent.getFloatExtra("tilt", Camera.START_TILT).coerceIn(0f, Camera.MAX_TILT))
     }
@@ -1395,6 +1397,10 @@ private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, puls
     }
 }
 
+/** Tilt steps (of 7) pieces are seen steeper than the board; see [banditSteps]. */
+internal const val PIECE_LIFT_STEPS = 4f
+internal var pieceLiftSteps = PIECE_LIFT_STEPS
+
 /** Build-mark sizes in hex units: corner radius and edge half-width (Mauro, 2026-10-10: 25% smaller than 0.26 / 0.15). */
 internal const val BUILD_MARK_R = 0.195f
 internal const val BUILD_MARK_W = 0.1125f
@@ -2052,9 +2058,13 @@ private fun DrawScope.drawTile(
 internal val BANDIT_SPRITES = listOf(R.drawable.bandit_tilt_0, R.drawable.bandit_tilt_1, R.drawable.bandit_tilt_2, R.drawable.bandit_tilt_3,
     R.drawable.bandit_tilt_4, R.drawable.bandit_tilt_5, R.drawable.bandit_tilt_6, R.drawable.bandit_tilt_7)
 
-/** Which two tilt sprites to show for board [tilt], and how much of the second (0..1). */
+/**
+ * Which two tilt sprites to show for board [tilt], and how much of the second (0..1). Pieces are seen [pieceLiftSteps]
+ * steps steeper than the board: the painted land reads at a steeper angle than the board's own tilt, and pieces at
+ * the board's angle looked flat, roofs only (Mauro: "the houses are flat ... hard to see, same with robber and knights").
+ */
 internal fun banditSteps(tilt: Float): Triple<Int, Int, Float> {
-    val pos = (tilt / Camera.MAX_TILT * 7f).coerceIn(0f, 7f)
+    val pos = (tilt / Camera.MAX_TILT * 7f + pieceLiftSteps).coerceIn(0f, 7f)
     val i = pos.toInt().coerceAtMost(6)
     return Triple(i, i + 1, pos - i)
 }
@@ -2066,10 +2076,7 @@ internal fun banditSteps(tilt: Float): Triple<Int, Int, Float> {
 private fun DrawScope.drawBandit(sprites: List<ImageBitmap>, at: Offset, hexScale: Float, tilt: Float) {
     val side = 2.65f * hexScale
     val dst = IntOffset((at.x - side / 2).toInt(), (at.y - side / 2).toInt())
-    val pos = (tilt / Camera.MAX_TILT * 7f).coerceIn(0f, 7f)
-    val a = pos.toInt().coerceAtMost(6)
-    val b = a + 1
-    val f = pos - a
+    val (a, b, f) = banditSteps(tilt)
     fun draw(img: ImageBitmap, alpha: Float) = drawImage(img, IntOffset.Zero, IntSize(img.width, img.height), dst,
         IntSize(side.toInt(), side.toInt()), alpha = alpha, filterQuality = FilterQuality.Medium)
     draw(sprites.getOrNull(a) ?: return, 1f)

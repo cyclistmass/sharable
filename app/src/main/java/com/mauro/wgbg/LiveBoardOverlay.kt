@@ -14,6 +14,9 @@ import wgbg.engine.GameState
 import kotlin.math.cos
 import kotlin.math.roundToInt
 
+/** The 3D board's knights at this share of the flat board's size (Mauro: "scale down a little", then 30% smaller again). */
+internal const val LIVE_KNIGHT_SHARE = 0.49f
+
 /** Existing knight sprites and trade labels remain screen overlays for this prototype. */
 internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights: List<ImageBitmap>) {
     val ck = s.ck
@@ -21,7 +24,7 @@ internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights:
         val owner = ck.knightOwner[v]
         if (owner < 0) continue
         val at = p.project(liveVertex(s.board, v))
-        val size = p.scale * KNIGHT_SCALE
+        val size = p.scale * KNIGHT_SCALE * LIVE_KNIGHT_SHARE
         val image = knights.getOrNull((ck.knightLevel[v].coerceIn(1, 3) - 1) * 2 + if (ck.isActive(v)) 1 else 0)
         drawCircle(PLAYER_COLORS[owner], size * .22f, at)
         if (image != null) drawImage(image, dstOffset = IntOffset((at.x - size / 2).roundToInt(), (at.y - size * .92f).roundToInt()),

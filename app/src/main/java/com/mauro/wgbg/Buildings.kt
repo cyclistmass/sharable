@@ -134,7 +134,7 @@ internal fun pieceTint(color: Color): ColorFilter = pieceTints.getOrPut(color) {
 internal const val PIECE_SATURATION = 1.2f
 internal const val PIECE_BRIGHTNESS = 1.15f
 /** ...and "10% less on the tiles". */
-internal const val TILE_SATURATION = 0.9f
+internal const val TILE_SATURATION = 0.72f // 0.9, then 20% less (Mauro, 2026-10-12: "20% less sat on the tiles")
 internal val TILE_FILTER: ColorFilter by lazy { ColorFilter.colorMatrix(ColorMatrix(saturationMatrix(TILE_SATURATION))) }
 
 /** Where an active knight's pennant goes, relative to the knight's contact point, for a frame [side] px across:

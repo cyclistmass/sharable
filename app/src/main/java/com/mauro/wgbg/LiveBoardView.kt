@@ -207,10 +207,16 @@ internal class LiveBoardRenderer(private val surfaceView: SurfaceView, private v
         camera.setProjection(com.google.android.filament.Camera.Projection.ORTHO,
             -p.center.x.toDouble() / p.scale, (width - p.center.x).toDouble() / p.scale,
             -(height - p.center.y).toDouble() / p.scale, p.center.y.toDouble() / p.scale, 0.1, 100.0)
-        // Keep digits upright under twist, while retaining their horizontal plane and real depth.
-        for ((index, placement) in shown.withIndex()) if (placement.model.startsWith("digit_")) {
-            engine.transformManager.setTransform(engine.transformManager.getInstance(active[index].root),
-                liveModelMatrix(placement.copy(heading = p.rotation)))
+        // Keep digits upright under twist, while retaining their horizontal plane and real depth; standing pieces
+        // tip toward the camera so they read as clearly as the flat board's.
+        val lift = liveLift(p.tilt)
+        for ((index, placement) in shown.withIndex()) {
+            val m = when {
+                placement.model.startsWith("digit_") -> liveModelMatrix(placement.copy(heading = p.rotation))
+                liveStanding(placement.model) -> liveModelMatrix(placement, lift, p.rotation)
+                else -> continue
+            }
+            engine.transformManager.setTransform(engine.transformManager.getInstance(active[index].root), m)
         }
     }
 
