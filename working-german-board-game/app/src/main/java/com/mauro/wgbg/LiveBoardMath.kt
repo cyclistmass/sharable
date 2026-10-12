@@ -65,6 +65,14 @@ internal fun liveModelMatrix(p: LivePlacement, lift: Float = 0f, rotation: Float
     return floatArrayOf(m[0], m[1], m[2], 0f, m[3], m[4], m[5], 0f, m[6], m[7], m[8], 0f, p.position.x, p.height, p.position.y, 1f)
 }
 
+/**
+ * A standing piece under a camera orbited by [rotation]: turned to face the eye (its front, +Z, toward (sin r, cos r),
+ * the way the digits cancel the orbit) and then tipped [lift] toward it. Without the turn, a piece leaned toward the
+ * eye side-on or back-first after the Turn bar or a twist (Mauro: "buildings should tilt towards viewer after rotate").
+ */
+internal fun liveStandingMatrix(p: LivePlacement, lift: Float, rotation: Float): FloatArray =
+    liveModelMatrix(p.copy(heading = p.heading + rotation), lift, rotation)
+
 /** Pieces that stand up (buildings, the Bandit): tipped toward the camera like the flat board's sprites. */
 internal fun liveStanding(model: String): Boolean =
     model == "bandit" || model.endsWith("_homestead") || model.endsWith("_town") || model.endsWith("_ramparts") || "_capital_" in model ||

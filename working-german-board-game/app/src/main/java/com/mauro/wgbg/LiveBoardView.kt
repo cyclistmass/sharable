@@ -213,7 +213,7 @@ internal class LiveBoardRenderer(private val surfaceView: SurfaceView, private v
         for ((index, placement) in shown.withIndex()) {
             val m = when {
                 placement.model.startsWith("digit_") -> liveModelMatrix(placement.copy(heading = p.rotation))
-                liveStanding(placement.model) -> liveModelMatrix(placement, lift, p.rotation)
+                liveStanding(placement.model) -> liveStandingMatrix(placement, lift, p.rotation)
                 else -> continue
             }
             engine.transformManager.setTransform(engine.transformManager.getInstance(active[index].root), m)
