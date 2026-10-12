@@ -51,7 +51,7 @@ val PROGRESS_HINTS = listOf(
     "Knock an enemy knight off one of your roads.",
     "Every player with as many points as you or more discards half their cards.",
     "Look at a player's progress cards and take one.",
-    "Rouse all your knights for free.",
+    "Supply all your knights for free.",
     "Every player with more points than you gives you 2 cards.",
 )
 
@@ -97,7 +97,7 @@ private fun deck(t: Int) = DECK_NAMES.getOrElse(t) { "deck $t" }
 /** A short button / confirm label for a C&K action, in our names; null for non-C&K actions. */
 fun ckLabel(s: GameState, a: Action, names: List<String>): String? = when (a.type) {
     CkActionType.BUILD_KNIGHT -> "Raise a knight here"
-    CkActionType.ACTIVATE_KNIGHT -> "Rouse this knight"
+    CkActionType.ACTIVATE_KNIGHT -> "Supply this knight"
     CkActionType.PROMOTE_KNIGHT -> "Promote this knight"
     CkActionType.MOVE_KNIGHT -> "Move the knight here"
     CkActionType.DISPLACE_KNIGHT -> "Charge and displace the knight here"
