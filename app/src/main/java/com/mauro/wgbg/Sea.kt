@@ -556,7 +556,7 @@ class Sea(board: Board, seed: Int = 1) {
             oceanMatrix.postRotate(k[1])
             oceanMatrix.postTranslate(c.x + drift * s, c.y + drift * s * 0.45f * squash)
             shader.setLocalMatrix(oceanMatrix)
-            ds.drawRect(brush, area.topLeft, area.size, alpha = k[2])
+            ds.drawRect(brush, area.topLeft, area.size, alpha = k[2], colorFilter = BOARD_FILTER)
         }
         // Broad soft mottling on top breaks up what is left of the repeat.
         drawPatches(ds, c, s, squash, area, strength = 0.4f)

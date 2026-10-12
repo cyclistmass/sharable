@@ -2513,7 +2513,7 @@ private fun DrawScope.drawCliffs(board: Board, l: Layout, cliffs: List<ImageBitm
         mtx.values[0] = ue.x / img.width; mtx.values[1] = ue.y / img.width
         mtx.values[4] = un.x / img.height; mtx.values[5] = un.y / img.height
         mtx.values[12] = o.x; mtx.values[13] = o.y
-        withTransform({ transform(mtx) }) { drawImage(img, filterQuality = FilterQuality.Medium) }
+        withTransform({ transform(mtx) }) { drawImage(img, filterQuality = FilterQuality.Medium, colorFilter = BOARD_FILTER) }
     }
 }
 
