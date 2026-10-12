@@ -218,9 +218,6 @@ private val KNIGHTS_NORMAL = listOf(
     R.drawable.knight_normal_l2_active, R.drawable.knight_normal_l3_inactive, R.drawable.knight_normal_l3_active,
 )
 
-private val KNIGHT_CARDS_NORMAL = listOf(R.drawable.card_knight_normal_1, R.drawable.card_knight_normal_2, R.drawable.card_knight_normal_3)
-private val KNIGHT_CARDS_PIRATE = listOf(R.drawable.card_knight_pirate_1, R.drawable.card_knight_pirate_2, R.drawable.card_knight_pirate_3)
-
 /** How thick a tile stands, in hex sides (frame option B was 0.26; Mauro 2026-10-11: "too thick", halved). */
 private const val TILE_THICKNESS = 0.13f
 
@@ -1030,7 +1027,7 @@ fun WatchGameScreen(
                 androidx.compose.ui.res.painterResource(art), RESOURCE_NAMES[r], Modifier.size(width = 76.dp, height = 110.dp))
             // Knight cards in the chosen theme (Normal / Pirate themed).
             for (lv in 1..3) androidx.compose.foundation.Image(
-                androidx.compose.ui.res.painterResource(if (env.pirateTheme) KNIGHT_CARDS_PIRATE[lv - 1] else KNIGHT_CARDS_NORMAL[lv - 1]),
+                androidx.compose.ui.res.painterResource(GuideArt.knightCard(lv, env.pirateTheme)),
                 "Knight level $lv", Modifier.size(width = 76.dp, height = 110.dp))
             // Dice in the chosen theme: yellow 1-6, red 1-6, the event die's six faces.
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1208,7 +1205,7 @@ fun WatchGameScreen(
             tick.let { DiceHistogram(tracker.rollCounts.copyOf(), tracker.eventCounts.copyOf(), state.ck != null, onClose = { histogramOpen = false }) }
         }
         if (guideOpen) Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
-            CardGuide(state.ck != null, onClose = { guideOpen = false })
+            CardGuide(state.ck != null, env.pirateTheme, onClose = { guideOpen = false })
         }
         if (settingsOpen) SettingsPanel(env, sound,
             Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp))
