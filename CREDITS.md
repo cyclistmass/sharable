@@ -83,7 +83,8 @@ unless another path is given.
 
 - Live-board spike models (`app/src/main/assets/filament/*.glb`): our own Blender geometry and vertex-colour
   materials, from the 2026-10-11 `wgbg-art/realtime/glb` export. Default and Pirate pieces, the Bandit,
-  number plate, sea, and both terrain LODs. No external art or textures. Runtime digits use Alegreya SC
+  number plate, sea, and both terrain LODs; the knights (levels 1–3, active and inactive, both themes) from the
+  2026-10-12 export (`export_knights.py`). No external art or textures. Runtime digits use Alegreya SC
   (OFL, credited above). Source manifests and comparisons are in the private spike report.
 - Google Filament, gltfio and Filament Android utilities 1.66.1
   (https://github.com/google/filament/tree/v1.66.1), Apache License 2.0. Used by the opt-in live-board spike.
