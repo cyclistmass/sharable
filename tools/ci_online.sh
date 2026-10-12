@@ -14,4 +14,5 @@ export MSYS_NO_PATHCONV=1
 out=$("$ADB" shell am instrument -w -e firebaseProject "$PROJECT" -e firebaseHost 10.0.2.2 \
   com.mauro.wgbg.test/androidx.test.runner.AndroidJUnitRunner 2>&1 || true)
 echo "$out" | tail -25
-if echo "$out" | grep -q "^OK (1 test)"; then echo "online two-client test: PASS"; else echo "online two-client test: FAIL"; exit 1; fi
+# Every instrumented test must pass (the live-board test runs here too), and the online game must be among them.
+if echo "$out" | grep -Eq "^OK \([0-9]+ tests?\)" && echo "$out" | grep -q "OnlineTwoClientTest"; then echo "online two-client test: PASS"; else echo "online two-client test: FAIL"; exit 1; fi
