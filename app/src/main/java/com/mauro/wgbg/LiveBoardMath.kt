@@ -67,7 +67,8 @@ internal fun liveModelMatrix(p: LivePlacement, lift: Float = 0f, rotation: Float
 
 /** Pieces that stand up (buildings, the Bandit): tipped toward the camera like the flat board's sprites. */
 internal fun liveStanding(model: String): Boolean =
-    model == "bandit" || model.endsWith("_homestead") || model.endsWith("_town") || model.endsWith("_ramparts") || "_capital_" in model
+    model == "bandit" || model.endsWith("_homestead") || model.endsWith("_town") || model.endsWith("_ramparts") || "_capital_" in model ||
+        "_knight_" in model
 
 /**
  * How far standing pieces tip toward the camera at board [tilt]: the flat board shows them [pieceLiftSteps] of its 8
@@ -76,8 +77,24 @@ internal fun liveStanding(model: String): Boolean =
 internal fun liveLift(tilt: Float, steps: Float = pieceLiftSteps): Float =
     (minOf(Camera.MAX_TILT, tilt + steps * Camera.MAX_TILT / 7f) - tilt).coerceAtLeast(0f)
 
-/** Reads only real game state. No fixture pieces are added to the playing board. */
-internal fun livePlacements(s: GameState, pirate: Boolean, lod: Int): List<LivePlacement> = buildList {
+/**
+ * The knight model at [v] (Mauro: "those knights all of them need to be models"): `<theme>_knight_l<level>`, with
+ * `_inactive` for a knight that isn't activated. Exported by Crest with the base contact at the origin, 1 = hex side.
+ */
+internal fun liveKnightModel(s: GameState, v: Int, pirate: Boolean): String? {
+    val ck = s.ck ?: return null
+    if (ck.knightOwner[v] < 0) return null
+    return "${if (pirate) "pirate" else "default"}_knight_l${ck.knightLevel[v].coerceIn(1, 3)}" + if (ck.isActive(v)) "" else "_inactive"
+}
+
+/** Knights as models at this size (hex sides), until Crest gives the final on-board scale. */
+internal const val LIVE_KNIGHT_MODEL_SCALE = 1f
+
+/**
+ * Reads only real game state. No fixture pieces are added to the playing board. Knights are models when [hasModel]
+ * has them; otherwise [drawLiveOverlay] still draws their sprites.
+ */
+internal fun livePlacements(s: GameState, pirate: Boolean, lod: Int, hasModel: (String) -> Boolean = { false }): List<LivePlacement> = buildList {
     require(lod in 0..1)
     val b = s.board
     val theme = if (pirate) "pirate" else "default"
@@ -115,6 +132,10 @@ internal fun livePlacements(s: GameState, pirate: Boolean, lod: Int): List<LiveP
         }
         add(LivePlacement("${theme}_$kind", at, if (walled) 0.10f * BUILDING_SCALE else 0f,
             BUILDING_SCALE * if (walled) 0.9f else 1f, owner = owner))
+    }
+    for (v in 0 until b.vertexCount) {
+        val model = liveKnightModel(s, v, pirate)?.takeIf(hasModel) ?: continue
+        add(LivePlacement(model, liveVertex(b, v), scale = LIVE_KNIGHT_MODEL_SCALE, owner = s.ck!!.knightOwner[v]))
     }
 }
 

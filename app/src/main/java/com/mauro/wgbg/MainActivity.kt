@@ -577,6 +577,8 @@ fun WatchGameScreen(
     // Scenery settings (density and motion), kept across restarts; the sea reads them once it supports them.
     val appContext = LocalContext.current.applicationContext
     val env = remember { EnvSettings(PrefsStore(appContext), viewBarsDefault = EnvSettings.isEmulator()) }
+    // The 3D models in the app (knights become models once their GLBs are added; until then they stay sprites).
+    val liveModels = remember { appContext.assets.list("filament")?.map { it.removeSuffix(".glb") }?.toSet() ?: emptySet() }
     val sound = remember { SoundSettings(PrefsStore(appContext)) }
     // Music (#58): the set list at the Music volume; it pauses while the app is in the background.
     val music = remember { MusicPlayer(appContext, SoundSettings.SONGS) }
@@ -706,7 +708,7 @@ fun WatchGameScreen(
                 if (appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
                     val snapshot = org.json.JSONObject().apply {
                         put("turn", state.turn); put("hash", state.stateHash().toString())
-                        put("placements", org.json.JSONArray(livePlacements(state, env.pirateTheme, env.liveLod).map { p ->
+                        put("placements", org.json.JSONArray(livePlacements(state, env.pirateTheme, env.liveLod) { it in liveModels }.map { p ->
                             org.json.JSONObject().apply {
                                 put("model", p.model); put("x", p.position.x); put("z", p.position.y)
                                 put("height", p.height); put("scale", p.scale); put("heading", p.heading); put("owner", p.owner)
@@ -972,7 +974,7 @@ fun WatchGameScreen(
         val waterLayerKey = remember { arrayOfNulls<WaterLayerKey>(1) }
         if (liveBoard) {
             val placements = remember(tick, state, env.pirateTheme, env.liveLod, inventory) {
-                if (inventory) liveInventoryPlacements() else livePlacements(state, env.pirateTheme, env.liveLod)
+                if (inventory) liveInventoryPlacements() else livePlacements(state, env.pirateTheme, env.liveLod) { it in liveModels }
             }
             val projection = if (boardSize.minDimension > 0f) liveProjection(boardSize.width, boardSize.height) else null
             LiveBoardView(placements, projection, Modifier.fillMaxSize()) { reason ->
@@ -1118,7 +1120,8 @@ fun WatchGameScreen(
                 InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide, buildings, sea.sprites3d),
                 bottomInset = INVENTORY_CARDS_DP.dp.toPx()) else if (liveBoard) {
                 val projection = liveProjection(size.width, size.height)
-                drawLiveOverlay(state, projection, if (env.pirateTheme) knightsPirate else knightsNormal)
+                drawLiveOverlay(state, projection, if (env.pirateTheme) knightsPirate else knightsNormal) { v ->
+                    liveKnightModel(state, v, env.pirateTheme) in liveModels }
                 if (!targets.isEmpty) drawLiveTargets(state.board, targets, projection, targetGlow(me)) { pieceAt(state, it) }
                 if (chosen.isNotEmpty()) drawLiveTargets(state.board, Targets.of(chosen), projection, Color.White) { pieceAt(state, it) }
             } else {

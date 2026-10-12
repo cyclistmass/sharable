@@ -18,11 +18,11 @@ import kotlin.math.roundToInt
 internal const val LIVE_KNIGHT_SHARE = 0.49f
 
 /** Existing knight sprites and trade labels remain screen overlays for this prototype. */
-internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights: List<ImageBitmap>) {
+internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights: List<ImageBitmap>, knightModel: (Int) -> Boolean = { false }) {
     val ck = s.ck
     if (ck != null) for (v in 0 until s.board.vertexCount) {
         val owner = ck.knightOwner[v]
-        if (owner < 0) continue
+        if (owner < 0 || knightModel(v)) continue   // drawn as a 3D model instead
         val at = p.project(liveVertex(s.board, v))
         val size = p.scale * KNIGHT_SCALE * LIVE_KNIGHT_SHARE
         val image = knights.getOrNull((ck.knightLevel[v].coerceIn(1, 3) - 1) * 2 + if (ck.isActive(v)) 1 else 0)
