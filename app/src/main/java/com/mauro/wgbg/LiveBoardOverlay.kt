@@ -1,0 +1,54 @@
+package com.mauro.wgbg
+
+import android.graphics.Paint
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import wgbg.engine.Board
+import wgbg.engine.GameState
+import kotlin.math.cos
+import kotlin.math.roundToInt
+
+/** Existing knight sprites and trade labels remain screen overlays for this prototype. */
+internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights: List<ImageBitmap>) {
+    val ck = s.ck
+    if (ck != null) for (v in 0 until s.board.vertexCount) {
+        val owner = ck.knightOwner[v]
+        if (owner < 0) continue
+        val at = p.project(liveVertex(s.board, v))
+        val size = p.scale * KNIGHT_SCALE
+        val image = knights.getOrNull((ck.knightLevel[v].coerceIn(1, 3) - 1) * 2 + if (ck.isActive(v)) 1 else 0)
+        drawCircle(PLAYER_COLORS[owner], size * .22f, at)
+        if (image != null) drawImage(image, dstOffset = IntOffset((at.x - size / 2).roundToInt(), (at.y - size * .92f).roundToInt()),
+            dstSize = IntSize(size.roundToInt(), size.roundToInt()))
+    }
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER; textSize = p.scale * .14f; color = 0xFFF1D58A.toInt()
+    }
+    for (port in s.board.ports) {
+        val mid = (liveVertex(s.board, port.v1) + liveVertex(s.board, port.v2)) / 2f
+        val at = p.project(mid + mid / mid.getDistance() * .75f)
+        val r = p.scale * .29f
+        drawCircle(Color(0xFF422A1B), r, at)
+        drawCircle(Color(0xFFAD8745), r, at, style = Stroke(p.scale * .025f))
+        val label = if (port.type < 0) "3:1" else "2:1"
+        drawContext.canvas.nativeCanvas.drawText(label, at.x, at.y, paint)
+        if (port.type >= 0) drawContext.canvas.nativeCanvas.drawText(
+            listOf("Timber", "Clay", "Fleece", "Grain", "Stone")[port.type], at.x, at.y + p.scale * .15f, paint)
+    }
+}
+
+internal fun DrawScope.drawLiveTargets(b: Board, targets: Targets, p: LiveProjection, color: Color) {
+    for (v in targets.vertices) drawCircle(color, p.scale * .13f, p.project(liveVertex(b, v)), style = Stroke(p.scale * .035f))
+    for (e in targets.edges) drawLine(color, p.project(liveVertex(b, b.edgeA[e])), p.project(liveVertex(b, b.edgeB[e])), p.scale * .055f)
+    for (h in targets.hexes) {
+        val at = p.project(liveHex(b, h)); val r = p.scale * .33f
+        drawOval(color, at - Offset(r, r * cos(p.tilt)), androidx.compose.ui.geometry.Size(r * 2f, r * cos(p.tilt) * 2f),
+            style = Stroke(p.scale * .04f))
+    }
+}

@@ -52,6 +52,10 @@ android {
 }
 
 dependencies {
+    // Keep gltfio and its native engine in lockstep. The live board is opt-in.
+    implementation("com.google.android.filament:filament-android:1.66.1")
+    implementation("com.google.android.filament:gltfio-android:1.66.1")
+    implementation("com.google.android.filament:filament-utils-android:1.66.1")
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation(project(":net"))
     implementation(project(":engine"))

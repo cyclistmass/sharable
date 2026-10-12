@@ -2,7 +2,7 @@
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File tools\emulator.ps1 [-Lane 1|2] [-Launch]
 # Two lanes can run side by side: lane 1 = Pixel8_API36 on emulator-5554, lane 2 = Pixel6_API34 on
 # emulator-5556. Each lane only ever checks, restarts and moves its OWN emulator.
-param([int]$Lane = 1, [string]$Avd = "", [int]$Port = 0, [switch]$Launch)
+param([int]$Lane = 1, [string]$Avd = "", [int]$Port = 0, [switch]$Launch, [string]$Gpu = "")
 $ErrorActionPreference = "Stop"
 if (-not $Avd) { $Avd = @("Pixel8_API36", "Pixel6_API34")[$Lane - 1] }
 if (-not $Port) { $Port = 5552 + 2 * $Lane }
@@ -51,6 +51,7 @@ function Test-EmuReady {
 # it starts hidden with its output in a log file; the phone screen is a separate window and still shows.
 $emuLog = Join-Path $env:TEMP "wgbg-emulator-$Port.log"
 function Start-Emu([string[]]$extra) {
+    if ($Gpu) { $extra += @("-gpu", $Gpu) }
     Start-Process "$sdk\emulator\emulator.exe" -ArgumentList (@("-avd", $Avd, "-port", $Port) + $extra) -WindowStyle Hidden `
         -RedirectStandardOutput $emuLog -RedirectStandardError "$emuLog.err"
     "Emulator console output: $emuLog"
