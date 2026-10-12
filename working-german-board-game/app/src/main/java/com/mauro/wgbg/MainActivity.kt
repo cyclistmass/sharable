@@ -1067,7 +1067,7 @@ fun WatchGameScreen(
                 OnlineConnectionStatus(v)
             }
         }
-        if (me >= 0 && !inventory) tick.let {
+        if (me >= 0 && !inventory && !state.isOver) tick.let {
             // Another player's card or bandit cost you something: say who, with what card and why, until OK.
             tracker.hits.lastOrNull { it.victim == me && it.seq > seenHit }?.let { hit ->
                 Column(Modifier.align(Alignment.TopCenter).padding(top = 64.dp).widthIn(max = 460.dp).chest().testTag("hit-notice"),
@@ -1078,7 +1078,7 @@ fun WatchGameScreen(
                     ColorButton("OK", Color(0xFF3E9B4F), "hit-ok") { seenHit = hit.seq }
                 }
             }
-            TurnPrompt(tapHint ?: prompt(state, legal, names), Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+            if (!state.isOver) TurnPrompt(tapHint ?: prompt(state, legal, names), Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
             // The hand row steps aside while a card sheet (a 7's discard, a card to pick) covers the bottom centre.
             val cardSheet = legal.any { it.type == ActionType.DISCARD || it.type == wgbg.engine.CkActionType.CHOOSE_CARD }
             if (!tradeOpen && !tradeNeedsMe(state, me) && !cardSheet) HandRow(state, me, tick,
