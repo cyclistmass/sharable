@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 class InviteLinkTest {
     @Test
     fun `invite links point at a real page and carry the room code`() {
-        assertTrue(JOIN_BASE.startsWith("https://cyclistmass.github.io/sharable/join/"))
+        assertTrue(JOIN_BASE.startsWith("https://cyclistmass.github.io/shareable/join/"))
         assertEquals("ROVER-42", joinCodeFrom(JOIN_BASE + "ROVER-42"))
     }
 
