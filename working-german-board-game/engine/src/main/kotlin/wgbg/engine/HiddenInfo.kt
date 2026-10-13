@@ -29,8 +29,8 @@ class PlayerView(val viewer: Int, s: GameState) {
     val discardOwed = s.discardOwed.copyOf()
     val tradeOffer = s.tradeOffer.copyOf()
     val tradeAccepted = s.tradeAccepted
-    val counterFrom = s.counterFrom
-    val counterTerms = s.counterTerms
+    /** Counter-offers in the open round (public: everyone sees them on the table). */
+    val counters = s.counters.copyOf()
     val handSize = IntArray(s.numPlayers) { s.handSize(it) }
     val devCount = IntArray(s.numPlayers) { s.devCount(it) }
     val publicVictoryPoints = IntArray(s.numPlayers) { s.publicVictoryPoints(it) }

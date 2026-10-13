@@ -4,6 +4,8 @@ import wgbg.engine.Action
 import wgbg.engine.ActionBuffer
 import wgbg.engine.ActionType
 import wgbg.engine.CARD_TYPES
+import wgbg.engine.CK_CARD_TYPES
+import wgbg.engine.CkActionType
 import wgbg.engine.GameState
 import wgbg.engine.Phase
 import wgbg.engine.Piece
@@ -54,9 +56,14 @@ class GreedyBot(seed: Long = 0, override val name: String = "Greedy") : Bot {
             ActionType.MOVE_ROBBER -> robberScore(s, me, a.robberHex, a.robberVictim)
             ActionType.DISCARD -> if (a.discardResource < 0) 0.0 else s.card(me, a.discardResource).toDouble()
             ActionType.ROLL -> 50.0
-            ActionType.ACCEPT_TRADE -> if (if (s.phase == Phase.DECIDE_COUNTER) counterHelpsMe(s, me) else offerHelpsMe(s, me)) 5.0 else -1.0
-            ActionType.CONFIRM_TRADE -> 10.0 - s.publicVictoryPoints(a.payload.toInt()) // weakest partner first
-            ActionType.OFFER_TRADE, ActionType.COUNTER_TRADE -> -10.0
+            ActionType.ACCEPT_TRADE -> if (offerHelpsMe(s, me)) 5.0 else -1.0
+            ActionType.CONFIRM_TRADE -> {
+                val q = a.payload.toInt()
+                // Weakest partner first; a counter only when its terms suit us (else withdraw beats it).
+                val gain = s.counterOf(q)?.let { counterGain(s, me, it) } ?: 0.0
+                if (s.counterOf(q) != null && (gain <= -0.05 || s.publicVictoryPoints(q) >= s.config.vpToWin - 2)) -1.0 else 10.0 + gain - s.publicVictoryPoints(q)
+            }
+            ActionType.OFFER_TRADE, ActionType.COUNTER_TRADE, CkActionType.OFFER_TRADE_CK, CkActionType.COUNTER_TRADE_CK -> -10.0
             ActionType.END_TURN, ActionType.REJECT_TRADE, ActionType.CANCEL_TRADE -> 0.0
             else -> 1.0
         }
@@ -118,38 +125,72 @@ class GreedyBot(seed: Long = 0, override val name: String = "Greedy") : Bot {
     }
 
     /**
-     * Answering someone's offer: accept it if it helps; otherwise, now and then, counter by asking
-     * for a card we're missing in place of what they offered. Null outside DECIDE_TRADE.
+     * Answering someone's offer (both rulesets): accept it if it helps; otherwise counter. A one-sided
+     * offer ("who has grain?" / "anyone want wool?") always gets a counter when one suits us; a full
+     * offer now and then. Asks: we name a card we're missing for what they want. Gives: we take what
+     * they offer for our most spare card. Null outside DECIDE_TRADE.
      */
     private fun tradeResponse(s: GameState, legal: ActionBuffer): Action? {
-        if (s.phase != Phase.DECIDE_TRADE || s.ck != null) return null
+        if (s.phase != Phase.DECIDE_TRADE) return null
         val me = s.actingPlayer
         if (Action.ACCEPT_TRADE in legal && offerHelpsMe(s, me)) return Action.ACCEPT_TRADE
         val o = s.currentPlayer
-        if (s.publicVictoryPoints(o) < s.config.vpToWin - 2 && rng.nextInt(100) < 50) {
+        val n = cardTypes(s)
+        val openGive = IntArray(n) { openTerm(s, it, false) }
+        val openWant = IntArray(n) { openTerm(s, it, true) }
+        val oneSided = openGive.sum() == 0 || openWant.sum() == 0
+        if (s.publicVictoryPoints(o) < s.config.vpToWin - 2 && (oneSided || rng.nextInt(100) < 50)) {
             val goal = target(s, me)
-            val want = IntArray(CARD_TYPES) { s.tradeOffer[CARD_TYPES + it] } // what the offerer still gets
-            val missing = (0 until CARD_TYPES).filter { s.hand(me, it) < goal[it] && want[it] == 0 && s.hand(o, it) > 0 }
-            for (m in missing.shuffled(java.util.Random(rng.nextInt(1 shl 30).toLong()))) {
-                val give = IntArray(CARD_TYPES).also { it[m] = 1 }
-                val counter = Action.counterTrade(give, want)
-                if (Rules.isLegal(s, counter)) return counter
+            if (openWant.sum() > 0) {
+                val missing = (0 until CARD_TYPES).filter { s.hand(me, it) < goal[it] && openWant[it] == 0 && s.hand(o, it) > 0 }
+                for (m in missing.shuffled(java.util.Random(rng.nextInt(1 shl 30).toLong()))) {
+                    val counter = counterAction(s, IntArray(n).also { it[m] = 1 }, openWant)
+                    if (Rules.isLegal(s, counter)) return counter
+                }
+            } else {
+                // They only give: ask for what they offer and pay with our most spare card, if it's worth it.
+                var gain = 0.0
+                for (c in 0 until n) repeat(openGive[c]) { gain += cardWorth(s, me, goal, c, it) }
+                val spare = (0 until n).filter { openGive[it] == 0 && s.card(me, it) > (if (it < CARD_TYPES) goal[it] else 0) }
+                    .minByOrNull { cardWorth(s, me, goal, it, -1) }
+                if (spare != null && gain > cardWorth(s, me, goal, spare, -1)) {
+                    val counter = counterAction(s, openGive, IntArray(n).also { it[spare] = 1 })
+                    if (Rules.isLegal(s, counter)) return counter
+                }
             }
         }
         return Action.REJECT_TRADE
     }
 
-    /** As the offerer: take a counter unless it costs us more than it brings (or helps a near-winner). */
-    private fun counterHelpsMe(s: GameState, me: Int): Boolean {
-        val c = s.counterOffer ?: return false
-        if (s.publicVictoryPoints(s.counterFrom) >= s.config.vpToWin - 2) return false
+    private fun cardTypes(s: GameState) = if (s.ck != null) CK_CARD_TYPES else CARD_TYPES
+
+    /** The open offer's count of card [c] (C&K card space in Chivalry), give side or [want] side. */
+    private fun openTerm(s: GameState, c: Int, want: Boolean): Int {
+        val k = if (want) 1 else 0
+        return if (c < CARD_TYPES) s.tradeOffer[k * CARD_TYPES + c]
+        else s.ck!!.offer[k * (CK_CARD_TYPES - CARD_TYPES) + c - CARD_TYPES]
+    }
+
+    /** Counter terms from the offerer's side: they give [give], get [want]. */
+    private fun counterAction(s: GameState, give: IntArray, want: IntArray) =
+        if (s.ck != null) Action.counterTradeCk(give, want) else Action.counterTrade(give, want)
+
+    /** Resources by the build target; commodities a steady middling value. */
+    private fun cardWorth(s: GameState, me: Int, goal: IntArray, c: Int, extra: Int) =
+        if (c < CARD_TYPES) worth(s, me, goal, c, extra) else 0.8
+
+    /** As the offerer: what a counter's terms are worth to us (negative = it costs more than it brings). */
+    private fun counterGain(s: GameState, me: Int, c: Action): Double {
+        val ck = s.ck != null
         val goal = target(s, me)
         var gain = 0.0
-        for (r in 0 until CARD_TYPES) {
-            repeat(c.offerWant(r)) { gain += worth(s, me, goal, r, it) }
-            repeat(c.offerGive(r)) { gain -= worth(s, me, goal, r, -it - 1) }
+        for (r in 0 until cardTypes(s)) {
+            val gets = if (ck) c.ckOfferWant(r) else c.offerWant(r)
+            val gives = if (ck) c.ckOfferGive(r) else c.offerGive(r)
+            repeat(gets) { gain += cardWorth(s, me, goal, r, it) }
+            repeat(gives) { gain -= cardWorth(s, me, goal, r, -it - 1) }
         }
-        return gain > -0.05
+        return gain
     }
 
     /** Accept if what we get is worth more to us than what we give, and the offerer isn't about to win. */

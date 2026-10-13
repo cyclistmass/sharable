@@ -109,7 +109,7 @@ fun CrashReportScreen(report: String, onDone: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GoButton("Send report", "crash-send", enabled = true) {
                         status = "Sending…"
-                        sendCrashReport(context, report) { ok ->
+                        sendCrashReport(context, report) { ok, _ ->
                             status = if (ok) "Sent, thank you" else "Couldn't send (offline?); try Share"
                             if (ok) { CrashReport.clear(context); scope.launchDone(onDone) }
                         }
@@ -132,10 +132,11 @@ private fun kotlinx.coroutines.CoroutineScope.launchDone(onDone: () -> Unit) {
 }
 
 /** Uploads [report] to Firestore `crashes` (anonymous sign-in, write-only by the rules); calls back on the main thread. */
-fun sendCrashReport(context: Context, report: String, done: (Boolean) -> Unit) {
+/** Sends [report] and its [shots] (#128); [done] gets whether the report went and how many shots did. */
+fun sendCrashReport(context: Context, report: String, shots: List<String> = emptyList(), done: (Boolean, Int) -> Unit) {
     val main = android.os.Handler(android.os.Looper.getMainLooper())
     runCatching {
-        val t = LobbyRepository.create(context) as? FirestoreTransport ?: return done(false)
-        t.sendCrash(report).whenComplete { _, e -> main.post { done(e == null) } }
-    }.onFailure { done(false) }
+        val t = LobbyRepository.create(context) as? FirestoreTransport ?: return done(false, 0)
+        t.sendCrash(report, shots).whenComplete { n, e -> main.post { done(e == null, n ?: 0) } }
+    }.onFailure { done(false, 0) }
 }

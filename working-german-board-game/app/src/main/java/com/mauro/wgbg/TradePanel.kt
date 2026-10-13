@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import wgbg.engine.Action
@@ -53,11 +54,9 @@ import wgbg.engine.Rules
 enum class TradeMode {
     /** Our turn after rolling: build an offer to the players, or trade with the bank. */
     COMPOSE,
-    /** Someone offered us a trade: Yes, No, or Counter. */
+    /** Someone offered us a trade: Yes, No, or Counter (only Counter or No for a one-sided ask, #135). */
     RESPOND,
-    /** Someone countered our offer: Yes or No. */
-    REVIEW_COUNTER,
-    /** Our offer went round the table: pick who to trade with, or cancel. */
+    /** Our offer went round the table: pick an acceptance or a counter-offer to trade on, or cancel. */
     PICK_PARTNER,
     /** A trade is on but someone else has to answer. */
     WAITING,
@@ -69,7 +68,6 @@ fun tradeMode(s: GameState, me: Int): TradeMode {
     val acting = s.actingPlayer == me
     return when (s.phase) {
         Phase.DECIDE_TRADE -> if (acting) TradeMode.RESPOND else TradeMode.WAITING
-        Phase.DECIDE_COUNTER -> if (acting) TradeMode.REVIEW_COUNTER else TradeMode.WAITING
         Phase.DECIDE_ACCEPTEES -> if (acting) TradeMode.PICK_PARTNER else TradeMode.WAITING
         Phase.PLAY_TURN -> if (acting && s.currentPlayer == me && s.hasRolled && s.freeRoads == 0) TradeMode.COMPOSE else TradeMode.CLOSED
         else -> TradeMode.CLOSED
@@ -86,13 +84,9 @@ internal fun tradeClosedReason(s: GameState, me: Int): String = when {
 }
 
 fun tradeNeedsMe(s: GameState, me: Int) = tradeMode(s, me).let {
-    it == TradeMode.RESPOND || it == TradeMode.REVIEW_COUNTER || it == TradeMode.PICK_PARTNER
+    it == TradeMode.RESPOND || it == TradeMode.PICK_PARTNER
 }
 
-/**
- * The open terms seen from [me]'s side: (what I get, what I give). For the offerer that is the
- * offer itself; for anyone else it is mirrored. A pending counter replaces the offer.
- */
 /** Card kinds a trade covers: the five resources, plus three commodities in Age of Chivalry. */
 fun tradeCards(s: GameState) = if (s.ck != null) wgbg.engine.CK_CARD_TYPES else CARD_TYPES
 
@@ -113,22 +107,36 @@ fun canPayOffer(s: GameState, me: Int): Boolean {
 /** How long an offer you can't pay waits before it is declined for you, seconds (Mauro: 5). */
 const val AUTO_NO_SECONDS = 5
 
+/**
+ * The open offer seen from [me]'s side: (what I get, what I give). For the offerer that is the
+ * offer itself; for anyone else it is mirrored.
+ */
 fun termsFor(s: GameState, me: Int): Pair<IntArray, IntArray> {
     val ck = s.ck
-    if (ck != null) {
-        val n = wgbg.engine.CK_CARD_TYPES
-        val gives = IntArray(n) { if (it < CARD_TYPES) s.tradeOffer[it] else ck.offer[it - CARD_TYPES] }
-        val gets = IntArray(n) { if (it < CARD_TYPES) s.tradeOffer[CARD_TYPES + it] else ck.offer[wgbg.engine.Commodity.COUNT + it - CARD_TYPES] }
-        return if (me == s.currentPlayer) gets to gives else gives to gets
-    }
-    val c = s.counterOffer
-    val offerGives = IntArray(tradeCards(s)) { c?.offerGive(it) ?: s.tradeOffer[it] }
-    val offerGets = IntArray(tradeCards(s)) { c?.offerWant(it) ?: s.tradeOffer[CARD_TYPES + it] }
-    return if (me == s.currentPlayer) offerGets to offerGives else offerGives to offerGets
+    val n = tradeCards(s)
+    val gives = IntArray(n) { if (it < CARD_TYPES) s.tradeOffer[it] else ck!!.offer[it - CARD_TYPES] }
+    val gets = IntArray(n) { if (it < CARD_TYPES) s.tradeOffer[CARD_TYPES + it] else ck!!.offer[wgbg.engine.Commodity.COUNT + it - CARD_TYPES] }
+    return if (me == s.currentPlayer) gets to gives else gives to gets
 }
 
-/** The counter a responder means by "I get [get], I give [give]" (COUNTER_TRADE is offerer-side). */
-fun counterFor(get: IntArray, give: IntArray) = Action.counterTrade(give = get, want = give)
+/** The offerer's (get, give) with taker [q] (#135): [q]'s counter-offer, or the offer as it stands if they said yes. */
+fun takerTerms(s: GameState, q: Int): Pair<IntArray, IntArray> {
+    val c = s.counterOf(q) ?: return termsFor(s, s.currentPlayer)
+    val ck = s.ck != null
+    val n = tradeCards(s)
+    return IntArray(n) { if (ck) c.ckOfferWant(it) else c.offerWant(it) } to IntArray(n) { if (ck) c.ckOfferGive(it) else c.offerGive(it) }
+}
+
+/** The counter a responder means by "I get [get], I give [give]", in the ruleset's encoding (counters are offerer-side). */
+fun counterFor(s: GameState, get: IntArray, give: IntArray): Action? = runCatching {
+    if (s.ck != null) Action.counterTradeCk(give = get, want = give) else Action.counterTrade(give = get, want = give)
+}.getOrNull()
+
+/** [me] made the open offer and may withdraw it now, while the others are still answering (#114). */
+fun canWithdraw(s: GameState, me: Int) = s.phase == Phase.DECIDE_TRADE && s.currentPlayer == me && s.actingPlayer != me
+
+/** The open offer only gives or only asks (#135): answer it with a counter, there is nothing to say yes to. */
+fun isOpenAsk(s: GameState) = s.phase == Phase.DECIDE_TRADE && !Rules.isTwoSided(s)
 
 fun bankRate(s: GameState, p: Int, r: Int): Int {
     if (s.ck != null) return wgbg.engine.CitiesAndKnights.tradeRate(s, p, r)
@@ -208,20 +216,33 @@ fun TradePanel(
     version: Int = 0,
     /** Seconds until an offer you can't pay is declined for you (#44), or null. */
     autoNoSeconds: Int? = null,
+    /** Width the chest may fill; the cards grow to use it (Mauro: "the trade panel could be a little bigger"). */
+    room: Dp = 480.dp,
 ) {
     version
     val mode = tradeMode(s, me)
     // Fresh selections whenever the trade situation changes.
-    val key = listOf(s.turn, s.phase, s.actingPlayer, s.counterFrom, s.hands.sum())
+    val key = listOf(s.turn, s.phase, s.actingPlayer, s.counters.contentHashCode(), s.hands.sum())
     var maritime by remember { mutableStateOf(false) }
     var countering by remember(key) { mutableStateOf(false) }
     var get by remember(key) { mutableStateOf(IntArray(tradeCards(s))) }
     var give by remember(key) { mutableStateOf(IntArray(tradeCards(s))) }
-    val (termGet, termGive) = termsFor(s, me)
+    // Picking a partner (#135): the takers are everyone who said yes or countered; the cards show the picked one's terms.
+    val takers = legal.filter { it.type == ActionType.CONFIRM_TRADE }.map { it.payload.toInt() }
+    var pick by remember(key) { mutableStateOf(takers.firstOrNull() ?: -1) }
+    val (termGet, termGive) = if (mode == TradeMode.PICK_PARTNER && pick >= 0) takerTerms(s, pick) else termsFor(s, me)
     val editing = mode == TradeMode.COMPOSE || countering
     val showGet = if (editing) get else termGet
     val showGive = if (editing) give else termGive
     val bankTab = maritime && mode == TradeMode.COMPOSE
+    // #125: after a trade, what you hold now and what changed.
+    val handNow = List(tradeCards(s)) { holding(s, me, it) }
+    var handBefore by remember { mutableStateOf(handNow) }
+    var afterTrade by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(handNow) {
+        if (handNow != handBefore) { afterTrade = tradeSummary(handBefore, handNow); handBefore = handNow }
+    }
+    androidx.compose.runtime.LaunchedEffect(s.turn) { afterTrade = null }
 
     if (mode == TradeMode.CLOSED) {
         Text(status(s, me, mode, names, false, false), color = INK, fontSize = 13.sp, fontWeight = FontWeight.Bold,
@@ -231,7 +252,8 @@ fun TradePanel(
     Row(modifier.chest().testTag("trade-panel"), verticalAlignment = Alignment.CenterVertically) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Tab("Players", !bankTab) { maritime = false }
+                // Either tab starts clean: bank picks carried into a player offer made it unsendable (#122).
+                Tab("Players", !bankTab) { if (maritime) { maritime = false; get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } }
                 if (mode == TradeMode.COMPOSE) Tab("Harbour", bankTab) { maritime = true; get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) }
                 // Everyone's answer to your offer, up here beside the tabs: a row at the bottom ran off the
                 // chest on a landscape phone.
@@ -241,51 +263,50 @@ fun TradePanel(
                         fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.testTag("answer-$p"))
                 }
             }
-            Text(status(s, me, mode, names, countering, bankTab), color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            Text(status(s, me, mode, names, countering, bankTab, pick), color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 maxLines = 1, modifier = Modifier.width(214.dp))
-            if (editing) Text(if (bankTab) "Top: the card you want · bottom: what you pay" else "Tap top to ask · bottom to offer · hold to take back",
+            afterTrade?.let { Text(it, color = Color(0xFF8BD18B), fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("trade-after")) }
+            if (editing) Text(if (bankTab) "Top: cards you want · bottom: pay a lot for each" else "Tap top to ask · bottom to offer · either alone is fine",
                 color = INK.copy(alpha = 0.7f), fontSize = 11.sp)
             // One row of cards (Mauro, #49): the top half of a card asks for it, the bottom half offers it.
-            AskOfferRow(showGet, showGive, editing,
+            AskOfferRow(showGet, showGive, editing, tradeCardWidth(room, showGet.size),
                 // #113: the bank tab shows how many you hold as well as the rate.
                 under = { r -> if (bankTab) "have ${holding(s, me, r)}\n${bankRate(s, me, r)}:1" else "have ${holding(s, me, r)}" }) { r, tap ->
                 val (g, v) = askOffer(get, give, r, tap, holding(s, me, r), if (bankTab) bankRate(s, me, r) else 0)
                 get = g; give = v
             }
+            // One button per taker: ✓ said yes to your offer, ⇄ countered. Tap to see their terms above, then Trade.
             if (mode == TradeMode.PICK_PARTNER) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (a in legal.filter { it.type == ActionType.CONFIRM_TRADE })
-                    Pill("Trade with ${names[a.payload.toInt()]}", YES, tag = "partner-${a.payload}") { onMove(a) }
+                for (q in takers)
+                    Pill("${names[q]} ${if (s.counterOf(q) != null) "⇄" else "✓"}", if (q == pick) YES else WOOD_MID, tag = "partner-$q") { pick = q }
             }
         }
         Spacer(Modifier.width(10.dp))
         // Yes / No / Counter.
+        // A bank trade can be several moves (#122); everything else is one.
+        val bankMoves = if (bankTab) bankTrades(s, me, get, give) else null
         val yes: Action? = when {
-            bankTab -> {
-                val g = give.indexOfFirst { it > 0 }
-                val w = get.indexOfFirst { it > 0 }
-                if (g >= 0 && w >= 0) Action.maritimeTrade(g, w).takeIf { it in legal } else null
-            }
+            bankTab -> bankMoves?.first()
             mode == TradeMode.COMPOSE -> offerFor(s, give, get)?.takeIf { Rules.isLegal(s, it) }
-            countering -> counterFor(get, give).takeIf { Rules.isLegal(s, it) }
-            mode == TradeMode.RESPOND || mode == TradeMode.REVIEW_COUNTER -> Action.ACCEPT_TRADE.takeIf { it in legal }
-            mode == TradeMode.PICK_PARTNER -> legal.filter { it.type == ActionType.CONFIRM_TRADE }.singleOrNull()
+            countering -> counterFor(s, get, give)?.takeIf { Rules.isLegal(s, it) }
+            mode == TradeMode.RESPOND -> Action.ACCEPT_TRADE.takeIf { it in legal }
+            mode == TradeMode.PICK_PARTNER -> Action.confirmTrade(pick).takeIf { pick >= 0 && it in legal }
             else -> null
         }
         val no: (() -> Unit)? = when {
             countering -> { { countering = false } }
             mode == TradeMode.COMPOSE -> { { if (get.any { it > 0 } || give.any { it > 0 }) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } else onClose() } }
-            mode == TradeMode.RESPOND || mode == TradeMode.REVIEW_COUNTER -> { { onMove(Action.REJECT_TRADE) } }
+            mode == TradeMode.RESPOND -> { { onMove(Action.REJECT_TRADE) } }
             mode == TradeMode.PICK_PARTNER -> { { onMove(Action.CANCEL_TRADE) } }
+            canWithdraw(s, me) -> { { onMove(Action.CANCEL_TRADE) } }
             else -> null
         }
-        val counter: (() -> Unit)? = if (mode == TradeMode.RESPOND && !countering && s.ck == null) {
+        val counter: (() -> Unit)? = if (mode == TradeMode.RESPOND && !countering) {
             { get = termGet.copyOf(); give = termGive.copyOf(); countering = true }
         } else null
-        val labels = tradeButtonLabels(mode, countering, bankTab, get.any { it > 0 } || give.any { it > 0 })
+        val labels = tradeButtonLabels(mode, countering, bankTab, get.any { it > 0 } || give.any { it > 0 }, canWithdraw(s, me))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Several takers: the "Trade with …" buttons choose, so no greyed-out Trade beside them.
-            if (!(mode == TradeMode.PICK_PARTNER && yes == null))
-                BigButton(labels.first, YES, "trade-yes", yes?.let { a -> { onMove(a); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
+            BigButton(labels.first, YES, "trade-yes", yes?.let { a -> { (bankMoves ?: listOf(a)).forEach(onMove); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
             BigButton(if (autoNoSeconds != null && mode == TradeMode.RESPOND) "${labels.second} ($autoNoSeconds)" else labels.second, NO, "trade-no", no)
             // Counter only means something when answering someone else's offer.
             if (mode == TradeMode.RESPOND) BigButton("Counter", COUNTER, "trade-counter", counter)
@@ -297,19 +318,22 @@ fun TradePanel(
  * What the green and red buttons say: Yes/No only when answering someone; your own offer is "Offer"
  * (or "Trade" with the bank) and "Clear"/"Close"; picking a partner is "Trade"/"Cancel"; a counter is "Send"/"Back".
  */
-internal fun tradeButtonLabels(mode: TradeMode, countering: Boolean, bank: Boolean, entered: Boolean): Pair<String, String> = when {
+internal fun tradeButtonLabels(mode: TradeMode, countering: Boolean, bank: Boolean, entered: Boolean, withdraw: Boolean = false): Pair<String, String> = when {
     countering -> "Send" to "Back"
+    withdraw -> "Trade" to "Withdraw"
     mode == TradeMode.COMPOSE -> (if (bank) "Trade" else "Offer") to (if (entered) "Clear" else "Close")
     mode == TradeMode.PICK_PARTNER -> "Trade" to "Cancel"
     else -> "Yes" to "No"
 }
 
-private fun status(s: GameState, me: Int, mode: TradeMode, names: List<String>, countering: Boolean, bank: Boolean): String = when {
+private fun status(s: GameState, me: Int, mode: TradeMode, names: List<String>, countering: Boolean, bank: Boolean, pick: Int = -1): String = when {
     bank -> "Trade with the bank"
     countering -> "Your counter to ${names[s.currentPlayer]}"
     mode == TradeMode.COMPOSE -> "Offer the other players"
+    mode == TradeMode.RESPOND && isOpenAsk(s) ->
+        if (termsFor(s, me).first.sum() == 0) "${names[s.currentPlayer]} asks: Counter with your price" else "${names[s.currentPlayer]} offers: Counter with what you want"
     mode == TradeMode.RESPOND -> "${names[s.currentPlayer]} offers you a trade"
-    mode == TradeMode.REVIEW_COUNTER -> "${names[s.counterFrom]} counters your offer"
+    mode == TradeMode.PICK_PARTNER && pick >= 0 -> "${names[pick]} ${if (s.counterOf(pick) != null) "countered" else "said yes"} · Trade or Cancel"
     mode == TradeMode.PICK_PARTNER -> "Pick who to trade with"
     mode == TradeMode.WAITING -> "Waiting for ${names[s.actingPlayer]}…"
     else -> tradeClosedReason(s, me)
@@ -330,16 +354,16 @@ enum class CardTap { ASK, OFFER, TAKE_BACK }
 /**
  * The new (get, give) after a [tap] on card [r]. Asking adds one (up to 9), offering adds one (up to [have]
  * held); a card is never both asked and offered, so tapping the other half switches it over. Take-back
- * removes one from whichever side holds it. With the bank ([bankRate] > 0) it is one card each way: the top
- * picks the card you want, the bottom the card you pay [bankRate] of.
+ * removes one from whichever side holds it. With the bank ([bankRate] > 0) offering pays one more lot of
+ * [bankRate] of that card (#122: several lots, each card at its own rate), and take-back returns one lot.
  */
 fun askOffer(get: IntArray, give: IntArray, r: Int, tap: CardTap, have: Int, bankRate: Int = 0): Pair<IntArray, IntArray> {
     val g = get.copyOf(); val v = give.copyOf()
     if (bankRate > 0) {
         when (tap) {
-            CardTap.ASK -> { g.fill(0); g[r] = 1; v[r] = 0 }
-            CardTap.OFFER -> if (have >= bankRate) { v.fill(0); v[r] = bankRate; g[r] = 0 }
-            CardTap.TAKE_BACK -> { g[r] = 0; v[r] = 0 }
+            CardTap.ASK -> { v[r] = 0; g[r] = (g[r] + 1).coerceAtMost(9) }
+            CardTap.OFFER -> if (have >= v[r] + bankRate) { g[r] = 0; v[r] += bankRate }
+            CardTap.TAKE_BACK -> if (g[r] > 0) g[r]-- else if (v[r] > 0) v[r] = (v[r] - bankRate).coerceAtLeast(0)
         }
         return g to v
     }
@@ -352,22 +376,54 @@ fun askOffer(get: IntArray, give: IntArray, r: Int, tap: CardTap, have: Int, ban
 }
 
 /**
+ * A bank trade as the moves that make it (#122): one MARITIME_TRADE per card asked, each paid by one lot of a
+ * paid card at [me]'s rate for it, so "2 Grain at 2:1 and 4 Stone at 4:1 for a Clay and a Fleece" is two moves.
+ * Null unless the lots paid match the cards asked and every move is legal in turn (rates, cards held, the bank's
+ * stock), checked on a copy of [s].
+ */
+fun bankTrades(s: GameState, me: Int, get: IntArray, give: IntArray): List<Action>? {
+    val pay = ArrayList<Int>()
+    for (r in give.indices) if (give[r] > 0) {
+        val rate = bankRate(s, me, r)
+        if (give[r] % rate != 0) return null
+        repeat(give[r] / rate) { pay.add(r) }
+    }
+    val want = ArrayList<Int>()
+    for (r in get.indices) repeat(get[r]) { want.add(r) }
+    if (want.isEmpty() || want.size != pay.size) return null
+    val moves = pay.zip(want) { g, w -> Action.maritimeTrade(g, w) }
+    val sim = s.copy()
+    for (m in moves) { if (sim.actingPlayer != me || !Rules.isLegal(sim, m)) return null; Rules.apply(sim, m) }
+    return moves
+}
+
+/**
+ * How wide each trade card is drawn: as big as [room] allows once the buttons (78 dp + gap) and the chest's
+ * edges are taken out, between the old 42 dp and 58 dp, so 8 Age of Chivalry cards still fit a small phone.
+ */
+internal fun tradeCardWidth(room: Dp, cards: Int): Dp =
+    ((room - 124.dp) / cards.coerceAtLeast(1) - 6.dp).coerceIn(42.dp, 58.dp)
+
+/**
  * One row of cards for a trade: green "+N" on a card's top edge is asked for, red "−N" on its bottom edge is
  * offered. Tap the top half to ask, the bottom half to offer; the "−" under a card (or a long press) takes one back.
  */
 @Composable
-private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, under: (Int) -> String?, onTap: (Int, CardTap) -> Unit) {
+private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, cardWidth: Dp, under: (Int) -> String?, onTap: (Int, CardTap) -> Unit) {
+    // The tap handlers below live as long as their card; they must call today's [onTap], not the one from the card's
+    // first touch, or a card used in one trade went dead for the next (#122: "can't do a second maritime trade").
+    val tap by androidx.compose.runtime.rememberUpdatedState(onTap)
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for (r in get.indices) Column(horizontalAlignment = Alignment.CenterHorizontally) {
             val asked = get[r]; val offered = give[r]
             val lit = asked > 0 || offered > 0
             Box(
-                Modifier.size(width = 42.dp, height = 60.dp)
+                Modifier.size(width = cardWidth, height = cardWidth * (60f / 42f))
                     .then(if (lit) Modifier.border(2.dp, if (asked > 0) Color(0xFF8BD18B) else Color(0xFFE57373), RoundedCornerShape(5.dp)) else Modifier)
                     .then(if (editable) Modifier.pointerInput(r) {
                         detectTapGestures(
-                            onTap = { at -> onTap(r, if (at.y < size.height / 2f) CardTap.ASK else CardTap.OFFER) },
-                            onLongPress = { onTap(r, CardTap.TAKE_BACK) },
+                            onTap = { at -> tap(r, if (at.y < size.height / 2f) CardTap.ASK else CardTap.OFFER) },
+                            onLongPress = { tap(r, CardTap.TAKE_BACK) },
                         )
                     } else Modifier)
                     .testTag("card-$r"),
@@ -399,10 +455,10 @@ private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, under:
     }
 }
 
-/** What a "Choose a card" moment is for, in words: the science bonus, Harbor Charter, Grand Factor or Feast. */
+/** What a "Choose a card" moment is for, in words: the science bonus, Harbour Charter, Grand Factor or Feast. */
 internal fun cardChoiceTitle(s: GameState, names: List<String>): String = when (s.phase) {
     Phase.AQUEDUCT -> "Science bonus: nothing came your way, so take any one card free"
-    Phase.COMMERCIAL_HARBOR_RESPOND -> "${names[s.currentPlayer]} played Harbor Charter: give back one commodity"
+    Phase.COMMERCIAL_HARBOR_RESPOND -> "${names[s.currentPlayer]} played Harbour Charter: give back one commodity"
     Phase.MASTER_MERCHANT -> "Grand Factor: take a card from ${names[s.ck?.pendingTarget ?: 0]}"
     Phase.WEDDING -> "${names[s.currentPlayer]} played Feast against you: give them ${s.ck?.giveOwed?.getOrNull(s.actingPlayer) ?: 2} card(s), one at a time"
     else -> "Choose a card"
@@ -494,4 +550,16 @@ private fun Pill(label: String, color: Color, tag: String, onClick: () -> Unit) 
  * The Trade button appears once setup is over (no trading while placing the first homesteads) and the turn's dice
  * are rolled: the rules allow no trade before the roll, and opening the panel then left the game stuck (Mauro, 2026-10-12).
  */
-fun tradeButtonVisible(s: GameState) = !inSetup(s) && s.hasRolled
+fun tradeButtonVisible(s: GameState) = !inSetup(s) && s.hasRolled && s.phase == Phase.PLAY_TURN   // #123: never over a pending pick
+
+/**
+ * The line shown after a trade (#125): each card that changed, with what you hold now and by how much it moved,
+ * e.g. "Now: 4 Grain (+1) · 0 Stone (−3)". Null when nothing changed.
+ */
+internal fun tradeSummary(before: List<Int>, after: List<Int>): String? {
+    val parts = after.indices.filter { after[it] != before.getOrElse(it) { 0 } }.map { r ->
+        val d = after[r] - before.getOrElse(r) { 0 }
+        "${after[r]} ${ALL_CARD_NAMES[r]} (${if (d > 0) "+$d" else "−${-d}"})"
+    }
+    return if (parts.isEmpty()) null else "Now: " + parts.joinToString(" · ")
+}

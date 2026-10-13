@@ -12,8 +12,12 @@ import java.io.File
  * moves rebuilds it exactly, the way online rooms come back.
  */
 data class LocalSave(val setup: GameSetup, val seed: Long, val moves: List<Action>) {
-    /** "wgbg-local v1", the setup line, the seed, then one move per line. */
-    fun encode(): String = (listOf(HEADER, setup.encode(), seed.toString()) + moves.map { MoveCodec.encode(it) }).joinToString("\n")
+    /**
+     * "wgbg-local v2" (v1: a game from before #126, where seat 0 always started), the setup line, the seed, then one
+     * move per line.
+     */
+    fun encode(): String = (listOf(if (setup.randomFirst) HEADER else HEADER_V1, setup.encode(), seed.toString()) +
+        moves.map { MoveCodec.encode(it) }).joinToString("\n")
 
     /**
      * The game rebuilt by replaying every move, each passed to [apply] (which must apply it, so the caller can record
@@ -32,13 +36,15 @@ data class LocalSave(val setup: GameSetup, val seed: Long, val moves: List<Actio
     val resumable: Boolean get() = replay()?.isOver == false
 
     companion object {
-        const val HEADER = "wgbg-local v1"
+        const val HEADER = "wgbg-local v2"
+        /** A save from before #126: seat 0 started, so it replays that way. */
+        const val HEADER_V1 = "wgbg-local v1"
 
         /** The save [encode] wrote, or null if [text] is missing, from another version or damaged. */
         fun decode(text: String?): LocalSave? = runCatching {
             val lines = text!!.trimEnd().split("\n").map { it.trimEnd('\r') }
-            require(lines.size >= 3 && lines[0] == HEADER)
-            val setup = GameSetup.decode(lines[1])!!
+            require(lines.size >= 3 && (lines[0] == HEADER || lines[0] == HEADER_V1))
+            val setup = GameSetup.decode(lines[1])!!.copy(randomFirst = lines[0] == HEADER)
             LocalSave(setup, lines[2].toLong(), lines.drop(3).filter { it.isNotEmpty() }.map { MoveCodec.decode(it)!! })
         }.getOrNull()
     }

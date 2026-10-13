@@ -18,7 +18,7 @@ val PROGRESS_NAMES = listOf(
     // Academy
     "Transmuter", "Hoist", "Master Mason", "Tinkerer", "Waterworks", "Healer", "Deep Shafts", "Printing Press", "Pathfinders", "Forge",
     // Guilds
-    "Harbor Charter", "Grand Factor", "Peddler", "Swift Hulls", "Corner the Field", "Corner the Wares",
+    "Harbour Charter", "Grand Factor", "Peddler", "Swift Hulls", "Corner the Field", "Corner the Wares",
     // Crown
     "Abbot", "Charter of Rights", "Turncoat", "Envoy", "Plot", "Wrecker", "Informer", "Marshal", "Feast",
 )
@@ -127,14 +127,19 @@ fun progressOption(s: GameState, a: Action, names: List<String>): String {
     return when (c) {
         Progress.RESOURCE_MONOPOLY, Progress.TRADE_MONOPOLY, Progress.MERCHANT_FLEET -> card(a.b)
         Progress.MASTER_MERCHANT, Progress.DESERTER, Progress.SPY -> names.getOrElse(a.b) { "Player ${a.b + 1}" }
-        Progress.CRANE -> "Improve ${deck(a.b)}"
+        Progress.CRANE -> {
+            // What it costs with the Hoist against without (Mauro, 2026-10-13: Hoist went off before he saw what it did).
+            val next = (s.ck?.level(s.currentPlayer, a.b) ?: 0) + 1
+            val what = card(Track.commodity(a.b))
+            "Improve ${deck(a.b)} to level $next: ${maxOf(0, next - 1)} $what instead of $next"
+        }
         else -> if (a.c != 0) "${a.b} / ${a.c}" else "${a.b}"
     }
 }
 
 /** Button groups for the non-board C&K moves: one entry per kind (and per card), each with its actions. */
 fun ckButtonGroups(s: GameState, legal: List<Action>, names: List<String>): List<Pair<String, List<Action>>> {
-    val groups = legal.filter { it.type is CkActionType && it.type !in CK_VERTEX_KINDS && it.type != CkActionType.OFFER_TRADE_CK }
+    val groups = legal.filter { it.type is CkActionType && it.type !in CK_VERTEX_KINDS && it.type != CkActionType.OFFER_TRADE_CK && offered(s, it) }
         .groupBy { if (it.type == CkActionType.PLAY_PROGRESS) "Play ${progress(it.a)}" else ckLabel(s, it, names) ?: it.toString() }
         .map { (label, actions) -> label to actions }
     return groups // bank and player trades go through the trade chest
@@ -151,8 +156,10 @@ fun ckPrompt(s: GameState, legal: List<Action>, names: List<String> = PLAYER_NAM
         // A card played against you: who played what, and what you have to do (Mauro).
         s.phase == Phase.DESERTER_REMOVE -> "$by played Turncoat against you: tap one of your knights to give up"
         s.phase == Phase.WEDDING -> "$by played Feast against you: give them ${s.ck?.giveOwed?.getOrNull(s.actingPlayer) ?: 2} card(s)"
-        s.phase == Phase.COMMERCIAL_HARBOR_RESPOND -> "$by played Harbor Charter: give back one commodity for the card you got"
+        s.phase == Phase.COMMERCIAL_HARBOR_RESPOND -> "$by played Harbour Charter: give back one commodity for the card you got"
         s.phase == Phase.BARBARIAN_LOSS -> "The Raiders won: tap one of your towns to lose to them"
+        s.phase == Phase.SPY -> "Spy: take one of ${names.getOrElse(s.ck?.pendingTarget ?: -1) { "their" }}'s progress cards"
+        s.phase == Phase.COMMERCIAL_HARBOR -> "Harbour Charter: give each player a resource for a commodity, or Done"
         CkActionType.CHOOSE_PROGRESS_DECK in kinds -> "Raiders beaten: draw a progress card from a deck"
         CkActionType.DISCARD_PROGRESS in kinds -> "Too many progress cards: discard one"
         CkActionType.CHOOSE_CARD in kinds -> "Choose a card"
@@ -201,3 +208,14 @@ fun improveTrack(a: Action) = if (a.type == CkActionType.IMPROVE_CITY) a.a else 
 
 @Suppress("unused")
 private val TRACK_ORDER_CHECK = listOf(Track.TRADE, Track.POLITICS, Track.SCIENCE) // DECK_NAMES follows this order
+
+/**
+ * A progress card aimed at something (a track, a player) shows its picker even when there's only one choice, so you
+ * see what it will do before it's spent (Mauro, 2026-10-13: one tap on "Play Hoist" improved Guilds at once).
+ */
+fun asksFirst(a: Action) = a.type == CkActionType.PLAY_PROGRESS &&
+    a.a in intArrayOf(Progress.CRANE, Progress.MASTER_MERCHANT, Progress.DESERTER, Progress.SPY)
+
+/** A legal move worth offering: a progress card only when it would do something (the engine still accepts the rest). */
+fun offered(s: GameState, a: Action) =
+    a.type != CkActionType.PLAY_PROGRESS || wgbg.engine.CitiesAndKnights.progressHasEffect(s, s.currentPlayer, a.a)

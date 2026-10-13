@@ -14,6 +14,7 @@ async function append(uid='host', seq=0, s='0', id=String(seq).padStart(10,'0'),
 after(async()=>{await env.cleanup();});
 beforeEach(async()=>{await env.clearFirestore();});
 test('signed-in host creates; anonymous, forged host, playing create denied',async()=>{await assertSucceeds(setDoc(ref('host'),room())); await assertFails(setDoc(doc(db(null),'games/no'),room())); await assertFails(setDoc(doc(db('other'),'games/no'),room())); await assertFails(setDoc(doc(db('host'),'games/no'),room('playing')));});
+test('room versions: 1 (0.2.9) and 2 (0.2.10, random first player) create; 0, 3 and a string denied',async()=>{await assertSucceeds(setDoc(doc(db('host'),'games/v1'),room())); await assertSucceeds(setDoc(doc(db('host'),'games/v2'),{...room(),version:2})); for(const version of [0,3,'2'])await assertFails(setDoc(doc(db('host'),`games/v${version}x`),{...room(),version}));});
 test('a free room code can be checked before creating (the app reads it in a transaction); unsigned denied',async()=>{await assertSucceeds(getDoc(doc(db('host'),'games/free'))); await assertFails(getDoc(doc(db(null),'games/free')));});
 test('lobby read and filtered listing; unsigned denied',async()=>{await seed(); await assertSucceeds(getDoc(ref('other'))); await assertSucceeds(getDocs(query(collection(db('other'),'games'),where('status','==','lobby')))); await assertFails(getDoc(ref(null)));});
 test('playing and done visible only to seated players',async()=>{for(const status of ['playing','done']){await seed(status);await assertSucceeds(getDoc(ref('host')));await assertSucceeds(getDoc(ref('guest')));await assertFails(getDoc(ref('other')));await assertFails(getDoc(ref(null)));}});
@@ -104,11 +105,28 @@ test('crash reports: a signed-in player can add one; nobody can read, edit or de
   await assertSucceeds(add('p1', {uid: 'p1', report: 'WGBG crash report\nerror: boom', createdAt: serverTimestamp()}));
   await assertFails(add(null, {uid: 'p1', report: 'x', createdAt: serverTimestamp()}));
   await assertFails(add('p1', {uid: 'p2', report: 'x', createdAt: serverTimestamp()}));
-  await assertFails(add('p1', {uid: 'p1', report: 'x'.repeat(20001), createdAt: serverTimestamp()}));
+  await assertFails(add('p1', {uid: 'p1', report: 'x'.repeat(200001), createdAt: serverTimestamp()}));
+  await assertSucceeds(add('p1', {uid: 'p1', report: 'x'.repeat(200000), createdAt: serverTimestamp()}));
   await assertFails(add('p1', {uid: 'p1', report: 'x', createdAt: serverTimestamp(), extra: 1}));
   await assertFails(getDocs(collection(db('p1'), 'crashes')));
   await env.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), 'crashes/c1'), {uid: 'p1', report: 'x'}); });
   await assertFails(getDoc(doc(db('p1'), 'crashes/c1')));
   await assertFails(updateDoc(doc(db('p1'), 'crashes/c1'), {report: 'y'}));
   await assertFails(deleteDoc(doc(db('p1'), 'crashes/c1')));
+});
+
+test('report screenshots (#128): anyone signed in may add one under the size cap; nobody reads, changes or deletes them', async () => {
+  const add = (uid, data) => setDoc(doc(db(uid), 'shots/' + Math.random().toString(36).slice(2)), data);
+  const shot = (over) => Object.assign({uid: 'p1', crash: 'c1', n: 0, image: '/9j/4AAQ', createdAt: serverTimestamp()}, over);
+  await assertSucceeds(add('p1', shot({})));
+  await assertSucceeds(add('p1', shot({n: 1, image: 'x'.repeat(450000)})));
+  await assertFails(add(null, shot({})));
+  await assertFails(add('p1', shot({uid: 'p2'})));
+  await assertFails(add('p1', shot({n: 2})));
+  await assertFails(add('p1', shot({image: 'x'.repeat(450001)})));
+  await assertFails(add('p1', shot({extra: 1})));
+  await assertFails(getDocs(collection(db('p1'), 'shots')));
+  await env.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), 'shots/s1'), shot({createdAt: 1})); });
+  await assertFails(getDoc(doc(db('p1'), 'shots/s1')));
+  await assertFails(deleteDoc(doc(db('p1'), 'shots/s1')));
 });

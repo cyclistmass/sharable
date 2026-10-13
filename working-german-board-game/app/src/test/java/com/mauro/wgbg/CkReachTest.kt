@@ -17,7 +17,7 @@ class CkReachTest {
         ActionType.PLAY_KNIGHT_CARD, ActionType.PLAY_ROAD_BUILDING, ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY,
         ActionType.ACCEPT_TRADE, ActionType.REJECT_TRADE, ActionType.CONFIRM_TRADE, ActionType.CANCEL_TRADE,
         // The trade chest: bank trades on its Harbour tab, offers on its Players tab.
-        ActionType.MARITIME_TRADE, wgbg.engine.CkActionType.OFFER_TRADE_CK)
+        ActionType.MARITIME_TRADE, wgbg.engine.CkActionType.OFFER_TRADE_CK, wgbg.engine.CkActionType.COUNTER_TRADE_CK)
 
     @Test
     fun `every legal Age of Chivalry move for seat 0 is a board tap or a button`() {
@@ -33,7 +33,7 @@ class CkReachTest {
                 val legal = buf.toList()
                 if (s.actingPlayer == 0) {
                     val grouped = ckButtonGroups(s, legal, names).flatMap { it.second }.toSet()
-                    for (a in legal) {
+                    for (a in legal.filter { offered(s, it) }) {   // plays that would do nothing are left out on purpose
                         val tap = when {
                             a.type == ActionType.BUILD_SETTLEMENT || a.type == ActionType.BUILD_CITY -> movesAt(s.board, legal, vertexLattice(s.board, a.payload.toInt()))
                             a.type == ActionType.BUILD_ROAD -> movesAt(s.board, legal, edgeLattice(s.board, a.payload.toInt()))

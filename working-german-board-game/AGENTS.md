@@ -51,7 +51,7 @@ counter/primary gold.
    rather than flipping images.
 1. New or changed art is shown as options side by side for the maintainer to pick from before it goes in.
 2. Approved art goes into `app/src/main/res/drawable-nodpi/` and onto the in-app **Inventory** screen
-   (start screen › Look & art, `drawInventory` in `MainActivity.kt`), so every object can be checked together.
+   (start screen › New game › Look & art, `drawInventory` in `MainActivity.kt`), so every object can be checked together.
 3. Screenshot the Inventory screen and the board to confirm.
 4. Art must be CC0 or our own. Record every source in `CREDITS.md`.
 
@@ -93,16 +93,16 @@ honestly. Never call something done with failing or skipped tests.
 - Agent hooks: every turn logs `WGBG-TURN` lines (`turn= phase= player= prompt=".." legal=TYPE:PAYLOAD,...`);
   send a move with `adb shell am broadcast -a com.mauro.wgbg.MOVE -p com.mauro.wgbg --es move TYPE:PAYLOAD`.
   Each finished local game logs a `WGBG-GAME` line.
-- Scripts: `tools/ci_monkey.sh`, `tools/ci_selfplay.sh`, `tools/ci_online.sh`, `tools/online_sim.sh`,
+- Scripts: `tools/ci_monkey.sh`, `tools/ci_selfplay.sh`, `tools/ci_trade.sh` (bank and player trades by touch), `tools/ci_withdraw.sh` (withdraw an open offer by touch), `tools/ci_online.sh`, `tools/online_sim.sh`,
   `tools/record_showcase.sh` (README GIFs and the gameplay video), `tools/record_screenshots.sh` (README gallery);
   `tools/emulator.ps1` launches a landscape emulator on Windows.
 
 ## Issues, commits and CI
 
-- Plans and bugs are GitHub issues on `cyclistmass/sharable` (labels: v1, post-v1, art, ui, engine, ai,
+- Plans and bugs are GitHub issues on `cyclistmass/shareable` (labels: v1, post-v1, art, ui, engine, ai,
   multiplayer, testing, bug, age-of-chivalry). Reference the issue in commits ("#45"); close it only when
   the work is done and verified.
-- CI (`.github/workflows/wgbg-ci.yml` in the sharable repo) runs every test, builds the APK, then runs
+- CI (`.github/workflows/wgbg-ci.yml` in the shareable repo) runs every test, builds the APK, then runs
   monkey, bot self-play and a two-client online game on an emulator. A red CI is stop-and-fix.
 - Every push that changes how the game looks re-records the README GIFs (`tools/record_showcase.sh`) and, if
   the screens changed, the gallery (`tools/record_screenshots.sh`), in the same commit.
@@ -122,6 +122,11 @@ honestly. Never call something done with failing or skipped tests.
   overruns, check whether it's stuck (process alive, log moving, device connected, network up, disk full,
   waiting on a prompt) and fix or report it.
 - **When you find a bug, hunt its siblings** in code, scripts, CI and tests, and fix them in the same change.
+- **After every build and test run, review speed and coverage** (anyone working here, human or agent): what was
+  slow (build, emulator driving, waiting, CI jobs) and what the run didn't test that it should have. Small fixes go
+  straight into `tools/` or the tests in the same change; bigger ones go in `docs/testing/improvements.md` (one
+  line each: the idea, what it saves or catches, who noticed, date), or as a `testing` issue. Anyone may add to
+  that list or pick an item up.
 - Prefer doing work directly over spawning many sub-agents.
 
 Local, private notes for a particular machine or agent go in `.claude/` (git-ignored).

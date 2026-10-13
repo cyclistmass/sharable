@@ -20,12 +20,14 @@ class MusicPlayer(private val context: Context, private val songs: List<Song>) :
     private var held = false
     /** Told the index of each song as it starts. */
     var onSong: (Int) -> Unit = {}
+    /** Whether song i is ticked in the set list (#131); unticked songs are passed over, unless tapped. */
+    var enabled: (Int) -> Boolean = { true }
     /** The song playing now, or null. */
     var playing: Song? = null; private set
 
     fun setVolume(v: Float) {
         volume = v.coerceIn(0f, 1f)
-        if (volume <= 0f) stop() else { player?.setVolume(volume, volume); if (player == null && !paused && !held) start() }
+        if (volume <= 0f) stop() else { player?.setVolume(musicLevel(volume), musicLevel(volume)); if (player == null && !paused && !held) start() }
     }
 
     /** The Pause button: [on] pauses where it is, off carries on from there. */
@@ -38,11 +40,11 @@ class MusicPlayer(private val context: Context, private val songs: List<Song>) :
     fun play(i: Int) {
         if (songs.isEmpty()) return
         stop(); index = ((i % songs.size) + songs.size) % songs.size; held = false
-        if (!paused && volume > 0f) start()
+        if (!paused && volume > 0f) start(tapped = true) // a tapped song plays even if it is unticked
     }
 
     /** Skips to the next song. */
-    fun next() = play(index + 1)
+    fun next() { val n = nextOn(index + 1, songs.size, enabled); if (n < 0) { stop(); return }; play(n) }
 
     fun pause() { paused = true; runCatching { player?.pause() }; log("pause") }
     fun resume() {
@@ -53,15 +55,15 @@ class MusicPlayer(private val context: Context, private val songs: List<Song>) :
     }
     private fun log(m: String) { runCatching { android.util.Log.i("WGBG-MUSIC", m) } }
 
-    private fun start() {
+    private fun start(tapped: Boolean = false) {
         if (songs.isEmpty()) return
-        index %= songs.size
+        index = if (tapped) index else nextOn(index % songs.size, songs.size, enabled).takeIf { it >= 0 } ?: return
         val song = songs[index]
         runCatching {
             val p = MediaPlayer.create(context, song.res, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME)
                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build(), 0) ?: return
-            p.setVolume(volume, volume)
-            p.setOnCompletionListener { it.release(); player = null; index++; if (!paused && !held && volume > 0f) start() }
+            p.setVolume(musicLevel(volume), musicLevel(volume))
+            p.setOnCompletionListener { it.release(); player = null; playing = null; index++; if (!paused && !held && volume > 0f) start() }
             p.setOnErrorListener { mp, _, _ -> mp.release(); player = null; playing = null; true }
             p.start(); player = p; playing = song; onSong(index)
         }
@@ -70,4 +72,18 @@ class MusicPlayer(private val context: Context, private val songs: List<Song>) :
     private fun stop() { runCatching { player?.release() }; player = null; playing = null }
 
     override fun close() = stop()
+}
+
+/**
+ * What the player hears for a Music slider value: half of it, −6 dB (Mauro, 2026-10-13: "about half current scale,
+ * it was loud"). The tune files stay full-scale so this is the one place music level is set.
+ */
+internal const val MUSIC_GAIN = 0.5f
+internal fun musicLevel(slider: Float) = slider.coerceIn(0f, 1f) * MUSIC_GAIN
+
+/** The first ticked song from [from] on (wrapping round [size]), or -1 when every song is unticked (#131). */
+internal fun nextOn(from: Int, size: Int, on: (Int) -> Boolean): Int {
+    if (size <= 0) return -1
+    for (k in 0 until size) { val i = ((from + k) % size + size) % size; if (on(i)) return i }
+    return -1
 }

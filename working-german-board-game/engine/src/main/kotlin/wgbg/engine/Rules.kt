@@ -17,11 +17,29 @@ object Rules {
             BoardLayout.BEGINNER -> BoardGen.beginner()
             BoardLayout.SPIRAL -> BoardGen.spiral(rng)
         }
-        return GameState.initial(config, b, rng)
+        val s = GameState.initial(config, b, rng)
+        if (config.randomFirstPlayer) {
+            s.firstPlayer = firstPlayer(seed, config.numPlayers)
+            s.currentPlayer = s.firstPlayer
+            s.actingPlayer = s.firstPlayer
+        }
+        return s
     }
 
-    /** Seat that places at setup step [step]: 0..n-1 then n-1..0 (snake draft). */
-    fun setupPlayer(step: Int, n: Int) = if (step < n) step else 2 * n - 1 - step
+    /**
+     * #126: the first seat for [seed]. A hash of the seed, not a draw from the game's RNG, so a seed's board, dice
+     * and decks stay the same whoever starts.
+     */
+    fun firstPlayer(seed: Long, n: Int): Int {
+        var z = seed + -0x61c8864680b583ebL
+        z = (z xor (z ushr 30)) * -0x40a7b892e31b1a47L
+        z = (z xor (z ushr 27)) * -0x6b2fb644ecceee15L
+        z = z xor (z ushr 31)
+        return Math.floorMod(z, n.toLong()).toInt()
+    }
+
+    /** Seat that places at setup step [step]: [first] round to the last seat, then back (snake draft). */
+    fun setupPlayer(step: Int, n: Int, first: Int = 0) = ((if (step < n) step else 2 * n - 1 - step) + first) % n
 
     // ---------------------------------------------------------------- queries
 
@@ -123,21 +141,14 @@ object Rules {
             Phase.MOVE_ROBBER -> robberActions(s, p, out)
             Phase.DECIDE_TRADE -> {
                 out.add(Action.REJECT_TRADE)
-                var ok = true
+                // A one-sided offer ("who has grain?", "anyone want wool?") can only be countered, never taken as a gift.
+                var ok = isTwoSided(s)
                 for (r in 0 until CARD_TYPES) if (s.hand(p, r) < s.tradeOffer[CARD_TYPES + r]) ok = false
                 if (ok) out.add(Action.ACCEPT_TRADE)
                 if (s.config.generateTradeOffers) counterActions(s, p, out)
             }
 
-            Phase.DECIDE_COUNTER -> {
-                out.add(Action.ACCEPT_TRADE)
-                out.add(Action.REJECT_TRADE)
-            }
-
-            Phase.DECIDE_ACCEPTEES -> {
-                out.add(Action.CANCEL_TRADE)
-                for (q in 0 until s.numPlayers) if (s.tradeAccepted and (1 shl q) != 0) out.add(Action.confirmTrade(q))
-            }
+            Phase.DECIDE_ACCEPTEES -> acceptees(s, out)
 
             Phase.GAME_OVER -> {}
             else -> {} // C&K-only prompts never occur in base games
@@ -222,6 +233,23 @@ object Rules {
         return mask
     }
 
+    /** The offerer may close with anyone who accepted or countered, or withdraw. */
+    internal fun acceptees(s: GameState, out: ActionBuffer) {
+        out.add(Action.CANCEL_TRADE)
+        for (q in 0 until s.numPlayers) {
+            if (s.tradeAccepted and (1 shl q) != 0 || s.counters[q] != 0L) out.add(Action.confirmTrade(q))
+        }
+    }
+
+    /** The open offer both gives and asks for something (only then can it be accepted as it stands). */
+    fun isTwoSided(s: GameState): Boolean {
+        var gives = 0
+        var wants = 0
+        for (r in 0 until CARD_TYPES) { gives += s.tradeOffer[r]; wants += s.tradeOffer[CARD_TYPES + r] }
+        s.ck?.let { ck -> for (l in 0 until Commodity.COUNT) { gives += ck.offer[l]; wants += ck.offer[Commodity.COUNT + l] } }
+        return gives > 0 && wants > 0
+    }
+
     /** 1-for-1 counters (offerer gives g, gets w), enumerated only for bots and fuzzing. */
     private fun counterActions(s: GameState, p: Int, out: ActionBuffer) {
         val o = s.currentPlayer
@@ -263,7 +291,11 @@ object Rules {
         return gives > 0 && gets > 0 && !same
     }
 
-    /** Domestic offers are not enumerated (see [GameConfig.generateTradeOffers]) so they are validated here. */
+    /**
+     * Domestic offers are not enumerated (see [GameConfig.generateTradeOffers]) so they are validated here.
+     * An offer may be one-sided: give only ("anyone want wool?") or ask only ("who has grain?"); the others
+     * answer with counter-offers. It can't swap a resource for itself.
+     */
     fun isValidOffer(s: GameState, a: Action): Boolean {
         if (s.phase != Phase.PLAY_TURN || !s.hasRolled || s.freeRoads > 0) return false
         if (a.payload ushr 40 != 0L) return false
@@ -278,14 +310,22 @@ object Rules {
             gives += g
             wants += w
         }
-        // Official rules forbid giving cards away for nothing.
-        return gives > 0 && wants > 0
+        return gives > 0 || wants > 0
     }
 
+    /**
+     * Who makes [a] now: the acting player, except that the offerer may withdraw an open offer (CANCEL_TRADE)
+     * while the others are still answering it (#114). Transports check a move's seat against this.
+     */
+    fun mover(s: GameState, a: Action): Int =
+        if (s.phase == Phase.DECIDE_TRADE && a.type == ActionType.CANCEL_TRADE) s.currentPlayer else s.actingPlayer
+
     fun isLegal(s: GameState, a: Action): Boolean {
+        if (s.phase == Phase.DECIDE_TRADE && a.type == ActionType.CANCEL_TRADE) return a.payload == 0L // #114, see [mover]
         if (s.ck != null) {
             if (a.type == ActionType.OFFER_TRADE || a.type == ActionType.COUNTER_TRADE) return false
             if (a.type == CkActionType.OFFER_TRADE_CK) return CitiesAndKnights.isValidOffer(s, a)
+            if (a.type == CkActionType.COUNTER_TRADE_CK) return CitiesAndKnights.isValidCounter(s, a)
         }
         if (a.type == ActionType.OFFER_TRADE) return isValidOffer(s, a)
         if (a.type == ActionType.COUNTER_TRADE) return isValidCounter(s, a)
@@ -399,39 +439,26 @@ object Rules {
                 s.actingPlayer = (p + 1) % s.numPlayers
             }
 
-            ActionType.ACCEPT_TRADE, ActionType.REJECT_TRADE -> when {
-                s.phase == Phase.DECIDE_COUNTER && a.type == ActionType.ACCEPT_TRADE -> {
-                    val c = s.counterOffer!!
+            ActionType.ACCEPT_TRADE, ActionType.REJECT_TRADE -> {
+                if (a.type == ActionType.ACCEPT_TRADE) s.tradeAccepted = s.tradeAccepted or (1 shl p)
+                passOffer(s, p)
+            }
+
+            // Counters are collected; the offer goes on round the table and the offerer chooses at the end.
+            ActionType.COUNTER_TRADE -> {
+                s.counters[p] = a.payload
+                passOffer(s, p)
+            }
+
+            ActionType.CONFIRM_TRADE -> {
+                val q = a.payload.toInt()
+                s.counterOf(q)?.let { c ->
                     for (r in 0 until CARD_TYPES) {
                         s.tradeOffer[r] = c.offerGive(r)
                         s.tradeOffer[CARD_TYPES + r] = c.offerWant(r)
                     }
-                    swapTrade(s, p, s.counterFrom)
-                    endTrade(s)
                 }
-                s.phase == Phase.DECIDE_COUNTER -> {
-                    // Counter refused: the original offer goes on round the table after the counterer.
-                    val from = s.counterFrom
-                    s.counterFrom = -1
-                    s.counterTerms = 0L
-                    s.phase = Phase.DECIDE_TRADE
-                    passOffer(s, from)
-                }
-                else -> {
-                    if (a.type == ActionType.ACCEPT_TRADE) s.tradeAccepted = s.tradeAccepted or (1 shl p)
-                    passOffer(s, p)
-                }
-            }
-
-            ActionType.COUNTER_TRADE -> {
-                s.counterFrom = p
-                s.counterTerms = a.payload
-                s.phase = Phase.DECIDE_COUNTER
-                s.actingPlayer = s.currentPlayer
-            }
-
-            ActionType.CONFIRM_TRADE -> {
-                swapTrade(s, p, a.payload.toInt())
+                swapTrade(s, p, q)
                 endTrade(s)
             }
 
@@ -517,10 +544,10 @@ object Rules {
             s.setupStep++
             if (s.setupStep == 2 * s.numPlayers) {
                 s.phase = Phase.PLAY_TURN
-                s.currentPlayer = 0
+                s.currentPlayer = s.firstPlayer
             } else {
                 s.phase = Phase.BUILD_INITIAL_SETTLEMENT
-                s.currentPlayer = setupPlayer(s.setupStep, s.numPlayers)
+                s.currentPlayer = setupPlayer(s.setupStep, s.numPlayers, s.firstPlayer)
             }
             s.actingPlayer = s.currentPlayer
         } else if (s.freeRoads > 0 && (piecesLeft(s, p, Piece.ROAD) == 0 || !anyRoadSpot(s, p))) {
@@ -623,7 +650,7 @@ object Rules {
         val next = (from + 1) % s.numPlayers
         when {
             next != s.currentPlayer -> s.actingPlayer = next
-            s.tradeAccepted == 0 -> endTrade(s)
+            s.tradeAccepted == 0 && !s.anyCounter -> endTrade(s)
             else -> {
                 s.phase = Phase.DECIDE_ACCEPTEES
                 s.actingPlayer = s.currentPlayer
@@ -644,8 +671,7 @@ object Rules {
     internal fun endTrade(s: GameState) {
         s.tradeOffer.fill(0)
         s.tradeAccepted = 0
-        s.counterFrom = -1
-        s.counterTerms = 0L
+        s.counters.fill(0L)
         s.phase = Phase.PLAY_TURN
         s.actingPlayer = s.currentPlayer
     }

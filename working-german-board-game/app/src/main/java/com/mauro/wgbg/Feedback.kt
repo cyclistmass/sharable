@@ -32,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
+import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -78,7 +80,7 @@ object Feedback {
         }
     }
 
-    const val UPLOAD_MAX = 19_000
+    const val UPLOAD_MAX = 190_000 // under the rules' 200000: a whole 300-turn game replays (was 19 000, cut at ~250 turns)
 
     fun device(context: Context): Pair<String, String> {
         val dm = context.resources.displayMetrics
@@ -113,8 +115,14 @@ internal fun appVersionCode(context: Context): Long = runCatching {
  * The report panel over whatever is on screen. [game], [history] and [position] are null/empty from the start screen.
  */
 @Composable
-fun FeedbackPanel(game: String?, history: List<String>, position: String?, onClose: () -> Unit) {
+fun FeedbackPanel(game: String?, history: List<String>, position: String?, shot: android.graphics.Bitmap? = null, onClose: () -> Unit) {
     val context = LocalContext.current
+    // #128: the game as it was when the report opened, plus a picture picked from the gallery; each can be removed.
+    val shots = remember { androidx.compose.runtime.mutableStateListOf<android.graphics.Bitmap>().apply { shot?.let { add(it) } } }
+    val pickShot = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let { Screenshot.load(context, it) }?.let { if (shots.size < 2) shots.add(it) }
+    }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var kind by remember { mutableStateOf(Feedback.Kind.BUG) }
     var note by remember { mutableStateOf("") }
     var withGame by remember { mutableStateOf(game != null) }
@@ -158,6 +166,19 @@ fun FeedbackPanel(game: String?, history: List<String>, position: String?, onClo
                 },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                for ((i, b) in shots.withIndex()) Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.testTag("feedback-shot-$i")) {
+                    androidx.compose.foundation.Image(b.asImageBitmap(), "Screenshot ${i + 1}",
+                        Modifier.height(64.dp).border(1.dp, Wood.BRASS, RoundedCornerShape(4.dp)))
+                    Text("✗", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.background(Color(0xFFC0392B), RoundedCornerShape(10.dp)).clickable { shots.removeAt(i) }
+                            .padding(horizontal = 6.dp).testTag("feedback-shot-remove-$i"))
+                }
+                if (shots.size < 2) WoodButton(if (shots.isEmpty()) "Add a picture" else "Add another", "feedback-add-shot", Modifier.height(40.dp)) {
+                    runCatching { pickShot.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                        .onFailure { status = "Can't open your pictures" }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (canSpeak) BrassButton("Speak", "feedback-speak", Modifier.height(44.dp)) {
                     runCatching {
                         listen.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
@@ -167,9 +188,18 @@ fun FeedbackPanel(game: String?, history: List<String>, position: String?, onClo
                 }
                 GoButton("Send", "feedback-send", enabled = note.isNotBlank() || withGame, Modifier.height(44.dp)) {
                     status = "Sending…"
-                    sendCrashReport(context, report(Feedback.UPLOAD_MAX)) { ok ->
-                        status = if (ok) "Sent, thank you" else "Couldn't send (offline?); try Share"
-                        if (ok) note = ""
+                    val text = report(Feedback.UPLOAD_MAX) + if (shots.isEmpty()) "" else "\nScreenshots: ${shots.size}"
+                    val pics = shots.toList()
+                    scope.launch {
+                        val encoded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { pics.mapNotNull { Screenshot.jpegBase64(it) } }
+                        sendCrashReport(context, text, encoded) { ok, n ->
+                            status = when {
+                                !ok -> "Couldn't send (offline?); try Share"
+                                n < encoded.size -> "Sent, thank you (the picture didn't go)"
+                                else -> "Sent, thank you"
+                            }
+                            if (ok) { note = ""; shots.clear() }
+                        }
                     }
                 }
                 BrassButton("Share", "feedback-share", Modifier.height(44.dp)) {

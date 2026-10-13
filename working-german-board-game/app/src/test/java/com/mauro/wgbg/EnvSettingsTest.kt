@@ -47,6 +47,28 @@ class EnvSettingsTest {
     }
 
     @Test
+    fun `music plays at half the slider (-6 dB), and full slider is half scale`() {
+        assertEquals(0.5f, musicLevel(1f))
+        assertEquals(SoundSettings.DEFAULT_MUSIC / 2, musicLevel(SoundSettings.DEFAULT_MUSIC))
+        assertEquals(0f, musicLevel(-1f)); assertEquals(0.5f, musicLevel(3f))
+    }
+
+    @Test
+    fun `#131 unticked songs are saved by title, passed over in the set list, and reset ticks them all`() {
+        val store = MapStore()
+        val n = SoundSettings.SONGS.size
+        SoundSettings(store).apply { assertEquals(true, (0 until n).all { songOn(it) }); setSongOn(1, false); setSongOn(2, false) }
+        val again = SoundSettings(store)
+        assertEquals(false, again.songOn(1)); assertEquals(true, again.songOn(3))
+        assertEquals(3, nextOn(1, n) { again.songOn(it) }, "1 and 2 are skipped")
+        assertEquals(0, nextOn(n, n) { again.songOn(it) }, "wraps round")
+        assertEquals(-1, nextOn(0, n) { false }, "nothing ticked: nothing plays")
+        assertEquals(-1, nextOn(0, 0) { true })
+        again.reset()
+        assertEquals(true, (0 until n).all { SoundSettings(store).songOn(it) })
+    }
+
+    @Test
     fun `reset puts every setting back to its default`() {
         val store = MapStore()
         val env = EnvSettings(store).apply { this[Item.CLOUDS] = 1f; this[Item.WAVES] = 0f }
@@ -80,12 +102,13 @@ class EnvSettingsTest {
     }
 
     @Test
-    fun `view bars default per device, are saved, and survive a restart`() {
-        org.junit.jupiter.api.Assertions.assertFalse(EnvSettings(MapStore()).viewBars, "phones: off by default")
-        org.junit.jupiter.api.Assertions.assertTrue(EnvSettings(MapStore(), viewBarsDefault = true).viewBars, "emulator: on by default")
+    fun `#137 view sliders are off by default, switched on and saved from the gear, and reset turns them off`() {
         val store = MapStore()
-        EnvSettings(store, viewBarsDefault = true).viewBars = false
-        org.junit.jupiter.api.Assertions.assertFalse(EnvSettings(store, viewBarsDefault = true).viewBars, "the player's choice wins after a restart")
+        org.junit.jupiter.api.Assertions.assertFalse(EnvSettings(store).viewBars, "gestures by default: no sliders")
+        EnvSettings(store).viewBars = true
+        org.junit.jupiter.api.Assertions.assertTrue(EnvSettings(store).viewBars, "the player's choice survives a restart")
+        EnvSettings(store).reset()
+        org.junit.jupiter.api.Assertions.assertFalse(EnvSettings(store).viewBars, "reset hides them again")
     }
 
     @Test
@@ -99,30 +122,40 @@ class EnvSettingsTest {
     }
 
     @Test
-    fun `Pace starts Normal, persists, resets, and a bad saved value falls back safely`() {
+    fun `AI pace starts at 1 s, persists, resets, and a bad saved value falls back safely`() {
         val store = MapStore()
-        assertEquals(Pace.NORMAL, EnvSettings(store).pace)
-        EnvSettings(store).pace = Pace.RELAXED
-        assertEquals(Pace.RELAXED, EnvSettings(store).pace, "kept after a restart")
-        EnvSettings(store).apply { reset(); assertEquals(Pace.NORMAL, pace) }
-        store.put(EnvSettings.PACE, 99f)
-        assertEquals(Pace.QUICK, EnvSettings(store).pace)
-        store.put(EnvSettings.PACE, -3f)
-        assertEquals(Pace.RELAXED, EnvSettings(store).pace)
+        assertEquals(1f, EnvSettings(store).aiPace)
+        EnvSettings(store).aiPace = 3.5f
+        assertEquals(3.5f, EnvSettings(store).aiPace, "kept after a restart")
+        EnvSettings(store).apply { reset(); assertEquals(EnvSettings.AI_PACE_DEFAULT, aiPace) }
+        EnvSettings(store).aiPace = 9f
+        assertEquals(5f, EnvSettings(store).aiPace, "capped at 5 s")
+        store.put(EnvSettings.AI_PACE, -3f)
+        assertEquals(1f, EnvSettings(store).aiPace)
+        store.put(EnvSettings.AI_PACE, Float.NaN)
+        assertEquals(1f, EnvSettings(store).aiPace)
     }
 
     @Test
-    fun `Pace slows or quickens the dice and the pause after moves, and a roll still waits for the dice`() {
-        val road = wgbg.engine.ActionType.BUILD_ROAD; val roll = wgbg.engine.ActionType.ROLL
-        val (relaxed, normal, quick) = Pace.entries.map { it.factor }
-        org.junit.jupiter.api.Assertions.assertTrue(Pace.fallMs(relaxed) > Pace.fallMs(normal) && Pace.fallMs(normal) > Pace.fallMs(quick))
-        assertEquals((DiceSprites.FALL_S * 1000).toInt(), Pace.fallMs(normal), "Normal is today's throw")
+    fun `a roll still waits for the dice at every speed, and an end of turn goes straight on`() {
+        val roll = wgbg.engine.ActionType.ROLL
+        assertEquals((DiceSprites.FALL_S * 1000).toInt(), Pace.fallMs())
         for (speed in listOf(1, 2, 4, 8)) {
-            org.junit.jupiter.api.Assertions.assertTrue(pauseAfter(road, speed, relaxed) > pauseAfter(road, speed, quick), "speed $speed")
-            assertEquals(pauseAfter(road, speed), pauseAfter(road, speed, normal), "Normal changes nothing")
-            for (p in Pace.entries) org.junit.jupiter.api.Assertions.assertTrue(
-                pauseAfter(roll, speed, p.factor) > Pace.fallMs(p.factor) * DiceSprites.HANDOVER, "${p.label} at $speed")
-            assertEquals(0L, pauseAfter(wgbg.engine.ActionType.END_TURN, speed, relaxed))
+            org.junit.jupiter.api.Assertions.assertTrue(pauseAfter(roll, speed) > Pace.fallMs() * DiceSprites.HANDOVER, "speed $speed")
+            assertEquals(0L, pauseAfter(wgbg.engine.ActionType.END_TURN, speed))
         }
+    }
+
+    @Test
+    fun `an AI waits the AI pace between turns and half of it per move, faster when sped up, never under the plain pause`() {
+        val road = wgbg.engine.ActionType.BUILD_ROAD; val roll = wgbg.engine.ActionType.ROLL; val end = wgbg.engine.ActionType.END_TURN
+        assertEquals(1000L, botPauseAfter(end, 2, 1f), "1 s between turns by default")
+        assertEquals(5000L, botPauseAfter(end, 2, 5f), "up to 5 s")
+        assertEquals(2500L, botPauseAfter(road, 2, 5f), "a move inside the turn takes half")
+        org.junit.jupiter.api.Assertions.assertTrue(botPauseAfter(road, 4, 4f) < botPauseAfter(road, 2, 4f))
+        for (speed in listOf(1, 2, 4, 8)) for (pace in listOf(1f, 3f, 5f)) for (type in listOf(road, roll))
+            org.junit.jupiter.api.Assertions.assertTrue(botPauseAfter(type, speed, pace) >= pauseAfter(type, speed), "$type $pace s at $speed")
+        assertEquals(0L, botPauseAfter(wgbg.engine.ActionType.REJECT_TRADE, 2, 5f))
+        assertEquals(1000L, botPauseAfter(wgbg.engine.ActionType.REJECT_TRADE, 2, 2f, personOffered = true), "#114: answers to your offer take the half beat")
     }
 }

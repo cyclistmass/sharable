@@ -174,8 +174,10 @@ class BuildTest {
         assertFalse(Rules.isLegal(s, ok), "not before rolling")
         T.roll(s, 8)
         assertTrue(Rules.isLegal(s, ok))
-        assertFalse(Rules.isLegal(s, Action.offerTrade(intArrayOf(1, 0, 0, 0, 0), IntArray(5))), "no gifts")
-        assertFalse(Rules.isLegal(s, Action.offerTrade(IntArray(5), intArrayOf(1, 0, 0, 0, 0))), "no begging")
+        // #135: one-sided offers are open asks; responders counter (see CounterTradeTest). Empty is still refused.
+        assertTrue(Rules.isLegal(s, Action.offerTrade(intArrayOf(1, 0, 0, 0, 0), IntArray(5))), "give only")
+        assertTrue(Rules.isLegal(s, Action.offerTrade(IntArray(5), intArrayOf(1, 0, 0, 0, 0))), "ask only")
+        assertFalse(Rules.isLegal(s, Action.offerTrade(IntArray(5), IntArray(5))), "empty")
         assertFalse(Rules.isLegal(s, Action.offerTrade(intArrayOf(2, 0, 0, 0, 0), intArrayOf(0, 1, 0, 0, 0))), "not owned")
         assertFalse(Rules.isLegal(s, Action.offerTrade(intArrayOf(1, 0, 0, 0, 0), intArrayOf(1, 1, 0, 0, 0))), "same card")
     }

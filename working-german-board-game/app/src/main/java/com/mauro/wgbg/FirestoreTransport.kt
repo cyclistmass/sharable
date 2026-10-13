@@ -75,13 +75,23 @@ class FirestoreTransport(private val auth: FirebaseAuth, private val db: Firebas
         }.future()
     }
     /** Adds one crash report to `crashes` (write-only for players; see firestore.rules). */
-    fun sendCrash(report: String): CompletableFuture<Unit> = signIn().thenCompose { uid ->
+    /**
+     * A report, then its screenshots (#128) as base64 JPEGs in `shots`, each pointing at the report. The report counts
+     * as sent even if a shot is refused; the result says how many shots made it.
+     */
+    fun sendCrash(report: String, shots: List<String> = emptyList()): CompletableFuture<Int> = signIn().thenCompose { uid ->
         db.collection("crashes").add(mapOf(
-            "uid" to uid, "report" to report.take(19_000), "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
-        )).future().thenApply { }
+            "uid" to uid, "report" to report.take(Feedback.UPLOAD_MAX), "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+        )).future().thenCompose { ref ->
+            val sent = shots.mapIndexed { i, img ->
+                db.collection("shots").add(mapOf("uid" to uid, "crash" to ref.id, "n" to i.toLong(), "image" to img,
+                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp())).future().handle { _, e -> if (e == null) 1 else 0 }
+            }
+            CompletableFuture.allOf(*sent.toTypedArray()).thenApply { sent.sumOf { it.join() } }
+        }
     }
 
-    override fun listOpen() = games.whereEqualTo("status", "lobby").get().future().thenApply { q -> q.documents.map { room(it.id, it.data!!) } }
+    override fun listOpen() = games.whereEqualTo("status", "lobby").get().future().thenApply { q -> q.documents.mapNotNull { runCatching { room(it.id, it.data!!) }.getOrNull() } }   // another version's rooms are left out, not an error
     private fun change(id: String, f: (Room) -> Room): CompletableFuture<Unit> {
         val ref = games.document(id)
         return db.runTransaction { t ->
@@ -176,17 +186,32 @@ internal fun Room.wire(): Map<String, Any?> = mapOf(
     "seats" to seats.mapIndexed { i, s -> i.toString() to mapOf("uid" to s.uid, "name" to s.name, "bot" to s.bot, "open" to s.open, "ready" to s.ready) }.toMap(),
     "options" to mapOf("expansion" to config.expansion.name, "numPlayers" to config.numPlayers, "vpToWin" to config.vpToWin,
         "layout" to config.layout.name, "avoidAdjacentRedNumbers" to config.avoidAdjacentRedNumbers, "discardLimit" to config.discardLimit,
-        "maxTurns" to config.maxTurns, "randomDiscard" to config.randomDiscard, "generateTradeOffers" to config.generateTradeOffers),
-    "version" to 1,
+        "maxTurns" to config.maxTurns, "randomDiscard" to config.randomDiscard, "generateTradeOffers" to config.generateTradeOffers,
+        "randomFirstPlayer" to config.randomFirstPlayer),
+    "version" to ROOM_VERSION,
 )
+
+/**
+ * The room format's version. 2 from 0.2.10 (Mauro, 2026-10-13): a random first player (#126) plays differently, so a
+ * 0.2.9 phone (which only reads 1) is kept out of 0.2.10 rooms and this one out of theirs. Bump it, and let the rules'
+ * `valid()` accept it, whenever two versions of the app would play the same room differently.
+ */
+internal const val ROOM_VERSION = 2
+
+/** A room made by a different version of the app; its message is what the player sees. */
+internal class RoomVersionException(val version: Int) :
+    IllegalStateException("That room was made with ${if (version < ROOM_VERSION) "an older" else "a newer"} version of the game. Everyone needs the same version: update from the release page.")
+
 @Suppress("UNCHECKED_CAST")
 internal fun room(id: String, d: Map<String, Any?>): Room {
-    require((d["version"] as Number).toInt() == 1)
+    val version = (d["version"] as? Number)?.toInt() ?: 0
+    if (version != ROOM_VERSION) throw RoomVersionException(version)
     val o = d["options"] as Map<String, Any>; fun n(k: String) = (o[k] as Number).toInt()
     val seats = d["seats"] as Map<String, Map<String, Any?>>
     return Room(id, d["host"] as String,
         GameConfig(Expansion.valueOf(o["expansion"] as String), n("numPlayers"), n("vpToWin"), BoardLayout.valueOf(o["layout"] as String),
-            o["avoidAdjacentRedNumbers"] as Boolean, n("discardLimit"), n("maxTurns"), o["randomDiscard"] as Boolean, o["generateTradeOffers"] as Boolean),
+            o["avoidAdjacentRedNumbers"] as Boolean, n("discardLimit"), n("maxTurns"), o["randomDiscard"] as Boolean, o["generateTradeOffers"] as Boolean,
+            o["randomFirstPlayer"] as Boolean? ?: false),   // rooms made before #126: seat 0 starts
         (d["seed"] as String).toLong(), List(4) { i -> val s = seats[i.toString()]!!
             Seat(s["uid"] as String?, s["name"] as String, s["bot"] as String?, s["open"] as Boolean, s["ready"] as Boolean) },
         Status.valueOf(d["status"] as String), (d["nextSeq"] as Number).toLong(), (d["decks"] as Number).toInt())

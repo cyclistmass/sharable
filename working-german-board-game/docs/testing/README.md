@@ -10,7 +10,7 @@ JUnit results on 0.2.8. Keep this page current when a test or script is added, m
 
 | Module | Tests | What they cover |
 |---|---|---|
-| engine | 118 | Rules of both rulesets: setup, turns, building, trading, counter-offers, Fortune cards, longest road, Age of Chivalry (29: commodities, Ramparts, Raiders, progress cards, Capitals, 13 points), hidden information, determinism and replay. **Fuzz:** 2,000 random base games and 1,000 Age of Chivalry games with invariants after every move. **Break-it:** junk and wrong-time actions in both rulesets. **Dice:** fairness and chi-square tests (a loaded die is caught), deck dice. **Every card:** each Age of Chivalry progress card and each Fortune card played in 40 real positions, checking its effect and that the turn goes on. **Catanatron:** id mapping to Catanatron's board, and 200 random base games written as traces for the cross-check below |
+| engine | 118 | Rules of both rulesets: setup, turns, building, trading, counter-offers, Fortune cards, Grand Highway, Age of Chivalry (29: commodities, Ramparts, Raiders, progress cards, Capitals, 13 points), hidden information, determinism and replay. **Fuzz:** 2,000 random base games and 1,000 Age of Chivalry games with invariants after every move. **Break-it:** junk and wrong-time actions in both rulesets. **Dice:** fairness and chi-square tests (a loaded die is caught), deck dice. **Every card:** each Age of Chivalry progress card and each Fortune card played in 40 real positions, checking its effect and that the turn goes on. **Catanatron:** id mapping to Catanatron's board, and 200 random base games written as traces for the cross-check below |
 | ai | 14 | Bots finish games in both rulesets and trade sensibly without creating or losing cards |
 | net | 24 | Optimistic client, rollback, resume, reconnect, move codec, a hostile log, 300 delayed random online games that must agree |
 | app | 240 | Start-screen setup logic, lobby and rejoin, invite links, local save (#82), Report contents, Google sign-in logic (#83), settings and Pace, trade panel, build menu, every legal move reachable by a tap, 3D board math against 200 Catanatron reference positions, piece lift, Turn bar mapping, sea, birds, dice art and timing, HUD and hints |
@@ -21,8 +21,8 @@ JUnit results on 0.2.8. Keep this page current when a test or script is added, m
 [Catanatron](https://github.com/bcollazo/catanatron) is an independent open-source engine for the base game. Our
 engine plays 200 random 4-player games; Catanatron replays each one move by move and must agree on whose move it is,
 the full list of legal moves, and after every move each player's points, hand, Fortune cards, knights and pieces
-left, Longest Road and Largest Army, the bank, the Bandit and the winner. Last run: 200 games, 145,544 moves, 0
-differences; every game finished, with 290 Longest Road and 245 Largest Army changes.
+left, Grand Highway and Strongest Watch, the bank, the Bandit and the winner. Last run: 200 games, 145,544 moves, 0
+differences; every game finished, with 290 Grand Highway and 245 Strongest Watch changes.
 
 Every difference found was a simplification or slip in Catanatron, not in our rules. `diff.py` allows for these:
 

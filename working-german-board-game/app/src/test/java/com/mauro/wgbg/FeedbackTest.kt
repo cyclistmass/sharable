@@ -61,12 +61,12 @@ class FeedbackTest {
     fun `an upload fits Firestore's limit by dropping the oldest history, never the note or the game`() {
         val (live, moves, _) = playAndTrack(chivalry, 5L, 400)
         val game = LocalSave(chivalry, 5L, moves).encode()
-        val history = List(3000) { "turn $it · Blue rolled 8" }
+        val history = List(10_000) { "turn $it · Blue rolled 8" } // ~270 KB: well over UPLOAD_MAX
         val r = report("the dice froze", game, history, Feedback.position(live, PLAYER_NAMES), Feedback.UPLOAD_MAX)
         assertTrue(r.length <= Feedback.UPLOAD_MAX, "${r.length}")
         assertTrue(r.contains("the dice froze"))
         assertTrue(r.contains(game))
-        assertTrue(r.contains("turn 2999 · Blue rolled 8"), "the newest history stays")
+        assertTrue(r.contains("turn 9999 · Blue rolled 8"), "the newest history stays")
         assertFalse(r.contains("turn 0 · Blue rolled 8\n"), "the oldest history goes")
         // Without a limit nothing is dropped (Share sends it all).
         assertTrue(report("x", game, history, null).contains("turn 0 · Blue rolled 8\n"))

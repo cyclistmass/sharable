@@ -45,10 +45,13 @@ for d in $HOST $GUEST; do
   "$A" -s $d logcat -c
   "$A" -s $d shell am force-stop com.mauro.wgbg
   "$A" -s $d shell pm clear com.mauro.wgbg >/dev/null   # no remembered room to rejoin, no stale sign-in
-  "$A" -s $d shell am start --activity-clear-task -n com.mauro.wgbg/.MainActivity $FB_EXTRA --ez autoplay true >/dev/null
+  "$A" -s $d shell am start --activity-clear-task -n com.mauro.wgbg/.MainActivity $FB_EXTRA --ez autoplay true --ez quickbots true >/dev/null
 done
 sleep 5
 tap_text $GUEST "Got it" 2>/dev/null || true
+
+# The splash (#132) first: New game opens the game-start screen with Host and Join.
+for d in $HOST $GUEST; do wait_for $d "New game" 30 && tap_text $d "New game"; done
 
 # Host: name, a Friend seat for the guest, the ruleset, then open the room.
 wait_for $HOST "Host a room" 20

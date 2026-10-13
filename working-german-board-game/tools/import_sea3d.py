@@ -7,10 +7,12 @@ tilt = 0.96 * i / 7 as for the buildings. Each frame is square with the model's 
 Layers: sloop (the sail, tinted to a player's colour), sloop_trim (hull and rigging, untinted), sloop_wake;
 raiders (the Raiders' ship), raiders_wake; gull: <layer>_flap<00..15>_tilt_<i>, a 16-frame wingbeat (frame 0 wings
 level, head to the east; drawn turned to the bird's heading) stored in the heading slot. Frames are scaled down to SIZE px (they are small on the board).
-Whale (0.2.9, Crest's v28 render, C:/Users/mauro/wgbg-art/sea3d/whale_v28/whale_<pose>_h<00..07>_tilt_<i>.png): 8 headings
-in 45 degree steps (h00 east, h02 up the screen), 22 poses (WHALE_POSES: d25/d50/d75 = 25/50/75% surfaced, beatNN =
-the 8-frame tail beat at that depth with the splash on beats 06/07/00, blowN = the 3-frame spout). Its 1024 px render
-frame covers twice the sloop's frame (WHALE_SCALE 2), so WHALE_SIZE = 2 x the sloop's 144 keeps the same px per hex.
+Whale (0.2.9, Crest's v28 render, C:/Users/mauro/wgbg-art/sea3d/whale_v28/whale_<pose>_h<00..07>_tilt_<i>.png): a critter
+module (#130), so its frames go to assets/critters/whale/frames/<pose>_h<h>_t<i>.webp, not into SeaArt.kt. 8 headings
+in 45 degree steps (h00 east, h02 up the screen), 22 poses (d25/d50/d75 = 25/50/75% surfaced, d<depth>_beatNN = the
+8-frame tail beat at that depth with the splash on beats 06/07/00, d50_blowNN = the 3-frame spout, renumbered from the
+render's 1-based blow1..3). Its 1024 px render frame covers twice the sloop's frame (frames.span 2.16 in its
+critter.json), so WHALE_SIZE = 2 x the sloop's 144 keeps the same px per hex.
 Old imported files are removed first.
 
 Usage: py tools/import_sea3d.py
@@ -20,18 +22,22 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "app/src/main/res/drawable-nodpi"
+WHALE_OUT = ROOT / "app/src/main/assets/critters/whale/frames"
 KT = ROOT / "app/src/main/java/com/mauro/wgbg/SeaArt.kt"
 SRC = Path(r"C:/Users/mauro/wgbg-art/sea3d")
 LAYERS = {"sloop": 144, "sloop_trim": 144, "sloop_wake": 144, "raiders": 192, "raiders_wake": 192, "gull": 64}
 HEADINGS, STEPS = 16, 8
 WHALE_SRC = SRC / "whale_v28"
 WHALE_SIZE, WHALE_HEADINGS = 288, 8
-WHALE_POSES = ["d25", "d50", "d75"] + [f"d{d}_beat{b:02d}" for d in (25, 50) for b in range(8)] + [f"d50_blow{k}" for k in (1, 2, 3)]
+# Render pose -> module pose (the module numbers every animated run from 00).
+WHALE_POSES = {p: p for p in ["d25", "d50", "d75"] + [f"d{d}_beat{b:02d}" for d in (25, 50) for b in range(8)]}
+WHALE_POSES.update({f"d50_blow{k}": f"d50_blow{k - 1:02d}" for k in (1, 2, 3)})
 
 MAIN = __name__ == "__main__"
 if MAIN:
-    for old in OUT.glob("sea3d_*.webp"):
+    for old in [*OUT.glob("sea3d_*.webp"), *WHALE_OUT.glob("*.webp")]:
         old.unlink()
+    WHALE_OUT.mkdir(parents=True, exist_ok=True)
 
 tables = {}
 for layer, size in (LAYERS.items() if MAIN else ()):
@@ -49,15 +55,13 @@ for layer, size in (LAYERS.items() if MAIN else ()):
 
 def whale_frame(job):
     pose, h, i = job
-    Image.open(WHALE_SRC / f"whale_{pose}_h{h:02d}_tilt_{i}.png").convert("RGBA")         .resize((WHALE_SIZE, WHALE_SIZE), Image.LANCZOS).save(OUT / f"sea3d_whale_{pose}_h{h}_t{i}.webp", quality=88, method=4)
+    Image.open(WHALE_SRC / f"whale_{pose}_h{h:02d}_tilt_{i}.png").convert("RGBA")         .resize((WHALE_SIZE, WHALE_SIZE), Image.LANCZOS).save(WHALE_OUT / f"{WHALE_POSES[pose]}_h{h}_t{i}.webp", quality=88, method=4)
 
 
 if __name__ == "__main__":  # 1,408 whale frames: two worker processes (the slow part of the import)
     from multiprocessing import Pool
     with Pool(2) as pool:
         pool.map(whale_frame, [(p, h, i) for p in WHALE_POSES for h in range(WHALE_HEADINGS) for i in range(STEPS)], chunksize=16)
-whale = [["intArrayOf(" + ", ".join(f"R.drawable.sea3d_whale_{p}_h{h}_t{i}" for i in range(STEPS)) + ")"
-          for h in range(WHALE_HEADINGS)] for p in WHALE_POSES]
 
 
 def camel(s):
@@ -82,18 +86,7 @@ for layer, rows in tables.items():
     lines.append(f"    val {camel(layer).upper() if False else camel(layer)}: Array<IntArray> = arrayOf(")
     lines += [f"        {r}," for r in rows]
     lines.append("    )")
-lines += [
-    "    /** Whale: [pose][heading][tilt step], 8 headings in 45 degree steps (h0 east, counter-clockwise), frames",
-    f"     * {WHALE_SIZE} px covering twice the sloop's frame. Poses in [WHALE_POSES] order. */",
-    f"    const val WHALE_HEADINGS = {WHALE_HEADINGS}",
-    "    val WHALE_POSES: List<String> = listOf(" + ", ".join(f'"{p}"' for p in WHALE_POSES) + ")",
-    "    val whale: Array<Array<IntArray>> = arrayOf(",
-]
-for heads in whale:
-    lines.append("        arrayOf(")
-    lines += [f"            {r}," for r in heads]
-    lines.append("        ),")
-lines += ["    )", "}", ""]
+lines += ["}", ""]
 if MAIN:
     KT.write_text("\n".join(lines), encoding="utf8")
 if MAIN:

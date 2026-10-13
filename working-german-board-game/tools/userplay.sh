@@ -43,21 +43,25 @@ find_text() {
   echo "$d" | grep -o "\(text\|content-desc\)=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | head -1 |
     grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | tr '\n' ' ' | awk '{split($1,a,",");split($2,b,",");print int((a[1]+b[1])/2), int((a[2]+b[2])/2)}'
 }
-tap_text() { local xy; xy=$(find_text "$1" "${2:-}"); [ -n "$xy" ] || return 1; "$ADB" shell input tap $xy; sleep 0.7; }
-tap() { "$ADB" shell input tap "$1" "$2"; }
+tap_text() { local xy; xy=$(find_text "$1" "${2:-}"); [ -n "$xy" ] || return 1; "$ADB" shell input tap $xy </dev/null; sleep 0.7; }
+# </dev/null: adb shell reads stdin, so inside a `... | while read` loop it ate the rest of the list (Crest, 2026-10-13).
+tap() { "$ADB" shell input tap "$1" "$2" </dev/null; }
 # Tap an icon by its accessibility label (what a screen reader says), e.g. the Settings gear.
 tap_desc() { local xy; xy=$(dump | grep -o "content-desc=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | head -1 | grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | tr '
 ' ' ' |
-  awk '{split($1,a,",");split($2,b,",");print int((a[1]+b[1])/2), int((a[2]+b[2])/2)}'); [ -n "$xy" ] || return 1; "$ADB" shell input tap $xy; sleep 0.8; }
+  awk '{split($1,a,",");split($2,b,",");print int((a[1]+b[1])/2), int((a[2]+b[2])/2)}'); [ -n "$xy" ] || return 1; "$ADB" shell input tap $xy </dev/null; sleep 0.8; }
 # Tap a button that stays put (Roll, End turn): find it once, then reuse its spot.
 declare -A POS
-tap_at() { [ -n "${POS[$1]:-}" ] || POS[$1]=$(find_text "$1"); [ -n "${POS[$1]}" ] || { unset "POS[$1]"; return 1; }; "$ADB" shell input tap ${POS[$1]}; sleep 0.5; }
+tap_at() { [ -n "${POS[$1]:-}" ] || POS[$1]=$(find_text "$1"); [ -n "${POS[$1]}" ] || { unset "POS[$1]"; return 1; }; "$ADB" shell input tap ${POS[$1]} </dev/null; sleep 0.5; }
 shot() { "$ADB" exec-out screencap -p > "$OUT/$TAG-$1.png"; }
 crashed() { [ "$("$ADB" logcat -d -b crash | grep -A8 'FATAL EXCEPTION' | grep -c "$PKG")" != 0 ]; }
 fail() { echo "USERPLAY $TAG FAILED: $1"; shot fail; "$ADB" logcat -d -b crash | grep -A30 "FATAL EXCEPTION" | head -40; exit 1; }
 # Centres of every element with text $1, left to right.
 all_text() { echo "$2" | grep -o "\(text\|content-desc\)=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | grep -o 'bounds=.*' | tr -c '0-9\n' ' ' |
   awk '{print int(($1+$3)/2), int(($2+$4)/2)}' | sort -n -k1,1; }
+# Close the on-screen keyboard with its Enter/Done key, as a player would. Not Back: on Android 14 (lane 2) one Back
+# closes the keyboard AND the app (0.2.9 test, 2026-10-13).
+hide_keyboard() { sleep 0.5; "$ADB" shell dumpsys input_method | grep -q "mInputShown=true" && "$ADB" shell input keyevent KEYCODE_ENTER; sleep 1; }
 # Type into a text box (tap it, clear it, type).
 type_into() { tap $1 $2; sleep 0.5; "$ADB" shell input keyevent KEYCODE_MOVE_END; for _ in $(seq 1 14); do "$ADB" shell input keyevent KEYCODE_DEL; done
   "$ADB" shell input text "$3"; sleep 0.5; }
@@ -76,26 +80,31 @@ for _ in 1 2 3; do
 done
 [ -n "$("$ADB" shell pidof $PKG | tr -d '
 ')" ] || fail "the app wouldn't start"
-# Wait for the app to open (a slow phone shows the launch splash for a while): the intro or the start screen.
-for _ in $(seq 1 15); do d=$(dump); echo "$d" | grep -q 'text="Tap to skip"\|text="Play"' && break; sleep 2; done
+# Wait for the app to open (a slow phone shows the launch splash for a while): the intro or the splash (#132).
+for _ in $(seq 1 15); do d=$(dump); echo "$d" | grep -q 'text="Tap to skip"\|text="New game"' && break; sleep 2; done
 # First launch plays the intro fly-over; a player taps to skip it.
 if echo "$d" | grep -q 'text="Tap to skip"'; then tap 1200 540; sleep 2
-  for _ in $(seq 1 10); do d=$(dump); echo "$d" | grep -q 'text="Play"' && break; sleep 1; done; fi
-echo "$d" | grep -q 'text="Play"' || fail "the start screen never appeared"
+  for _ in $(seq 1 10); do d=$(dump); echo "$d" | grep -q 'text="New game"' && break; sleep 1; done; fi
+echo "$d" | grep -q 'text="New game"' || fail "the splash never appeared"
+shot splash
+# The splash's New game opens the game-start screen (players, ruleset, Play, Host and Join).
+tap_text "New game" "$d" || fail "no New game button"
+for _ in $(seq 1 10); do d=$(dump); echo "$d" | grep -q 'text="Play"' && break; sleep 1; done
+echo "$d" | grep -q 'text="Play"' || fail "the game-start screen never appeared"
 if [ "$MODE" = join ]; then
   # The friend: Join a room, their name and the code the host read out, Join, then mark themselves ready.
   for _ in $(seq 1 90); do [ -s "$ROOM_FILE" ] && break; sleep 2; done
   code=$(cat "$ROOM_FILE" 2>/dev/null); [ -n "$code" ] || fail "no room code from the host in $ROOM_FILE"
   # Online needs a name first (the buttons stay off for "You").
-  xy=$(find_text "You" "$d") || true; [ -n "$xy" ] && { type_into $xy "Duo"; "$ADB" shell input keyevent KEYCODE_BACK; sleep 1; }
+  xy=$(find_text "You" "$d") || true; [ -n "$xy" ] && { type_into $xy "Duo"; hide_keyboard; }
   tap_text "Join a room" || fail "no Join a room button"
   sleep 1.5; d=$(dump)
   # Text boxes top to bottom: name, code. The keyboard moves things, so close it and look again before each box.
   boxes() { dump | grep 'class="android.widget.EditText"' | grep -o 'bounds="[^"]*"' | tr -c '0-9
 ' ' ' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}' | sort -n -k2,2; }
   [ "$(boxes | grep -c .)" -ge 2 ] || fail "the join screen has no name and code boxes"
-  type_into $(boxes | sed -n 1p) "Duo"; "$ADB" shell input keyevent KEYCODE_BACK; sleep 1
-  type_into $(boxes | sed -n 2p) "$code"; "$ADB" shell input keyevent KEYCODE_BACK; sleep 1
+  type_into $(boxes | sed -n 1p) "Duo"; hide_keyboard
+  type_into $(boxes | sed -n 2p) "$code"; hide_keyboard
   dump | grep -q "text=\"$code\"" || fail "the code didn't go into the code box"
   tap_text "Join" || fail "no Join button"
   for _ in $(seq 1 30); do sleep 1; tap_text "Not ready" && break; done || fail "joined $code but never saw my Not ready toggle"
@@ -111,7 +120,7 @@ else
   [ "$MODE" = host ] && { xy=$(all_text Friend "$(dump)" | head -1); [ -n "$xy" ] || fail "no Friend seat button"; tap $xy; sleep 0.6; }
   [ "$RULESET" = chivalry ] && { tap_text "Age of Chivalry" || fail "no ruleset button"; }
   if [ "$MODE" = online ] || [ "$MODE" = host ]; then
-    xy=$(find_text "You") || true; [ -n "$xy" ] && { type_into $xy "Tester"; "$ADB" shell input keyevent KEYCODE_BACK; sleep 1; }
+    xy=$(find_text "You") || true; [ -n "$xy" ] && { type_into $xy "Tester"; hide_keyboard; }
     tap_text "Host a room" || fail "no Host a room button"
     sleep 8
     if [ "$MODE" = host ]; then
@@ -230,7 +239,7 @@ while true; do
     echo "$d" | grep -q 'text="Play"' && tap_text "Play" "$d"
     tap_text "Hide" "$d" || true
   elif echo ",$legal" | grep -q ',CHOOSE_CARD:' && echo "$d" | grep -q 'text="ha[sv]e [0-9]'; then
-    # A one-card picker (Harbor Charter's give-back, Grand Factor's take): the cards are pictures with "have N"
+    # A one-card picker (Harbour Charter's give-back, Grand Factor's take): the cards are pictures with "have N"
     # (yours) or "has N" (theirs) under them
     # and no text button, so tap one card you hold, as a person would.
     echo "$(date +%T) card picker seen (${phase})" >&2

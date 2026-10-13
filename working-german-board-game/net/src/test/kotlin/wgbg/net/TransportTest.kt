@@ -73,6 +73,29 @@ class TransportTest {
         assertThrows(Exception::class.java) { h.submit(r.id,seq,1,MoveCodec.encode(Rules.legalActions(d.state!!).first())).join() }
         h.submit(r.id,seq,3,MoveCodec.encode(Rules.legalActions(d.state!!).first())).join(); sub.close()
     }
+    @Test fun `#114 the offerer withdraws an open offer out of turn, and nobody else can`() {
+        val store = MemoryStore(); val h = InMemoryTransport("host", store); val p = InMemoryTransport("guest", store)
+        h.create(room().copy(seats = room().seats.toMutableList().also { it[1] = Seat("guest", "Guest", ready = true, open = false) })).join(); h.start("ROOM").join()
+        val d = SyncDriver(); val sub = h.observe("ROOM", d::accept) { throw it }
+        var seq = 0L
+        fun s() = d.state!!
+        fun by(seat: Int) = if (seat == 0) h else p
+        while (!(s().phase == Phase.PLAY_TURN && s().hasRolled && s().currentPlayer == 0 && s().freeRoads == 0)) {
+            val who = s().actingPlayer
+            by(who).submit("ROOM", seq++, who, MoveCodec.encode(Rules.legalActions(s()).first())).join()
+        }
+        val ask = Action.offerTrade(IntArray(CARD_TYPES), IntArray(CARD_TYPES).also { it[Resource.WHEAT] = 1 })
+        h.submit("ROOM", seq++, 0, MoveCodec.encode(ask)).join()
+        assertEquals(Phase.DECIDE_TRADE, s().phase); assertEquals(1, s().actingPlayer)
+        val cancel = MoveCodec.encode(Action.CANCEL_TRADE)
+        assertThrows(Exception::class.java) { p.submit("ROOM", seq, 1, cancel).join() }   // not the guest's offer
+        h.submit("ROOM", seq++, 0, cancel).join()                                          // the host's, while the guest is up
+        assertEquals(Phase.PLAY_TURN, s().phase); assertEquals(0, s().actingPlayer)
+        // A phone replaying the log agrees.
+        val replay = SyncDriver(); h.observe("ROOM", replay::accept) { throw it }.close()
+        assertEquals(s().stateHash(), replay.state!!.stateHash())
+        sub.close()
+    }
     @Test fun `online deck reconstructs after reconnect and explicit dice converge`() {
         val store = MemoryStore(); val h = InMemoryTransport("host",store)
         val r = room().copy(config = GameConfig(numPlayers=2,maxTurns=80), decks=1,

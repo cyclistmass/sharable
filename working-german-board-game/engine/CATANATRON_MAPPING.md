@@ -15,7 +15,7 @@ copying the tables below by hand.
 |---|---|---|
 | Resources | `Resource.WOOD..ORE` = 0..4 | `RESOURCES = [WOOD, BRICK, SHEEP, WHEAT, ORE]` (same order) |
 | Dev cards | `DevCard.KNIGHT, YEAR_OF_PLENTY, MONOPOLY, ROAD_BUILDING, VICTORY_POINT` = 0..4 | `DEVELOPMENT_CARDS`, same order |
-| Players | seat index 0..n-1, seat 0 starts | `state.colors` tuple (shuffled at game start), index = seat |
+| Players | seat index 0..n-1, seat 0 starts (app: the seed's seat, #126) | `state.colors` tuple (shuffled at game start), index = seat |
 | Tiles | `Topology.hexagon(2)` hex id (axial `q, r`) | cube `(x, y, z)` with `x = q`, `z = r`, `y = -q - r`; land tile id = position in `BASE_MAP_TEMPLATE` |
 | Nodes | vertex id from `Topology` | node id from `initialize_tiles` (tiles visited in template order, new corners numbered N, NE, SE, S, SW, NW) |
 | Edges | edge id from `Topology` | sorted node pair `(a, b)` |
@@ -129,8 +129,9 @@ Where our rules differ from Catanatron's, they follow the official 5th-edition b
    resample hidden cards.
 8. **Turn counter**: `GameState.turn` counts only regular turns. Catanatron's `num_turns` also
    counts setup placements, and its `TURNS_LIMIT` is 1000. Ours is `GameConfig.maxTurns`.
-9. **Seating**: Catanatron shuffles seat order. We always start with seat 0, so the caller
-   decides seating.
+9. **Seating**: Catanatron shuffles seat order. By default we start with seat 0, so the caller
+   decides seating (the cross-check does this). The app sets `GameConfig.randomFirstPlayer` (#126):
+   the first seat then comes from a hash of the seed, and the setup snake starts there.
 10. **Number placement**: our random boards shuffle the number tokens, optionally with no
     adjacent 6/8. Catanatron's default is `official_spiral` (the A–R token sequence).
     TODO: add spiral placement for exact board-distribution parity in training.

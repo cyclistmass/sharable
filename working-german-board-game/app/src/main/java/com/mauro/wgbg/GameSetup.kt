@@ -36,6 +36,11 @@ data class GameSetup(
     val decks: Int = 0,
     val ruleset: Ruleset = Ruleset.BASE,
     val points: Int = ruleset.defaultPoints,
+    /**
+     * #126: the first player comes from the seed. Not in [encode] (always on for new games); only a local game saved
+     * before 0.2.10 turns it off, so it replays the way it was played ([LocalSave.decode]).
+     */
+    val randomFirst: Boolean = true,
 ) {
     init {
         require(seats.size == MAX_SEATS) { "always $MAX_SEATS seats (empty ones are EMPTY)" }
@@ -57,7 +62,8 @@ data class GameSetup(
 
     val canStart get() = problems.isEmpty()
 
-    fun config(): GameConfig = GameConfig(expansion = ruleset.expansion, numPlayers = players.size, vpToWin = points)
+    fun config(): GameConfig = GameConfig(expansion = ruleset.expansion, numPlayers = players.size, vpToWin = points,
+        randomFirstPlayer = randomFirst)
 
     fun dice(): DiceSource = if (decks == 0) DiceDeck.of(DiceMode.RANDOM) else DiceDeck.of(DiceMode.DECK, decks)
 

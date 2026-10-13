@@ -77,6 +77,20 @@ class LiveLiftTest {
     }
 
     @Test
+    fun `#136 the Bandit stands head up on screen at every tilt and turn`() {
+        // Mauro (0.2.8): "the freaking robber's upside down". Through the real camera: the top of the model lands above
+        // its feet on screen (smaller y), at every Tilt and Turn the bars and gestures reach.
+        val at = Offset(0.4f, 1.1f)
+        for (tilt in listOf(0f, Camera.START_TILT, 0.5f, Camera.MAX_TILT)) for (rotation in listOf(0f, 0.7f, 1.5707964f, 3.1415927f, 4.712389f, -2.5f)) {
+            val m = liveStandingMatrix(LivePlacement("bandit", at, 0.012f), liveLift(tilt), rotation)
+            val proj = LiveProjection(Offset.Zero, 100f, tilt, rotation)
+            val feet = proj.project(Offset(m[12], m[14]), m[13])
+            val head = proj.project(Offset(m[12] + m[4], m[14] + m[6]), m[13] + m[5]) // one unit up the model
+            assertTrue(head.y < feet.y - 10f, "head above feet at tilt $tilt, turn $rotation: ${head.y} vs ${feet.y}")
+        }
+    }
+
+    @Test
     fun `with the switch off, pieces keep the board's heading`() {
         val p = LivePlacement("default_town", Offset(0f, 0f), scale = 1f)
         val m = liveStandingMatrix(p, 0f, 1.2f, facing = false)

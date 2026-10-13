@@ -306,18 +306,16 @@ object CitiesAndKnights {
 
             Phase.DECIDE_TRADE -> {
                 out.add(Action.REJECT_TRADE)
-                var ok = true
+                var ok = Rules.isTwoSided(s) // one-sided offers are answered with counters
                 for (r in 0 until CARD_TYPES) if (s.hand(p, r) < s.tradeOffer[CARD_TYPES + r]) ok = false
                 for (l in 0 until Commodity.COUNT) if (ck.commodity(p, l) < ck.offer[Commodity.COUNT + l]) ok = false
                 if (ok) out.add(Action.ACCEPT_TRADE)
+                if (s.config.generateTradeOffers) counterActions(s, p, out)
             }
 
-            Phase.DECIDE_ACCEPTEES -> {
-                out.add(Action.CANCEL_TRADE)
-                for (q in 0 until n) if (s.tradeAccepted and (1 shl q) != 0) out.add(Action.confirmTrade(q))
-            }
+            Phase.DECIDE_ACCEPTEES -> Rules.acceptees(s, out)
 
-            Phase.GAME_OVER, Phase.DECIDE_COUNTER -> {} // counters are base-game only
+            Phase.GAME_OVER, Phase.DECIDE_COUNTER -> {} // DECIDE_COUNTER is no longer entered
             Phase.PROGRESS_DISCARD ->
                 for (c in 0 until Progress.COUNT) if (ck.progressHand[p * Progress.COUNT + c] > 0) out.add(Action.discardProgress(c))
 
@@ -474,6 +472,29 @@ object CitiesAndKnights {
         return openEnd(b.edgeA[e]) || openEnd(b.edgeB[e])
     }
 
+    /**
+     * Whether a no-target card would change anything for [p] now (all public facts: the board, the bank, points and
+     * card counts), so the app only offers plays that do something (Mauro, 2026-10-13: "I shouldn't be able to play it
+     * unless I can actually use it"; his own Saboteur once hit nobody). Irrigation / Mining need a field / mountain by your buildings and some left in the bank; the
+     * Saboteur someone at your points or more with two cards or more; the Wedding someone ahead of you holding a card;
+     * the Warlord a knight of yours that isn't already raised.
+     */
+    fun progressHasEffect(s: GameState, p: Int, card: Int): Boolean {
+        val ck = s.ck!!
+        val b = s.board
+        val mine = s.victoryPoints(p)
+        return when (card) {
+            Progress.IRRIGATION, Progress.MINING -> {
+                val r = if (card == Progress.IRRIGATION) Resource.WHEAT else Resource.ORE
+                s.bank[r] > 0 && (0 until b.hexCount).any { b.hexResource[it] == r && touchesOwnBuilding(s, p, it) }
+            }
+            Progress.SABOTEUR -> (0 until s.numPlayers).any { it != p && s.victoryPoints(it) >= mine && s.cardCount(it) >= 2 }
+            Progress.WEDDING -> (0 until s.numPlayers).any { it != p && s.victoryPoints(it) > mine && s.cardCount(it) > 0 }
+            Progress.WARLORD -> (0 until b.vertexCount).any { ck.knightOwner[it] == p && !ck.isActive(it) }
+            else -> true
+        }
+    }
+
     private fun progressActions(s: GameState, p: Int, out: ActionBuffer) {
         val ck = s.ck!!
         val b = s.board
@@ -505,6 +526,8 @@ object CitiesAndKnights {
                     }
                 }
 
+                // Legal even when they'd do nothing (saved games and online rooms replay such plays); players are only
+                // offered them when progressHasEffect says they'd do something.
                 Progress.IRRIGATION, Progress.MINING, Progress.SABOTEUR, Progress.WEDDING ->
                     out.add(Action.playProgress(card))
 
@@ -559,7 +582,54 @@ object CitiesAndKnights {
         }
     }
 
-    /** OFFER_TRADE_CK is not enumerated by default, so it is validated here. */
+    /** 1-for-1 counters over resources and commodities, enumerated only for bots and fuzzing. */
+    private fun counterActions(s: GameState, p: Int, out: ActionBuffer) {
+        val o = s.currentPlayer
+        val give = IntArray(CK_CARD_TYPES)
+        val want = IntArray(CK_CARD_TYPES)
+        for (g in 0 until CK_CARD_TYPES) {
+            if (s.card(o, g) == 0) continue
+            for (w in 0 until CK_CARD_TYPES) {
+                if (w == g || s.card(p, w) == 0) continue
+                give[g] = 1; want[w] = 1
+                val a = Action.counterTradeCk(give, want)
+                if (isValidCounter(s, a)) out.add(a)
+                give[g] = 0; want[w] = 0
+            }
+        }
+    }
+
+    /** The open offer's count of C&K card [card], on the give side or the [want] side. */
+    private fun openTerms(s: GameState, card: Int, want: Boolean): Int {
+        val k = if (want) 1 else 0
+        return if (card < Resource.COUNT) s.tradeOffer[k * CARD_TYPES + card]
+        else s.ck!!.offer[k * Commodity.COUNT + card - Resource.COUNT]
+    }
+
+    /**
+     * A C&K counter: changes the open offer, gives and gets something, never swaps a card for itself,
+     * and both sides hold what they would hand over.
+     */
+    fun isValidCounter(s: GameState, a: Action): Boolean {
+        if (s.ck == null || s.phase != Phase.DECIDE_TRADE) return false
+        val p = s.actingPlayer
+        val o = s.currentPlayer
+        var gives = 0
+        var gets = 0
+        var same = true
+        for (c in 0 until CK_CARD_TYPES) {
+            val g = a.ckOfferGive(c)
+            val w = a.ckOfferWant(c)
+            if (g > 0 && w > 0) return false
+            if (s.card(o, c) < g || s.card(p, c) < w) return false
+            if (g != openTerms(s, c, false) || w != openTerms(s, c, true)) same = false
+            gives += g
+            gets += w
+        }
+        return gives > 0 && gets > 0 && !same
+    }
+
+    /** OFFER_TRADE_CK is not enumerated by default, so it is validated here; it may be one-sided (see [Rules.isValidOffer]). */
     fun isValidOffer(s: GameState, a: Action): Boolean {
         val ck = s.ck ?: return false
         if (s.phase != Phase.PLAY_TURN || !s.hasRolled || s.freeRoads > 0 || ck.freePromotions > 0) return false
@@ -574,7 +644,7 @@ object CitiesAndKnights {
             gives += g
             wants += w
         }
-        return gives > 0 && wants > 0
+        return gives > 0 || wants > 0
     }
 
     // ================================================================ transitions
@@ -632,12 +702,13 @@ object CitiesAndKnights {
                 s.actingPlayer = (p + 1) % s.numPlayers
             }
 
-            ActionType.ACCEPT_TRADE, ActionType.REJECT_TRADE -> {
+            ActionType.ACCEPT_TRADE, ActionType.REJECT_TRADE, CkActionType.COUNTER_TRADE_CK -> {
                 if (a.type == ActionType.ACCEPT_TRADE) s.tradeAccepted = s.tradeAccepted or (1 shl p)
+                if (a.type == CkActionType.COUNTER_TRADE_CK) s.counters[p] = a.payload // collected; chosen at the end
                 val next = (p + 1) % s.numPlayers
                 when {
                     next != s.currentPlayer -> s.actingPlayer = next
-                    s.tradeAccepted == 0 -> endTrade(s)
+                    s.tradeAccepted == 0 && !s.anyCounter -> endTrade(s)
                     else -> {
                         s.phase = Phase.DECIDE_ACCEPTEES
                         s.actingPlayer = s.currentPlayer
@@ -647,6 +718,16 @@ object CitiesAndKnights {
 
             ActionType.CONFIRM_TRADE -> {
                 val q = a.payload.toInt()
+                s.counterOf(q)?.let { c ->
+                    for (r in 0 until Resource.COUNT) {
+                        s.tradeOffer[r] = c.ckOfferGive(r)
+                        s.tradeOffer[CARD_TYPES + r] = c.ckOfferWant(r)
+                    }
+                    for (l in 0 until Commodity.COUNT) {
+                        ck.offer[l] = c.ckOfferGive(Resource.COUNT + l)
+                        ck.offer[Commodity.COUNT + l] = c.ckOfferWant(Resource.COUNT + l)
+                    }
+                }
                 for (r in 0 until Resource.COUNT) {
                     transfer(s, p, q, r, s.tradeOffer[r])
                     transfer(s, q, p, r, s.tradeOffer[CARD_TYPES + r])
@@ -777,7 +858,7 @@ object CitiesAndKnights {
                 }
             }
 
-            else -> error("${a.type} is not a Cities & Knights action")
+            else -> error("${a.type} is not an Age of Chivalry action")
         }
     }
 

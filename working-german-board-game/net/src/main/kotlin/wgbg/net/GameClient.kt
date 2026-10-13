@@ -69,7 +69,7 @@ class GameClient(val transport: GameTransport, val id: String, val uid: String,
         val t0 = System.nanoTime()
         check(!closed); val r = room ?: error("Room not loaded"); val s = displayed ?: error("Game not started")
         val owner = r.seats.getOrNull(seat)?.let { it.uid ?: if (it.bot != null) r.host else null }
-        require(r.status == Status.playing && owner == uid && r.players.indexOf(seat) == s.actingPlayer)
+        require(r.status == Status.playing && owner == uid && r.players.indexOf(seat) == Rules.mover(s, action))
         require(Action.isKnownType(action.typeId) && Rules.isLegal(s, action))
         val seq = driver.confirmedSeq + pending.size + 1
         val move = Move(seq, seat, uid, MoveCodec.encode(action))

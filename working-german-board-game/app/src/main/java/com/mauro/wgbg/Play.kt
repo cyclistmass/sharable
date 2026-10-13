@@ -46,6 +46,8 @@ import wgbg.engine.GameState
 import wgbg.engine.Phase
 import kotlin.math.hypot
 import kotlin.math.sqrt
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 // ------------------------------------------------------------------ board targets (issue #5)
 
@@ -117,7 +119,7 @@ internal val FORTUNE = listOf("Sentinel", "Windfall", "Corner the Market", "Trai
 
 /** What each Fortune card does (same order as [FORTUNE]). */
 val FORTUNE_HINTS = listOf(
-    "Move the bandit and take a card from a player next to it. Three or more make your Army.",
+    "Move the bandit and take a card from a player next to it. Three or more win the Strongest Watch.",
     "Take any 2 resources from the bank.",
     "Name a resource: everyone gives you all of theirs.",
     "Build 2 roads for free.",
@@ -134,8 +136,11 @@ fun prompt(s: GameState, legal: List<Action>, names: List<String>): String =
     s.phase == Phase.BUILD_INITIAL_ROAD -> "Tap a glowing edge to place a road"
     s.phase == Phase.MOVE_ROBBER -> "Tap a tile to move the bandit"
     s.phase == Phase.DISCARD -> "Too many cards on a 7: discard ${s.discardOwed[s.actingPlayer]}"
+    s.phase == Phase.DECIDE_TRADE && s.tradeOffer.sum() > 0 && (0 until CARD_TYPES).all { s.tradeOffer[it] == 0 } ->
+        "${names[s.currentPlayer]} asks for ${cards { s.tradeOffer[CARD_TYPES + it] }}: Counter with your price, or No"
+    s.phase == Phase.DECIDE_TRADE && s.tradeOffer.sum() > 0 && (0 until CARD_TYPES).all { s.tradeOffer[CARD_TYPES + it] == 0 } ->
+        "${names[s.currentPlayer]} offers ${cards { s.tradeOffer[it] }}: Counter with what you want, or No"
     s.phase == Phase.DECIDE_TRADE -> "${names[s.currentPlayer]} offers ${cards { s.tradeOffer[it] }} for ${cards { s.tradeOffer[CARD_TYPES + it] }}"
-    s.phase == Phase.DECIDE_COUNTER -> "${names[s.counterFrom]} made a counter-offer"
     s.phase == Phase.DECIDE_ACCEPTEES -> "Pick who to trade with, or cancel"
     legal.any { it.type == ActionType.ROLL } -> "Your turn: roll the dice"
     // Trailblazers, Pathfinders or Envoy (moving your own road): place the free road(s) before anything else.
@@ -210,6 +215,7 @@ fun HumanControls(
         // On a 7: pick all the cards first, then discard them with one press (playtest: a tap per card,
         // on buttons that moved as card types ran out, lost the wrong card with no undo).
         if (ActionType.DISCARD in types) { Box(Modifier.align(Alignment.BottomCenter)) { DiscardSheet(s, me, legal, onMove, discardCause) }; return@Box }
+        cardPick(s, legal, names)?.let { pick -> CardPickSheet(s, me, pick, names, onMove, Modifier.align(Alignment.BottomCenter)); return@Box }
         if (wgbg.engine.CkActionType.CHOOSE_CARD in types) {
             CardChoiceSheet(s, me, legal.filter { it.type == wgbg.engine.CkActionType.CHOOSE_CARD }, names, onMove, Modifier.align(Alignment.BottomCenter)); return@Box
         }
@@ -230,7 +236,7 @@ fun HumanControls(
             if (ActionType.PLAY_MONOPOLY in types) MoveButton("Play Corner the Market…") { sheet = "mono" }
             // Age of Chivalry moves that aren't board taps: one button per kind (or card), a picker if it has choices.
             for ((label, acts) in ckButtonGroups(s, legal, names)) {
-                if (acts.size == 1 && !isBoardCard(acts)) MoveButton(label) { onMove(acts[0]) }
+                if (acts.size == 1 && !isBoardCard(acts) && !asksFirst(acts[0])) MoveButton(label) { onMove(acts[0]) }
                 else if (isBoardCard(acts)) MoveButton("$label…") { onBoardPick(acts) }
                 else MoveButton("$label…") { ckChoices = label to acts; sheet = "ck" }
             }
@@ -273,11 +279,12 @@ private fun DiscardSheet(s: GameState, me: Int, legal: List<Action>, onMove: (Ac
                     val have = holding(s, me, r)
                     if (have == 0) continue
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Today's pile and counts, whatever the handler first saw (the #122 stale-tap pattern).
+                        val pick by androidx.compose.runtime.rememberUpdatedState({ add: Boolean -> pile = discardPick(pile, r, add, have, owed) })
                         Box(
                             Modifier.size(width = 42.dp, height = 60.dp)
-                                .pointerInput(r, have, owed) {
-                                    detectTapGestures(onTap = { pile = discardPick(pile, r, true, have, owed) },
-                                        onLongPress = { pile = discardPick(pile, r, false, have, owed) })
+                                .pointerInput(r) {
+                                    detectTapGestures(onTap = { pick(true) }, onLongPress = { pick(false) })
                                 }.testTag("discard-card-$r"),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -363,6 +370,69 @@ internal fun optionCards(a: Action): List<Int>? = when (a.type) {
     else -> null
 }.takeIf { cs -> cs != null && cs.all { it in ALL_CARD_ART.indices } }
 
+/** A pick-a-card moment that isn't a board tap (#123): what it asks, the cards to tap, and the way out, if any. */
+internal data class CardPick(val title: String, val options: List<Action>, val done: Action? = null)
+
+/**
+ * The card pick [legal] asks for, or null. Mauro (#123): "all card pickers should be card pickers": the Spy's
+ * take, a progress card to discard, the deck to draw from after the Raiders, and Harbour Charter's offers were
+ * worded buttons (one per card), easy to miss as a pick at all. Grand Factor, Feast, Harbour Charter's give-back
+ * and the science bonus are CHOOSE_CARD, already drawn by [CardChoiceSheet].
+ */
+internal fun cardPick(s: GameState, legal: List<Action>, names: List<String>): CardPick? {
+    val ck = s.ck ?: return null
+    val kinds = legal.map { it.type }.toSet()
+    fun of(t: wgbg.engine.ActionKind) = legal.filter { it.type == t }
+    return when {
+        wgbg.engine.CkActionType.TAKE_PROGRESS in kinds ->
+            CardPick("Spy: take one of ${names.getOrElse(ck.pendingTarget) { "their" }}'s progress cards", of(wgbg.engine.CkActionType.TAKE_PROGRESS))
+        wgbg.engine.CkActionType.DISCARD_PROGRESS in kinds ->
+            CardPick("Too many progress cards: discard one", of(wgbg.engine.CkActionType.DISCARD_PROGRESS))
+        wgbg.engine.CkActionType.CHOOSE_PROGRESS_DECK in kinds ->
+            CardPick("Raiders beaten: draw a progress card from a deck", of(wgbg.engine.CkActionType.CHOOSE_PROGRESS_DECK))
+        wgbg.engine.CkActionType.COMMERCIAL_HARBOR_OFFER in kinds ->
+            CardPick("Harbour Charter: give a player one of your resources; they give you a commodity back",
+                of(wgbg.engine.CkActionType.COMMERCIAL_HARBOR_OFFER), legal.firstOrNull { it == Action.CK_DONE })
+        else -> null
+    }
+}
+
+/** [pick] as cards to tap, in the chest at the bottom centre like every other card sheet (#123). */
+@Composable
+internal fun CardPickSheet(s: GameState, me: Int, pick: CardPick, names: List<String>, onMove: (Action) -> Unit, modifier: Modifier = Modifier) {
+    val ck = s.ck ?: return
+    Column(modifier.chest().testTag("card-pick-sheet"), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(pick.title, color = CHEST_INK, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        // Harbour Charter: a row of your resources for each player you can still offer one to.
+        val rows = if (pick.options.all { it.type == wgbg.engine.CkActionType.COMMERCIAL_HARBOR_OFFER }) pick.options.groupBy { it.b }
+            else mapOf(-1 to pick.options)
+        for ((who, acts) in rows) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (who >= 0) Text("To ${names.getOrElse(who) { "player ${who + 1}" }}", color = CHEST_INK, fontSize = 12.sp,
+                fontWeight = FontWeight.Bold, modifier = Modifier.width(76.dp))
+            for (a in acts) Column(horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable { onMove(a) }.testTag("pick-card-${a.a}-${a.b}")) {
+                when (a.type) {
+                    wgbg.engine.CkActionType.TAKE_PROGRESS, wgbg.engine.CkActionType.DISCARD_PROGRESS ->
+                        ProgressCardFace(PROGRESS_NAMES.getOrElse(a.a) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(a.a)],
+                            progressArt(a.a), progressHint(a.a), w = 64, h = 90)
+                    wgbg.engine.CkActionType.CHOOSE_PROGRESS_DECK ->
+                        ProgressCardFace(DECK_NAMES[a.a], TRACK_COLORS[a.a], ALL_CARD_ART[wgbg.engine.Track.commodity(a.a)],
+                            "${ck.deckSize[a.a]} left", w = 64, h = 90)
+                    else -> Image(painterResource(ALL_CARD_ART[a.a]), ALL_CARD_NAMES[a.a], Modifier.size(width = 50.dp, height = 70.dp))
+                }
+                val under = when (a.type) {
+                    wgbg.engine.CkActionType.DISCARD_PROGRESS -> "have ${ck.progressHand[me * wgbg.engine.Progress.COUNT + a.a]}"
+                    wgbg.engine.CkActionType.COMMERCIAL_HARBOR_OFFER -> "have ${s.hand(me, a.a)}"
+                    else -> null
+                }
+                under?.let { Text(it, color = CHEST_INK, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }
+            }
+        }
+        pick.done?.let { d -> ChestButton("Done", CHEST_NO, "pick-done") { onMove(d) } }
+    }
+}
+
 // ------------------------------------------------------------------ confirming board taps
 
 /** The question asked before a tapped board move is made. */
@@ -424,3 +494,57 @@ fun confirmLabel(s: GameState, a: Action, names: List<String>): String =
     ckLabel(s, a, names) ?: if (a.type != ActionType.MOVE_ROBBER) "Confirm"
     else if (a.robberVictim < 0) "Move it (nobody to rob)"
     else "Rob ${names[a.robberVictim]} (${s.cardCount(a.robberVictim)} cards)"
+
+/** One row of the spot picker (#124): the build-menu entry the move belongs to, its name, and what it costs. */
+internal data class SpotChoice(val action: Action, val icon: MoveIcon?, val name: String, val cost: IntArray?)
+
+/**
+ * The choices at a tapped spot that takes more than one thing, one row each (#124, Mauro: "I can't tell I'm
+ * building a house"). [cost] is null when the move is free (setup, a free road, a free promotion).
+ */
+internal fun spotChoices(s: GameState, chosen: List<Action>, names: List<String>): List<SpotChoice> = chosen.map { a ->
+    val kind = BuildKind.entries.firstOrNull { it.kind == a.type }
+    val free = inSetup(s) || (a.type == ActionType.BUILD_ROAD && s.freeRoads > 0) ||
+        (a.type == wgbg.engine.CkActionType.PROMOTE_KNIGHT && (s.ck?.freePromotions ?: 0) > 0)
+    val cost = if (free) null else when (a.type) {
+        ActionType.BUILD_ROAD -> wgbg.engine.Cost.ROAD
+        ActionType.BUILD_SETTLEMENT -> wgbg.engine.Cost.SETTLEMENT
+        ActionType.BUILD_CITY -> wgbg.engine.Cost.CITY
+        wgbg.engine.CkActionType.BUILD_KNIGHT -> wgbg.engine.CkCost.KNIGHT
+        wgbg.engine.CkActionType.PROMOTE_KNIGHT -> wgbg.engine.CkCost.PROMOTE
+        wgbg.engine.CkActionType.ACTIVATE_KNIGHT -> wgbg.engine.CkCost.ACTIVATE
+        wgbg.engine.CkActionType.BUILD_CITY_WALL -> wgbg.engine.CkCost.WALL
+        else -> null
+    }
+    val name = when (a.type) {
+        ActionType.BUILD_ROAD -> "Road"
+        ActionType.BUILD_SETTLEMENT -> "Homestead"
+        ActionType.BUILD_CITY -> "Town"
+        else -> kind?.label ?: confirmLabel(s, a, names)
+    }
+    SpotChoice(a, kind?.icon, name, cost)
+}
+
+/** The spot picker: a vertical list, one tappable row per choice (icon, name, cost), then a cancel. */
+@Composable
+internal fun SpotPicker(choices: List<SpotChoice>, onPick: (Action) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for ((i, c) in choices.withIndex()) Row(
+            // Capped so the box stays mid-screen, clear of the build buttons and the zoom/tilt bars (seen on device).
+            Modifier.widthIn(min = 260.dp, max = 400.dp).brassPlate().clickable { onPick(c.action) }
+                .testTag("spot-choice-$i").semantics(mergeDescendants = true) { contentDescription = c.name }
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (c.icon != null) IconPlateButton(c.icon, c.name, "spot-icon-$i", width = 40.dp, height = 36.dp) { onPick(c.action) }
+            Text(c.name, color = Color(0xFF2A1A0C), fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
+            val cost = c.cost
+            if (cost == null) Text("free", color = Color(0xFF2A1A0C), fontSize = 14.sp)
+            else Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                for (r in cost.indices) repeat(cost[r]) {
+                    Image(painterResource(ALL_CARD_ART[r]), ALL_CARD_NAMES[r], Modifier.size(width = 20.dp, height = 28.dp))
+                }
+            }
+        }
+    }
+}

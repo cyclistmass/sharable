@@ -34,6 +34,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 
 /** Where settings are kept: SharedPreferences on device, a map in tests. */
 interface FloatStore {
@@ -51,7 +58,7 @@ class PrefsStore(context: Context) : FloatStore {
  * Scenery amounts, each 0..1 and saved across restarts: how many clouds, birds and harbour
  * boats show, and how busy the waves are. Pure decoration; the game never reads them.
  */
-class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Boolean = false) {
+class EnvSettings(private val store: FloatStore) {
     enum class Item(val label: String, val key: String) {
         CLOUDS("Clouds", "env-clouds"), BIRDS("Birds", "env-birds"), BOATS("Boats", "env-boats"), WAVES("Waves", "env-waves")
     }
@@ -74,12 +81,22 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         get() = densityState.floatValue
         set(v) { densityState.floatValue = v.coerceIn(0f, 1f); store.put(DENSITY, densityState.floatValue) }
 
-    private val viewBarsState = mutableFloatStateOf(store.get(VIEW_BARS, if (viewBarsDefault) 1f else 0f))
+    private val viewBarsState = mutableFloatStateOf(store.get(VIEW_BARS, 0f))
 
-    /** On-screen Zoom/Tilt bars: phones pinch and two-finger tilt instead; on by default on an emulator. Saved. */
+    /**
+     * On-screen Zoom, Tilt and (3D board) Turn bars, off by default on every device: pinch, two-finger drag and twist do
+     * the same (#137, Mauro: gestures by default, the sliders only when switched on under the gear). Saved.
+     */
     var viewBars: Boolean
         get() = viewBarsState.floatValue > 0.5f
         set(v) { viewBarsState.floatValue = if (v) 1f else 0f; store.put(VIEW_BARS, viewBarsState.floatValue) }
+
+    private val bugButtonState = mutableFloatStateOf(store.get(BUG_BUTTON, 0f))
+
+    /** A Report button on the game screen, beside Menu, that opens the report with a screenshot (#128, Mauro). Saved. */
+    var bugButton: Boolean
+        get() = bugButtonState.floatValue > 0.5f
+        set(v) { bugButtonState.floatValue = if (v) 1f else 0f; store.put(BUG_BUTTON, bugButtonState.floatValue) }
 
     private val seeThroughState = mutableFloatStateOf(store.get(SEE_THROUGH, 0f))
 
@@ -115,11 +132,14 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         get() = faceState.floatValue > 0.5f
         set(v) { faceState.floatValue = if (v) 1f else 0f; store.put(FACE_PIECES, faceState.floatValue) }
 
-    private val paceState = mutableFloatStateOf(store.get(PACE, Pace.NORMAL.ordinal.toFloat()))
-    /** How fast the dice fall, moves follow each other and hints stay up (Mauro, 2026-10-12). */
-    var pace: Pace
-        get() = Pace.entries[paceState.floatValue.toInt().coerceIn(0, Pace.entries.size - 1)]
-        set(v) { paceState.floatValue = v.ordinal.toFloat(); store.put(PACE, paceState.floatValue) }
+    private val aiPaceState = mutableFloatStateOf(store.get(AI_PACE, AI_PACE_DEFAULT))
+    /**
+     * Seconds between the AI players' turns, [AI_PACE_MIN]..[AI_PACE_MAX]; each move inside an AI's turn waits half of
+     * it (Mauro, 2026-10-13: "1 sec default up to 5 sec on a slider", replacing Relaxed/Normal/Quick).
+     */
+    var aiPace: Float
+        get() = aiPaceState.floatValue.takeIf { it.isFinite() }?.coerceIn(AI_PACE_MIN, AI_PACE_MAX) ?: AI_PACE_DEFAULT
+        set(v) { aiPaceState.floatValue = v.coerceIn(AI_PACE_MIN, AI_PACE_MAX); store.put(AI_PACE, aiPaceState.floatValue) }
 
     private val liveLodState = mutableFloatStateOf(store.get(LIVE_LOD, 0f))
     var liveLod: Int
@@ -154,7 +174,7 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         set(v) { eventDie.floatValue = v.coerceIn(0, DiceArt.EVENT_STYLES.size - 1).toFloat(); store.put(EVENT_DIE, eventDie.floatValue) }
 
     /** Back to the defaults (saved). */
-    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0; liveBoard = false; liveLod = 0; facePieces = true; pace = Pace.NORMAL }
+    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0; liveBoard = false; liveLod = 0; facePieces = true; aiPace = AI_PACE_DEFAULT; viewBars = false }
 
     val clouds get() = this[Item.CLOUDS]
     val birds get() = this[Item.BIRDS]
@@ -173,24 +193,19 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         const val LIVE_LOD = "live-board-lod"
         const val FACE_PIECES = "live-face-pieces"
         const val ANIMATIONS = "animations"
-        const val PACE = "pace"
+        const val AI_PACE = "ai-pace"
+        const val AI_PACE_DEFAULT = 1f
+        const val AI_PACE_MIN = 1f
+        const val AI_PACE_MAX = 5f
         const val SEE_THROUGH = "side-panel-see-through"
-
-        /** True on an Android emulator (where there's no pinch), from the build's hardware and product names. */
-        fun isEmulator(): Boolean {
-            val b = android.os.Build.FINGERPRINT.orEmpty() + " " + android.os.Build.HARDWARE.orEmpty() + " " + android.os.Build.PRODUCT.orEmpty()
-            return listOf("generic", "ranchu", "goldfish", "sdk_gphone", "emulator").any { it in b }
-        }
+        const val BUG_BUTTON = "bug-button"
     }
 }
 
-/** The Pace setting: [factor] scales the dice throw, the pause after each move and how long hints stay up. */
-enum class Pace(val label: String, val factor: Float) {
-    RELAXED("Relaxed", 1.5f), NORMAL("Normal", 1f), QUICK("Quick", 0.6f);
-    companion object {
-        /** The dice throw in milliseconds at [factor]. */
-        fun fallMs(factor: Float): Int = (DiceSprites.FALL_S * 1000 * factor).toInt()
-    }
+/** The dice throw's timing; [fallMs]'s factor stretches it (the AI pace slider replaced the old Pace choices). */
+object Pace {
+    /** The dice throw in milliseconds at [factor]. */
+    fun fallMs(factor: Float = 1f): Int = (DiceSprites.FALL_S * 1000 * factor).toInt()
 }
 
 /** The 3D board (test) On/Off switch and its detail level; in the game's Menu, and in Settings on Look & art. */
@@ -237,10 +252,11 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = M
         AccountSection()
         // In a game the 3D switch sits in the main Menu instead (Mauro: "3d board should move out to that main menu").
         if (liveBoardChoice) LiveBoardChoice(env)
-        Text("Pace: dice, moves and how long hints stay up", fontSize = 13.sp, color = Color(0xFFD9B865))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (p in Pace.entries) Choice(p.label, selected = env.pace == p, tag = "pace-${p.name.lowercase()}",
-                modifier = Modifier.height(36.dp).width(100.dp), size = 13.sp) { env.pace = p }
+        Text("AI pace: seconds between the AI players' turns (their moves take half)", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("%.1f s".format(env.aiPace), fontSize = 12.sp, color = Color(0xFFEDE6D8), modifier = Modifier.width(100.dp))
+            Slider(env.aiPace, { env.aiPace = Math.round(it * 2) / 2f }, Modifier.width(220.dp).height(32.dp).testTag("ai-pace"),
+                valueRange = EnvSettings.AI_PACE_MIN..EnvSettings.AI_PACE_MAX, steps = 7, colors = brassSlider())
         }
         Text("Animations (off, or Density at 0: nothing moves)", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -272,10 +288,15 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = M
             // A preview of the chosen style's ship face.
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(DiceArt.eventFace(true, 0, env.eventDieStyle)), null, Modifier.size(56.dp))
         }
-        Text("Zoom and Tilt bars (for emulators and mice; phones pinch)", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Text("Zoom, Tilt and Turn sliders on the game screen (pinch, drag and twist work without them)", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("Show", selected = env.viewBars, tag = "view-bars-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.viewBars = true }
             Choice("Hide", selected = !env.viewBars, tag = "view-bars-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.viewBars = false }
+        }
+        Text("Report button on the game screen (opens a bug report with a screenshot)", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Show", selected = env.bugButton, tag = "bug-button-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.bugButton = true }
+            Choice("Hide", selected = !env.bugButton, tag = "bug-button-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.bugButton = false }
         }
         Text("Side panel", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -296,7 +317,12 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = M
         VolumeRow("Music", sound.musicVolume, "vol-music") { sound.musicVolume = it }
         VolumeRow("Sounds", sound.soundVolume, "vol-sounds") { sound.soundVolume = it }
         Text("Songs", fontSize = 13.sp, color = Color(0xFFD9B865))
-        for (song in SoundSettings.SONGS) Text("♪ ${song.title}", fontSize = 12.sp, color = Color(0xFFCDBFA6))
+        SoundSettings.SONGS.forEachIndexed { i, song ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SongTick(sound, i)
+                Text("♪ ${song.title}", fontSize = 12.sp, color = if (sound.songOn(i)) Color(0xFFCDBFA6) else Color(0xFF8A7A62))
+            }
+        }
     }
 }
 
@@ -392,8 +418,14 @@ class SoundSettings(private val store: FloatStore) {
     var onPlay: (Int) -> Unit = {}
     var onNext: () -> Unit = {}
 
-    /** Back to the defaults (saved). */
-    fun reset() { musicVolume = DEFAULT_MUSIC; soundVolume = DEFAULT_SOUNDS }
+    // Songs left out of the set list (#131), saved by title so a reordered or longer list keeps the choices.
+    private val songOn = SONGS.map { mutableFloatStateOf(store.get(songKey(it), 1f)) }
+    /** Whether song [i] plays when the set list moves on (a tap on its name still plays it). */
+    fun songOn(i: Int): Boolean = songOn.getOrNull(i)?.floatValue?.let { it > 0.5f } ?: false
+    fun setSongOn(i: Int, on: Boolean) { val v = if (on) 1f else 0f; songOn[i].floatValue = v; store.put(songKey(SONGS[i]), v) }
+
+    /** Back to the defaults (saved); every song ticked again. */
+    fun reset() { musicVolume = DEFAULT_MUSIC; soundVolume = DEFAULT_SOUNDS; SONGS.indices.forEach { setSongOn(it, true) } }
 
     companion object {
         const val DEFAULT_MUSIC = 0.6f
@@ -401,6 +433,7 @@ class SoundSettings(private val store: FloatStore) {
         const val MUSIC = "vol-music"
         const val SOUNDS = "vol-sounds"
         const val MUSIC_PAUSED = "music-paused"
+        fun songKey(song: Song) = "song-on:" + song.title
         /** The set list (#17, #58), our own recordings; more shanties to come. */
         val SONGS: List<Song> = listOf(
             Song("Drunken Sailor", R.raw.tune_drunken_sailor),
@@ -408,6 +441,7 @@ class SoundSettings(private val store: FloatStore) {
             Song("Blow the Man Down", R.raw.tune_blow_the_man_down),
             Song("Haul Away Joe", R.raw.tune_haul_away_joe),
             Song("Leave Her Johnny", R.raw.tune_leave_her_johnny),
+            Song("Leave Her Johnny (lament)", R.raw.tune_leave_her_johnny_lament),
             Song("Spanish Ladies", R.raw.tune_spanish_ladies),
             Song("South Australia", R.raw.tune_south_australia),
             Song("Rio Grande", R.raw.tune_rio_grande),
@@ -446,12 +480,30 @@ fun SoundControls(sound: SoundSettings) {
                     sound.musicPaused = false; sound.onNext()
                 }
             }
-            Text("Songs (tap one to play it)", fontSize = 12.sp)
+            Text("Songs (tick to keep in the list, tap a name to play it)", fontSize = 12.sp)
             SoundSettings.SONGS.forEachIndexed { i, song ->
                 val now = i == sound.nowPlaying && !sound.musicPaused
-                Text((if (now) "▶ " else "♪ ") + song.title, fontSize = 12.sp, color = if (now) Color(0xFFD9B865) else Color(0xFFCDBFA6),
-                    modifier = Modifier.clickable { sound.musicPaused = false; sound.onPlay(i) }.testTag("song-$i").padding(vertical = 3.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SongTick(sound, i)
+                    Text((if (now) "▶ " else "♪ ") + song.title, fontSize = 12.sp,
+                        color = if (now) Color(0xFFD9B865) else if (sound.songOn(i)) Color(0xFFCDBFA6) else Color(0xFF8A7A62),
+                        modifier = Modifier.clickable { sound.musicPaused = false; sound.onPlay(i) }.testTag("song-$i").padding(vertical = 3.dp))
+                }
             }
+        }
+    }
+}
+
+/** A song's tick box (#131): brass rim, a check when the song stays in the set list. */
+@Composable
+private fun SongTick(sound: SoundSettings, i: Int) {
+    val on = sound.songOn(i)
+    Box(Modifier.size(40.dp).clickable { sound.setSongOn(i, !on) }.testTag("song-on-$i")
+        .semantics { contentDescription = SoundSettings.SONGS[i].title + if (on) ", in the list" else ", left out" },
+        contentAlignment = Alignment.Center) {
+        Box(Modifier.size(20.dp).background(if (on) Color(0xFF3A2414) else Color.Transparent, RoundedCornerShape(4.dp))
+            .border(2.dp, Color(0xFFC9A04A), RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+            if (on) Text("✓", fontSize = 14.sp, color = Color(0xFFF1D58A), fontWeight = FontWeight.Bold)
         }
     }
 }

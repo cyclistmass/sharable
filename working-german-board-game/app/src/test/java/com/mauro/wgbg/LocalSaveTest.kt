@@ -66,7 +66,7 @@ class LocalSaveTest {
         val good = LocalSave(GameSetup(), 4L, moves).encode()
         assertNull(LocalSave.decode(null))
         assertNull(LocalSave.decode(""))
-        assertNull(LocalSave.decode(good.replaceFirst("v1", "v9")))
+        assertNull(LocalSave.decode(good.replaceFirst(LocalSave.HEADER, "wgbg-local v9")))
         assertNull(LocalSave.decode(good.replace("\n4\n", "\nfour\n")))
         assertNull(LocalSave.decode(good + "\nnot a move"))
         // A move that isn't legal where it stands (the save and the rules disagree): no game, not a wrong one.
@@ -95,5 +95,25 @@ class LocalSaveTest {
         // Moves without a started game are ignored, not saved as a broken file.
         store.add(moves[0])
         assertNull(store.load())
+    }
+
+    @Test
+    fun `#126 new games start from the seed's seat, and a save from before #126 still replays with seat 0 first`() {
+        val seed = (1L..100L).first { Rules.firstPlayer(it, 4) != 0 }
+        val (live, moves) = play(GameSetup(), seed, 40)
+        assertEquals(Rules.firstPlayer(seed, 4), live.firstPlayer)
+        val text = LocalSave(GameSetup(), seed, moves).encode()
+        assertTrue(text.startsWith(LocalSave.HEADER + "\n"))
+        assertEquals(live.stateHash(), LocalSave.decode(text)!!.replay()!!.stateHash())
+        // A 0.2.9 save ("v1", seat 0 started) comes back as that game, and saves again as v1.
+        val old = GameSetup(randomFirst = false)
+        val (oldLive, oldMoves) = play(old, seed, 40)
+        assertEquals(0, oldLive.firstPlayer)
+        val oldText = LocalSave(old, seed, oldMoves).encode()
+        assertTrue(oldText.startsWith(LocalSave.HEADER_V1 + "\n"))
+        val back = LocalSave.decode(oldText)!!
+        assertFalse(back.setup.randomFirst)
+        assertEquals(oldLive.stateHash(), back.replay()!!.stateHash())
+        assertEquals(oldText, back.encode())
     }
 }

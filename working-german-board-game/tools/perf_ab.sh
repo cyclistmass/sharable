@@ -23,7 +23,7 @@ for run in 1 2 3; do
     # No uninstall/clear: preserve the same preferences for both candidates.
     adb -s "$ANDROID_SERIAL" install -r "$apk" > "$prefix-install.txt"
     adb -s "$ANDROID_SERIAL" shell am force-stop com.mauro.wgbg
-    adb -s "$ANDROID_SERIAL" shell am start -W -n com.mauro.wgbg/.MainActivity -e start base > "$prefix-start.txt"
+    timeout 60 adb -s "$ANDROID_SERIAL" shell am start -W -n com.mauro.wgbg/.MainActivity -e start base > "$prefix-start.txt"
     sleep 10
     adb -s "$ANDROID_SERIAL" shell dumpsys gfxinfo com.mauro.wgbg reset > "$prefix-reset.txt"
     sleep 15
@@ -41,7 +41,7 @@ for run in 1 2 3 4 5; do
     [[ $variant == B ]] && apk=$apk_b
     adb -s "$ANDROID_SERIAL" install -r "$apk" > "$out/$variant-cold-$run-install.txt"
     adb -s "$ANDROID_SERIAL" shell am force-stop com.mauro.wgbg
-    adb -s "$ANDROID_SERIAL" shell am start -W -n com.mauro.wgbg/.MainActivity -e start base > "$out/$variant-cold-$run.txt"
+    timeout 60 adb -s "$ANDROID_SERIAL" shell am start -W -n com.mauro.wgbg/.MainActivity -e start base > "$out/$variant-cold-$run.txt"
     printf '%s,%s,%s\n' "$variant" "$run" "$(awk '/TotalTime:/ {value=$2} END {print (value == "" ? "NA" : value)}' "$out/$variant-cold-$run.txt" | tr -d '\r')" >> "$out/cold-start.csv"
     sleep 10
   done

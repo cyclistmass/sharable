@@ -24,6 +24,26 @@ internal fun coastOutward(board: Board, v1: Int, v2: Int): Offset {
     return n / n.getDistance()
 }
 
+/** The sea's surface, below the tile tops (0): the tiles' cliffs show this much when the board tilts. */
+internal const val LIVE_SEA = -0.24f
+
+/**
+ * A harbour on the 3D board, on screen: [a] and [b] are its coast corners on the tile tops; [mid] (the middle of the
+ * edge) and [token] lie on the sea, so the shallows and the buoy sit on the water and the piers run down from the
+ * coast to them. Drawn at tile-top height they floated above the sea, apart from the coast, once the board tilted
+ * (Mauro: "the harbors are still not connected", #136). [out] is straight out to sea on screen, before the tilt squash.
+ */
+internal class LiveHarbour(val a: Offset, val b: Offset, val mid: Offset, val out: Offset, val token: Offset)
+
+internal fun liveHarbour(board: Board, v1: Int, v2: Int, p: LiveProjection, tokenOut: Float): LiveHarbour {
+    val c = cos(p.rotation); val s = sin(p.rotation)
+    val a = liveVertex(board, v1); val b = liveVertex(board, v2)
+    val n = coastOutward(board, v1, v2)
+    val mid = (a + b) / 2f
+    return LiveHarbour(p.project(a), p.project(b), p.project(mid, LIVE_SEA), Offset(c * n.x - s * n.y, s * n.x + c * n.y),
+        p.project(mid + n * tokenOut, LIVE_SEA))
+}
+
 internal fun liveHex(board: Board, h: Int): Offset = board.topology.hexVertices[h]
     .map { liveVertex(board, it) }.reduce { a, b -> a + b } / 6f
 
@@ -139,6 +159,9 @@ internal fun liveKnightModel(s: GameState, v: Int, pirate: Boolean): String? {
 /** Knights as models at this size (hex sides), until Crest gives the final on-board scale. */
 internal const val LIVE_KNIGHT_MODEL_SCALE = 1f
 
+/** Roads stand proud of the tile edges in their channel (Mauro 2026-10-13: "add 3-4%"): lifted 3.5% of a hex. */
+internal const val LIVE_ROAD_LIFT = 0.035f
+
 /**
  * Reads only real game state. No fixture pieces are added to the playing board. Knights are models when [hasModel]
  * has them; otherwise [drawLiveOverlay] still draws their sprites.
@@ -148,7 +171,7 @@ internal fun livePlacements(s: GameState, pirate: Boolean, lod: Int, hasModel: (
     val b = s.board
     val theme = if (pirate) "pirate" else "default"
     val terrain = listOf("timber", "clay", "fleece", "grain", "stone", "desert")
-    add(LivePlacement("sea", Offset.Zero, -0.24f))
+    add(LivePlacement("sea", Offset.Zero, LIVE_SEA))
     for (h in 0 until b.hexCount) {
         val at = liveHex(b, h)
         add(LivePlacement("tile_${terrain.getOrElse(b.hexResource[h]) { "desert" }}_lod$lod", at))
@@ -163,7 +186,7 @@ internal fun livePlacements(s: GameState, pirate: Boolean, lod: Int, hasModel: (
         if (owner < 0) continue
         val a = liveVertex(b, b.edgeA[e]); val z = liveVertex(b, b.edgeB[e])
         val dir = (z - a) / (z - a).getDistance()
-        for (side in listOf(-1f, 1f)) add(LivePlacement("${theme}_road_v", (a + z) / 2f + dir * side * ROAD_SPREAD,
+        for (side in listOf(-1f, 1f)) add(LivePlacement("${theme}_road_v", (a + z) / 2f + dir * side * ROAD_SPREAD, LIVE_ROAD_LIFT,
             scale = ROAD_SCALE, heading = atan2(dir.x, dir.y), owner = owner))
     }
     for (v in 0 until b.vertexCount) {
@@ -204,7 +227,7 @@ private const val LIVE_SET_ROW_GAP = 2f
 
 /** Side-by-side imported models for maintainer review; never mixed into a game state. */
 internal fun liveInventoryPlacements(): List<LivePlacement> = buildList {
-    add(LivePlacement("sea", Offset.Zero, -.24f, 2f))
+    add(LivePlacement("sea", Offset.Zero, LIVE_SEA, 2f))
     val terrains = listOf("timber", "clay", "fleece", "grain", "stone", "desert")
     for (lod in 0..1) for ((i, terrain) in terrains.withIndex()) {
         val at = Offset(-6.5f + i * 2.6f, -4f + lod * 2.7f)

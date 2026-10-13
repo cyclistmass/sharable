@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -230,13 +231,18 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
     androidx.compose.runtime.LaunchedEffect(detail) { if (detail != null) { kotlinx.coroutines.delay((12000L * pace).toLong()); detail = null } }
     fun Modifier.longPressFor(d: CardDetail) = this.pointerInput(d) { detectTapGestures(onTap = { detail = null }, onLongPress = { detail = d }) }
     @Composable
-    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, small: String? = null, art: Int? = null, long: CardDetail? = null, onTap: (() -> Unit)? = null) = Box(contentAlignment = Alignment.TopEnd,
-        modifier = Modifier.testTag(tag).then(if (onTap != null || long != null) Modifier.pointerInput(long) {
-            detectTapGestures(onTap = { if (detail != null) detail = null else onTap?.invoke() }, onLongPress = { long?.let { detail = it } })
-        } else Modifier)) {
-        // Themed by its deck's commodity (Mauro): Guilds on Fabric, Crown on Silver, Academy on Parchment.
-        ProgressCardFace(name, edge, art, small, w, h)
-        if (n > 1) count(n)
+    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, small: String? = null, art: Int? = null, long: CardDetail? = null, onTap: (() -> Unit)? = null) {
+        // The tap handler outlives this call: it must run today's onTap, not the one from the card's first touch
+        // (the #122 stale-tap bug, same pattern).
+        val tapNow = androidx.compose.runtime.rememberUpdatedState(onTap)
+        Box(contentAlignment = Alignment.TopEnd,
+            modifier = Modifier.testTag(tag).then(if (onTap != null || long != null) Modifier.pointerInput(long) {
+                detectTapGestures(onTap = { if (detail != null) detail = null else tapNow.value?.invoke() }, onLongPress = { long?.let { detail = it } })
+            } else Modifier)) {
+            // Themed by its deck's commodity (Mauro): Guilds on Fabric, Crown on Silver, Academy on Parchment.
+            ProgressCardFace(name, edge, art, small, w, h)
+            if (n > 1) count(n)
+        }
     }
     Column(modifier) {
     detail?.let { d ->
@@ -253,11 +259,13 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
     }
     hint?.let { Text(it, color = Color(0xFFEDE6D8), fontSize = 13.sp,
         modifier = Modifier.padding(bottom = 4.dp).brassEdgedWood(2.dp).padding(horizontal = 10.dp, vertical = 6.dp).testTag("card-hint")) }
-    Row(Modifier.testTag("hand-row").horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+    Row(Modifier.testTag("hand-row").horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy((-5).dp), verticalAlignment = Alignment.Bottom) {   // #127: cards overlap 10% (5 of 50 dp), scroll only past the window
+        // Each card sits over the next, so the count in its top-right corner stays in view (#127).
+        var z = 0
         for (r in 0 until CARD_TYPES) {
             val n = s.hand(me, r)
             if (n == 0) continue
-            Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.longPressFor(cardDetail(r, s.ck != null))) {
+            Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.zIndex(-(z++).toFloat()).longPressFor(cardDetail(r, s.ck != null))) {
                 Image(painterResource(CARD_ART[r]), RESOURCE_NAMES[r], Modifier.size(width = 50.dp, height = 70.dp))
                 count(n)
             }
@@ -266,7 +274,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
         // Commodities: Parchment, Fabric, Silver, with their card art (#62).
         for (c in 0 until wgbg.engine.Commodity.COUNT) {
             val n = s.card(me, CARD_TYPES + c)
-            if (n > 0) Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.testTag("hand-commodity-$c").longPressFor(cardDetail(CARD_TYPES + c, true))) {
+            if (n > 0) Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.zIndex(-(z++).toFloat()).testTag("hand-commodity-$c").longPressFor(cardDetail(CARD_TYPES + c, true))) {
                 Image(painterResource(COMMODITY_ART[c]), ALL_CARD_NAMES[CARD_TYPES + c], Modifier.size(width = 50.dp, height = 70.dp))
                 count(n)
             }
@@ -276,7 +284,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
         for (c in 0 until wgbg.engine.Progress.COUNT) {
             val n = ck.progressHand[me * wgbg.engine.Progress.COUNT + c]
             val now = c in playable
-            if (n > 0) Box(Modifier.alpha(if (now) 1f else 0.45f)) {
+            if (n > 0) Box(Modifier.zIndex(-(z++).toFloat()).alpha(if (now) 1f else 0.45f)) {
                 namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 50, 70, // as tall as the resource cards; hold one to read it large (Mauro, 2026-10-12)
                     small = null,
                     art = progressArt(c), long = progressDetail(c)) {
@@ -291,7 +299,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
 /** Progress cards [me] may play right now: the engine's legal plays (none when it isn't their move). */
 fun playableProgress(s: GameState, me: Int): Set<Int> =
     if (s.ck == null || s.currentPlayer != me) emptySet()
-    else wgbg.engine.Rules.legalActions(s).filter { it.type == wgbg.engine.CkActionType.PLAY_PROGRESS }.map { it.a }.toSet()
+    else wgbg.engine.Rules.legalActions(s).filter { it.type == wgbg.engine.CkActionType.PLAY_PROGRESS && offered(s, it) }.map { it.a }.toSet()
 
 /** Why progress card [c] can't be played by [me] now, in a few words. */
 fun notPlayableWhy(s: GameState, me: Int, c: Int): String = when {
@@ -299,7 +307,52 @@ fun notPlayableWhy(s: GameState, me: Int, c: Int): String = when {
     s.phase != wgbg.engine.Phase.PLAY_TURN -> "finish what you're doing first"
     !s.hasRolled && c != wgbg.engine.Progress.ALCHEMIST -> "after you roll"
     s.hasRolled && c == wgbg.engine.Progress.ALCHEMIST -> "only before you roll"
-    else -> "nothing it can do right now"
+    else -> progressBlocked(s, me, c)
+}
+
+/**
+ * What card [c] is missing on [me]'s own turn after the roll, by the card's own rule (Mauro, 2026-10-13: "I have a
+ * Grand Factor card and can't use it", with no reason given). Public facts only: points, card counts, the board.
+ */
+internal fun progressBlocked(s: GameState, me: Int, c: Int): String {
+    val ck = s.ck ?: return "nothing it can do right now"
+    val b = s.board
+    val P = wgbg.engine.Progress
+    val others = (0 until s.numPlayers).filter { it != me }
+    val mine = s.victoryPoints(me)
+    val cities = s.piecesOnBoard(me, wgbg.engine.Piece.CITY)
+    fun knights(q: Int) = (0 until b.vertexCount).count { ck.knightOwner[it] == q }
+    return when (c) {
+        P.CRANE -> when {
+            cities == 0 -> "you need a town to improve"
+            (0 until wgbg.engine.Track.COUNT).all { ck.level(me, it) >= wgbg.engine.Track.MAX_LEVEL } -> "every improvement is at the top"
+            else -> "not enough commodities for any improvement, even one less: " + (0 until wgbg.engine.Track.COUNT)
+                .filter { ck.level(me, it) < wgbg.engine.Track.MAX_LEVEL }
+                .joinToString(", ") { t -> "${DECK_NAMES[t]} needs ${ck.level(me, t)} ${ALL_CARD_NAMES[wgbg.engine.Track.commodity(t)]}" }
+        }
+        P.MASTER_MERCHANT -> if (others.none { s.victoryPoints(it) > mine }) "it only takes from a player with more points than you, and nobody has more"
+            else "the players ahead of you have no cards"
+        P.WEDDING -> if (others.none { s.victoryPoints(it) > mine }) "only players with more points than you give, and nobody has more"
+            else "the players ahead of you have no cards"
+        P.SABOTEUR -> if (others.none { s.victoryPoints(it) >= mine }) "it only hits players with at least your points, and nobody has that many"
+            else "the players it would hit hold fewer than 2 cards"
+        P.IRRIGATION, P.MINING -> {
+            val r = if (c == P.IRRIGATION) wgbg.engine.Resource.WHEAT else wgbg.engine.Resource.ORE
+            if (s.bank[r] == 0) "the bank is out of ${RESOURCE_NAMES[r]}" else "none of your buildings touch a ${if (c == P.IRRIGATION) "field" else "mountain"}"
+        }
+        P.WARLORD -> if (knights(me) == 0) "you have no knights" else "your knights are all raised already"
+        P.SMITH -> "no knight of yours can be promoted"
+        P.ENGINEER -> if (ck.wallsLeft[me] == 0) "no Ramparts left" else "every town of yours has Ramparts"
+        P.MEDICINE -> "it needs a homestead, a town piece left, 1 Grain and 2 Stone"
+        P.ROAD_BUILDING -> "no road pieces or spots left"
+        P.COMMERCIAL_HARBOR -> if (s.handSize(me) == 0) "you have no resources to give" else "nobody else has a commodity"
+        P.BISHOP -> if (!ck.robberActive) "the bandit stays put until the Raiders first land" else "nowhere to move the bandit"
+        P.DESERTER -> "nobody else has a knight on the board"
+        P.DIPLOMAT -> "no open road end to remove"
+        P.INTRIGUE -> "no enemy knight on your roads"
+        P.SPY -> "nobody else holds a progress card"
+        else -> "nothing it can do right now"
+    }
 }
 
 /** A slim prompt across the top saying what to do now. */

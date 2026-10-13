@@ -69,6 +69,8 @@ unless another path is given.
 - Rio Grande (`app/src/main/res/raw/tune_rio_grande.ogg`): traditional public-domain melody; melody source https://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/abc/mirror/melodeon.net/melnets_big_abc_file/11085; arrangement and recording ours.
 - Shenandoah (`app/src/main/res/raw/tune_shenandoah.ogg`): traditional public-domain melody; melody source https://abcnotation.com/tunePage?a=trillian.mit.edu/~jc/music/abc/song/Shenandoah_1/0000; arrangement and recording ours.
 - Wellerman (`app/src/main/res/raw/tune_wellerman.ogg`): melody commonly labelled traditional; public-domain attribution disputed (collected 1966, author unknown), included at the maintainer's decision; melody source https://abcnotation.com/tunePage?a=dmc.lizmilner.com/viewabc.vbhtml?file=Wellerman/0002; arrangement and recording ours. Provenance discussion: https://www.folksong.org.nz/soon_may_the_wellerman/index.html (confirm melody rights before release).
+- Leave Her Johnny, lament (`app/src/main/res/raw/tune_leave_her_johnny_lament.ogg`): same traditional melody as above, a slower second arrangement; ours.
+- Music: our own arrangements of traditional public-domain tunes, played on samples from VSCO 2 Community Edition and the Versilian Community Sample Library (VCSL), both CC0 (Versilian Studios, github.com/sgossner/VSCO-2-CE, github.com/sgossner/VCSL). The 2026-10-13 golden-age recordings (by Crest) replace the earlier synthesised ones in every tune_*.ogg.
 
 ## Libraries
 

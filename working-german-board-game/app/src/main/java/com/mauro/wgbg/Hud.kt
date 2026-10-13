@@ -85,11 +85,13 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             .padding(start = 14.dp, end = 14.dp, top = 2.dp, bottom = 10.dp),   // the dice sit right under the players (Mauro)
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
+        val doubleTapNow = androidx.compose.runtime.rememberUpdatedState(onDiceDoubleTap)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.testTag("dice-row").then(if (onDiceDoubleTap != null) Modifier.pointerInput(Unit) {
-                detectTapGestures(onDoubleTap = { onDiceDoubleTap() })
+                detectTapGestures(onDoubleTap = { doubleTapNow.value?.invoke() })   // today's handler, not the first one (#122)
             } else Modifier)) {
             val color = PLAYER_COLORS[report.player]
+            androidx.compose.foundation.layout.Spacer(Modifier.width((DIE_DP * 3 / 4).dp))   // clear of the camera hole (Mauro)
             if (dicePads) run {
                 var r1 by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
                 Die3d(report.die1, red = true, pirate = pirate, pad = color, visible = showDice && report.rolled, modifier = Modifier.onGloballyPositioned { r1 = it.boundsInRoot() })

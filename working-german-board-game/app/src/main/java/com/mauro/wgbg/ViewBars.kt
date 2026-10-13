@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -63,11 +64,11 @@ object ViewBars {
 /** The Zoom and Tilt bars (and Turn, when [rotation] isn't null) on a small wood plate with a brass edge. */
 @Composable
 fun ViewBarsPanel(camera: Camera, onZoom: (Float) -> Unit, onTilt: (Float) -> Unit, modifier: Modifier = Modifier,
-                  rotation: Float? = null, onTurn: (Float) -> Unit = {}, zoomTilt: Boolean = true) {
+                  rotation: Float? = null, onTurn: (Float) -> Unit = {}) {
     Row(modifier.brassEdgedWood(3.dp).padding(horizontal = 6.dp, vertical = 8.dp).testTag("view-bars"),
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (zoomTilt) BrassBar("Zoom", ViewBars.zoomToBar(camera.zoom), "bar-zoom", height = 110.dp) { onZoom(ViewBars.barToZoom(it)) }
-        if (zoomTilt) BrassBar("Tilt", ViewBars.tiltToBar(camera.tilt), "bar-tilt", height = 110.dp) { onTilt(ViewBars.barToTilt(it)) }
+        BrassBar("Zoom", ViewBars.zoomToBar(camera.zoom), "bar-zoom", height = 110.dp) { onZoom(ViewBars.barToZoom(it)) }
+        BrassBar("Tilt", ViewBars.tiltToBar(camera.tilt), "bar-tilt", height = 110.dp) { onTilt(ViewBars.barToTilt(it)) }
         if (rotation != null) BrassBar("Turn", ViewBars.turnToBar(rotation), "bar-turn", height = 110.dp, fromMiddle = true) {
             onTurn(ViewBars.barToTurn(it))
         }
@@ -78,14 +79,16 @@ fun ViewBarsPanel(camera: Camera, onZoom: (Float) -> Unit, onTilt: (Float) -> Un
 @Composable
 internal fun BrassBar(label: String, value: Float, tag: String, height: androidx.compose.ui.unit.Dp = 150.dp,
                       fromMiddle: Boolean = false, onChange: (Float) -> Unit) {
+    // The gesture handlers outlive this call; they must reach today's onChange, not the first one (#122 pattern).
+    val change by androidx.compose.runtime.rememberUpdatedState(onChange)
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Canvas(
             Modifier.width(30.dp).height(height).testTag(tag)
-                .pointerInput(Unit) { detectTapGestures { onChange(ViewBars.barAt(it.y, size.height.toFloat())) } }
+                .pointerInput(Unit) { detectTapGestures { change(ViewBars.barAt(it.y, size.height.toFloat())) } }
                 .pointerInput(Unit) {
-                    detectVerticalDragGestures { change, _ ->
-                        change.consume()
-                        onChange(ViewBars.barAt(change.position.y, size.height.toFloat()))
+                    detectVerticalDragGestures { drag, _ ->
+                        drag.consume()
+                        change(ViewBars.barAt(drag.position.y, size.height.toFloat()))
                     }
                 },
         ) {

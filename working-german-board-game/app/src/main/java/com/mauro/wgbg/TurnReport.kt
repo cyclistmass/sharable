@@ -88,7 +88,6 @@ class TurnTracker(private val names: List<String>) {
         val held = holdings(s)
         val before = s.hands.copyOf()
         val phaseBefore = s.phase
-        val counterer = s.counterFrom
         var d1 = 0
         var d2 = 0
         var ev = -1
@@ -123,9 +122,8 @@ class TurnTracker(private val names: List<String>) {
                     .ifEmpty { listOf("Nobody produced anything.") },
             )
             action.type == ActionType.END_TURN -> r
-            action.type == ActionType.REJECT_TRADE || action.type == ActionType.COUNTER_TRADE -> r
-            action.type == ActionType.ACCEPT_TRADE ->
-                if (phaseBefore == Phase.DECIDE_COUNTER) r.plus("$n traded with ${names[counterer]}: ${tradeText(gained[who])}") else r
+            action.type == ActionType.REJECT_TRADE || action.type == ActionType.ACCEPT_TRADE ||
+                action.type == ActionType.COUNTER_TRADE || action.type == wgbg.engine.CkActionType.COUNTER_TRADE_CK -> r
             action.type == ActionType.MOVE_ROBBER -> {
                 val victim = action.robberVictim
                 val card = if (victim >= 0) gained[victim].indexOfFirst { it < 0 } else -1
@@ -135,12 +133,12 @@ class TurnTracker(private val names: List<String>) {
             action.type == ActionType.DISCARD -> r.plus("$n discarded " + gained[who].withIndex().filter { it.value < 0 }.joinToString(", ") { "${-it.value} ${RESOURCE_NAMES[it.index]}" })
                 .let { rep -> if (rep.rollOut.size > who) rep.copy(rollOut = rep.rollOut.mapIndexed { p, out -> if (p != who) out else IntArray(out.size) { out[it] + maxOf(0, -gained[who][it]) } }) else rep }
             action.type == ActionType.MARITIME_TRADE -> r.plus("$n traded with the bank: ${tradeText(gained[who])}")
-            action.type == ActionType.OFFER_TRADE -> r.plus("$n offered a trade")
+            action.type == ActionType.OFFER_TRADE || action.type == wgbg.engine.CkActionType.OFFER_TRADE_CK -> r.plus("$n offered a trade")
             action.type == ActionType.CONFIRM_TRADE -> {
                 val partner = action.payload.toInt()
                 r.plus("$n traded with ${names[partner]}: ${tradeText(gained[who])}")
             }
-            action.type == ActionType.CANCEL_TRADE -> r.plus("$n's trade offer found no takers")
+            action.type == ActionType.CANCEL_TRADE -> r.plus("$n withdrew the trade offer")
             action.type == ActionType.PLAY_YEAR_OF_PLENTY || action.type == ActionType.PLAY_MONOPOLY ->
                 r.plus("$n played ${describe(action.type)} and got ${changes(gained[who]) ?: "nothing"}")
             action.type == wgbg.engine.CkActionType.CHOOSE_VERTEX -> r.plus(when (phaseBefore) {

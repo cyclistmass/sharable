@@ -38,7 +38,7 @@ tap_text_opt() { ( tap_text "$1" ) >/dev/null || true; }
 
 start() { # $1 ruleset, then extra am-start arguments
   local rules="$1"; shift
-  "$A" shell am start --activity-clear-task -n $PKG/.MainActivity --es start "$rules" "$@" >/dev/null
+  "$A" shell am start --activity-clear-task -n $PKG/.MainActivity --es start "$rules" --ez quickbots true "$@" >/dev/null
   sleep 4
 }
 shot() { # screen -> docs/screenshots/$1.jpg
@@ -98,6 +98,7 @@ tap_text "Menu"; tap_text "Settings"; sleep 1.2
 shot settings
 "$A" shell am start --activity-clear-task -n $PKG/.MainActivity >/dev/null; sleep 4
 tap_text_opt "Tap to skip"; sleep 1   # the intro fly-over plays first on a cold start
+tap_text "New game"; sleep 1   # the splash (#132) opens on Resume / New game / Log in / Settings
 tap_text "Look &amp; art"; tap_text_opt "Hide"; sleep 1   # uiautomator writes & as &amp;
 shot inventory
 ls -la docs/screenshots

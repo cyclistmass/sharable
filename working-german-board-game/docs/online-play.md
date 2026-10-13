@@ -85,7 +85,7 @@ and mid-game departure/replacement are unsupported.
    Guests leave lobbies with `transport.leave(id)`.
 
 The fallback is local to the process, not LAN transport. The invite base remains
-the placeholder `https://cyclistmass.github.io/sharable/join/#`; App Links and join navigation belong
+the placeholder `https://cyclistmass.github.io/shareable/join/#`; App Links and join navigation belong
 to AppRoot/product integration.
 
 ## Rules testing and deployment
@@ -159,7 +159,7 @@ domain/App Link, host cancellation/transfer and disconnect UX separately.
   that temporary copy's signing-file path was overridden to reuse the existing
   debug key; no key contents were copied or printed. Kotlin compilation used
   in-process mode to avoid the restricted default daemon directory.
-- The specified sharable workflow now runs :net:test and has a separate Node 24 /
+- The specified shareable workflow now runs :net:test and has a separate Node 24 /
   Java 21 Firestore rules job using pinned CLI 15.33.0 and demo-wgbg. YAML parsing
   verified the job and step; remote CI was not triggered (no push).
 - Timing (local workstation, concurrent builds): local apply/publication n=50,
