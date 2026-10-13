@@ -490,7 +490,7 @@ internal fun onlineProblem(e: Throwable): String {
         "Unknown room" in m -> ROOM_MISSING
         "PERMISSION_DENIED" in m || "permission" in m.lowercase() -> "The server said no (permission denied)"
         "UNAVAILABLE" in m || "offline" in m.lowercase() || c is java.io.IOException -> "Can't reach the server. Check the connection."
-        "full or has started" in m -> m
+        "full or has started" in m || c is RoomVersionException -> m
         m.isNotBlank() -> m.take(120)
         else -> c.javaClass.simpleName
     }

@@ -21,6 +21,14 @@ class OnlineLobbyTest {
         val old = r.wire().toMutableMap().also { w -> w["options"] = (w["options"] as Map<String, Any?>) - "randomFirstPlayer" }
         assertFalse(room(r.id, old).config.randomFirstPlayer)
     }
+    @Test fun `a room from another version of the game is refused with an update message, never misread`() {
+        val r = Room("ROVER-42", "host", GameSetup().config(), 9, listOf(Seat("host", "Host"), Seat(), Seat(), Seat()), Status.lobby, 0, 0)
+        assertEquals(ROOM_VERSION, r.wire()["version"])
+        for (v in listOf<Any?>(null, 1, ROOM_VERSION + 1)) {
+            val e = assertThrows(RoomVersionException::class.java) { room(r.id, r.wire() + ("version" to v)) }
+            assertTrue(e.message!!.contains(if (v == ROOM_VERSION + 1) "newer" else "older") && e.message!!.contains("update"), e.message)
+        }
+    }
     @Test fun `session maps identity bots settings and readiness through onChange`() {
         val store = MemoryStore(); val host = InMemoryTransport("host", store); val guest = InMemoryTransport("guest", store)
         val setup = GameSetup(name = "Host").withSeat(1, SeatKind.FRIEND)

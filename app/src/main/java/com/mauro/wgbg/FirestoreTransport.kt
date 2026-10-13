@@ -91,7 +91,7 @@ class FirestoreTransport(private val auth: FirebaseAuth, private val db: Firebas
         }
     }
 
-    override fun listOpen() = games.whereEqualTo("status", "lobby").get().future().thenApply { q -> q.documents.map { room(it.id, it.data!!) } }
+    override fun listOpen() = games.whereEqualTo("status", "lobby").get().future().thenApply { q -> q.documents.mapNotNull { runCatching { room(it.id, it.data!!) }.getOrNull() } }   // another version's rooms are left out, not an error
     private fun change(id: String, f: (Room) -> Room): CompletableFuture<Unit> {
         val ref = games.document(id)
         return db.runTransaction { t ->
@@ -188,11 +188,24 @@ internal fun Room.wire(): Map<String, Any?> = mapOf(
         "layout" to config.layout.name, "avoidAdjacentRedNumbers" to config.avoidAdjacentRedNumbers, "discardLimit" to config.discardLimit,
         "maxTurns" to config.maxTurns, "randomDiscard" to config.randomDiscard, "generateTradeOffers" to config.generateTradeOffers,
         "randomFirstPlayer" to config.randomFirstPlayer),
-    "version" to 1,
+    "version" to ROOM_VERSION,
 )
+
+/**
+ * The room format's version. 2 from 0.2.10 (Mauro, 2026-10-13): a random first player (#126) plays differently, so a
+ * 0.2.9 phone (which only reads 1) is kept out of 0.2.10 rooms and this one out of theirs. Bump it, and let the rules'
+ * `valid()` accept it, whenever two versions of the app would play the same room differently.
+ */
+internal const val ROOM_VERSION = 2
+
+/** A room made by a different version of the app; its message is what the player sees. */
+internal class RoomVersionException(val version: Int) :
+    IllegalStateException("That room was made with ${if (version < ROOM_VERSION) "an older" else "a newer"} version of the game. Everyone needs the same version: update from the release page.")
+
 @Suppress("UNCHECKED_CAST")
 internal fun room(id: String, d: Map<String, Any?>): Room {
-    require((d["version"] as Number).toInt() == 1)
+    val version = (d["version"] as? Number)?.toInt() ?: 0
+    if (version != ROOM_VERSION) throw RoomVersionException(version)
     val o = d["options"] as Map<String, Any>; fun n(k: String) = (o[k] as Number).toInt()
     val seats = d["seats"] as Map<String, Map<String, Any?>>
     return Room(id, d["host"] as String,
