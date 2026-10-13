@@ -395,6 +395,9 @@ const val EDGE_GLOW_CLEAR = 0.42f
 /** Whether a homestead, town or knight stands on corner [v]. */
 fun pieceAt(s: GameState, v: Int): Boolean = s.vertexOwner[v] >= 0 || (s.ck?.knightOwner?.get(v) ?: -1) >= 0
 
+/** An Age of Chivalry knight stands on corner [v]. */
+fun knightAt(s: GameState, v: Int): Boolean = (s.ck?.knightOwner?.get(v) ?: -1) >= 0
+
 /** The first homesteads and roads are being placed: no dice, no trading yet. */
 fun inSetup(s: GameState): Boolean = s.phase == Phase.BUILD_INITIAL_SETTLEMENT || s.phase == Phase.BUILD_INITIAL_ROAD
 

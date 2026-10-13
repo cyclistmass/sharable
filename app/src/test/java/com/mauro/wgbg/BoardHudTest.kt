@@ -101,4 +101,14 @@ class BoardHudTest {
         assertEquals("only on your turn", notPlayableWhy(s, other, wgbg.engine.Progress.SABOTEUR))
         assertTrue(playableProgress(wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(), 1), 0).isEmpty())   // base game: none
     }
+
+    @Test
+    fun `a knight's corner glows round its base, an empty corner gets the usual dot (#118)`() {
+        val s = wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS), 2)
+        s.ck!!.knightOwner[7] = 1
+        assertTrue(knightAt(s, 7) && pieceAt(s, 7))
+        assertTrue(!knightAt(s, 8))
+        assertTrue(!knightAt(wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(), 2), 7))   // base game: no knights
+        assertTrue(KNIGHT_GLOW_RX * KNIGHT_SCALE * FLAT_KNIGHT_GLOW_SHARE > BUILD_MARK_R, "the ring is wider than the dot it replaces")
+    }
 }

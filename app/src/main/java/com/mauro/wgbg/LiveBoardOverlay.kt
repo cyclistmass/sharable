@@ -35,8 +35,14 @@ internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights:
     // Harbours: the flat board's shallows, piers and buoys, projected (drawLivePorts in MainActivity.kt, #104).
 }
 
-internal fun DrawScope.drawLiveTargets(b: Board, targets: Targets, p: LiveProjection, color: Color, pieceOn: (Int) -> Boolean = { false }) {
-    for (v in targets.vertices) drawCircle(color, p.scale * .13f, p.project(liveVertex(b, v)), style = Stroke(p.scale * .035f))
+internal fun DrawScope.drawLiveTargets(b: Board, targets: Targets, p: LiveProjection, color: Color, pulse: Float = 1f,
+                                       pieceOn: (Int) -> Boolean = { false }, knightOn: (Int) -> Boolean = { false }) {
+    for (v in targets.vertices) {
+        val at = p.project(liveVertex(b, v))
+        // A knight you can promote or supply: its base glows (#118).
+        if (knightOn(v)) drawKnightBaseGlow(at, p.scale * KNIGHT_SCALE * LIVE_KNIGHT_SHARE, cos(p.tilt), color, 0.6f + 0.4f * pulse)
+        else drawCircle(color, p.scale * .13f, at, style = Stroke(p.scale * .035f))
+    }
     for (e in targets.edges) {
         // Clear of the pieces at its ends, like the flat board (the glow never covers a homestead).
         val v0 = liveVertex(b, b.edgeA[e]); val v1 = liveVertex(b, b.edgeB[e])

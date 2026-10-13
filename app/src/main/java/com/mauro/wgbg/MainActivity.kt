@@ -1122,8 +1122,8 @@ fun WatchGameScreen(
                 drawLivePorts(state.board, projection, measurer, wood, buildings)
                 drawLiveOverlay(state, projection, if (env.pirateTheme) knightsPirate else knightsNormal) { v ->
                     liveKnightModel(state, v, env.pirateTheme) in liveModels }
-                if (!targets.isEmpty) drawLiveTargets(state.board, targets, projection, targetGlow(me)) { pieceAt(state, it) }
-                if (chosen.isNotEmpty()) drawLiveTargets(state.board, Targets.of(chosen), projection, Color.White) { pieceAt(state, it) }
+                if (!targets.isEmpty) drawLiveTargets(state.board, targets, projection, targetGlow(me), targetPulse(sea.time), pieceOn = { pieceAt(state, it) }, knightOn = { knightAt(state, it) })
+                if (chosen.isNotEmpty()) drawLiveTargets(state.board, Targets.of(chosen), projection, Color.White, pieceOn = { pieceAt(state, it) }, knightOn = { knightAt(state, it) })
             } else {
                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
                 val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
@@ -1146,8 +1146,8 @@ fun WatchGameScreen(
                 }
                 drawLayer(boardLayer)
                 drawGame(state, measurer, wood, camera, sea.takeIf { env.animating }, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER, banditSprites)
-                if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me)) { pieceAt(state, it) }
-                if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White) { pieceAt(state, it) }
+                if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me), pieceOn = { pieceAt(state, it) }, knightOn = { knightAt(state, it) })
+                if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White, pieceOn = { pieceAt(state, it) }, knightOn = { knightAt(state, it) })
             }
         }
         // Inventory: the illustrated resource cards along the bottom, then the dice faces.
@@ -1432,7 +1432,7 @@ private fun RejoiningOr(savedRoom: android.content.SharedPreferences, orElse: ()
  * light tiles (and for White).
  */
 private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, pulse: Float, glow: Color = Color(0xFFFFE08A),
-                                   pieceOn: (Int) -> Boolean = { false }) {
+                                   pieceOn: (Int) -> Boolean = { false }, knightOn: (Int) -> Boolean = { false }) {
     if (size.minDimension < 2f) return
     val l = Layout.fit(board, size.width, size.height, camera)
     if (!l.scale.isFinite() || l.scale <= 0f) return
@@ -1443,6 +1443,8 @@ private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, puls
         val p = vertexLattice(board, v)
         val c = l.project(p.x, p.y)
         val r = BUILD_MARK_R * l.scale * l.kAt(p.y) * swell
+        // The ring hugs the knight's base, not the whole corner.
+        if (knightOn(v)) { drawKnightBaseGlow(c, KNIGHT_SCALE * FLAT_KNIGHT_GLOW_SHARE * l.scale * l.kAt(p.y) * swell, l.squash, glow, a); continue }
         drawCircle(glow.copy(alpha = 0.32f * a), r * 1.6f, c)                       // soft halo
         drawCircle(glow.copy(alpha = 0.55f + 0.35f * a), r, c)                       // lit centre
         drawCircle(ink.copy(alpha = 0.55f), r, c, style = Stroke(r * 0.12f))         // outline
@@ -1469,6 +1471,24 @@ private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, puls
         drawCircle(glow.copy(alpha = a), r, c, style = Stroke(r * 0.07f))
     }
 }
+
+/**
+ * A knight you can promote or supply (#118: "when a knight is upgradable the base should glow"): a lit ring round its
+ * base instead of a dot that hides under its feet. [size] is the knight's size in px, [squash] the board's tilt.
+ */
+internal fun DrawScope.drawKnightBaseGlow(c: Offset, size: Float, squash: Float, glow: Color, a: Float) {
+    val rx = size * KNIGHT_GLOW_RX; val ry = rx * squash
+    fun oval(k: Float) = Pair(c - Offset(rx * k, ry * k), Size(rx * k * 2f, ry * k * 2f))
+    oval(1.22f).let { (o, z) -> drawOval(glow.copy(alpha = 0.45f * a), o, z, style = Stroke(rx * 0.4f)) }   // soft halo, outside: the knight stays clear
+    oval(1f).let { (o, z) -> drawOval(Color(0xFF1A120B).copy(alpha = 0.55f), o, z, style = Stroke(rx * 0.22f)) }
+    oval(1f).let { (o, z) -> drawOval(glow.copy(alpha = 0.75f + 0.25f * a), o, z, style = Stroke(rx * 0.15f)) }
+}
+
+/** The base glow's half-width, as a share of the knight's size. */
+internal const val KNIGHT_GLOW_RX = 0.32f
+
+/** The flat board's rendered knights stand a little larger than the 3D board's, so their ring is too. */
+internal const val FLAT_KNIGHT_GLOW_SHARE = 0.62f
 
 /** Tilt steps (of 7) pieces are seen steeper than the board; see [banditSteps]. */
 internal const val PIECE_LIFT_STEPS = 4f
