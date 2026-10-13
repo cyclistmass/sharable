@@ -98,6 +98,7 @@ tap_text "Menu"; tap_text "Settings"; sleep 1.2
 shot settings
 "$A" shell am start --activity-clear-task -n $PKG/.MainActivity >/dev/null; sleep 4
 tap_text_opt "Tap to skip"; sleep 1   # the intro fly-over plays first on a cold start
+tap_text "New game"; sleep 1   # the splash (#132) opens on Resume / New game / Log in / Settings
 tap_text "Look &amp; art"; tap_text_opt "Hide"; sleep 1   # uiautomator writes & as &amp;
 shot inventory
 ls -la docs/screenshots

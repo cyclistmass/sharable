@@ -80,12 +80,17 @@ for _ in 1 2 3; do
 done
 [ -n "$("$ADB" shell pidof $PKG | tr -d '
 ')" ] || fail "the app wouldn't start"
-# Wait for the app to open (a slow phone shows the launch splash for a while): the intro or the start screen.
-for _ in $(seq 1 15); do d=$(dump); echo "$d" | grep -q 'text="Tap to skip"\|text="Play"' && break; sleep 2; done
+# Wait for the app to open (a slow phone shows the launch splash for a while): the intro or the splash (#132).
+for _ in $(seq 1 15); do d=$(dump); echo "$d" | grep -q 'text="Tap to skip"\|text="New game"' && break; sleep 2; done
 # First launch plays the intro fly-over; a player taps to skip it.
 if echo "$d" | grep -q 'text="Tap to skip"'; then tap 1200 540; sleep 2
-  for _ in $(seq 1 10); do d=$(dump); echo "$d" | grep -q 'text="Play"' && break; sleep 1; done; fi
-echo "$d" | grep -q 'text="Play"' || fail "the start screen never appeared"
+  for _ in $(seq 1 10); do d=$(dump); echo "$d" | grep -q 'text="New game"' && break; sleep 1; done; fi
+echo "$d" | grep -q 'text="New game"' || fail "the splash never appeared"
+shot splash
+# The splash's New game opens the game-start screen (players, ruleset, Play, Host and Join).
+tap_text "New game" "$d" || fail "no New game button"
+for _ in $(seq 1 10); do d=$(dump); echo "$d" | grep -q 'text="Play"' && break; sleep 1; done
+echo "$d" | grep -q 'text="Play"' || fail "the game-start screen never appeared"
 if [ "$MODE" = join ]; then
   # The friend: Join a room, their name and the code the host read out, Join, then mark themselves ready.
   for _ in $(seq 1 90); do [ -s "$ROOM_FILE" ] && break; sleep 2; done
