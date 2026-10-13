@@ -54,11 +54,9 @@ import wgbg.engine.Rules
 enum class TradeMode {
     /** Our turn after rolling: build an offer to the players, or trade with the bank. */
     COMPOSE,
-    /** Someone offered us a trade: Yes, No, or Counter. */
+    /** Someone offered us a trade: Yes, No, or Counter (only Counter or No for a one-sided ask, #135). */
     RESPOND,
-    /** Someone countered our offer: Yes or No. */
-    REVIEW_COUNTER,
-    /** Our offer went round the table: pick who to trade with, or cancel. */
+    /** Our offer went round the table: pick an acceptance or a counter-offer to trade on, or cancel. */
     PICK_PARTNER,
     /** A trade is on but someone else has to answer. */
     WAITING,
@@ -70,7 +68,6 @@ fun tradeMode(s: GameState, me: Int): TradeMode {
     val acting = s.actingPlayer == me
     return when (s.phase) {
         Phase.DECIDE_TRADE -> if (acting) TradeMode.RESPOND else TradeMode.WAITING
-        Phase.DECIDE_COUNTER -> if (acting) TradeMode.REVIEW_COUNTER else TradeMode.WAITING
         Phase.DECIDE_ACCEPTEES -> if (acting) TradeMode.PICK_PARTNER else TradeMode.WAITING
         Phase.PLAY_TURN -> if (acting && s.currentPlayer == me && s.hasRolled && s.freeRoads == 0) TradeMode.COMPOSE else TradeMode.CLOSED
         else -> TradeMode.CLOSED
@@ -87,13 +84,9 @@ internal fun tradeClosedReason(s: GameState, me: Int): String = when {
 }
 
 fun tradeNeedsMe(s: GameState, me: Int) = tradeMode(s, me).let {
-    it == TradeMode.RESPOND || it == TradeMode.REVIEW_COUNTER || it == TradeMode.PICK_PARTNER
+    it == TradeMode.RESPOND || it == TradeMode.PICK_PARTNER
 }
 
-/**
- * The open terms seen from [me]'s side: (what I get, what I give). For the offerer that is the
- * offer itself; for anyone else it is mirrored. A pending counter replaces the offer.
- */
 /** Card kinds a trade covers: the five resources, plus three commodities in Age of Chivalry. */
 fun tradeCards(s: GameState) = if (s.ck != null) wgbg.engine.CK_CARD_TYPES else CARD_TYPES
 
@@ -114,22 +107,33 @@ fun canPayOffer(s: GameState, me: Int): Boolean {
 /** How long an offer you can't pay waits before it is declined for you, seconds (Mauro: 5). */
 const val AUTO_NO_SECONDS = 5
 
+/**
+ * The open offer seen from [me]'s side: (what I get, what I give). For the offerer that is the
+ * offer itself; for anyone else it is mirrored.
+ */
 fun termsFor(s: GameState, me: Int): Pair<IntArray, IntArray> {
     val ck = s.ck
-    if (ck != null) {
-        val n = wgbg.engine.CK_CARD_TYPES
-        val gives = IntArray(n) { if (it < CARD_TYPES) s.tradeOffer[it] else ck.offer[it - CARD_TYPES] }
-        val gets = IntArray(n) { if (it < CARD_TYPES) s.tradeOffer[CARD_TYPES + it] else ck.offer[wgbg.engine.Commodity.COUNT + it - CARD_TYPES] }
-        return if (me == s.currentPlayer) gets to gives else gives to gets
-    }
-    val c = s.counterOffer
-    val offerGives = IntArray(tradeCards(s)) { c?.offerGive(it) ?: s.tradeOffer[it] }
-    val offerGets = IntArray(tradeCards(s)) { c?.offerWant(it) ?: s.tradeOffer[CARD_TYPES + it] }
-    return if (me == s.currentPlayer) offerGets to offerGives else offerGives to offerGets
+    val n = tradeCards(s)
+    val gives = IntArray(n) { if (it < CARD_TYPES) s.tradeOffer[it] else ck!!.offer[it - CARD_TYPES] }
+    val gets = IntArray(n) { if (it < CARD_TYPES) s.tradeOffer[CARD_TYPES + it] else ck!!.offer[wgbg.engine.Commodity.COUNT + it - CARD_TYPES] }
+    return if (me == s.currentPlayer) gets to gives else gives to gets
 }
 
-/** The counter a responder means by "I get [get], I give [give]" (COUNTER_TRADE is offerer-side). */
-fun counterFor(get: IntArray, give: IntArray) = Action.counterTrade(give = get, want = give)
+/** The offerer's (get, give) with taker [q] (#135): [q]'s counter-offer, or the offer as it stands if they said yes. */
+fun takerTerms(s: GameState, q: Int): Pair<IntArray, IntArray> {
+    val c = s.counterOf(q) ?: return termsFor(s, s.currentPlayer)
+    val ck = s.ck != null
+    val n = tradeCards(s)
+    return IntArray(n) { if (ck) c.ckOfferWant(it) else c.offerWant(it) } to IntArray(n) { if (ck) c.ckOfferGive(it) else c.offerGive(it) }
+}
+
+/** The counter a responder means by "I get [get], I give [give]", in the ruleset's encoding (counters are offerer-side). */
+fun counterFor(s: GameState, get: IntArray, give: IntArray): Action? = runCatching {
+    if (s.ck != null) Action.counterTradeCk(give = get, want = give) else Action.counterTrade(give = get, want = give)
+}.getOrNull()
+
+/** The open offer only gives or only asks (#135): answer it with a counter, there is nothing to say yes to. */
+fun isOpenAsk(s: GameState) = s.phase == Phase.DECIDE_TRADE && !Rules.isTwoSided(s)
 
 fun bankRate(s: GameState, p: Int, r: Int): Int {
     if (s.ck != null) return wgbg.engine.CitiesAndKnights.tradeRate(s, p, r)
@@ -215,12 +219,15 @@ fun TradePanel(
     version
     val mode = tradeMode(s, me)
     // Fresh selections whenever the trade situation changes.
-    val key = listOf(s.turn, s.phase, s.actingPlayer, s.counterFrom, s.hands.sum())
+    val key = listOf(s.turn, s.phase, s.actingPlayer, s.counters.contentHashCode(), s.hands.sum())
     var maritime by remember { mutableStateOf(false) }
     var countering by remember(key) { mutableStateOf(false) }
     var get by remember(key) { mutableStateOf(IntArray(tradeCards(s))) }
     var give by remember(key) { mutableStateOf(IntArray(tradeCards(s))) }
-    val (termGet, termGive) = termsFor(s, me)
+    // Picking a partner (#135): the takers are everyone who said yes or countered; the cards show the picked one's terms.
+    val takers = legal.filter { it.type == ActionType.CONFIRM_TRADE }.map { it.payload.toInt() }
+    var pick by remember(key) { mutableStateOf(takers.firstOrNull() ?: -1) }
+    val (termGet, termGive) = if (mode == TradeMode.PICK_PARTNER && pick >= 0) takerTerms(s, pick) else termsFor(s, me)
     val editing = mode == TradeMode.COMPOSE || countering
     val showGet = if (editing) get else termGet
     val showGive = if (editing) give else termGive
@@ -253,10 +260,10 @@ fun TradePanel(
                         fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.testTag("answer-$p"))
                 }
             }
-            Text(status(s, me, mode, names, countering, bankTab), color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            Text(status(s, me, mode, names, countering, bankTab, pick), color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 maxLines = 1, modifier = Modifier.width(214.dp))
             afterTrade?.let { Text(it, color = Color(0xFF8BD18B), fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("trade-after")) }
-            if (editing) Text(if (bankTab) "Top: cards you want · bottom: pay a lot for each" else "Tap top to ask · bottom to offer · hold to take back",
+            if (editing) Text(if (bankTab) "Top: cards you want · bottom: pay a lot for each" else "Tap top to ask · bottom to offer · either alone is fine",
                 color = INK.copy(alpha = 0.7f), fontSize = 11.sp)
             // One row of cards (Mauro, #49): the top half of a card asks for it, the bottom half offers it.
             AskOfferRow(showGet, showGive, editing, tradeCardWidth(room, showGet.size),
@@ -265,9 +272,10 @@ fun TradePanel(
                 val (g, v) = askOffer(get, give, r, tap, holding(s, me, r), if (bankTab) bankRate(s, me, r) else 0)
                 get = g; give = v
             }
+            // One button per taker: ✓ said yes to your offer, ⇄ countered. Tap to see their terms above, then Trade.
             if (mode == TradeMode.PICK_PARTNER) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (a in legal.filter { it.type == ActionType.CONFIRM_TRADE })
-                    Pill("Trade with ${names[a.payload.toInt()]}", YES, tag = "partner-${a.payload}") { onMove(a) }
+                for (q in takers)
+                    Pill("${names[q]} ${if (s.counterOf(q) != null) "⇄" else "✓"}", if (q == pick) YES else WOOD_MID, tag = "partner-$q") { pick = q }
             }
         }
         Spacer(Modifier.width(10.dp))
@@ -277,26 +285,24 @@ fun TradePanel(
         val yes: Action? = when {
             bankTab -> bankMoves?.first()
             mode == TradeMode.COMPOSE -> offerFor(s, give, get)?.takeIf { Rules.isLegal(s, it) }
-            countering -> counterFor(get, give).takeIf { Rules.isLegal(s, it) }
-            mode == TradeMode.RESPOND || mode == TradeMode.REVIEW_COUNTER -> Action.ACCEPT_TRADE.takeIf { it in legal }
-            mode == TradeMode.PICK_PARTNER -> legal.filter { it.type == ActionType.CONFIRM_TRADE }.singleOrNull()
+            countering -> counterFor(s, get, give)?.takeIf { Rules.isLegal(s, it) }
+            mode == TradeMode.RESPOND -> Action.ACCEPT_TRADE.takeIf { it in legal }
+            mode == TradeMode.PICK_PARTNER -> Action.confirmTrade(pick).takeIf { pick >= 0 && it in legal }
             else -> null
         }
         val no: (() -> Unit)? = when {
             countering -> { { countering = false } }
             mode == TradeMode.COMPOSE -> { { if (get.any { it > 0 } || give.any { it > 0 }) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } else onClose() } }
-            mode == TradeMode.RESPOND || mode == TradeMode.REVIEW_COUNTER -> { { onMove(Action.REJECT_TRADE) } }
+            mode == TradeMode.RESPOND -> { { onMove(Action.REJECT_TRADE) } }
             mode == TradeMode.PICK_PARTNER -> { { onMove(Action.CANCEL_TRADE) } }
             else -> null
         }
-        val counter: (() -> Unit)? = if (mode == TradeMode.RESPOND && !countering && s.ck == null) {
+        val counter: (() -> Unit)? = if (mode == TradeMode.RESPOND && !countering) {
             { get = termGet.copyOf(); give = termGive.copyOf(); countering = true }
         } else null
         val labels = tradeButtonLabels(mode, countering, bankTab, get.any { it > 0 } || give.any { it > 0 })
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Several takers: the "Trade with …" buttons choose, so no greyed-out Trade beside them.
-            if (!(mode == TradeMode.PICK_PARTNER && yes == null))
-                BigButton(labels.first, YES, "trade-yes", yes?.let { a -> { (bankMoves ?: listOf(a)).forEach(onMove); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
+            BigButton(labels.first, YES, "trade-yes", yes?.let { a -> { (bankMoves ?: listOf(a)).forEach(onMove); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
             BigButton(if (autoNoSeconds != null && mode == TradeMode.RESPOND) "${labels.second} ($autoNoSeconds)" else labels.second, NO, "trade-no", no)
             // Counter only means something when answering someone else's offer.
             if (mode == TradeMode.RESPOND) BigButton("Counter", COUNTER, "trade-counter", counter)
@@ -315,12 +321,14 @@ internal fun tradeButtonLabels(mode: TradeMode, countering: Boolean, bank: Boole
     else -> "Yes" to "No"
 }
 
-private fun status(s: GameState, me: Int, mode: TradeMode, names: List<String>, countering: Boolean, bank: Boolean): String = when {
+private fun status(s: GameState, me: Int, mode: TradeMode, names: List<String>, countering: Boolean, bank: Boolean, pick: Int = -1): String = when {
     bank -> "Trade with the bank"
     countering -> "Your counter to ${names[s.currentPlayer]}"
     mode == TradeMode.COMPOSE -> "Offer the other players"
+    mode == TradeMode.RESPOND && isOpenAsk(s) ->
+        if (termsFor(s, me).first.sum() == 0) "${names[s.currentPlayer]} asks: Counter with your price" else "${names[s.currentPlayer]} offers: Counter with what you want"
     mode == TradeMode.RESPOND -> "${names[s.currentPlayer]} offers you a trade"
-    mode == TradeMode.REVIEW_COUNTER -> "${names[s.counterFrom]} counters your offer"
+    mode == TradeMode.PICK_PARTNER && pick >= 0 -> "${names[pick]} ${if (s.counterOf(pick) != null) "countered" else "said yes"} · Trade or Cancel"
     mode == TradeMode.PICK_PARTNER -> "Pick who to trade with"
     mode == TradeMode.WAITING -> "Waiting for ${names[s.actingPlayer]}…"
     else -> tradeClosedReason(s, me)

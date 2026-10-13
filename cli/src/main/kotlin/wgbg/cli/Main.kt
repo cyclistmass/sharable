@@ -159,11 +159,13 @@ private fun describe(s: GameState, a: Action, names: List<String>): String {
         ActionType.MOVE_ROBBER -> "Move the bandit to ${hexText(s, a.robberHex)}" + if (a.robberVictim >= 0) " and take a card from ${names[a.robberVictim]}" else ""
         ActionType.DISCARD -> "Discard 1 ${RES[a.discardResource]}"
         ActionType.OFFER_TRADE -> "Offer the players: you give ${cards { a.offerGive(it) }}, you get ${cards { a.offerWant(it) }}"
-        ActionType.ACCEPT_TRADE -> if (s.phase == Phase.DECIDE_COUNTER) "Accept ${names[s.counterFrom]}'s counter-offer" else "Accept ${names[s.currentPlayer]}'s offer"
-        ActionType.REJECT_TRADE -> if (s.phase == Phase.DECIDE_COUNTER) "Decline ${names[s.counterFrom]}'s counter-offer" else "Decline ${names[s.currentPlayer]}'s offer" +
+        ActionType.ACCEPT_TRADE -> "Accept ${names[s.currentPlayer]}'s offer"
+        ActionType.REJECT_TRADE -> "Decline ${names[s.currentPlayer]}'s offer" +
             if (Action.ACCEPT_TRADE !in Rules.legalActions(s)) " (you can't pay it; to counter: counter --seat $p --give ... --want ...)" else ""
         ActionType.COUNTER_TRADE -> "Counter-offer to ${names[s.currentPlayer]}: you give ${cards { a.offerWant(it) }}, you get ${cards { a.offerGive(it) }}"
-        ActionType.CONFIRM_TRADE -> "Do the trade with ${names[a.payload.toInt()]}"
+        ActionType.CONFIRM_TRADE -> s.counterOf(a.payload.toInt())?.let { c ->
+            "Take ${names[a.payload.toInt()]}'s counter-offer: you give ${cards { c.offerGive(it) }}, you get ${cards { c.offerWant(it) }}"
+        } ?: "Do the trade with ${names[a.payload.toInt()]}"
         ActionType.CANCEL_TRADE -> "Cancel your offer"
         else -> a.toString()
     }
@@ -184,8 +186,8 @@ private fun render(r: Record, s: GameState, seat: Int?): String = buildString {
     if (s.phase == Phase.DECIDE_TRADE || s.phase == Phase.DECIDE_ACCEPTEES) {
         appendLine("Open offer from ${names[s.currentPlayer]}: gives ${cards { s.tradeOffer[it] }}, wants ${cards { s.tradeOffer[CARD_TYPES + it] }}")
     }
-    s.counterOffer?.let { c ->
-        appendLine("Counter-offer from ${names[s.counterFrom]} to ${names[s.currentPlayer]}: ${names[s.counterFrom]} gives ${cards { c.offerWant(it) }}, wants ${cards { c.offerGive(it) }}")
+    for (q in names.indices) s.counterOf(q)?.let { c ->
+        appendLine("Counter-offer from ${names[q]} to ${names[s.currentPlayer]}: ${names[q]} gives ${cards { c.offerWant(it) }}, wants ${cards { c.offerGive(it) }}")
     }
     appendLine()
     appendLine("Scores (first to ${r.vp}):")
@@ -247,8 +249,8 @@ private fun recentMoves(r: Record, n: Int): List<String> {
         val before = IntArray(r.seats.size * CARD_TYPES) { s.hands[it] }
         var text = when (a.type) {
             ActionType.ROLL -> "rolled " + (if (a.payload != 0L) "${a.a} + ${a.b} = ${a.a + a.b}" else "")
-            ActionType.REJECT_TRADE -> if (s.phase == Phase.DECIDE_COUNTER) "declined ${r.seats[s.counterFrom]}'s counter-offer" else "declined the offer"
-            ActionType.ACCEPT_TRADE -> if (s.phase == Phase.DECIDE_COUNTER) "accepted ${r.seats[s.counterFrom]}'s counter-offer" else "accepted the offer"
+            ActionType.REJECT_TRADE -> "declined the offer"
+            ActionType.ACCEPT_TRADE -> "accepted the offer"
             ActionType.BUY_DEVELOPMENT_CARD -> "bought a Fortune card"
             else -> describe(s, a, r.seats).let(::pastTense)
         }
@@ -385,7 +387,7 @@ fun main(argv: Array<String>) {
                 // Counters are written from the offerer's side: what they would give (our want) and get (our give).
                 val a = if (cmd == "offer") Action.offerTrade(give, want) else Action.counterTrade(give = want, want = give)
                 if (!Rules.isLegal(s, a)) fail(
-                    if (cmd == "offer") "can't offer that now: offers are made on your turn after rolling, with cards you hold, for different cards"
+                    if (cmd == "offer") "can't offer that now: offers are made on your turn after rolling, with cards you hold (give only or ask only is fine)"
                     else "can't counter now: a counter answers an open offer to you, with cards you hold",
                 )
                 val text = describe(s, a, r.seats)

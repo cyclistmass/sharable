@@ -55,24 +55,55 @@ class TradePanelTest {
         val (get0, give0) = termsFor(s, 0)
         assertEquals(1, get0[want]); assertEquals(1, give0[give])
 
-        // Player 1 counters: "I give the same, but I want 2". Only if we have 2.
+        // Player 1 counters: "I give the same, but I want 2". Only if we have 2. #135: the offer goes on round,
+        // and at the end the offerer sees player 1 as a taker on the countered terms.
         if (s.hand(0, give) >= 2) {
-            val c = counterFor(get = cards(give to 2), give = cards(want to 1))
+            val c = counterFor(s, get = cards(give to 2), give = cards(want to 1))!!
             assertTrue(Rules.isLegal(s, c), "$c")
             Rules.applyChecked(s, c)
-            assertEquals(TradeMode.REVIEW_COUNTER, tradeMode(s, 0))
-            val (g, gv) = termsFor(s, 0) // the counter replaces the offer for the offerer
-            assertEquals(1, g[want]); assertEquals(2, gv[give])
-            Rules.applyChecked(s, Action.REJECT_TRADE)
             assertEquals(Phase.DECIDE_TRADE, s.phase)
             assertEquals(2, s.actingPlayer)
+            while (s.phase == Phase.DECIDE_TRADE) Rules.applyChecked(s, Action.REJECT_TRADE)
+            assertEquals(TradeMode.PICK_PARTNER, tradeMode(s, 0))
+            val (g, gv) = takerTerms(s, 1)
+            assertEquals(1, g[want]); assertEquals(2, gv[give])
         }
     }
 
     @Test
-    fun `counterFor writes the counter from the offerer's side`() {
-        val c = counterFor(get = cards(Resource.WOOD to 2), give = cards(Resource.ORE to 1))
+    fun `#135 an open ask - Yes is off, Counter and No are on, and it is never auto-declined`() {
+        val s = Rules.newGame(GameConfig(numPlayers = 3), 4)
+        val buf = wgbg.engine.ActionBuffer()
+        val bots = List(3) { wgbg.ai.GreedyBot(it.toLong()) }
+        while (s.phase != Phase.PLAY_TURN) { Rules.legalActions(s, buf); Rules.apply(s, bots[s.actingPlayer].choose(s, buf)) }
+        Rules.apply(s, Action.roll(2, 2))
+        val from = s.currentPlayer; val to = (from + 1) % 3
+        for (r in 0 until 5) { s.hands[from * CARD_TYPES + r] = 1; s.hands[to * CARD_TYPES + r] = 0 }
+        Rules.applyChecked(s, offerFor(s, IntArray(5), cards(Resource.WHEAT to 1))!!) // "who has grain?"
+        assertTrue(isOpenAsk(s))
+        assertFalse(canPayOffer(s, to), "no grain to give...")
+        assertFalse(Action.ACCEPT_TRADE in Rules.legalActions(s), "...and nothing to say yes to")
+        s.hands[to * CARD_TYPES + Resource.WHEAT] = 2
+        val c = counterFor(s, get = cards(Resource.SHEEP to 1), give = cards(Resource.WHEAT to 1))!!
+        assertTrue(Rules.isLegal(s, c))
+        Rules.applyChecked(s, c)
+        while (s.phase == Phase.DECIDE_TRADE) Rules.applyChecked(s, Action.REJECT_TRADE)
+        assertEquals(TradeMode.PICK_PARTNER, tradeMode(s, from))
+        val (g, gv) = takerTerms(s, to)
+        assertEquals(1, g[Resource.WHEAT]); assertEquals(1, gv[Resource.SHEEP])
+        Rules.applyChecked(s, Action.confirmTrade(to))
+        assertEquals(1, s.hand(to, Resource.SHEEP))
+    }
+
+    @Test
+    fun `counterFor writes the counter from the offerer's side, in either ruleset`() {
+        val base = Rules.newGame(GameConfig(numPlayers = 3), 1)
+        val c = counterFor(base, get = cards(Resource.WOOD to 2), give = cards(Resource.ORE to 1))!!
         assertEquals(ActionType.COUNTER_TRADE, c.type)
+        val ck = Rules.newGame(GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS), 1)
+        val k = counterFor(ck, get = IntArray(8).also { it[5] = 1 }, give = IntArray(8).also { it[0] = 1 })!!
+        assertEquals(wgbg.engine.CkActionType.COUNTER_TRADE_CK, k.type)
+        assertEquals(1, k.ckOfferGive(5)); assertEquals(1, k.ckOfferWant(0))
         assertEquals(2, c.offerGive(Resource.WOOD)) // the offerer gives us 2 timber
         assertEquals(1, c.offerWant(Resource.ORE)) // and gets our stone
     }
@@ -187,7 +218,6 @@ class TradePanelTest {
         assertEquals("Trade" to "Clear", tradeButtonLabels(TradeMode.COMPOSE, countering = false, bank = true, entered = true))
         assertEquals("Yes" to "No", tradeButtonLabels(TradeMode.RESPOND, countering = false, bank = false, entered = false))
         assertEquals("Send" to "Back", tradeButtonLabels(TradeMode.RESPOND, countering = true, bank = false, entered = true))
-        assertEquals("Yes" to "No", tradeButtonLabels(TradeMode.REVIEW_COUNTER, countering = false, bank = false, entered = false))
         assertEquals("Trade" to "Cancel", tradeButtonLabels(TradeMode.PICK_PARTNER, countering = false, bank = false, entered = false))
     }
 

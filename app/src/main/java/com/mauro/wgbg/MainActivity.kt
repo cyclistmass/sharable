@@ -681,20 +681,19 @@ fun WatchGameScreen(
     // Answers to your trade offers, shown as marks by each name in the trade panel.
     fun noteResponse(who: Int, action: Action) {
         if (me >= 0 && state.currentPlayer == me) when {
-            action.type == ActionType.OFFER_TRADE || action.type == ActionType.END_TURN -> responses.clear()
+            action.type == ActionType.OFFER_TRADE || action.type == wgbg.engine.CkActionType.OFFER_TRADE_CK || action.type == ActionType.END_TURN -> responses.clear()
             who != me && state.phase == Phase.DECIDE_TRADE -> when (action.type) {
                 ActionType.ACCEPT_TRADE -> responses[who] = "✓"
                 ActionType.REJECT_TRADE -> responses[who] = "✗"
-                ActionType.COUNTER_TRADE -> responses[who] = "⇄"
+                ActionType.COUNTER_TRADE, wgbg.engine.CkActionType.COUNTER_TRADE_CK -> responses[who] = "⇄"
                 else -> {}
             }
-            state.phase == Phase.DECIDE_COUNTER && action.type == ActionType.REJECT_TRADE -> responses[state.counterFrom] = "✗"
         }
     }
     fun logMove(who: Int, action: Action) {
         CrashReport.note("turn ${state.turn} ${state.phase} p$who ${action.type}:${action.payload}")
         when (action.type) {
-            ActionType.REJECT_TRADE, ActionType.ACCEPT_TRADE, ActionType.COUNTER_TRADE, ActionType.END_TURN, ActionType.OFFER_TRADE -> {}
+            ActionType.REJECT_TRADE, ActionType.ACCEPT_TRADE, ActionType.COUNTER_TRADE, wgbg.engine.CkActionType.COUNTER_TRADE_CK, ActionType.END_TURN, ActionType.OFFER_TRADE -> {}
             ActionType.ROLL -> log.add(0, "${names[who]} rolled ${state.lastRoll}")
             wgbg.engine.CkActionType.PLAY_PROGRESS -> log.add(0, if ((action.payload and 0xff).toInt() == wgbg.engine.Progress.ALCHEMIST) "${names[who]} set the dice: ${state.lastRoll}" else "${names[who]}: ${describe(action.type)}")
             else -> log.add(0, "${names[who]}: ${describe(action.type)}")
@@ -990,7 +989,7 @@ fun WatchGameScreen(
         autoNo = null
         if (offerKey == null) return@LaunchedEffect
         hostView.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-        if (canPayOffer(state, me)) { sounds.tradeChime(sound.soundVolume); return@LaunchedEffect }
+        if (canPayOffer(state, me) || isOpenAsk(state)) { sounds.tradeChime(sound.soundVolume); return@LaunchedEffect }
         for (left in AUTO_NO_SECONDS downTo 1) { autoNo = left; delay(1000) }
         autoNo = null
         humanMoves.trySend(Action.REJECT_TRADE)   // checked against the rules like a tap; ignored if the offer moved on
@@ -1636,7 +1635,7 @@ internal fun describe(t: ActionKind) = when (t) {
     ActionType.MOVE_ROBBER -> "moved the bandit"
     ActionType.DISCARD -> "discarded"
     ActionType.CONFIRM_TRADE -> "traded"
-    ActionType.COUNTER_TRADE -> "made a counter-offer"
+    ActionType.COUNTER_TRADE, wgbg.engine.CkActionType.COUNTER_TRADE_CK -> "made a counter-offer"
     // Age of Chivalry, in our words (the history said "Red build knight").
     wgbg.engine.CkActionType.BUILD_KNIGHT -> "raised a knight"
     wgbg.engine.CkActionType.ACTIVATE_KNIGHT -> "supplied a knight"

@@ -63,6 +63,8 @@ enum class CkActionType : ActionKind {
     COMMERCIAL_HARBOR_OFFER,
     CK_DONE,
     OFFER_TRADE_CK,
+    /** A C&K counter-offer: OFFER_TRADE_CK terms from the offerer's side, collected until the round ends. */
+    COUNTER_TRADE_CK,
     ;
 
     override val id get() = ID_BASE + ordinal
@@ -98,6 +100,7 @@ enum class CkActionType : ActionKind {
  * - DISCARD_PROGRESS / TAKE_PROGRESS: progress card id; CHOOSE_PROGRESS_DECK: track
  * - COMMERCIAL_HARBOR_OFFER: resource | opponent << 8
  * - OFFER_TRADE_CK: 3 bits per count, offered cards 0..7 in bits 0..23, asked in 24..47
+ * - COUNTER_TRADE / COUNTER_TRADE_CK: as OFFER_TRADE / OFFER_TRADE_CK, from the offerer's side
  */
 @JvmInline
 value class Action(val code: Long) {
@@ -151,6 +154,8 @@ value class Action(val code: Long) {
             CkActionType.COMMERCIAL_HARBOR_OFFER -> "COMMERCIAL_HARBOR_OFFER(${r[a]} -> p$b)"
             CkActionType.OFFER_TRADE_CK -> "OFFER_TRADE_CK(give=${(0 until CK_CARD_TYPES).map(::ckOfferGive)}, " +
                 "want=${(0 until CK_CARD_TYPES).map(::ckOfferWant)})"
+            CkActionType.COUNTER_TRADE_CK -> "COUNTER_TRADE_CK(offerer gives=${(0 until CK_CARD_TYPES).map(::ckOfferGive)}, " +
+                "gets=${(0 until CK_CARD_TYPES).map(::ckOfferWant)})"
             ActionType.DISCARD -> "DISCARD(${if (a == 0) "random" else cn[discardResource]})"
             ActionType.MARITIME_TRADE -> "MARITIME_TRADE(${cn[maritimeGive]} -> ${cn[maritimeGet]})"
             ActionType.MOVE_ROBBER -> "MOVE_ROBBER(hex=$robberHex, victim=$robberVictim)"
@@ -253,13 +258,18 @@ value class Action(val code: Long) {
             of(CkActionType.COMMERCIAL_HARBOR_OFFER, (resource or (opponent shl 8)).toLong())
 
         /** C&K domestic offer over resources and commodities: [give]/[want] per C&K card index (each 0..7). */
-        fun offerTradeCk(give: IntArray, want: IntArray): Action {
+        fun offerTradeCk(give: IntArray, want: IntArray) = of(CkActionType.OFFER_TRADE_CK, ckTradeTerms(give, want))
+
+        /** C&K counter-offer: [give] and [want] are what the OFFERER would give and get (each 0..7). */
+        fun counterTradeCk(give: IntArray, want: IntArray) = of(CkActionType.COUNTER_TRADE_CK, ckTradeTerms(give, want))
+
+        private fun ckTradeTerms(give: IntArray, want: IntArray): Long {
             var p = 0L
             for (c in 0 until CK_CARD_TYPES) {
                 require(give[c] in 0..7 && want[c] in 0..7) { "trade counts must be 0..7" }
                 p = p or (give[c].toLong() shl (3 * c)) or (want[c].toLong() shl (24 + 3 * c))
             }
-            return of(CkActionType.OFFER_TRADE_CK, p)
+            return p
         }
     }
 }

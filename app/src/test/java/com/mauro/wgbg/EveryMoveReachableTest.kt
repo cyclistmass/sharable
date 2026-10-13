@@ -23,7 +23,7 @@ class EveryMoveReachableTest {
     private val buttons = setOf(ActionType.ROLL, ActionType.END_TURN, ActionType.BUY_DEVELOPMENT_CARD, ActionType.PLAY_KNIGHT_CARD,
         ActionType.PLAY_ROAD_BUILDING, ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY)
     private val tradeChest = setOf(ActionType.OFFER_TRADE, ActionType.ACCEPT_TRADE, ActionType.REJECT_TRADE, ActionType.COUNTER_TRADE,
-        ActionType.CONFIRM_TRADE, ActionType.CANCEL_TRADE, ActionType.MARITIME_TRADE, CkActionType.OFFER_TRADE_CK)
+        ActionType.CONFIRM_TRADE, ActionType.CANCEL_TRADE, ActionType.MARITIME_TRADE, CkActionType.OFFER_TRADE_CK, CkActionType.COUNTER_TRADE_CK)
     private val sheets = setOf(ActionType.DISCARD, CkActionType.CHOOSE_CARD)
 
     private fun reachable(s: GameState, a: Action, legal: List<Action>): Boolean =

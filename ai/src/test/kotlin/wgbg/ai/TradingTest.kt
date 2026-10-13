@@ -8,6 +8,8 @@ import wgbg.engine.ActionBuffer
 import wgbg.engine.ActionType
 import wgbg.engine.BANK_PER_RESOURCE
 import wgbg.engine.CARD_TYPES
+import wgbg.engine.CK_CARD_TYPES
+import wgbg.engine.Expansion
 import wgbg.engine.GameConfig
 import wgbg.engine.GameState
 import wgbg.engine.Phase
@@ -79,9 +81,10 @@ class TradingTest {
     }
 
     @Test
-    fun `greedy bots make counter-offers, and every counter gets an answer`() {
+    fun `greedy bots make counter-offers, and the offerer settles every round that has one`() {
         var counters = 0
         var answered = 0
+        var rounds = 0
         for (g in 0 until 60) {
             val s = Rules.newGame(GameConfig(numPlayers = 4), 1000L + g)
             val bots = List(4) { GreedyBot(g * 17L + it) }
@@ -91,14 +94,51 @@ class TradingTest {
             while (!s.isOver && steps++ < 20_000) {
                 Rules.legalActions(s, buf)
                 val a = bots[s.actingPlayer].choose(s, buf)
-                if (waiting && s.phase == Phase.DECIDE_COUNTER &&
-                    (a.type == ActionType.ACCEPT_TRADE || a.type == ActionType.REJECT_TRADE)) { answered++; waiting = false }
-                if (a.type == ActionType.COUNTER_TRADE) { counters++; waiting = true }
+                if (waiting && s.phase == Phase.DECIDE_ACCEPTEES &&
+                    (a.type == ActionType.CONFIRM_TRADE || a.type == ActionType.CANCEL_TRADE)) { answered++; waiting = false }
+                if (a.type == ActionType.COUNTER_TRADE) { counters++; if (!waiting) rounds++; waiting = true }
                 Rules.applyChecked(s, a) // counters must be legal
                 conserved(s)
             }
         }
         assertTrue(counters >= 10, "greedy bots countered only $counters times in 60 games")
-        assertTrue(answered >= counters - 1, "$counters counters, $answered answered")
+        assertTrue(answered >= rounds - 1, "$rounds rounds with counters, $answered settled")
+    }
+
+    @Test
+    fun `#135 a one-sided ask gets counters from greedy bots, in both rulesets`() {
+        for (ck in listOf(false, true)) {
+            var asks = 0
+            var countered = 0
+            for (g in 0 until 40) {
+                val cfg = if (ck) GameConfig(numPlayers = 4, expansion = Expansion.CITIES_AND_KNIGHTS) else GameConfig(numPlayers = 4)
+                val s = Rules.newGame(cfg, 500L + g)
+                val bots = List(4) { GreedyBot(g * 13L + it) }
+                val buf = ActionBuffer()
+                var steps = 0
+                var askedTurn = -1
+                while (!s.isOver && steps++ < 4_000 && asks < 200) {
+                    Rules.legalActions(s, buf)
+                    // Seat 0 asks for a resource it has none of, for nothing, once a turn after rolling.
+                    if (s.actingPlayer == 0 && s.phase == Phase.PLAY_TURN && s.hasRolled && s.freeRoads == 0) {
+                        val r = (0 until CARD_TYPES).firstOrNull { s.hand(0, it) == 0 }
+                        val ask = r?.let {
+                            if (ck) Action.offerTradeCk(IntArray(CK_CARD_TYPES), IntArray(CK_CARD_TYPES).also { w -> w[it] = 1 })
+                            else Action.offerTrade(IntArray(CARD_TYPES), IntArray(CARD_TYPES).also { w -> w[it] = 1 })
+                        }
+                        if (ask != null && Rules.isLegal(s, ask) && s.turn != askedTurn) {
+                            askedTurn = s.turn
+                            Rules.applyChecked(s, ask); asks++
+                            while (s.phase == Phase.DECIDE_TRADE) { Rules.legalActions(s, buf); Rules.applyChecked(s, bots[s.actingPlayer].choose(s, buf)) }
+                            if (s.phase == Phase.DECIDE_ACCEPTEES) { countered++; Rules.applyChecked(s, Action.CANCEL_TRADE) }
+                            continue
+                        }
+                    }
+                    Rules.applyChecked(s, bots[s.actingPlayer].choose(s, buf))
+                }
+            }
+            assertTrue(asks >= 20, "ck=$ck: only $asks asks")
+            assertTrue(countered * 4 >= asks, "ck=$ck: $countered of $asks asks got a counter")
+        }
     }
 }

@@ -136,8 +136,11 @@ fun prompt(s: GameState, legal: List<Action>, names: List<String>): String =
     s.phase == Phase.BUILD_INITIAL_ROAD -> "Tap a glowing edge to place a road"
     s.phase == Phase.MOVE_ROBBER -> "Tap a tile to move the bandit"
     s.phase == Phase.DISCARD -> "Too many cards on a 7: discard ${s.discardOwed[s.actingPlayer]}"
+    s.phase == Phase.DECIDE_TRADE && s.tradeOffer.sum() > 0 && (0 until CARD_TYPES).all { s.tradeOffer[it] == 0 } ->
+        "${names[s.currentPlayer]} asks for ${cards { s.tradeOffer[CARD_TYPES + it] }}: Counter with your price, or No"
+    s.phase == Phase.DECIDE_TRADE && s.tradeOffer.sum() > 0 && (0 until CARD_TYPES).all { s.tradeOffer[CARD_TYPES + it] == 0 } ->
+        "${names[s.currentPlayer]} offers ${cards { s.tradeOffer[it] }}: Counter with what you want, or No"
     s.phase == Phase.DECIDE_TRADE -> "${names[s.currentPlayer]} offers ${cards { s.tradeOffer[it] }} for ${cards { s.tradeOffer[CARD_TYPES + it] }}"
-    s.phase == Phase.DECIDE_COUNTER -> "${names[s.counterFrom]} made a counter-offer"
     s.phase == Phase.DECIDE_ACCEPTEES -> "Pick who to trade with, or cancel"
     legal.any { it.type == ActionType.ROLL } -> "Your turn: roll the dice"
     // Trailblazers, Pathfinders or Envoy (moving your own road): place the free road(s) before anything else.

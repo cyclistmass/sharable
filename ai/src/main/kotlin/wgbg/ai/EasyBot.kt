@@ -4,6 +4,7 @@ import wgbg.engine.Action
 import wgbg.engine.ActionBuffer
 import wgbg.engine.ActionType
 import wgbg.engine.CARD_TYPES
+import wgbg.engine.CkActionType
 import wgbg.engine.GameState
 import wgbg.engine.Phase
 import wgbg.engine.Rng
@@ -21,12 +22,6 @@ class EasyBot(seed: Long = 0, override val name: String = "Easy") : Bot {
         if (state.ck == null) when (state.phase) {
             Phase.DECIDE_TRADE -> return if (Action.ACCEPT_TRADE in legal && clearlyGood(state, offerIn(state), offerOut(state), state.currentPlayer))
                 Action.ACCEPT_TRADE else Action.REJECT_TRADE
-            Phase.DECIDE_COUNTER -> {
-                val c = state.counterOffer
-                val good = c != null && Action.ACCEPT_TRADE in legal &&
-                    clearlyGood(state, IntArray(CARD_TYPES) { c.offerWant(it) }, IntArray(CARD_TYPES) { c.offerGive(it) }, state.counterFrom)
-                if (good) return Action.ACCEPT_TRADE
-            }
             else -> {}
         }
         for (kind in BUILD_ORDER) {
@@ -34,7 +29,7 @@ class EasyBot(seed: Long = 0, override val name: String = "Easy") : Bot {
             if (builds.isNotEmpty()) return legal[builds[rng.nextInt(builds.size)]]
         }
         // Random among the rest, but never start or counter a trade (Easy waits to be asked).
-        val rest = (0 until legal.size).filter { legal[it].type != ActionType.OFFER_TRADE && legal[it].type != ActionType.COUNTER_TRADE }
+        val rest = (0 until legal.size).filter { legal[it].type !in TRADE_STARTS }
         return if (rest.isEmpty()) legal[rng.nextInt(legal.size)] else legal[rest[rng.nextInt(rest.size)]]
     }
 
@@ -57,5 +52,6 @@ class EasyBot(seed: Long = 0, override val name: String = "Easy") : Bot {
 
     companion object {
         private val BUILD_ORDER = listOf(ActionType.BUILD_CITY, ActionType.BUILD_SETTLEMENT, ActionType.BUILD_ROAD)
+        private val TRADE_STARTS = setOf(ActionType.OFFER_TRADE, ActionType.COUNTER_TRADE, CkActionType.OFFER_TRADE_CK, CkActionType.COUNTER_TRADE_CK)
     }
 }

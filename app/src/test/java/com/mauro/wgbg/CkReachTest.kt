@@ -17,7 +17,7 @@ class CkReachTest {
         ActionType.PLAY_KNIGHT_CARD, ActionType.PLAY_ROAD_BUILDING, ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY,
         ActionType.ACCEPT_TRADE, ActionType.REJECT_TRADE, ActionType.CONFIRM_TRADE, ActionType.CANCEL_TRADE,
         // The trade chest: bank trades on its Harbour tab, offers on its Players tab.
-        ActionType.MARITIME_TRADE, wgbg.engine.CkActionType.OFFER_TRADE_CK)
+        ActionType.MARITIME_TRADE, wgbg.engine.CkActionType.OFFER_TRADE_CK, wgbg.engine.CkActionType.COUNTER_TRADE_CK)
 
     @Test
     fun `every legal Age of Chivalry move for seat 0 is a board tap or a button`() {
