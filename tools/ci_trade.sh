@@ -83,6 +83,10 @@ for ruleset in $RULESETS; do
       sleep 1.5; read_cards
       [ "${HELD[$g]}" = $((before_g - rate)) ] && [ "${HELD[$w]}" = $((before_w + 1)) ] ||
         { bad "A: bank trade didn't take (card $g: $before_g -> ${HELD[$g]}, card $w: $before_w -> ${HELD[$w]})"; break; }
+      # #125: the new counts are shown after the trade ("Now: 4 Grain (+1) · 0 Stone (−3)").
+      now=$(dump | grep -o 'text="Now: [^"]*"' | head -1)
+      echo "$now" | grep -q "(+1)" && echo "$now" | grep -q "(−$rate)" ||
+        { bad "A: no new-counts line after the trade (#125): '${now:-none}'"; break; }
       # B: both cards just used must still answer: asking each shows +1.
       ask $g; ask $w
       plus=$(dump | grep -c 'text="+1"')
