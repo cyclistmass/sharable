@@ -102,12 +102,13 @@ class EnvSettingsTest {
     }
 
     @Test
-    fun `view bars default per device, are saved, and survive a restart`() {
-        org.junit.jupiter.api.Assertions.assertFalse(EnvSettings(MapStore()).viewBars, "phones: off by default")
-        org.junit.jupiter.api.Assertions.assertTrue(EnvSettings(MapStore(), viewBarsDefault = true).viewBars, "emulator: on by default")
+    fun `#137 view sliders are off by default, switched on and saved from the gear, and reset turns them off`() {
         val store = MapStore()
-        EnvSettings(store, viewBarsDefault = true).viewBars = false
-        org.junit.jupiter.api.Assertions.assertFalse(EnvSettings(store, viewBarsDefault = true).viewBars, "the player's choice wins after a restart")
+        org.junit.jupiter.api.Assertions.assertFalse(EnvSettings(store).viewBars, "gestures by default: no sliders")
+        EnvSettings(store).viewBars = true
+        org.junit.jupiter.api.Assertions.assertTrue(EnvSettings(store).viewBars, "the player's choice survives a restart")
+        EnvSettings(store).reset()
+        org.junit.jupiter.api.Assertions.assertFalse(EnvSettings(store).viewBars, "reset hides them again")
     }
 
     @Test

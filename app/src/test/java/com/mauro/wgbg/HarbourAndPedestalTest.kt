@@ -28,6 +28,28 @@ class HarbourAndPedestalTest {
     }
 
     @Test
+    fun `#136 3D harbours - piers start on the coast corners, the buoy and shallows sit on the sea`() {
+        val b = Rules.newGame(GameConfig(), 7L).board
+        for (tilt in listOf(0f, Camera.START_TILT, Camera.MAX_TILT)) for (rotation in listOf(0f, 1.2f, 3.1415927f)) {
+            val p = LiveProjection(Offset(500f, 400f), 80f, tilt, rotation)
+            for (port in b.ports) {
+                val h = liveHarbour(b, port.v1, port.v2, p, PORT_BUOY_OUT)
+                val a = liveVertex(b, port.v1); val c = liveVertex(b, port.v2)
+                // The corners are where the tiles' top faces meet the coast, so the piers touch the land.
+                assertEquals(p.project(a), h.a); assertEquals(p.project(c), h.b)
+                val n = coastOutward(b, port.v1, port.v2)
+                assertEquals(p.project((a + c) / 2f + n * PORT_BUOY_OUT, LIVE_SEA), h.token)
+                assertEquals(p.project((a + c) / 2f, LIVE_SEA), h.mid)
+                // Tilted, the sea shows below the tile tops: the buoy sits that much lower on screen than at tile height.
+                val drop = -LIVE_SEA * kotlin.math.sin(tilt) * p.scale
+                assertEquals(p.project((a + c) / 2f + n * PORT_BUOY_OUT).y + drop, h.token.y, 1e-3f)
+            }
+        }
+        assertEquals(LIVE_SEA, livePlacements(Rules.newGame(GameConfig(), 7L), false, 0).first { it.model == "sea" }.height,
+            "the harbours and the sea model agree on the water's height")
+    }
+
+    @Test
     fun `knights stand on a player-colour ring with a dark centre, at least 15 percent ring`() {
         val ring = 0.27f * KNIGHT_RING_SCALE; val band = 0.27f * KNIGHT_BAND_SCALE
         assertTrue((ring - band) / ring >= 0.15f, "ring share ${(ring - band) / ring}")
