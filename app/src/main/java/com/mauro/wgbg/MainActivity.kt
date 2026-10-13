@@ -285,10 +285,11 @@ private fun polygon(points: List<Offset>) = Path().apply {
 /** Pips under a number token: how many dice combinations roll it (2/12 → 1, 6/8 → 5). */
 private fun pips(n: Int) = 6 - kotlin.math.abs(7 - n)
 
-private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME, LOOK }
+// START is the splash (#132); SETUP is the game-start screen (players, ruleset, dice, online) behind its New game.
+private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME, LOOK, SETUP }
 
 /**
- * Game start (#3) -> the game, or online: host a room (lobby #19) or join one by code -> the online game (#7).
+ * Splash (#132) -> New game -> game start (#3) -> the game, or online: host a room (lobby #19) or join one by code -> the online game (#7).
  * The in-game Exit goes back to game start (leaving the room).
  */
 @Composable
@@ -312,7 +313,10 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     val localStore = remember { LocalSaveStore(java.io.File(context0.filesDir, "local-game.txt")) }
     var resuming by remember { mutableStateOf(if (screen == Screen.GAME && start == null) localStore.load() else null) }
     var localSave by remember { mutableStateOf<LocalSave?>(null) }
-    LaunchedEffect(screen) { if (screen == Screen.START) localSave = localStore.load() }
+    LaunchedEffect(screen) { if (screen == Screen.START || screen == Screen.SETUP) localSave = localStore.load() }
+    // Settings on the splash: the same saved settings the in-game gear shows.
+    val splashEnv = remember { EnvSettings(PrefsStore(context0), viewBarsDefault = EnvSettings.isEmulator()) }
+    val splashSound = remember { SoundSettings(PrefsStore(context0)) }
     val context = LocalContext.current.applicationContext
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // Created on first online use only: offline play never touches Firebase.
@@ -398,9 +402,17 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     if (intro && screen == Screen.START) { IntroScreen { intro = false }; return }
     var feedback by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
-        // The build version shows inside the start screen's right panel (NewGameScreen).
+        // The build version shows along the splash's bottom edge and inside the game-start screen's right panel.
         when (screen) {
-            Screen.START -> NewGameScreen(
+            Screen.START -> SplashScreen(
+                resumeGame = localSave != null,
+                resumeRoom = resumeCode.takeIf { session == null && !busy },
+                onResumeGame = { localSave?.let { setup = it.setup; resuming = it; gameNo++; screen = Screen.GAME } },
+                onResumeRoom = { resumeCode?.let { rejoin(it) } },
+                onNewGame = { screen = Screen.SETUP },
+                env = splashEnv, sound = splashSound,
+            )
+            Screen.SETUP -> { BackHandler { screen = Screen.START }; NewGameScreen(
                 onStart = { setup = it; savedSetup.edit().putString("last", it.encode()).apply(); resuming = null; gameNo++; screen = Screen.GAME },
                 initial = setup,
                 onOpenLobby = { s ->
@@ -418,19 +430,19 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 onLookAndArt = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); screen = Screen.LOOK },
                 onPlayIntro = { intro = true },
                 onFeedback = { feedback = true },
-            )
+            ) }
             Screen.JOIN -> {
-                BackHandler { screen = Screen.START }
+                BackHandler { screen = Screen.SETUP }
                 JoinRoomScreen(setup.name, busy, initialCode = inviteCode ?: "", onJoin = { code, name ->
                     setup = setup.copy(name = name); busy = true; problem = null
                     joinFirstOpenSeat(transport.value, setup, code).whenComplete { r, e ->
                         scope.launch { if (e != null) failed(e) else { busy = false; enterRoom(r) } }
                     }
-                }, onBack = { screen = Screen.START })
+                }, onBack = { screen = Screen.SETUP })
             }
             Screen.LOBBY -> lobby?.let { l ->
                 BackHandler { screen = Screen.START }
-                LobbyScreen(l, onChange = { lobby = it }, onStart = { setup = it; gameNo++; screen = Screen.GAME }, onSettings = { screen = Screen.START })
+                LobbyScreen(l, onChange = { lobby = it }, onStart = { setup = it; gameNo++; screen = Screen.GAME }, onSettings = { screen = Screen.SETUP })
             } ?: run { screen = Screen.START }
             Screen.ONLINE_LOBBY -> session?.let { s ->
                 BackHandler { leaveRoom() }
@@ -443,14 +455,14 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                         onDeleteRoom = { deleteRoom() }, onQuitRoom = { leaveRoom() })
                 }
             } ?: RejoiningOr(savedRoom) { screen = Screen.START }
-            Screen.LOOK -> WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), Camera.FIT, setup, onExit = { screen = Screen.START }, lookAndArt = true)
+            Screen.LOOK -> WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), Camera.FIT, setup, onExit = { screen = Screen.SETUP }, lookAndArt = true)
             Screen.GAME -> key(gameNo) {
                 // Back asks "Leave this game?" inside the game screen (same as Exit).
                 WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoplay = autoplay, autoSetup = autoSetup, startWatching = watch, quickBots = quickBots,
                     resume = resuming, saveStore = localStore.takeIf { start == null })
             }
         }
-        if (feedback && screen == Screen.START) {
+        if (feedback && screen == Screen.SETUP) {
             BackHandler { feedback = false }
             FeedbackPanel(null, emptyList(), null) { feedback = false }
         }

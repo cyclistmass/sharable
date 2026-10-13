@@ -50,6 +50,9 @@ done
 sleep 5
 tap_text $GUEST "Got it" 2>/dev/null || true
 
+# The splash (#132) first: New game opens the game-start screen with Host and Join.
+for d in $HOST $GUEST; do wait_for $d "New game" 30 && tap_text $d "New game"; done
+
 # Host: name, a Friend seat for the guest, the ruleset, then open the room.
 wait_for $HOST "Host a room" 20
 fill $HOST 1 Mauro
