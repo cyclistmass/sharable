@@ -43,7 +43,8 @@ start() { # $1 ruleset, then extra am-start arguments
 }
 shot() { # screen -> docs/screenshots/$1.jpg
   "$A" exec-out screencap -p > "$OUT/$1.png"
-  py -c "from PIL import Image; Image.open(r'$(cygpath -w "$OUT/$1.png")').convert('RGB').resize((1200,540), Image.LANCZOS).save(r'docs/screenshots/$1.jpg', quality=85, optimize=True)"
+  # ffmpeg, not Pillow: Pillow is not in every Python here (the 0.3.0 run stopped on it); ffmpeg already makes the GIFs.
+  ffmpeg -loglevel error -y -i "$(cygpath -w "$OUT/$1.png")" -vf scale=1200:540:flags=lanczos -q:v 3 "docs/screenshots/$1.jpg"
 }
 play_setup() { # place your opening pieces through the agent hooks (no debug badge), up to the first roll
   local last="" line legal mv
