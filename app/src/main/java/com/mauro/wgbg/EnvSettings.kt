@@ -425,6 +425,7 @@ class SoundSettings(private val store: FloatStore) {
             Song("Blow the Man Down", R.raw.tune_blow_the_man_down),
             Song("Haul Away Joe", R.raw.tune_haul_away_joe),
             Song("Leave Her Johnny", R.raw.tune_leave_her_johnny),
+            Song("Leave Her Johnny (lament)", R.raw.tune_leave_her_johnny_lament),
             Song("Spanish Ladies", R.raw.tune_spanish_ladies),
             Song("South Australia", R.raw.tune_south_australia),
             Song("Rio Grande", R.raw.tune_rio_grande),
