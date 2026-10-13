@@ -7,10 +7,11 @@
 # Usage: tools/publish_release.sh [path to gameplay mp4]
 set -euo pipefail
 VIDEO="${1:-$TEMP/wgbg-showcase/working-german-board-game-gameplay.mp4}"
-REPO=cyclistmass/shareable
+REPO="${REPO:-cyclistmass/shareable}"   # REPO=cyclistmass/sharable until the rename has run
 SHAREABLE="${SHAREABLE:-../shareable}"
 WORK="$(mktemp -d)"
-tok() { printf "protocol=https\nhost=github.com\npath=%s.git\n\n" "$REPO" | git -c credential.useHttpPath=true credential fill | sed -n 's/^password=//p'; }
+# Never wait on a login prompt: no token in the store means fail now (a prompt would hang the release).
+tok() { printf "protocol=https\nhost=github.com\npath=%s.git\n\n" "$REPO" | GCM_INTERACTIVE=never GIT_TERMINAL_PROMPT=0 git -c credential.useHttpPath=true credential fill | sed -n 's/^password=//p'; }
 api() { curl -s -m 60 -H "Authorization: Bearer $(tok)" "$@"; }
 
 # The commit to release: origin/main, or SHA=<commit> to pin an earlier tested build while newer work lands on main.
