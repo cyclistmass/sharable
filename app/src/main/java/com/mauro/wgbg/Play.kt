@@ -273,11 +273,12 @@ private fun DiscardSheet(s: GameState, me: Int, legal: List<Action>, onMove: (Ac
                     val have = holding(s, me, r)
                     if (have == 0) continue
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Today's pile and counts, whatever the handler first saw (the #122 stale-tap pattern).
+                        val pick by androidx.compose.runtime.rememberUpdatedState({ add: Boolean -> pile = discardPick(pile, r, add, have, owed) })
                         Box(
                             Modifier.size(width = 42.dp, height = 60.dp)
-                                .pointerInput(r, have, owed) {
-                                    detectTapGestures(onTap = { pile = discardPick(pile, r, true, have, owed) },
-                                        onLongPress = { pile = discardPick(pile, r, false, have, owed) })
+                                .pointerInput(r) {
+                                    detectTapGestures(onTap = { pick(true) }, onLongPress = { pick(false) })
                                 }.testTag("discard-card-$r"),
                             contentAlignment = Alignment.Center,
                         ) {

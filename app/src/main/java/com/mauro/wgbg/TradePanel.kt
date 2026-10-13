@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import wgbg.engine.Action
@@ -208,6 +209,8 @@ fun TradePanel(
     version: Int = 0,
     /** Seconds until an offer you can't pay is declined for you (#44), or null. */
     autoNoSeconds: Int? = null,
+    /** Width the chest may fill; the cards grow to use it (Mauro: "the trade panel could be a little bigger"). */
+    room: Dp = 480.dp,
 ) {
     version
     val mode = tradeMode(s, me)
@@ -231,7 +234,8 @@ fun TradePanel(
     Row(modifier.chest().testTag("trade-panel"), verticalAlignment = Alignment.CenterVertically) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Tab("Players", !bankTab) { maritime = false }
+                // Either tab starts clean: bank picks carried into a player offer made it unsendable (#122).
+                Tab("Players", !bankTab) { if (maritime) { maritime = false; get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } }
                 if (mode == TradeMode.COMPOSE) Tab("Harbour", bankTab) { maritime = true; get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) }
                 // Everyone's answer to your offer, up here beside the tabs: a row at the bottom ran off the
                 // chest on a landscape phone.
@@ -243,10 +247,10 @@ fun TradePanel(
             }
             Text(status(s, me, mode, names, countering, bankTab), color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 maxLines = 1, modifier = Modifier.width(214.dp))
-            if (editing) Text(if (bankTab) "Top: the card you want · bottom: what you pay" else "Tap top to ask · bottom to offer · hold to take back",
+            if (editing) Text(if (bankTab) "Top: cards you want · bottom: pay a lot for each" else "Tap top to ask · bottom to offer · hold to take back",
                 color = INK.copy(alpha = 0.7f), fontSize = 11.sp)
             // One row of cards (Mauro, #49): the top half of a card asks for it, the bottom half offers it.
-            AskOfferRow(showGet, showGive, editing,
+            AskOfferRow(showGet, showGive, editing, tradeCardWidth(room, showGet.size),
                 // #113: the bank tab shows how many you hold as well as the rate.
                 under = { r -> if (bankTab) "have ${holding(s, me, r)}\n${bankRate(s, me, r)}:1" else "have ${holding(s, me, r)}" }) { r, tap ->
                 val (g, v) = askOffer(get, give, r, tap, holding(s, me, r), if (bankTab) bankRate(s, me, r) else 0)
@@ -259,12 +263,10 @@ fun TradePanel(
         }
         Spacer(Modifier.width(10.dp))
         // Yes / No / Counter.
+        // A bank trade can be several moves (#122); everything else is one.
+        val bankMoves = if (bankTab) bankTrades(s, me, get, give) else null
         val yes: Action? = when {
-            bankTab -> {
-                val g = give.indexOfFirst { it > 0 }
-                val w = get.indexOfFirst { it > 0 }
-                if (g >= 0 && w >= 0) Action.maritimeTrade(g, w).takeIf { it in legal } else null
-            }
+            bankTab -> bankMoves?.first()
             mode == TradeMode.COMPOSE -> offerFor(s, give, get)?.takeIf { Rules.isLegal(s, it) }
             countering -> counterFor(get, give).takeIf { Rules.isLegal(s, it) }
             mode == TradeMode.RESPOND || mode == TradeMode.REVIEW_COUNTER -> Action.ACCEPT_TRADE.takeIf { it in legal }
@@ -285,7 +287,7 @@ fun TradePanel(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // Several takers: the "Trade with …" buttons choose, so no greyed-out Trade beside them.
             if (!(mode == TradeMode.PICK_PARTNER && yes == null))
-                BigButton(labels.first, YES, "trade-yes", yes?.let { a -> { onMove(a); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
+                BigButton(labels.first, YES, "trade-yes", yes?.let { a -> { (bankMoves ?: listOf(a)).forEach(onMove); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
             BigButton(if (autoNoSeconds != null && mode == TradeMode.RESPOND) "${labels.second} ($autoNoSeconds)" else labels.second, NO, "trade-no", no)
             // Counter only means something when answering someone else's offer.
             if (mode == TradeMode.RESPOND) BigButton("Counter", COUNTER, "trade-counter", counter)
@@ -330,16 +332,16 @@ enum class CardTap { ASK, OFFER, TAKE_BACK }
 /**
  * The new (get, give) after a [tap] on card [r]. Asking adds one (up to 9), offering adds one (up to [have]
  * held); a card is never both asked and offered, so tapping the other half switches it over. Take-back
- * removes one from whichever side holds it. With the bank ([bankRate] > 0) it is one card each way: the top
- * picks the card you want, the bottom the card you pay [bankRate] of.
+ * removes one from whichever side holds it. With the bank ([bankRate] > 0) offering pays one more lot of
+ * [bankRate] of that card (#122: several lots, each card at its own rate), and take-back returns one lot.
  */
 fun askOffer(get: IntArray, give: IntArray, r: Int, tap: CardTap, have: Int, bankRate: Int = 0): Pair<IntArray, IntArray> {
     val g = get.copyOf(); val v = give.copyOf()
     if (bankRate > 0) {
         when (tap) {
-            CardTap.ASK -> { g.fill(0); g[r] = 1; v[r] = 0 }
-            CardTap.OFFER -> if (have >= bankRate) { v.fill(0); v[r] = bankRate; g[r] = 0 }
-            CardTap.TAKE_BACK -> { g[r] = 0; v[r] = 0 }
+            CardTap.ASK -> { v[r] = 0; g[r] = (g[r] + 1).coerceAtMost(9) }
+            CardTap.OFFER -> if (have >= v[r] + bankRate) { g[r] = 0; v[r] += bankRate }
+            CardTap.TAKE_BACK -> if (g[r] > 0) g[r]-- else if (v[r] > 0) v[r] = (v[r] - bankRate).coerceAtLeast(0)
         }
         return g to v
     }
@@ -352,22 +354,54 @@ fun askOffer(get: IntArray, give: IntArray, r: Int, tap: CardTap, have: Int, ban
 }
 
 /**
+ * A bank trade as the moves that make it (#122): one MARITIME_TRADE per card asked, each paid by one lot of a
+ * paid card at [me]'s rate for it, so "2 Grain at 2:1 and 4 Stone at 4:1 for a Clay and a Fleece" is two moves.
+ * Null unless the lots paid match the cards asked and every move is legal in turn (rates, cards held, the bank's
+ * stock), checked on a copy of [s].
+ */
+fun bankTrades(s: GameState, me: Int, get: IntArray, give: IntArray): List<Action>? {
+    val pay = ArrayList<Int>()
+    for (r in give.indices) if (give[r] > 0) {
+        val rate = bankRate(s, me, r)
+        if (give[r] % rate != 0) return null
+        repeat(give[r] / rate) { pay.add(r) }
+    }
+    val want = ArrayList<Int>()
+    for (r in get.indices) repeat(get[r]) { want.add(r) }
+    if (want.isEmpty() || want.size != pay.size) return null
+    val moves = pay.zip(want) { g, w -> Action.maritimeTrade(g, w) }
+    val sim = s.copy()
+    for (m in moves) { if (sim.actingPlayer != me || !Rules.isLegal(sim, m)) return null; Rules.apply(sim, m) }
+    return moves
+}
+
+/**
+ * How wide each trade card is drawn: as big as [room] allows once the buttons (78 dp + gap) and the chest's
+ * edges are taken out, between the old 42 dp and 58 dp, so 8 Age of Chivalry cards still fit a small phone.
+ */
+internal fun tradeCardWidth(room: Dp, cards: Int): Dp =
+    ((room - 124.dp) / cards.coerceAtLeast(1) - 6.dp).coerceIn(42.dp, 58.dp)
+
+/**
  * One row of cards for a trade: green "+N" on a card's top edge is asked for, red "−N" on its bottom edge is
  * offered. Tap the top half to ask, the bottom half to offer; the "−" under a card (or a long press) takes one back.
  */
 @Composable
-private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, under: (Int) -> String?, onTap: (Int, CardTap) -> Unit) {
+private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, cardWidth: Dp, under: (Int) -> String?, onTap: (Int, CardTap) -> Unit) {
+    // The tap handlers below live as long as their card; they must call today's [onTap], not the one from the card's
+    // first touch, or a card used in one trade went dead for the next (#122: "can't do a second maritime trade").
+    val tap by androidx.compose.runtime.rememberUpdatedState(onTap)
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for (r in get.indices) Column(horizontalAlignment = Alignment.CenterHorizontally) {
             val asked = get[r]; val offered = give[r]
             val lit = asked > 0 || offered > 0
             Box(
-                Modifier.size(width = 42.dp, height = 60.dp)
+                Modifier.size(width = cardWidth, height = cardWidth * (60f / 42f))
                     .then(if (lit) Modifier.border(2.dp, if (asked > 0) Color(0xFF8BD18B) else Color(0xFFE57373), RoundedCornerShape(5.dp)) else Modifier)
                     .then(if (editable) Modifier.pointerInput(r) {
                         detectTapGestures(
-                            onTap = { at -> onTap(r, if (at.y < size.height / 2f) CardTap.ASK else CardTap.OFFER) },
-                            onLongPress = { onTap(r, CardTap.TAKE_BACK) },
+                            onTap = { at -> tap(r, if (at.y < size.height / 2f) CardTap.ASK else CardTap.OFFER) },
+                            onLongPress = { tap(r, CardTap.TAKE_BACK) },
                         )
                     } else Modifier)
                     .testTag("card-$r"),

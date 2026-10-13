@@ -210,14 +210,83 @@ class TradePanelTest {
     }
 
     @Test
-    fun `with the bank it is one card each way at your rate`() {
+    fun `with the bank each tap on the bottom pays one more lot at your rate (#122)`() {
         val z = IntArray(5)
         var (g, v) = askOffer(z, z, 3, CardTap.ASK, have = 0, bankRate = 4)
-        askOffer(g, v, 1, CardTap.OFFER, have = 4, bankRate = 4).let { g = it.first; v = it.second }
-        assertEquals(1, g[3]); assertEquals(4, v[1])
-        askOffer(g, v, 2, CardTap.ASK, have = 0, bankRate = 4).let { g = it.first; v = it.second }   // pick another
-        assertEquals(0, g[3]); assertEquals(1, g[2])
-        assertEquals(0, askOffer(g, z, 0, CardTap.OFFER, have = 3, bankRate = 4).second[0])           // can't pay 4 with 3
+        askOffer(g, v, 3, CardTap.ASK, have = 0, bankRate = 4).let { g = it.first; v = it.second }        // a second Grain
+        askOffer(g, v, 1, CardTap.OFFER, have = 8, bankRate = 4).let { g = it.first; v = it.second }
+        askOffer(g, v, 1, CardTap.OFFER, have = 8, bankRate = 4).let { g = it.first; v = it.second }      // a second lot
+        assertEquals(2, g[3]); assertEquals(8, v[1])
+        assertEquals(8, askOffer(g, v, 1, CardTap.OFFER, have = 8, bankRate = 4).second[1])                 // no third lot from 8
+        assertEquals(0, askOffer(g, z, 0, CardTap.OFFER, have = 3, bankRate = 4).second[0])                 // can't pay 4 with 3
+        askOffer(g, v, 1, CardTap.TAKE_BACK, have = 8, bankRate = 4).let { assertEquals(4, it.second[1]) }  // one lot back
+        askOffer(g, v, 3, CardTap.TAKE_BACK, have = 0, bankRate = 4).let { assertEquals(1, it.first[3]) }   // one card back
+        askOffer(g, v, 1, CardTap.ASK, have = 8, bankRate = 4).let { assertEquals(0, it.second[1]); assertEquals(1, it.first[1]) } // switch over
+    }
+
+    /** A 3-player game at [seed] on a main-phase turn (rolled, END_TURN legal), driven there by bots. */
+    private fun midTurn(expansion: wgbg.engine.Expansion, seed: Long): GameState {
+        val s = Rules.newGame(GameConfig(expansion = expansion, numPlayers = 3), seed)
+        val buf = ActionBuffer()
+        val bots = List(3) { GreedyBot(it.toLong()) }
+        while (true) {
+            Rules.legalActions(s, buf)
+            if (s.phase == Phase.PLAY_TURN && Action.END_TURN in buf) return s
+            Rules.apply(s, bots[s.actingPlayer].choose(s, buf))
+        }
+    }
+
+    private fun setHand(s: GameState, p: Int, vararg counts: Pair<Int, Int>) {
+        val nc = wgbg.engine.Commodity.COUNT
+        for (r in 0 until CARD_TYPES) s.hands[p * CARD_TYPES + r] = 0
+        s.ck?.let { ck -> for (i in 0 until nc) ck.commodities[p * nc + i] = 0 }
+        for ((r, n) in counts) if (r < CARD_TYPES) s.hands[p * CARD_TYPES + r] = n else s.ck!!.commodities[p * nc + r - CARD_TYPES] = n
+    }
+
+    @Test
+    fun `#122 two bank trades in a row, several lots and mixed rates go through, in both rulesets`() {
+        for (exp in listOf(wgbg.engine.Expansion.BASE, wgbg.engine.Expansion.CITIES_AND_KNIGHTS)) for (seed in 1L..6L) {
+            val s = midTurn(exp, seed)
+            val me = s.actingPlayer
+            val n = tradeCards(s)
+            // Two separate one-lot trades, one after the other.
+            setHand(s, me, 0 to bankRate(s, me, 0), 1 to bankRate(s, me, 1))
+            for ((pay, want) in listOf(0 to 2, 1 to 3)) {
+                val moves = bankTrades(s, me, IntArray(n).also { it[want] = 1 }, IntArray(n).also { it[pay] = bankRate(s, me, pay) })
+                assertEquals(1, moves?.size, "$exp seed $seed: one lot of $pay for $want")
+                moves!!.forEach { assertTrue(Rules.isLegal(s, it)); Rules.apply(s, it) }
+            }
+            assertEquals(1, holding(s, me, 2)); assertEquals(1, holding(s, me, 3)); assertEquals(0, holding(s, me, 0))
+            // Several lots of mixed cards (each at its own rate) for several cards in one go.
+            val ra = bankRate(s, me, 0); val rb = bankRate(s, me, 4)
+            setHand(s, me, 0 to 2 * ra, 4 to rb)
+            val moves = bankTrades(s, me, IntArray(n).also { it[1] = 2; it[2] = 1 }, IntArray(n).also { it[0] = 2 * ra; it[4] = rb })
+            assertEquals(3, moves?.size, "$exp seed $seed: three lots")
+            moves!!.forEach { assertTrue(Rules.isLegal(s, it)); Rules.apply(s, it) }
+            assertEquals(2, holding(s, me, 1)); assertEquals(1, holding(s, me, 2)); assertEquals(0, holding(s, me, 0)); assertEquals(0, holding(s, me, 4))
+            // Still your turn, so more trades (bank or players) can follow.
+            assertEquals(me, s.actingPlayer)
+            assertTrue(Action.END_TURN in Rules.legalActions(s))
+        }
+    }
+
+    @Test
+    fun `#122 a bank trade that doesn't add up is no trade, and checking never changes the game`() {
+        val s = midTurn(wgbg.engine.Expansion.BASE, 3)
+        val me = s.actingPlayer
+        val rate = bankRate(s, me, 0)
+        setHand(s, me, 0 to 2 * rate)
+        val one = IntArray(5).also { it[1] = 1 }
+        val before = s.stateHash()
+        assertEquals(null, bankTrades(s, me, IntArray(5), IntArray(5).also { it[0] = rate }))                     // nothing asked
+        assertEquals(null, bankTrades(s, me, one, IntArray(5)))                                                    // nothing paid
+        assertEquals(null, bankTrades(s, me, one, IntArray(5).also { it[0] = 2 * rate }))                          // two lots for one card
+        assertEquals(null, bankTrades(s, me, IntArray(5).also { it[1] = 3 }, IntArray(5).also { it[0] = 2 * rate })) // three cards for two lots
+        if (rate > 2) assertEquals(null, bankTrades(s, me, one, IntArray(5).also { it[0] = rate - 1 }))            // a short lot
+        assertEquals(1, bankTrades(s, me, one, IntArray(5).also { it[0] = rate })?.size)
+        assertEquals(before, s.stateHash())
+        s.bank[1] = 1
+        assertEquals(null, bankTrades(s, me, IntArray(5).also { it[1] = 2 }, IntArray(5).also { it[0] = 2 * rate })) // the bank has only one
     }
 
     @Test

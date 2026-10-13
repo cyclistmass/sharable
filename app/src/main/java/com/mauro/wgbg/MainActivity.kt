@@ -1246,9 +1246,9 @@ fun WatchGameScreen(
             val needsMe = tradeNeedsMe(state, me)
             // The trade chest floats over the board (0.2.6), centred right of the side panel so the turn history stays in view.
             val panelEdge = with(LocalDensity.current) { stripWidth.toDp() } + 16.dp
-            if (chestOpen) Box(Modifier.fillMaxSize().padding(start = panelEdge, bottom = 8.dp, end = 8.dp)) {
+            if (chestOpen) androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().padding(start = panelEdge, bottom = 8.dp, end = 8.dp)) {
                 TradePanel(state, me, legal, names, send, onClose = { tradeOpen = false }, responses = responses, version = tick, autoNoSeconds = autoNo,
-                    modifier = Modifier.align(Alignment.BottomCenter))
+                    room = maxWidth, modifier = Modifier.align(Alignment.BottomCenter))
             }
             else if (cardPick.isNotEmpty() && chosen.isEmpty()) Column(
                 // Aiming a board card: say what to tap, with a way out.

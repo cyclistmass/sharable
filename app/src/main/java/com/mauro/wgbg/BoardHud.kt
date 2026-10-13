@@ -230,13 +230,18 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
     androidx.compose.runtime.LaunchedEffect(detail) { if (detail != null) { kotlinx.coroutines.delay((12000L * pace).toLong()); detail = null } }
     fun Modifier.longPressFor(d: CardDetail) = this.pointerInput(d) { detectTapGestures(onTap = { detail = null }, onLongPress = { detail = d }) }
     @Composable
-    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, small: String? = null, art: Int? = null, long: CardDetail? = null, onTap: (() -> Unit)? = null) = Box(contentAlignment = Alignment.TopEnd,
-        modifier = Modifier.testTag(tag).then(if (onTap != null || long != null) Modifier.pointerInput(long) {
-            detectTapGestures(onTap = { if (detail != null) detail = null else onTap?.invoke() }, onLongPress = { long?.let { detail = it } })
-        } else Modifier)) {
-        // Themed by its deck's commodity (Mauro): Guilds on Fabric, Crown on Silver, Academy on Parchment.
-        ProgressCardFace(name, edge, art, small, w, h)
-        if (n > 1) count(n)
+    fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, small: String? = null, art: Int? = null, long: CardDetail? = null, onTap: (() -> Unit)? = null) {
+        // The tap handler outlives this call: it must run today's onTap, not the one from the card's first touch
+        // (the #122 stale-tap bug, same pattern).
+        val tapNow = androidx.compose.runtime.rememberUpdatedState(onTap)
+        Box(contentAlignment = Alignment.TopEnd,
+            modifier = Modifier.testTag(tag).then(if (onTap != null || long != null) Modifier.pointerInput(long) {
+                detectTapGestures(onTap = { if (detail != null) detail = null else tapNow.value?.invoke() }, onLongPress = { long?.let { detail = it } })
+            } else Modifier)) {
+            // Themed by its deck's commodity (Mauro): Guilds on Fabric, Crown on Silver, Academy on Parchment.
+            ProgressCardFace(name, edge, art, small, w, h)
+            if (n > 1) count(n)
+        }
     }
     Column(modifier) {
     detail?.let { d ->

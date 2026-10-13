@@ -85,9 +85,10 @@ fun TurnHud(report: TurnReport?, previous: TurnReport?, names: List<String> = PL
             .padding(start = 14.dp, end = 14.dp, top = 2.dp, bottom = 10.dp),   // the dice sit right under the players (Mauro)
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
+        val doubleTapNow = androidx.compose.runtime.rememberUpdatedState(onDiceDoubleTap)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.testTag("dice-row").then(if (onDiceDoubleTap != null) Modifier.pointerInput(Unit) {
-                detectTapGestures(onDoubleTap = { onDiceDoubleTap() })
+                detectTapGestures(onDoubleTap = { doubleTapNow.value?.invoke() })   // today's handler, not the first one (#122)
             } else Modifier)) {
             val color = PLAYER_COLORS[report.player]
             if (dicePads) run {
