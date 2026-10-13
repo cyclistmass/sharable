@@ -119,7 +119,7 @@ jobs:
   device:
     needs: build-and-test
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -202,6 +202,8 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
           working-directory: working-german-board-game
           script: |
+            # Every shard needs the app; only the monkey and online scripts used to install it (the split left play and trade without it).
+            adb install -r apk/app-debug.apk
             # Menus and a base game, then straight into an Age of Chivalry game.
             [ "$SHARD" != monkey ] || bash tools/ci_monkey.sh apk/app-debug.apk 4000
             [ "$SHARD" != monkey ] || SETTLE=1 START=chivalry bash tools/ci_monkey.sh apk/app-debug.apk 3000
@@ -228,3 +230,4 @@ jobs:
             working-german-board-game/monkey.txt
             working-german-board-game/crash.txt
             working-german-board-game/fbemu.log
+            working-german-board-game/*.png
