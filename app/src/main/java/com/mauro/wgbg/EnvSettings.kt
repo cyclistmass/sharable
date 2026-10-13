@@ -122,11 +122,14 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         get() = faceState.floatValue > 0.5f
         set(v) { faceState.floatValue = if (v) 1f else 0f; store.put(FACE_PIECES, faceState.floatValue) }
 
-    private val paceState = mutableFloatStateOf(store.get(PACE, Pace.NORMAL.ordinal.toFloat()))
-    /** How fast the dice fall, moves follow each other and hints stay up (Mauro, 2026-10-12). */
-    var pace: Pace
-        get() = Pace.entries[paceState.floatValue.toInt().coerceIn(0, Pace.entries.size - 1)]
-        set(v) { paceState.floatValue = v.ordinal.toFloat(); store.put(PACE, paceState.floatValue) }
+    private val aiPaceState = mutableFloatStateOf(store.get(AI_PACE, AI_PACE_DEFAULT))
+    /**
+     * Seconds between the AI players' turns, [AI_PACE_MIN]..[AI_PACE_MAX]; each move inside an AI's turn waits half of
+     * it (Mauro, 2026-10-13: "1 sec default up to 5 sec on a slider", replacing Relaxed/Normal/Quick).
+     */
+    var aiPace: Float
+        get() = aiPaceState.floatValue.takeIf { it.isFinite() }?.coerceIn(AI_PACE_MIN, AI_PACE_MAX) ?: AI_PACE_DEFAULT
+        set(v) { aiPaceState.floatValue = v.coerceIn(AI_PACE_MIN, AI_PACE_MAX); store.put(AI_PACE, aiPaceState.floatValue) }
 
     private val liveLodState = mutableFloatStateOf(store.get(LIVE_LOD, 0f))
     var liveLod: Int
@@ -161,7 +164,7 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         set(v) { eventDie.floatValue = v.coerceIn(0, DiceArt.EVENT_STYLES.size - 1).toFloat(); store.put(EVENT_DIE, eventDie.floatValue) }
 
     /** Back to the defaults (saved). */
-    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0; liveBoard = false; liveLod = 0; facePieces = true; pace = Pace.NORMAL }
+    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0; liveBoard = false; liveLod = 0; facePieces = true; aiPace = AI_PACE_DEFAULT }
 
     val clouds get() = this[Item.CLOUDS]
     val birds get() = this[Item.BIRDS]
@@ -180,7 +183,10 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         const val LIVE_LOD = "live-board-lod"
         const val FACE_PIECES = "live-face-pieces"
         const val ANIMATIONS = "animations"
-        const val PACE = "pace"
+        const val AI_PACE = "ai-pace"
+        const val AI_PACE_DEFAULT = 1f
+        const val AI_PACE_MIN = 1f
+        const val AI_PACE_MAX = 5f
         const val SEE_THROUGH = "side-panel-see-through"
         const val BUG_BUTTON = "bug-button"
 
@@ -192,13 +198,10 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
     }
 }
 
-/** The Pace setting: [factor] scales the dice throw, the pause after each move and how long hints stay up. */
-enum class Pace(val label: String, val factor: Float) {
-    RELAXED("Relaxed", 1.5f), NORMAL("Normal", 1f), QUICK("Quick", 0.6f);
-    companion object {
-        /** The dice throw in milliseconds at [factor]. */
-        fun fallMs(factor: Float): Int = (DiceSprites.FALL_S * 1000 * factor).toInt()
-    }
+/** The dice throw's timing; [fallMs]'s factor stretches it (the AI pace slider replaced the old Pace choices). */
+object Pace {
+    /** The dice throw in milliseconds at [factor]. */
+    fun fallMs(factor: Float = 1f): Int = (DiceSprites.FALL_S * 1000 * factor).toInt()
 }
 
 /** The 3D board (test) On/Off switch and its detail level; in the game's Menu, and in Settings on Look & art. */
@@ -245,10 +248,11 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = M
         AccountSection()
         // In a game the 3D switch sits in the main Menu instead (Mauro: "3d board should move out to that main menu").
         if (liveBoardChoice) LiveBoardChoice(env)
-        Text("Pace: dice, moves and how long hints stay up", fontSize = 13.sp, color = Color(0xFFD9B865))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (p in Pace.entries) Choice(p.label, selected = env.pace == p, tag = "pace-${p.name.lowercase()}",
-                modifier = Modifier.height(36.dp).width(100.dp), size = 13.sp) { env.pace = p }
+        Text("AI pace: seconds between the AI players' turns (their moves take half)", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("%.1f s".format(env.aiPace), fontSize = 12.sp, color = Color(0xFFEDE6D8), modifier = Modifier.width(100.dp))
+            Slider(env.aiPace, { env.aiPace = Math.round(it * 2) / 2f }, Modifier.width(220.dp).height(32.dp).testTag("ai-pace"),
+                valueRange = EnvSettings.AI_PACE_MIN..EnvSettings.AI_PACE_MAX, steps = 7, colors = brassSlider())
         }
         Text("Animations (off, or Density at 0: nothing moves)", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -99,41 +99,39 @@ class EnvSettingsTest {
     }
 
     @Test
-    fun `Pace starts Normal, persists, resets, and a bad saved value falls back safely`() {
+    fun `AI pace starts at 1 s, persists, resets, and a bad saved value falls back safely`() {
         val store = MapStore()
-        assertEquals(Pace.NORMAL, EnvSettings(store).pace)
-        EnvSettings(store).pace = Pace.RELAXED
-        assertEquals(Pace.RELAXED, EnvSettings(store).pace, "kept after a restart")
-        EnvSettings(store).apply { reset(); assertEquals(Pace.NORMAL, pace) }
-        store.put(EnvSettings.PACE, 99f)
-        assertEquals(Pace.QUICK, EnvSettings(store).pace)
-        store.put(EnvSettings.PACE, -3f)
-        assertEquals(Pace.RELAXED, EnvSettings(store).pace)
+        assertEquals(1f, EnvSettings(store).aiPace)
+        EnvSettings(store).aiPace = 3.5f
+        assertEquals(3.5f, EnvSettings(store).aiPace, "kept after a restart")
+        EnvSettings(store).apply { reset(); assertEquals(EnvSettings.AI_PACE_DEFAULT, aiPace) }
+        EnvSettings(store).aiPace = 9f
+        assertEquals(5f, EnvSettings(store).aiPace, "capped at 5 s")
+        store.put(EnvSettings.AI_PACE, -3f)
+        assertEquals(1f, EnvSettings(store).aiPace)
+        store.put(EnvSettings.AI_PACE, Float.NaN)
+        assertEquals(1f, EnvSettings(store).aiPace)
     }
 
     @Test
-    fun `Pace slows or quickens the dice and the pause after moves, and a roll still waits for the dice`() {
-        val road = wgbg.engine.ActionType.BUILD_ROAD; val roll = wgbg.engine.ActionType.ROLL
-        val (relaxed, normal, quick) = Pace.entries.map { it.factor }
-        org.junit.jupiter.api.Assertions.assertTrue(Pace.fallMs(relaxed) > Pace.fallMs(normal) && Pace.fallMs(normal) > Pace.fallMs(quick))
-        assertEquals((DiceSprites.FALL_S * 1000).toInt(), Pace.fallMs(normal), "Normal is today's throw")
+    fun `a roll still waits for the dice at every speed, and an end of turn goes straight on`() {
+        val roll = wgbg.engine.ActionType.ROLL
+        assertEquals((DiceSprites.FALL_S * 1000).toInt(), Pace.fallMs())
         for (speed in listOf(1, 2, 4, 8)) {
-            org.junit.jupiter.api.Assertions.assertTrue(pauseAfter(road, speed, relaxed) > pauseAfter(road, speed, quick), "speed $speed")
-            assertEquals(pauseAfter(road, speed), pauseAfter(road, speed, normal), "Normal changes nothing")
-            for (p in Pace.entries) org.junit.jupiter.api.Assertions.assertTrue(
-                pauseAfter(roll, speed, p.factor) > Pace.fallMs(p.factor) * DiceSprites.HANDOVER, "${p.label} at $speed")
-            assertEquals(0L, pauseAfter(wgbg.engine.ActionType.END_TURN, speed, relaxed))
+            org.junit.jupiter.api.Assertions.assertTrue(pauseAfter(roll, speed) > Pace.fallMs() * DiceSprites.HANDOVER, "speed $speed")
+            assertEquals(0L, pauseAfter(wgbg.engine.ActionType.END_TURN, speed))
         }
     }
 
     @Test
-    fun `a bot's move holds 2 to 3 s at the normal speed, shorter when sped up, never under the plain pause`() {
-        val road = wgbg.engine.ActionType.BUILD_ROAD; val roll = wgbg.engine.ActionType.ROLL
-        for (type in listOf(road, roll)) org.junit.jupiter.api.Assertions.assertTrue(botPauseAfter(type, 2) in 2000L..3000L, "$type")
-        org.junit.jupiter.api.Assertions.assertTrue(botPauseAfter(road, 4) < botPauseAfter(road, 2))
-        for (speed in listOf(1, 2, 4, 8)) for (p in Pace.entries) for (type in listOf(road, roll))
-            org.junit.jupiter.api.Assertions.assertTrue(botPauseAfter(type, speed, p.factor) >= pauseAfter(type, speed, p.factor), "$type ${p.label} at $speed")
-        assertEquals(0L, botPauseAfter(wgbg.engine.ActionType.END_TURN, 2))
-        assertEquals(0L, botPauseAfter(wgbg.engine.ActionType.REJECT_TRADE, 2))
+    fun `an AI waits the AI pace between turns and half of it per move, faster when sped up, never under the plain pause`() {
+        val road = wgbg.engine.ActionType.BUILD_ROAD; val roll = wgbg.engine.ActionType.ROLL; val end = wgbg.engine.ActionType.END_TURN
+        assertEquals(1000L, botPauseAfter(end, 2, 1f), "1 s between turns by default")
+        assertEquals(5000L, botPauseAfter(end, 2, 5f), "up to 5 s")
+        assertEquals(2500L, botPauseAfter(road, 2, 5f), "a move inside the turn takes half")
+        org.junit.jupiter.api.Assertions.assertTrue(botPauseAfter(road, 4, 4f) < botPauseAfter(road, 2, 4f))
+        for (speed in listOf(1, 2, 4, 8)) for (pace in listOf(1f, 3f, 5f)) for (type in listOf(road, roll))
+            org.junit.jupiter.api.Assertions.assertTrue(botPauseAfter(type, speed, pace) >= pauseAfter(type, speed), "$type $pace s at $speed")
+        assertEquals(0L, botPauseAfter(wgbg.engine.ActionType.REJECT_TRADE, 2, 5f))
     }
 }

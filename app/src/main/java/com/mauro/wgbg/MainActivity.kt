@@ -262,16 +262,15 @@ internal fun pauseAfter(type: wgbg.engine.ActionKind, speed: Int, pace: Float = 
     else -> (350L * pace / speed).toLong()
 }
 
-/** A bot's move at the normal speed (2×) and pace: long enough to follow what it did (Mauro: 2–3 s per AI move). */
-internal const val BOT_MOVE_MS = 2500L
-
 /**
- * The wait after a bot's move while you play: [BOT_MOVE_MS] at the normal speed, halved with each faster step; an end
- * of turn or a turned-down trade still goes straight on. Never shorter than [pauseAfter].
+ * The wait after an AI player's move while you play, at [aiPace] seconds (the gear's AI pace slider, Mauro 2026-10-13)
+ * and the normal speed (2×; each faster step halves it): [aiPace] after it ends its turn, half of it after a move inside
+ * the turn, never shorter than [pauseAfter] (a roll still waits for the dice); a turned-down trade goes straight on.
  */
-internal fun botPauseAfter(type: wgbg.engine.ActionKind, speed: Int, pace: Float = 1f): Long = when (type) {
-    ActionType.END_TURN, ActionType.REJECT_TRADE -> 0L
-    else -> maxOf(pauseAfter(type, speed, pace), (BOT_MOVE_MS * 2 * pace / speed).toLong())
+internal fun botPauseAfter(type: wgbg.engine.ActionKind, speed: Int, aiPace: Float = EnvSettings.AI_PACE_DEFAULT): Long = when (type) {
+    ActionType.REJECT_TRADE -> 0L
+    ActionType.END_TURN -> (aiPace * 2000 / speed).toLong()
+    else -> maxOf(pauseAfter(type, speed), (aiPace * 1000 / speed).toLong())
 }
 
 private fun Color.shade(f: Float) = lerp(this, Color.Black, f)
@@ -660,7 +659,7 @@ fun WatchGameScreen(
     val stateNow by rememberUpdatedState(state)
     // A short note when a board tap did nothing for a reason worth saying (shown in place of the prompt).
     var tapHint by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(tapHint) { if (tapHint != null) { delay((2500L * env.pace.factor).toLong()); tapHint = null } }
+    LaunchedEffect(tapHint) { if (tapHint != null) { delay(2500L); tapHint = null } }
     var seaTick by remember { mutableIntStateOf(0) }
     LaunchedEffect(sea) { // the sea keeps moving even when the game is paused
         var last = 0L
@@ -758,8 +757,8 @@ fun WatchGameScreen(
             while (playing && !state.isOver) {
                 val type = step()
                 tick++
-                // While you play, a bot's move holds 2–3 s so you can see it; Watch mode and test runs keep the short pause.
-                val wait = if (human && lastWho != me && !quickBots) botPauseAfter(type, speed, env.pace.factor) else pauseAfter(type, speed, env.pace.factor)
+                // While you play, an AI's moves follow the AI pace slider; Watch mode and test runs keep the short pause.
+                val wait = if (human && lastWho != me && !quickBots) botPauseAfter(type, speed, env.aiPace) else pauseAfter(type, speed)
                 if (wait > 0) delay(wait)
             }
         }
@@ -825,10 +824,11 @@ fun WatchGameScreen(
                         humanMoves.onReceive { a -> if (Rules.isLegal(state, a) && send(who, a)) views.receive() else v }
                     }
                     (n.isHost && (n.bot(who) != null || quitToBot(v.room, n.seatOf(who)))) || (autoplay && who == n.me) -> {
-                        // The host's phone plays the room's bots, at a watchable pace (dice land first): 2–3 s a move,
-                        // like a local game; a debug autoplay seat and test runs keep the short wait.
-                        val short = if (rolled) pauseAfter(ActionType.ROLL, 1, env.pace.factor) else (450L * env.pace.factor).toLong()
-                        delay(if (quickBots || who == n.me) short else maxOf(short, (BOT_MOVE_MS * env.pace.factor).toLong()))
+                        // The host's phone plays the room's bots, at a watchable pace (dice land first): the AI pace
+                        // slider, like a local game; a debug autoplay seat and test runs keep the short wait.
+                        val short = if (rolled) pauseAfter(ActionType.ROLL, 1) else 450L
+                        val paced = botPauseAfter(applied.lastOrNull()?.type ?: ActionType.END_TURN, 2, env.aiPace)
+                        delay(if (quickBots || who == n.me) short else maxOf(short, paced))
                         val fresh = views.tryReceive().getOrNull()
                         if (fresh != null) fresh else {
                             Rules.legalActions(state, buf)
@@ -1240,7 +1240,7 @@ fun WatchGameScreen(
                     eventDie = state.ck != null, onEventSlot = { eventSlot = it }, height = turnHudHeight,
                     width = if (stripWidth > 0f) sideWidth else 360.dp, framed = stripWidth <= 0f, onDiceDoubleTap = { histogramOpen = true; settingsOpen = false })
             }
-            if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, fallMs = Pace.fallMs(env.pace.factor), onFlying = { diceFlying = it },
+            if (rolled != null && env.animating) RollingDice(rolled.die1, rolled.die2, rollKey = rolled.turn * 8 + rolled.player, rest = hudTopRight, slots = diceSlots, pirate = env.pirateTheme, eventStyle = env.eventDieStyle, event = rolled.event, eventSlot = eventSlot, fallMs = Pace.fallMs(1f), onFlying = { diceFlying = it },
                 modifier = Modifier.fillMaxSize())
         }
         // Board A: players top-left; in Play mode the prompt across the top and your hand along the bottom.
@@ -1269,7 +1269,7 @@ fun WatchGameScreen(
             val cardSheet = legal.any { it.type == ActionType.DISCARD || it.type == wgbg.engine.CkActionType.CHOOSE_CARD } || cardPick(state, legal, names) != null
             if (!tradeOpen && !tradeNeedsMe(state, me) && !cardSheet) HandRow(state, me, tick,
                 // Between the left panel and the move buttons (playtest: progress cards slid under End turn).
-                Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 384.dp, end = 196.dp, bottom = 6.dp), pace = env.pace.factor)
+                Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 384.dp, end = 196.dp, bottom = 6.dp))
         }
         if (me >= 0 && !inventory) {
             val send: (Action) -> Unit = { a -> pending = emptyList(); humanMoves.trySend(a) }
