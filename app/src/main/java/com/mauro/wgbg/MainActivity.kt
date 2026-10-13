@@ -288,7 +288,7 @@ private fun polygon(points: List<Offset>) = Path().apply {
 private fun pips(n: Int) = 6 - kotlin.math.abs(7 - n)
 
 // START is the splash (#132); SETUP is the game-start screen (players, ruleset, dice, online) behind its New game.
-private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME, LOOK, SETUP }
+private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME, LOOK, SETUP, CARD_TEST }
 
 /**
  * Splash (#132) -> New game -> game start (#3) -> the game, or online: host a room (lobby #19) or join one by code -> the online game (#7).
@@ -433,7 +433,10 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 onLookAndArt = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); screen = Screen.LOOK },
                 onPlayIntro = { intro = true },
                 onFeedback = { feedback = true },
+                // The card tester (#133): debug builds only, never in a release.
+                onCardTester = if (context0.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) ({ screen = Screen.CARD_TEST }) else null,
             ) }
+            Screen.CARD_TEST -> CardTesterRoot(setup.name, onExit = { screen = Screen.SETUP })
             Screen.JOIN -> {
                 BackHandler { screen = Screen.SETUP }
                 JoinRoomScreen(setup.name, busy, initialCode = inviteCode ?: "", onJoin = { code, name ->
@@ -542,6 +545,10 @@ fun WatchGameScreen(
     resume: LocalSave? = null,
     /** Where your local game is saved after every move (#82); null keeps nothing (debug starts, Look & art). */
     saveStore: LocalSaveStore? = null,
+    /** Debug card tester (#133): start from this position (a copy) instead of a new game. */
+    prepared: GameState? = null,
+    /** Debug card tester (#133): drawn over everything, given the live game and a tick that moves with every move. */
+    overlay: (@Composable androidx.compose.foundation.layout.BoxScope.(GameState, Int) -> Unit)? = null,
 ) {
     var seed by remember { mutableLongStateOf(resume?.seed ?: (System.nanoTime() and 0xffffffL)) }
     // Who sits where in an online room (frozen once it starts); null offline.
@@ -553,7 +560,7 @@ fun WatchGameScreen(
     val seats = net?.players?.size ?: setup.players.size
     // Online, a rejected move rolls the room back: the screen then rebuilds its game from the room's moves.
     var epoch by remember { mutableIntStateOf(0) }
-    val state = remember(seed, seats, epoch) { if (net != null) Rules.newGame(net.config, net.seed) else Rules.newGame(setup.config(), seed) }
+    val state = remember(seed, seats, epoch) { if (net != null) Rules.newGame(net.config, net.seed) else prepared?.copy() ?: Rules.newGame(setup.config(), seed) }
     var onlineView by remember { mutableStateOf<ClientView?>(null) }
     // Each playing seat's bot: the level picked on the game-start screen (friends play as Greedy until #7;
     // Strong plays as Greedy until #6). In Watch mode seat 0 gets a Greedy bot too.
@@ -1477,6 +1484,7 @@ fun WatchGameScreen(
             rotation = boardRotation.takeIf { liveBoard }, onTurn = { r -> boardRotation = r },
             // Upper right under Trade, short, clear of the move buttons that stack up from the bottom right.
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 104.dp, end = 8.dp))
+        overlay?.invoke(this, state, tick)
     }
 }
 
