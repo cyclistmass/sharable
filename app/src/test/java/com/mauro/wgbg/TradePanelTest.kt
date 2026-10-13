@@ -341,4 +341,11 @@ class TradePanelTest {
                 .let { assertEquals(0, it.second[r]) }
         }
     }
+
+    @Test
+    fun `#125 after a trade the panel says what you hold now and what moved`() {
+        assertEquals("Now: 4 Grain (+1) · 0 Stone (−3)", tradeSummary(listOf(2, 1, 0, 3, 3), listOf(2, 1, 0, 4, 0)))
+        assertEquals(null, tradeSummary(listOf(1, 1), listOf(1, 1)))
+        assertEquals("Now: 1 Silver (+1)", tradeSummary(listOf(0, 0, 0, 0, 0, 0, 0, 0), listOf(0, 0, 0, 0, 0, 0, 0, 1)))
+    }
 }

@@ -225,6 +225,14 @@ fun TradePanel(
     val showGet = if (editing) get else termGet
     val showGive = if (editing) give else termGive
     val bankTab = maritime && mode == TradeMode.COMPOSE
+    // #125: after a trade, what you hold now and what changed.
+    val handNow = List(tradeCards(s)) { holding(s, me, it) }
+    var handBefore by remember { mutableStateOf(handNow) }
+    var afterTrade by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(handNow) {
+        if (handNow != handBefore) { afterTrade = tradeSummary(handBefore, handNow); handBefore = handNow }
+    }
+    androidx.compose.runtime.LaunchedEffect(s.turn) { afterTrade = null }
 
     if (mode == TradeMode.CLOSED) {
         Text(status(s, me, mode, names, false, false), color = INK, fontSize = 13.sp, fontWeight = FontWeight.Bold,
@@ -247,6 +255,7 @@ fun TradePanel(
             }
             Text(status(s, me, mode, names, countering, bankTab), color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 maxLines = 1, modifier = Modifier.width(214.dp))
+            afterTrade?.let { Text(it, color = Color(0xFF8BD18B), fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("trade-after")) }
             if (editing) Text(if (bankTab) "Top: cards you want · bottom: pay a lot for each" else "Tap top to ask · bottom to offer · hold to take back",
                 color = INK.copy(alpha = 0.7f), fontSize = 11.sp)
             // One row of cards (Mauro, #49): the top half of a card asks for it, the bottom half offers it.
@@ -529,3 +538,15 @@ private fun Pill(label: String, color: Color, tag: String, onClick: () -> Unit) 
  * are rolled: the rules allow no trade before the roll, and opening the panel then left the game stuck (Mauro, 2026-10-12).
  */
 fun tradeButtonVisible(s: GameState) = !inSetup(s) && s.hasRolled && s.phase == Phase.PLAY_TURN   // #123: never over a pending pick
+
+/**
+ * The line shown after a trade (#125): each card that changed, with what you hold now and by how much it moved,
+ * e.g. "Now: 4 Grain (+1) · 0 Stone (−3)". Null when nothing changed.
+ */
+internal fun tradeSummary(before: List<Int>, after: List<Int>): String? {
+    val parts = after.indices.filter { after[it] != before.getOrElse(it) { 0 } }.map { r ->
+        val d = after[r] - before.getOrElse(r) { 0 }
+        "${after[r]} ${ALL_CARD_NAMES[r]} (${if (d > 0) "+$d" else "−${-d}"})"
+    }
+    return if (parts.isEmpty()) null else "Now: " + parts.joinToString(" · ")
+}
