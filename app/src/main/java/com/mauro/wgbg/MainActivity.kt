@@ -401,7 +401,8 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     if (crashTest) LaunchedEffect(Unit) { kotlinx.coroutines.delay(1500); throw IllegalStateException("test crash (debug --ez crash true)") }
     // The intro fly-over, the first time the app opens (never over a debug start or a rejoin).
     var intro by remember { mutableStateOf(start == null && !Intro.seen(ctx)) }
-    if (intro && screen == Screen.START) { IntroScreen { intro = false }; return }
+    // The splash plays it the first time; the game-start screen's Intro button replays it (it went dead with the splash, #132).
+    if (intro && (screen == Screen.START || screen == Screen.SETUP)) { IntroScreen { intro = false }; return }
     var feedback by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         // The build version shows along the splash's bottom edge and inside the game-start screen's right panel.
@@ -443,13 +444,13 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 }, onBack = { screen = Screen.SETUP })
             }
             Screen.LOBBY -> lobby?.let { l ->
-                BackHandler { screen = Screen.START }
+                BackHandler { screen = Screen.SETUP } // back to the game-start screen it came from (#132)
                 LobbyScreen(l, onChange = { lobby = it }, onStart = { setup = it; gameNo++; screen = Screen.GAME }, onSettings = { screen = Screen.SETUP })
             } ?: run { screen = Screen.START }
             Screen.ONLINE_LOBBY -> session?.let { s ->
                 BackHandler { leaveRoom() }
                 OnlineLobbyScreen(s, onPlaying = { if (screen == Screen.ONLINE_LOBBY) { gameNo++; screen = Screen.ONLINE_GAME } },
-                    onSettings = { leaveRoom() }, onError = { e -> scope.launch { problem = onlineProblem(e) } })
+                    onSettings = { leaveRoom(); screen = Screen.SETUP }, onError = { e -> scope.launch { problem = onlineProblem(e) } })
             } ?: RejoiningOr(savedRoom) { screen = Screen.START }
             Screen.ONLINE_GAME -> session?.let { s ->
                 key(gameNo) {
