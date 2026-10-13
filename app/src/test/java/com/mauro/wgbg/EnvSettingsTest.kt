@@ -54,6 +54,21 @@ class EnvSettingsTest {
     }
 
     @Test
+    fun `#131 unticked songs are saved by title, passed over in the set list, and reset ticks them all`() {
+        val store = MapStore()
+        val n = SoundSettings.SONGS.size
+        SoundSettings(store).apply { assertEquals(true, (0 until n).all { songOn(it) }); setSongOn(1, false); setSongOn(2, false) }
+        val again = SoundSettings(store)
+        assertEquals(false, again.songOn(1)); assertEquals(true, again.songOn(3))
+        assertEquals(3, nextOn(1, n) { again.songOn(it) }, "1 and 2 are skipped")
+        assertEquals(0, nextOn(n, n) { again.songOn(it) }, "wraps round")
+        assertEquals(-1, nextOn(0, n) { false }, "nothing ticked: nothing plays")
+        assertEquals(-1, nextOn(0, 0) { true })
+        again.reset()
+        assertEquals(true, (0 until n).all { SoundSettings(store).songOn(it) })
+    }
+
+    @Test
     fun `reset puts every setting back to its default`() {
         val store = MapStore()
         val env = EnvSettings(store).apply { this[Item.CLOUDS] = 1f; this[Item.WAVES] = 0f }

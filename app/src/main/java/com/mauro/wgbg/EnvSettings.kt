@@ -34,6 +34,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 
 /** Where settings are kept: SharedPreferences on device, a map in tests. */
 interface FloatStore {
@@ -313,7 +320,12 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = M
         VolumeRow("Music", sound.musicVolume, "vol-music") { sound.musicVolume = it }
         VolumeRow("Sounds", sound.soundVolume, "vol-sounds") { sound.soundVolume = it }
         Text("Songs", fontSize = 13.sp, color = Color(0xFFD9B865))
-        for (song in SoundSettings.SONGS) Text("♪ ${song.title}", fontSize = 12.sp, color = Color(0xFFCDBFA6))
+        SoundSettings.SONGS.forEachIndexed { i, song ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SongTick(sound, i)
+                Text("♪ ${song.title}", fontSize = 12.sp, color = if (sound.songOn(i)) Color(0xFFCDBFA6) else Color(0xFF8A7A62))
+            }
+        }
     }
 }
 
@@ -409,8 +421,14 @@ class SoundSettings(private val store: FloatStore) {
     var onPlay: (Int) -> Unit = {}
     var onNext: () -> Unit = {}
 
-    /** Back to the defaults (saved). */
-    fun reset() { musicVolume = DEFAULT_MUSIC; soundVolume = DEFAULT_SOUNDS }
+    // Songs left out of the set list (#131), saved by title so a reordered or longer list keeps the choices.
+    private val songOn = SONGS.map { mutableFloatStateOf(store.get(songKey(it), 1f)) }
+    /** Whether song [i] plays when the set list moves on (a tap on its name still plays it). */
+    fun songOn(i: Int): Boolean = songOn.getOrNull(i)?.floatValue?.let { it > 0.5f } ?: false
+    fun setSongOn(i: Int, on: Boolean) { val v = if (on) 1f else 0f; songOn[i].floatValue = v; store.put(songKey(SONGS[i]), v) }
+
+    /** Back to the defaults (saved); every song ticked again. */
+    fun reset() { musicVolume = DEFAULT_MUSIC; soundVolume = DEFAULT_SOUNDS; SONGS.indices.forEach { setSongOn(it, true) } }
 
     companion object {
         const val DEFAULT_MUSIC = 0.6f
@@ -418,6 +436,7 @@ class SoundSettings(private val store: FloatStore) {
         const val MUSIC = "vol-music"
         const val SOUNDS = "vol-sounds"
         const val MUSIC_PAUSED = "music-paused"
+        fun songKey(song: Song) = "song-on:" + song.title
         /** The set list (#17, #58), our own recordings; more shanties to come. */
         val SONGS: List<Song> = listOf(
             Song("Drunken Sailor", R.raw.tune_drunken_sailor),
@@ -464,12 +483,30 @@ fun SoundControls(sound: SoundSettings) {
                     sound.musicPaused = false; sound.onNext()
                 }
             }
-            Text("Songs (tap one to play it)", fontSize = 12.sp)
+            Text("Songs (tick to keep in the list, tap a name to play it)", fontSize = 12.sp)
             SoundSettings.SONGS.forEachIndexed { i, song ->
                 val now = i == sound.nowPlaying && !sound.musicPaused
-                Text((if (now) "▶ " else "♪ ") + song.title, fontSize = 12.sp, color = if (now) Color(0xFFD9B865) else Color(0xFFCDBFA6),
-                    modifier = Modifier.clickable { sound.musicPaused = false; sound.onPlay(i) }.testTag("song-$i").padding(vertical = 3.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SongTick(sound, i)
+                    Text((if (now) "▶ " else "♪ ") + song.title, fontSize = 12.sp,
+                        color = if (now) Color(0xFFD9B865) else if (sound.songOn(i)) Color(0xFFCDBFA6) else Color(0xFF8A7A62),
+                        modifier = Modifier.clickable { sound.musicPaused = false; sound.onPlay(i) }.testTag("song-$i").padding(vertical = 3.dp))
+                }
             }
+        }
+    }
+}
+
+/** A song's tick box (#131): brass rim, a check when the song stays in the set list. */
+@Composable
+private fun SongTick(sound: SoundSettings, i: Int) {
+    val on = sound.songOn(i)
+    Box(Modifier.size(40.dp).clickable { sound.setSongOn(i, !on) }.testTag("song-on-$i")
+        .semantics { contentDescription = SoundSettings.SONGS[i].title + if (on) ", in the list" else ", left out" },
+        contentAlignment = Alignment.Center) {
+        Box(Modifier.size(20.dp).background(if (on) Color(0xFF3A2414) else Color.Transparent, RoundedCornerShape(4.dp))
+            .border(2.dp, Color(0xFFC9A04A), RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+            if (on) Text("✓", fontSize = 14.sp, color = Color(0xFFF1D58A), fontWeight = FontWeight.Bold)
         }
     }
 }

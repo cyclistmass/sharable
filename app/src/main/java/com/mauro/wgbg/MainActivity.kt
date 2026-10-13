@@ -601,6 +601,7 @@ fun WatchGameScreen(
         music.onSong = { sound.nowPlaying = it }
         sound.onPlay = { music.play(it) }
         sound.onNext = { music.next() }
+        music.enabled = { sound.songOn(it) }
     }
     val gameLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     androidx.compose.runtime.DisposableEffect(gameLifecycle) {
@@ -1362,6 +1363,8 @@ fun WatchGameScreen(
                         diceSetting = (diceSetting + 1) % 5
                     }
                 }
+                // Music under Menu (Mauro, #131): volumes, Pause / Next, and the songs with a tick each.
+                SoundControls(sound)
                 PlayerPanel(players, names)
                 Text("Wins: " + names.indices.joinToString("  ") { "${names[it]} ${wins[it]}" } + "  · draws ${wins[4]}",
                     style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
