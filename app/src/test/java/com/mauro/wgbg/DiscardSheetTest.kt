@@ -23,6 +23,18 @@ class DiscardSheetTest {
     }
 
     @Test
+    fun `#109 for commodities - a discarded Parchment, Fabric or Silver steps back to none`() {
+        val n = wgbg.engine.CK_CARD_TYPES
+        for (r in wgbg.engine.CARD_TYPES until n) {
+            var pile = IntArray(n)
+            repeat(3) { pile = discardPick(pile, r, add = true, have = 3, owed = 5) }
+            assertEquals(3, pile[r])
+            repeat(4) { pile = discardPick(pile, r, add = false, have = 3, owed = 5) }
+            assertTrue(pile.all { it == 0 }, "commodity $r back to none")
+        }
+    }
+
+    @Test
     fun `a full pile becomes legal discard moves that pay exactly what is owed`() {
         // Hand a player 9 cards and roll a 7 so they owe 4.
         val s = Rules.newGame(GameConfig(numPlayers = 3), 21)

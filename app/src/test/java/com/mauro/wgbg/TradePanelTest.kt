@@ -254,4 +254,22 @@ class TradePanelTest {
         askOffer(IntArray(5).also { it[0] = 1 }, IntArray(5).also { it[3] = 4 }, 3, CardTap.TAKE_BACK, have = 4, bankRate = 4)
             .let { assertEquals(0, it.second[3]); assertEquals(1, it.first[0]) }
     }
+
+    @Test
+    fun `#109 for commodities - Parchment, Fabric and Silver step back to none too (Age of Chivalry rows)`() {
+        val n = wgbg.engine.CK_CARD_TYPES
+        for (r in wgbg.engine.CARD_TYPES until n) {
+            var g = IntArray(n); var v = IntArray(n)
+            repeat(2) { askOffer(g, v, r, CardTap.ASK, have = 0).let { g = it.first; v = it.second } }
+            repeat(3) { askOffer(g, v, r, CardTap.TAKE_BACK, have = 0).let { g = it.first; v = it.second } }
+            assertTrue(g.all { it == 0 } && v.all { it == 0 }, "asked commodity $r back to none")
+            repeat(2) { askOffer(g, v, r, CardTap.OFFER, have = 2).let { g = it.first; v = it.second } }
+            assertEquals(2, v[r])
+            repeat(3) { askOffer(g, v, r, CardTap.TAKE_BACK, have = 2).let { g = it.first; v = it.second } }
+            assertTrue(g.all { it == 0 } && v.all { it == 0 }, "offered commodity $r back to none")
+            // The bank (a Trading House 2:1 on commodities): one take-back clears it.
+            askOffer(IntArray(n).also { it[0] = 1 }, IntArray(n).also { it[r] = 2 }, r, CardTap.TAKE_BACK, have = 2, bankRate = 2)
+                .let { assertEquals(0, it.second[r]) }
+        }
+    }
 }
