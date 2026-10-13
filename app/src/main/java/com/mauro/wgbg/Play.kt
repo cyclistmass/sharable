@@ -46,6 +46,8 @@ import wgbg.engine.GameState
 import wgbg.engine.Phase
 import kotlin.math.hypot
 import kotlin.math.sqrt
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 // ------------------------------------------------------------------ board targets (issue #5)
 
@@ -489,3 +491,56 @@ fun confirmLabel(s: GameState, a: Action, names: List<String>): String =
     ckLabel(s, a, names) ?: if (a.type != ActionType.MOVE_ROBBER) "Confirm"
     else if (a.robberVictim < 0) "Move it (nobody to rob)"
     else "Rob ${names[a.robberVictim]} (${s.cardCount(a.robberVictim)} cards)"
+
+/** One row of the spot picker (#124): the build-menu entry the move belongs to, its name, and what it costs. */
+internal data class SpotChoice(val action: Action, val icon: MoveIcon?, val name: String, val cost: IntArray?)
+
+/**
+ * The choices at a tapped spot that takes more than one thing, one row each (#124, Mauro: "I can't tell I'm
+ * building a house"). [cost] is null when the move is free (setup, a free road, a free promotion).
+ */
+internal fun spotChoices(s: GameState, chosen: List<Action>, names: List<String>): List<SpotChoice> = chosen.map { a ->
+    val kind = BuildKind.entries.firstOrNull { it.kind == a.type }
+    val free = inSetup(s) || (a.type == ActionType.BUILD_ROAD && s.freeRoads > 0) ||
+        (a.type == wgbg.engine.CkActionType.PROMOTE_KNIGHT && (s.ck?.freePromotions ?: 0) > 0)
+    val cost = if (free) null else when (a.type) {
+        ActionType.BUILD_ROAD -> wgbg.engine.Cost.ROAD
+        ActionType.BUILD_SETTLEMENT -> wgbg.engine.Cost.SETTLEMENT
+        ActionType.BUILD_CITY -> wgbg.engine.Cost.CITY
+        wgbg.engine.CkActionType.BUILD_KNIGHT -> wgbg.engine.CkCost.KNIGHT
+        wgbg.engine.CkActionType.PROMOTE_KNIGHT -> wgbg.engine.CkCost.PROMOTE
+        wgbg.engine.CkActionType.ACTIVATE_KNIGHT -> wgbg.engine.CkCost.ACTIVATE
+        wgbg.engine.CkActionType.BUILD_CITY_WALL -> wgbg.engine.CkCost.WALL
+        else -> null
+    }
+    val name = when (a.type) {
+        ActionType.BUILD_ROAD -> "Road"
+        ActionType.BUILD_SETTLEMENT -> "Homestead"
+        ActionType.BUILD_CITY -> "Town"
+        else -> kind?.label ?: confirmLabel(s, a, names)
+    }
+    SpotChoice(a, kind?.icon, name, cost)
+}
+
+/** The spot picker: a vertical list, one tappable row per choice (icon, name, cost), then a cancel. */
+@Composable
+internal fun SpotPicker(choices: List<SpotChoice>, onPick: (Action) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for ((i, c) in choices.withIndex()) Row(
+            Modifier.widthIn(min = 260.dp).brassPlate().clickable { onPick(c.action) }
+                .testTag("spot-choice-$i").semantics(mergeDescendants = true) { contentDescription = c.name }
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (c.icon != null) IconPlateButton(c.icon, c.name, "spot-icon-$i", width = 40.dp, height = 36.dp) { onPick(c.action) }
+            Text(c.name, color = Color(0xFF2A1A0C), fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.weight(1f))
+            val cost = c.cost
+            if (cost == null) Text("free", color = Color(0xFF2A1A0C), fontSize = 14.sp)
+            else Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                for (r in cost.indices) repeat(cost[r]) {
+                    Image(painterResource(ALL_CARD_ART[r]), ALL_CARD_NAMES[r], Modifier.size(width = 20.dp, height = 28.dp))
+                }
+            }
+        }
+    }
+}

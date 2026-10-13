@@ -1278,12 +1278,15 @@ fun WatchGameScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(confirmTitle(state, chosen[0]), color = Color(0xFFEDE6D8), fontWeight = FontWeight.Bold)
+                // A spot that takes more than one thing: a vertical list, icon + name + cost per row (#124).
+                val spotList = if (chosen.size > 1) spotChoices(state, chosen, names).takeIf { l -> l.any { it.icon != null } } else null
+                Text(if (spotList != null) "What goes here?" else confirmTitle(state, chosen[0]), color = Color(0xFFEDE6D8), fontWeight = FontWeight.Bold)
                 confirmWarning(state, me, chosen[0])?.let { Text(it, color = Color(0xFFFFB4A0), fontSize = 13.sp) }
+                if (spotList != null) SpotPicker(spotList) { send(it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     // Compact: a check to place it, a cross to cancel (Mauro: "just an x or check, save space, look cleaner");
                     // a choice that needs words (who to rob) keeps them after the check.
-                    for (a in chosen) ColorButton(confirmLabel(state, a, names).let { if (it == "Confirm") "✓" else "✓ $it" }, Color(0xFF3E9B4F), "confirm",
+                    if (spotList == null) for (a in chosen) ColorButton(confirmLabel(state, a, names).let { if (it == "Confirm") "✓" else "✓ $it" }, Color(0xFF3E9B4F), "confirm",
                         androidx.compose.ui.Modifier.confirmA11y("Confirm")) { send(a) }
                     ColorButton("✗", Color(0xFFC0392B), "cancel", androidx.compose.ui.Modifier.confirmA11y("Cancel")) {
                         pending = emptyList(); if (cardSecond) { cardPick = emptyList(); cardSecond = false } }

@@ -118,9 +118,13 @@ fun IconPlateButton(icon: MoveIcon, label: String, tag: String, modifier: Modifi
                     fun house(x0: Float, x1: Float, roof: Float) {
                         val p = androidx.compose.ui.graphics.Path().apply { moveTo(x0 * w, 0.92f * h); lineTo(x0 * w, roof * h + 0.2f * h); lineTo((x0 + x1) / 2 * w, roof * h)
                             lineTo(x1 * w, roof * h + 0.2f * h); lineTo(x1 * w, 0.92f * h); close() }
-                        drawPath(p, ink, style = stroke)
+                        drawPath(p, ink)   // solid: the piece's silhouette (#124)
                     }
-                    if (icon == MoveIcon.HOMESTEAD) house(0.2f, 0.8f, 0.12f) else { house(0.04f, 0.5f, 0.3f); house(0.46f, 0.96f, 0.05f) }
+                    if (icon == MoveIcon.HOMESTEAD) house(0.2f, 0.8f, 0.12f)
+                    else {   // a town: a hall with a tall gabled tower beside it, like the piece
+                        drawRect(ink, androidx.compose.ui.geometry.Offset(0.04f * w, 0.5f * h), androidx.compose.ui.geometry.Size(0.6f * w, 0.42f * h))
+                        house(0.56f, 0.96f, 0.02f)
+                    }
                 }
                 MoveIcon.CARD -> {
                     drawRoundRect(ink, androidx.compose.ui.geometry.Offset(0.22f * w, 0.06f * h), androidx.compose.ui.geometry.Size(0.56f * w, 0.88f * h),
@@ -144,7 +148,7 @@ fun IconPlateButton(icon: MoveIcon, label: String, tag: String, modifier: Modifi
                         moveTo(0.06f * w, 0.92f * h); lineTo(0.06f * w, 0.3f * h); lineTo(0.24f * w, 0.3f * h); lineTo(0.24f * w, 0.48f * h); lineTo(0.4f * w, 0.48f * h)
                         lineTo(0.4f * w, 0.3f * h); lineTo(0.6f * w, 0.3f * h); lineTo(0.6f * w, 0.48f * h); lineTo(0.76f * w, 0.48f * h); lineTo(0.76f * w, 0.3f * h)
                         lineTo(0.94f * w, 0.3f * h); lineTo(0.94f * w, 0.92f * h); close() }
-                    drawPath(wall, ink, style = stroke)
+                    drawPath(wall, ink)   // solid silhouette (#124)
                 }
                 MoveIcon.CLOSE -> {
                     drawLine(ink, androidx.compose.ui.geometry.Offset(0.2f * w, 0.2f * h), androidx.compose.ui.geometry.Offset(0.8f * w, 0.8f * h), sw * 1.4f, androidx.compose.ui.graphics.StrokeCap.Round)
