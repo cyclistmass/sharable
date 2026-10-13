@@ -45,7 +45,7 @@ for ruleset in $RULESETS; do
   "$ADB" shell am force-stop $PKG
   "$ADB" shell pm clear $PKG >/dev/null
   "$ADB" logcat -c; "$ADB" logcat -b crash -c 2>/dev/null || true
-  "$ADB" shell am start -W --activity-clear-task -n $PKG/.MainActivity --es start "$ruleset" --ei players 3 --ez quickbots true >/dev/null
+  timeout 60 "$ADB" shell am start -W --activity-clear-task -n $PKG/.MainActivity --es start "$ruleset" --ei players 3 --ez quickbots true >/dev/null || { bad "the app didn't start in 60 s (window manager wedged? reboot the emulator)"; continue; }
   sleep 4
   # Bots at full speed, quick pace (Menu › Settings, by touch), so a turn with two lots comes up sooner.
   tap_text "Menu" && tap_text "Settings" && tap_text "2×" && tap_text "4×" && tap_text "8×" && tap_text "Quick"; tap_text "Hide" || true
@@ -126,10 +126,16 @@ for ruleset in $RULESETS; do
       say "D: Players tab"; tap_text "Players" || { bad "D: no Players tab"; break; }
       read_cards
       o=-1; for ((r = 0; r < n; r++)); do [ "${HELD[$r]}" -gt 0 ] && { o=$r; break; }; done
-      if [ $o -ge 0 ]; then
-        ask $(( (o + 1) % n ))   # #135: ask only ("who has this?"), offering nothing
+      took=0
+      # #135: first ask only ("who has this?"), offering nothing; if nobody takes it, offer a card for nothing
+      # (bots counter a gift with their spare card), so a taker's button and Trade get tapped too.
+      for kind in ask give; do
+      [ $o -ge 0 ] && [ $took = 0 ] || break
+      [ $kind = give ] && { tap_text "Players" || true; read_cards; }
+      if [ $kind = ask ]; then c=$(( (o + 1) % n )); ask $c; else c=$o; pay $c; fi
+      if true; then
         lines0=$("$ADB" logcat -d -s WGBG-TURN:I | wc -l)
-        say "D: ask for card $(( (o + 1) % n )), offering nothing"; tap_text "Offer" || { bad "D: no Offer button"; break; }
+        say "D: $kind card $c, nothing in return"; tap_text "Offer" || { bad "D: no Offer button"; break; }
         # The bots answer at once: either we pick a partner, or all said no and it's our turn again.
         for _ in $(seq 1 20); do
           sleep 1
@@ -147,13 +153,14 @@ for ruleset in $RULESETS; do
             sleep 1
             dump | grep -q 'text="Now: ' || bad "D: no new counts after trading with $partner"
             turn_line | grep -q 'phase=PLAY_TURN' || bad "D: not back to the turn after Trade"
-            echo "trade $ruleset: D took $partner's answer to an open ask"
+            echo "trade $ruleset: D took $partner's answer to an open $kind"; took=1
           else tap_text "Cancel" || bad "D: no way out of the answers"; fi
           sleep 1
         fi
-        echo "trade $ruleset: D player offer by touch ok ($(turn_line | sed -n 's/.* phase=\([^ ]*\).*/\1/p'))"
+        echo "trade $ruleset: D open $kind by touch ok ($(turn_line | sed -n 's/.* phase=\([^ ]*\).*/\1/p'))"
         done_d=1
       fi
+      done
     fi
     tap_text "Close" || true
     # End the turn and wait for a newer log line (re-reading this one raced the bots: "no Trade button").

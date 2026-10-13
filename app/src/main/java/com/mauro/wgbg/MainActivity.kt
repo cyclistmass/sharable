@@ -265,10 +265,12 @@ internal fun pauseAfter(type: wgbg.engine.ActionKind, speed: Int, pace: Float = 
 /**
  * The wait after an AI player's move while you play, at [aiPace] seconds (the gear's AI pace slider, Mauro 2026-10-13)
  * and the normal speed (2×; each faster step halves it): [aiPace] after it ends its turn, half of it after a move inside
- * the turn, never shorter than [pauseAfter] (a roll still waits for the dice); a turned-down trade goes straight on.
+ * the turn, never shorter than [pauseAfter] (a roll still waits for the dice); a turned-down trade goes straight on,
+ * except an answer to a person's offer ([personOffered]), which takes the half beat too, so you see each answer come in and
+ * can withdraw the offer before the last one (#114).
  */
-internal fun botPauseAfter(type: wgbg.engine.ActionKind, speed: Int, aiPace: Float = EnvSettings.AI_PACE_DEFAULT): Long = when (type) {
-    ActionType.REJECT_TRADE -> 0L
+internal fun botPauseAfter(type: wgbg.engine.ActionKind, speed: Int, aiPace: Float = EnvSettings.AI_PACE_DEFAULT, personOffered: Boolean = false): Long = when (type) {
+    ActionType.REJECT_TRADE -> if (personOffered) (aiPace * 1000 / speed).toLong() else 0L
     ActionType.END_TURN -> (aiPace * 2000 / speed).toLong()
     else -> maxOf(pauseAfter(type, speed), (aiPace * 1000 / speed).toLong())
 }
@@ -774,7 +776,7 @@ fun WatchGameScreen(
                 val type = step()
                 tick++
                 // While you play, an AI's moves follow the AI pace slider; Watch mode and test runs keep the short pause.
-                val wait = if (human && lastWho != me && !quickBots) botPauseAfter(type, speed, env.aiPace) else pauseAfter(type, speed)
+                val wait = if (human && lastWho != me && !quickBots) botPauseAfter(type, speed, env.aiPace, personOffered = state.currentPlayer == me) else pauseAfter(type, speed)
                 if (wait > 0) delay(wait)
             }
         }
@@ -847,7 +849,8 @@ fun WatchGameScreen(
                         // The host's phone plays the room's bots, at a watchable pace (dice land first): the AI pace
                         // slider, like a local game; a debug autoplay seat and test runs keep the short wait.
                         val short = if (rolled) pauseAfter(ActionType.ROLL, 1) else 450L
-                        val paced = botPauseAfter(applied.lastOrNull()?.type ?: ActionType.END_TURN, 2, env.aiPace)
+                        val paced = botPauseAfter(applied.lastOrNull()?.type ?: ActionType.END_TURN, 2, env.aiPace,
+                            personOffered = n.bot(state.currentPlayer) == null && !quitToBot(v.room, n.seatOf(state.currentPlayer)))
                         delay(if (quickBots || who == n.me) short else maxOf(short, paced))
                         val fresh = views.tryReceive().getOrNull()
                         // #114: your Withdraw goes before the next bot answers your offer.
@@ -1655,6 +1658,7 @@ internal fun describe(t: ActionKind) = when (t) {
     ActionType.MOVE_ROBBER -> "moved the bandit"
     ActionType.DISCARD -> "discarded"
     ActionType.CONFIRM_TRADE -> "traded"
+    ActionType.CANCEL_TRADE -> "withdrew the trade offer"
     ActionType.COUNTER_TRADE, wgbg.engine.CkActionType.COUNTER_TRADE_CK -> "made a counter-offer"
     // Age of Chivalry, in our words (the history said "Red build knight").
     wgbg.engine.CkActionType.BUILD_KNIGHT -> "raised a knight"

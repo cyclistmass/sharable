@@ -20,6 +20,11 @@ move it to **Done** with the commit when it lands.
   results sent as a report. Covers card effects the fuzz games rarely reach. (Mauro, 2026-10-13)
 - **A long Chivalry game in the report-size test**: reports are capped at 190 000 characters; check a real
   300-turn replay fits whole. (Bosun, 2026-10-13)
+- A uiautomator dump takes ~4.5 s in a game (the animated sea never lets it go idle), so scripts can't read the screen
+  between two bot answers. A debug "pause the sea" extra or reading the tree from the app's own log would make every
+  touch script several times faster. Bosun, 2026-10-13 (#139).
+- emulator-5556 wedges after installs (am start -W never returns, blank screen, no focus); a reboot fixes it for a while.
+  Every `am start -W` in tools/ now has a 60 s timeout so a script fails fast instead of hanging. Bosun, 2026-10-13 (#134?).
 
 ## Done
 

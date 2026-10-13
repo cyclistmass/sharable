@@ -156,5 +156,6 @@ class EnvSettingsTest {
         for (speed in listOf(1, 2, 4, 8)) for (pace in listOf(1f, 3f, 5f)) for (type in listOf(road, roll))
             org.junit.jupiter.api.Assertions.assertTrue(botPauseAfter(type, speed, pace) >= pauseAfter(type, speed), "$type $pace s at $speed")
         assertEquals(0L, botPauseAfter(wgbg.engine.ActionType.REJECT_TRADE, 2, 5f))
+        assertEquals(1000L, botPauseAfter(wgbg.engine.ActionType.REJECT_TRADE, 2, 2f, personOffered = true), "#114: answers to your offer take the half beat")
     }
 }

@@ -36,7 +36,7 @@ for game in $GAMES; do
   "$ADB" shell pm clear $PKG >/dev/null
   "$ADB" shell cmd connectivity airplane-mode disable >/dev/null 2>&1 || true
   "$ADB" logcat -c; "$ADB" logcat -b crash -c 2>/dev/null || true
-  "$ADB" shell am start -W --activity-clear-task -n $PKG/.MainActivity --es start "$ruleset" --ei players "$players" --ez quickbots true >/dev/null
+  timeout 60 "$ADB" shell am start -W --activity-clear-task -n $PKG/.MainActivity --es start "$ruleset" --ei players "$players" --ez quickbots true >/dev/null
   sleep 4
   moves=0; taps=0; hooks=0; last=""; prev=""; same=0; start=$(date +%s)
   while [ $(( $(date +%s) - start )) -lt "$SECS" ]; do

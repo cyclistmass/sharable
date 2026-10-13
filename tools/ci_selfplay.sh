@@ -14,7 +14,7 @@ for ruleset in base chivalry; do
   "$ADB" shell am force-stop "$PKG"
   "$ADB" logcat -c
   "$ADB" logcat -b crash -c 2>/dev/null || true
-  "$ADB" shell am start -W --activity-clear-task -n "$PKG/.MainActivity" --es start "$ruleset" --ez watch true >/dev/null
+  timeout 60 "$ADB" shell am start -W --activity-clear-task -n "$PKG/.MainActivity" --es start "$ruleset" --ez watch true >/dev/null
   sleep "$SECS"
   games=$("$ADB" logcat -d -s WGBG-GAME:I | grep -c "over ruleset=$ruleset" || true)
   crash=$("$ADB" logcat -d -b crash | grep -A8 "FATAL EXCEPTION" | grep -c "$PKG" || true)
