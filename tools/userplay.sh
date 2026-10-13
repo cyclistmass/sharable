@@ -58,6 +58,9 @@ fail() { echo "USERPLAY $TAG FAILED: $1"; shot fail; "$ADB" logcat -d -b crash |
 # Centres of every element with text $1, left to right.
 all_text() { echo "$2" | grep -o "\(text\|content-desc\)=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | grep -o 'bounds=.*' | tr -c '0-9\n' ' ' |
   awk '{print int(($1+$3)/2), int(($2+$4)/2)}' | sort -n -k1,1; }
+# Close the on-screen keyboard with its Enter/Done key, as a player would. Not Back: on Android 14 (lane 2) one Back
+# closes the keyboard AND the app (0.2.9 test, 2026-10-13).
+hide_keyboard() { sleep 0.5; "$ADB" shell dumpsys input_method | grep -q "mInputShown=true" && "$ADB" shell input keyevent KEYCODE_ENTER; sleep 1; }
 # Type into a text box (tap it, clear it, type).
 type_into() { tap $1 $2; sleep 0.5; "$ADB" shell input keyevent KEYCODE_MOVE_END; for _ in $(seq 1 14); do "$ADB" shell input keyevent KEYCODE_DEL; done
   "$ADB" shell input text "$3"; sleep 0.5; }
@@ -87,15 +90,15 @@ if [ "$MODE" = join ]; then
   for _ in $(seq 1 90); do [ -s "$ROOM_FILE" ] && break; sleep 2; done
   code=$(cat "$ROOM_FILE" 2>/dev/null); [ -n "$code" ] || fail "no room code from the host in $ROOM_FILE"
   # Online needs a name first (the buttons stay off for "You").
-  xy=$(find_text "You" "$d") || true; [ -n "$xy" ] && { type_into $xy "Duo"; "$ADB" shell input keyevent KEYCODE_BACK; sleep 1; }
+  xy=$(find_text "You" "$d") || true; [ -n "$xy" ] && { type_into $xy "Duo"; hide_keyboard; }
   tap_text "Join a room" || fail "no Join a room button"
   sleep 1.5; d=$(dump)
   # Text boxes top to bottom: name, code. The keyboard moves things, so close it and look again before each box.
   boxes() { dump | grep 'class="android.widget.EditText"' | grep -o 'bounds="[^"]*"' | tr -c '0-9
 ' ' ' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}' | sort -n -k2,2; }
   [ "$(boxes | grep -c .)" -ge 2 ] || fail "the join screen has no name and code boxes"
-  type_into $(boxes | sed -n 1p) "Duo"; "$ADB" shell input keyevent KEYCODE_BACK; sleep 1
-  type_into $(boxes | sed -n 2p) "$code"; "$ADB" shell input keyevent KEYCODE_BACK; sleep 1
+  type_into $(boxes | sed -n 1p) "Duo"; hide_keyboard
+  type_into $(boxes | sed -n 2p) "$code"; hide_keyboard
   dump | grep -q "text=\"$code\"" || fail "the code didn't go into the code box"
   tap_text "Join" || fail "no Join button"
   for _ in $(seq 1 30); do sleep 1; tap_text "Not ready" && break; done || fail "joined $code but never saw my Not ready toggle"
@@ -111,7 +114,7 @@ else
   [ "$MODE" = host ] && { xy=$(all_text Friend "$(dump)" | head -1); [ -n "$xy" ] || fail "no Friend seat button"; tap $xy; sleep 0.6; }
   [ "$RULESET" = chivalry ] && { tap_text "Age of Chivalry" || fail "no ruleset button"; }
   if [ "$MODE" = online ] || [ "$MODE" = host ]; then
-    xy=$(find_text "You") || true; [ -n "$xy" ] && { type_into $xy "Tester"; "$ADB" shell input keyevent KEYCODE_BACK; sleep 1; }
+    xy=$(find_text "You") || true; [ -n "$xy" ] && { type_into $xy "Tester"; hide_keyboard; }
     tap_text "Host a room" || fail "no Host a room button"
     sleep 8
     if [ "$MODE" = host ]; then
