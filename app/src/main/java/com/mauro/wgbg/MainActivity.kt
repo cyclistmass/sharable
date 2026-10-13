@@ -1322,17 +1322,10 @@ fun WatchGameScreen(
                         pending = emptyList(); if (cardSecond) { cardPick = emptyList(); cardSecond = false } }
                 }
             }
-            if (tick.let { state.isOver }) Column(
-                Modifier.align(Alignment.Center).chest(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(when (state.winner) { -1 -> "Draw"; me -> "You win!"; else -> "${names[state.winner]} wins" },
-                    color = Color(0xFFF1D58A), fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (online == null) BrassButton("Play again", "play-again", Modifier.height(44.dp)) { seed++; playing = true }
-                    WoodButton("Exit", "game-over-exit", onClick = onExit)
-                }
+            if (tick.let { state.isOver }) {
+                var folded by remember(seed) { mutableStateOf(false) }
+                CongratsScreen(players, names, state.winner, me, state.turn, folded, { folded = it },
+                    if (online == null) ({ seed++; playing = true }) else null, onExit)
             }
         }
       }
