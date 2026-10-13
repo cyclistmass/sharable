@@ -15,7 +15,8 @@ tok() { printf "protocol=https\nhost=github.com\npath=%s.git\n\n" "$REPO" | GCM_
 api() { curl -s -m 60 -H "Authorization: Bearer $(tok)" "$@"; }
 
 # The commit to release: origin/main, or SHA=<commit> to pin an earlier tested build while newer work lands on main.
-SHA="${SHA:-$(git -C "$SHAREABLE" rev-parse origin/main)}"
+# Always the full 40-character id: the GitHub API matches head_sha only in full (a short SHA=44ef434 found no CI run).
+SHA="$(git -C "$SHAREABLE" rev-parse "${SHA:-origin/main}^{commit}")"
 # The version of that commit, not of this checkout (main may already be on the next version).
 VERSION=$(git -C "$SHAREABLE" show "$SHA:working-german-board-game/app/build.gradle.kts" | sed -n 's/.*versionName = "\(.*\)".*/\1/p')
 RUN=$(api "https://api.github.com/repos/$REPO/actions/runs?head_sha=$SHA" | py -c "
