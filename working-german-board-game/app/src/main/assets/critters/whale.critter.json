@@ -1,0 +1,27 @@
+{
+  "id": "whale", "name": "Whale", "model": "whale.glb",
+  "length": 2.4, "layer": "surface", "altitude": [-0.6, 0],
+  "zone": "open-sea", "clear_of_coast": 1.0,
+  "movement": {"speed": 0.15, "turn": 20, "bank": 0},
+  "animations": [
+    {"name": "swim", "seconds": 4, "mode": "loop"},
+    {"name": "beat", "seconds": 2, "mode": "once"},
+    {"name": "blow", "seconds": 1.5, "mode": "once"},
+    {"name": "dive", "seconds": 3, "mode": "once"},
+    {"name": "surface", "seconds": 3, "mode": "once"}
+  ],
+  "behavior": {"pattern": "surface-breather", "stages": [
+    {"id":"surface", "share":5, "seconds":[3,4], "delta":[0.3,0,0.3], "anim":"surface", "next":{"cruise":1}},
+    {"id":"cruise", "share":40, "seconds":[8,20], "delta":[1.6,0,0], "anim":"swim:d50", "next":{"turn":2,"blow":2,"beat":1,"low":2,"dive":1}},
+    {"id":"turn", "share":10, "seconds":[4,8], "delta":[0.6,0,0], "turn":60, "anim":"swim:d50", "next":{"cruise":1,"turn":1}},
+    {"id":"blow", "share":10, "seconds":[2,5], "delta":[0.1,0,0], "anim":"blow:d50", "next":{"cruise":2,"blow":1}},
+    {"id":"beat", "share":10, "seconds":[2,2], "delta":[0.4,0,0], "anim":"beat:d50", "next":{"cruise":1,"dive":1,"beat":1}},
+    {"id":"low", "share":20, "seconds":[5,12], "delta":[0.8,0,-0.1], "anim":"swim:d25", "next":{"cruise":1,"dive":1,"low":1}},
+    {"id":"dive", "share":5, "seconds":[3,4], "delta":[0.4,0,-0.6], "anim":"dive", "next":{"hidden":1}},
+    {"id":"hidden", "share":0, "seconds":[30,90], "delta":[3,0,0], "anim":null, "next":{"surface":1}}
+  ]},
+  "count": [0,1], "chance": 0.6, "shadow": false,
+  "sounds": {"blow": "whale_blow.ogg"},
+  "frames": {"headings":8, "tilts":8, "size":288,
+    "poses":{"swim:d25":1,"swim:d50":1,"swim:d75":1,"beat:d50":8,"blow:d50":3,"dive":8,"surface":8}}
+}

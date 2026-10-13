@@ -40,7 +40,7 @@ class LiveLiftTest {
     }
 
     @Test
-    fun `after a turn every standing piece faces the camera, then leans toward it`() {
+    fun `after a turn every standing piece faces the camera, then lies back so its front looks up at it`() {
         // Mauro: "buildings should tilt towards viewer after rotate". Their front (+Z, like the digits) must point at the
         // eye's ground direction (sin r, cos r) at every Turn-bar step and twist, not stay at the board's 0.
         val pieces = listOf("bandit", "default_homestead", "pirate_town", "default_ramparts", "default_capital_crown", "pirate_knight_1")
@@ -50,9 +50,10 @@ class LiveLiftTest {
             val front = floatArrayOf(m[8], m[9], m[10]).map { it / p.scale }
             assertEquals(cos(lift) * sin(rotation), front[0], 1e-5f, "$model at $rotation")
             assertEquals(cos(lift) * cos(rotation), front[2], 1e-5f, "$model at $rotation")
+            assertEquals(sin(lift), front[1], 1e-5f, "$model's front tips up at the camera (#104)")
             val up = floatArrayOf(m[4], m[5], m[6]).map { it / p.scale }
-            assertEquals(sin(lift) * sin(rotation), up[0], 1e-5f, "$model leans toward the eye")
-            assertEquals(sin(lift) * cos(rotation), up[2], 1e-5f, "$model leans toward the eye")
+            assertEquals(-sin(lift) * sin(rotation), up[0], 1e-5f, "$model's roof leans away from the eye (#104)")
+            assertEquals(-sin(lift) * cos(rotation), up[2], 1e-5f, "$model's roof leans away from the eye (#104)")
             assertEquals(0.4f, m[12]); assertEquals(1.1f, m[14])
         }
     }
@@ -60,9 +61,16 @@ class LiveLiftTest {
     @Test
     fun `pieces are seen from 10 degrees above the table until the board tilts past that`() {
         // Mauro picked it, 2026-10-12: side-on with fronts showing on a flat or low board.
-        for (tilt in listOf(0f, Camera.START_TILT, 0.5f, Camera.MAX_TILT)) {
-            val seenFrom = Math.PI.toFloat() / 2f - (tilt + liveLift(tilt)) // elevation of the eye above the piece's table
-            assertEquals(LIVE_PIECE_VIEW, seenFrom, 1e-5f, "tilt $tilt")
+        // Measured on the real matrix, at every twist: the angle between the piece's up and the eye is 80°, and the eye
+        // is on its front side. The old test only added angles, so it passed while pieces leaned the wrong way (#104).
+        for (tilt in listOf(0f, Camera.START_TILT, 0.5f, Camera.MAX_TILT)) for (rotation in listOf(0f, 1.2f, 3.1415927f, -2.5f)) {
+            val m = liveStandingMatrix(LivePlacement("default_town", Offset(0f, 0f)), liveLift(tilt), rotation)
+            val eye = floatArrayOf(sin(tilt) * sin(rotation), cos(tilt), sin(tilt) * cos(rotation)) // as LiveBoardView's camera
+            val up = (0..2).sumOf { (m[4 + it] * eye[it]).toDouble() }.toFloat()
+            val front = (0..2).sumOf { (m[8 + it] * eye[it]).toDouble() }.toFloat()
+            val expectedUp = if (tilt <= Math.PI.toFloat() / 2f - LIVE_PIECE_VIEW) sin(LIVE_PIECE_VIEW) else cos(tilt)
+            assertEquals(expectedUp, up, 1e-5f, "seen from 10° above its table at tilt $tilt, turn $rotation")
+            assertTrue(front > 0.9f, "front toward the eye at tilt $tilt, turn $rotation")
         }
         assertEquals(0f, liveLift(1.5f), 1e-6f)  // tilted past 10° above the table: true 3D, no extra lean
         assertEquals(0f, liveLift(Math.PI.toFloat() / 2f - LIVE_PIECE_VIEW), 1e-6f)

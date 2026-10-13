@@ -399,7 +399,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
                 onJoinRoom = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); problem = null; screen = Screen.JOIN },
                 resumeRoom = resumeCode.takeIf { session == null && !busy },
                 onResume = { resumeCode?.let { rejoin(it) } },
-                resumeGame = localSave?.let { "Resume your ${it.setup.ruleset.label} game" },
+                resumeGame = localSave?.let { "Resume your ${it.setup.ruleset.label.removeSuffix(" game")} game" },
                 onResumeGame = { localSave?.let { setup = it.setup; resuming = it; gameNo++; screen = Screen.GAME } },
                 // Look & art shows the ruleset chosen on screen, and the choices are still there on the way back.
                 onLookAndArt = { s -> setup = s; savedSetup.edit().putString("last", s.encode()).apply(); screen = Screen.LOOK },
@@ -628,6 +628,17 @@ fun WatchGameScreen(
     val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile); it.boatColors = PLAYER_COLORS } }
     sea.gullFlap = gullFlap; sea.gullGlide = gullGlide; sea.gullShadow = gullShadow; sea.boatWake = boatWake; sea.boatSprites = boatSprites
     if (sea.sprites3d == null) sea.sprites3d = SeaSprites3d(oceanRes)
+    // The whale (critter engine): rolled once per game from the board, so both phones in an online game see the same one.
+    LaunchedEffect(sea) {
+        val seed = boardSeed(state); val hexes = state.board.hexCount
+        // Off the main thread: reading the spec here, and finding the whale's start once the first frame knows the view.
+        sea.critters = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val specs = runCatching { listOf(CritterSpec.parse(appContext.assets.open("critters/whale.critter.json").bufferedReader().use { it.readText() })) }
+                .getOrDefault(emptyList())
+            SeaCritter.forGame(specs, seed, hexes) { job -> kotlin.concurrent.thread(isDaemon = true, name = "critter-start") { job() } }
+        }
+        android.util.Log.i("WGBG-CRITTER", "critters=${sea.critters.joinToString(",") { it.spec.id }.ifEmpty { "none" }} seed=${boardSeed(state)}")
+    }
     // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
     // read the current game's sea and board through these.
     val seaNow by rememberUpdatedState(sea)
@@ -1075,7 +1086,9 @@ fun WatchGameScreen(
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { at ->
                         val l = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera)
-                        val p = if (liveBoardNow) LiveProjection(l.center, l.scale, camera.tilt, boardRotation).unproject(at) else l.unproject(at)
+                        // The 3D collection lays its rows out on its own projection, not the board's.
+                        val p = if (liveBoardNow && inventory) liveProjection(size.width.toFloat(), size.height.toFloat()).unproject(at)
+                            else if (liveBoardNow) LiveProjection(l.center, l.scale, camera.tilt, boardRotation).unproject(at) else l.unproject(at)
                         val picking = cardPickNow.isNotEmpty()
                         val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else tapMoves(stateNow, boardLegalNow, legalNow, p, me, buildModeNow != null)
                         // The Tinkerer swaps two tiles: the first tap narrows to that tile's swaps, the second picks the other tile.
@@ -1093,6 +1106,8 @@ fun WatchGameScreen(
                             pending.isNotEmpty() -> pending = emptyList() // tapping elsewhere cancels
                             !inventory && boardTapHint(boardNow, legalNow, stateNow.robberHex, p) != null -> tapHint = boardTapHint(boardNow, legalNow, stateNow.robberHex, p)
                             !inventory && seaNow.isWater(p) -> seaNow.splash(p)
+                            // The 3D collection: tap a piece set to play with it (#119: "useless if I can't pick").
+                            inventory && liveBoardNow -> liveInventoryThemeAt(p)?.let { env.pirateTheme = it }
                         }
                     }, onDoubleTap = { at ->
                         val sz = Size(size.width.toFloat(), size.height.toFloat())
@@ -1111,7 +1126,9 @@ fun WatchGameScreen(
                     color = 0xFFF1D58A.toInt(); textSize = 16.dp.toPx(); textAlign = android.graphics.Paint.Align.CENTER
                     typeface = resources.getFont(R.font.alegreya_sans_regular)
                 }
-                for ((text, z) in listOf("Terrain LOD0" to -5.3f, "Terrain LOD1" to -2.6f, "Default pieces" to .45f, "Pirate pieces" to 2.5f, "Bandit and runtime plate" to 6.1f)) {
+                fun set(name: String, pirate: Boolean) = if (env.pirateTheme == pirate) "$name pieces: in use" else "$name pieces: tap to use"
+                for ((text, z) in listOf("Terrain LOD0" to -5.3f, "Terrain LOD1" to -2.6f, set("Default", false) to .45f, set("Pirate", true) to 2.5f,
+                        "Bandit and runtime plate" to 6.1f)) {
                     val at = projection.project(Offset(0f, z))
                     drawContext.canvas.nativeCanvas.drawText(text, at.x, at.y, paint)
                 }
@@ -1119,10 +1136,11 @@ fun WatchGameScreen(
                 InventoryArt(if (env.pirateTheme) knightsPirate else knightsNormal, raiders, cliff, boatSprites, gullGlide, buildings, sea.sprites3d),
                 bottomInset = INVENTORY_CARDS_DP.dp.toPx()) else if (liveBoard) {
                 val projection = liveProjection(size.width, size.height)
+                drawLivePorts(state.board, projection, measurer, wood, buildings)
                 drawLiveOverlay(state, projection, if (env.pirateTheme) knightsPirate else knightsNormal) { v ->
                     liveKnightModel(state, v, env.pirateTheme) in liveModels }
-                if (!targets.isEmpty) drawLiveTargets(state.board, targets, projection, targetGlow(me)) { pieceAt(state, it) }
-                if (chosen.isNotEmpty()) drawLiveTargets(state.board, Targets.of(chosen), projection, Color.White) { pieceAt(state, it) }
+                if (!targets.isEmpty) drawLiveTargets(state.board, targets, projection, targetGlow(me), targetPulse(sea.time), pieceOn = { pieceAt(state, it) }, knightOn = { knightAt(state, it) })
+                if (chosen.isNotEmpty()) drawLiveTargets(state.board, Targets.of(chosen), projection, Color.White, pieceOn = { pieceAt(state, it) }, knightOn = { knightAt(state, it) })
             } else {
                 val knights = if (env.pirateTheme) knightsPirate else knightsNormal
                 val layerDensity = androidx.compose.ui.unit.Density(density, fontScale)
@@ -1145,8 +1163,8 @@ fun WatchGameScreen(
                 }
                 drawLayer(boardLayer)
                 drawGame(state, measurer, wood, camera, sea.takeIf { env.animating }, tileFaces, cliff, tileLine, knights, raiders, BoardPart.OVER, banditSprites)
-                if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me)) { pieceAt(state, it) }
-                if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White) { pieceAt(state, it) }
+                if (!targets.isEmpty) drawTargets(state.board, targets, camera, targetPulse(sea.time), targetGlow(me), pieceOn = { pieceAt(state, it) }, knightOn = { knightAt(state, it) })
+                if (chosen.isNotEmpty()) drawTargets(state.board, Targets.of(chosen), camera, 1f, Color.White, pieceOn = { pieceAt(state, it) }, knightOn = { knightAt(state, it) })
             }
         }
         // Inventory: the illustrated resource cards along the bottom, then the dice faces.
@@ -1157,6 +1175,9 @@ fun WatchGameScreen(
             BrassButton("Tiles: compare", "look-tile-compare", Modifier.height(44.dp)) { compareTiles = true; settingsOpen = false }
             BrassButton("Card guide", "look-guide", Modifier.height(44.dp)) { guideOpen = true; settingsOpen = false }
         }
+        // Opened from the in-game Menu ("3D collection"): Done returns to the game (#115: "no way to leave"; Back already did).
+        if (inventory && !lookAndArt)
+            GoButton("Done", "collection-done", true, Modifier.align(Alignment.TopStart).padding(12.dp).width(120.dp).height(44.dp)) { inventory = false }
         if (inventory) Row(Modifier.align(Alignment.BottomCenter).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((r, art) in CARD_ART.withIndex()) androidx.compose.foundation.Image(
                 androidx.compose.ui.res.painterResource(art), RESOURCE_NAMES[r], Modifier.size(width = 76.dp, height = 110.dp))
@@ -1428,7 +1449,7 @@ private fun RejoiningOr(savedRoom: android.content.SharedPreferences, orElse: ()
  * light tiles (and for White).
  */
 private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, pulse: Float, glow: Color = Color(0xFFFFE08A),
-                                   pieceOn: (Int) -> Boolean = { false }) {
+                                   pieceOn: (Int) -> Boolean = { false }, knightOn: (Int) -> Boolean = { false }) {
     if (size.minDimension < 2f) return
     val l = Layout.fit(board, size.width, size.height, camera)
     if (!l.scale.isFinite() || l.scale <= 0f) return
@@ -1439,6 +1460,8 @@ private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, puls
         val p = vertexLattice(board, v)
         val c = l.project(p.x, p.y)
         val r = BUILD_MARK_R * l.scale * l.kAt(p.y) * swell
+        // The ring hugs the knight's base, not the whole corner.
+        if (knightOn(v)) { drawKnightBaseGlow(c, KNIGHT_SCALE * FLAT_KNIGHT_GLOW_SHARE * l.scale * l.kAt(p.y) * swell, l.squash, glow, a); continue }
         drawCircle(glow.copy(alpha = 0.32f * a), r * 1.6f, c)                       // soft halo
         drawCircle(glow.copy(alpha = 0.55f + 0.35f * a), r, c)                       // lit centre
         drawCircle(ink.copy(alpha = 0.55f), r, c, style = Stroke(r * 0.12f))         // outline
@@ -1465,6 +1488,24 @@ private fun DrawScope.drawTargets(board: Board, t: Targets, camera: Camera, puls
         drawCircle(glow.copy(alpha = a), r, c, style = Stroke(r * 0.07f))
     }
 }
+
+/**
+ * A knight you can promote or supply (#118: "when a knight is upgradable the base should glow"): a lit ring round its
+ * base instead of a dot that hides under its feet. [size] is the knight's size in px, [squash] the board's tilt.
+ */
+internal fun DrawScope.drawKnightBaseGlow(c: Offset, size: Float, squash: Float, glow: Color, a: Float) {
+    val rx = size * KNIGHT_GLOW_RX; val ry = rx * squash
+    fun oval(k: Float) = Pair(c - Offset(rx * k, ry * k), Size(rx * k * 2f, ry * k * 2f))
+    oval(1.22f).let { (o, z) -> drawOval(glow.copy(alpha = 0.45f * a), o, z, style = Stroke(rx * 0.4f)) }   // soft halo, outside: the knight stays clear
+    oval(1f).let { (o, z) -> drawOval(Color(0xFF1A120B).copy(alpha = 0.55f), o, z, style = Stroke(rx * 0.22f)) }
+    oval(1f).let { (o, z) -> drawOval(glow.copy(alpha = 0.75f + 0.25f * a), o, z, style = Stroke(rx * 0.15f)) }
+}
+
+/** The base glow's half-width, as a share of the knight's size. */
+internal const val KNIGHT_GLOW_RX = 0.32f
+
+/** The flat board's rendered knights stand a little larger than the 3D board's, so their ring is too. */
+internal const val FLAT_KNIGHT_GLOW_SHARE = 0.62f
 
 /** Tilt steps (of 7) pieces are seen steeper than the board; see [banditSteps]. */
 internal const val PIECE_LIFT_STEPS = 4f
@@ -1821,6 +1862,12 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     val lift = 1f + 1.2f * kotlin.math.sin(l.tilt)
     val stand = 1f + 0.15f * kotlin.math.sin(l.tilt)
     val toScreen = { x: Float, y: Float -> l.project(x, y) }
+    // The open water a critter may use: the sea in view at fit zoom, between the side panel and the zoom bars.
+    if (sea != null && sea.viewArea == null && Layout.leftInset > 0f) {
+        val fit = Layout.fit(board, size.width, size.height, Camera.FIT)
+        val a = fit.unproject(Offset(Layout.leftInset + 8.dp.toPx(), 0f)); val b = fit.unproject(Offset(size.width - 100.dp.toPx(), size.height))
+        sea.viewArea = androidx.compose.ui.geometry.Rect(minOf(a.x, b.x), minOf(a.y, b.y), maxOf(a.x, b.x), maxOf(a.y, b.y))
+    }
     when (part) {
         BoardPart.WATER -> { sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX), Sea.WaterPart.BASE); return }
         BoardPart.UNDER -> sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX), Sea.WaterPart.LIVE)
@@ -1941,6 +1988,13 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         } else {
             val rs = scale * l.hexK(s.robberHex) * stand
             drawRobber(l.hexCenter(s.robberHex) + Offset(0.15f * rs, 0.15f * rs * l.squash), rs)
+        }
+    }
+    s.ck?.let { ck ->
+        if (ck.merchantHex >= 0 && ck.merchantOwner >= 0) {
+            val hs = scale * l.hexK(ck.merchantHex)
+            drawMerchantToken(l.hexCenter(ck.merchantHex) + Offset(MERCHANT_SPOT.x * hs, MERCHANT_SPOT.y * hs * l.squash), hs, l.squash,
+                PLAYER_COLORS[ck.merchantOwner])
         }
     }
 
@@ -2255,6 +2309,25 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
     val gullAt = Offset(left + 10.7f * scale, y4)
     if (s3d != null) drawSeaProp(s3d, gullAt, SeaSprites3d.GULL_FRAME * scale * 2f, 4, invStep, SeaArt.gull) else image(art.gull, gullAt, 0.8f)
     label("Gull", gullAt + Offset(0f, 0.5f * scale))
+}
+
+/**
+ * The flat board's harbours on the 3D board (#104): the same shallows, plank piers from both coast corners and bell buoy,
+ * placed through the 3D camera and square to their edge. They used to be plain discs off the coast with no piers.
+ */
+private fun DrawScope.drawLivePorts(board: Board, p: LiveProjection, measurer: TextMeasurer, wood: WoodPieces, buildings: BuildingSprites?) {
+    val c = kotlin.math.cos(p.rotation); val s = kotlin.math.sin(p.rotation)
+    val ports = board.ports.map { port ->
+        val v1 = liveVertex(board, port.v1); val v2 = liveVertex(board, port.v2)
+        val n = coastOutward(board, port.v1, port.v2)
+        val mid = p.project((v1 + v2) / 2f)
+        // Out on screen before the tilt squash, which the water and piers apply themselves.
+        PortGeom(port.type, p.project(v1), p.project(v2), mid, Offset(c * n.x - s * n.y, s * n.x + c * n.y),
+            p.project((v1 + v2) / 2f + n * (if (buildings != null) PORT_BUOY_OUT else 0.58f)), p.scale)
+    }
+    val squash = kotlin.math.cos(p.tilt)
+    for (pg in ports) drawPortWater(pg, pg.scale, squash)
+    for (pg in ports) drawPortPiersAndToken(pg, pg.scale, measurer, wood, buildings?.ports?.getOrNull(PortArt.index(pg.type)), p.tilt)
 }
 
 private class PortGeom(val type: Int, val a: Offset, val b: Offset, val mid: Offset, val out: Offset, val token: Offset, val scale: Float)

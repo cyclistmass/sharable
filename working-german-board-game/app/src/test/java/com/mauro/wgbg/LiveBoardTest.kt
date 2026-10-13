@@ -139,4 +139,13 @@ class LiveBoardTest {
             }
         }
     }
+
+    @Test
+    fun `a tap on a piece set row in the 3D collection picks that set (#119)`() {
+        val rows = liveInventoryPlacements().filter { it.model.startsWith("default_") || it.model.startsWith("pirate_") }
+        assertTrue(rows.isNotEmpty())
+        for (r in rows) assertEquals(r.model.startsWith("pirate_"), liveInventoryThemeAt(r.position), r.model)
+        assertEquals(null, liveInventoryThemeAt(Offset(0f, -4f)))    // the terrain rows
+        assertEquals(null, liveInventoryThemeAt(Offset(0f, 5.4f)))   // the bandit row
+    }
 }

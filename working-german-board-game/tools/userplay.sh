@@ -229,9 +229,26 @@ while true; do
     echo "$(date +%T) menu open, closing it" >&2
     echo "$d" | grep -q 'text="Play"' && tap_text "Play" "$d"
     tap_text "Hide" "$d" || true
+  elif echo ",$legal" | grep -q ',CHOOSE_CARD:' && echo "$d" | grep -q 'text="ha[sv]e [0-9]'; then
+    # A one-card picker (Harbor Charter's give-back, Grand Factor's take): the cards are pictures with "have N"
+    # (yours) or "has N" (theirs) under them
+    # and no text button, so tap one card you hold, as a person would.
+    echo "$(date +%T) card picker seen (${phase})" >&2
+    xy=$(echo "$d" | grep -o '\(content-desc\|text\)="\(Timber\|Clay\|Fleece\|Grain\|Stone\|Parchment\|Fabric\|Silver\)"[^/]*bounds="[^"]*"\|text="ha[sv]e [0-9]*"[^/]*bounds="[^"]*"' |
+      sed 's/^text="ha[sv]e \([0-9]*\)"[^/]*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),[0-9]*\]"/H \1 \2 \4 \3/; s/^[a-z-]*="[A-Za-z]*"[^/]*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),\([0-9]*\)\]"/C \1 \2 \3 \4/' |
+      awk '$1=="C"{n++; x1[n]=$2; y1[n]=$3; x2[n]=$4; y2[n]=$5} $1=="H"{h[++m]=$2; hx[m]=($3+$4)/2; hy[m]=$5}
+           END{for(i=1;i<=n;i++) for(k=1;k<=m;k++) if(h[k]>0 && hx[k]>=x1[i] && hx[k]<=x2[i] && hy[k]>=y2[i]-10 && hy[k]<=y2[i]+60) print int((x1[i]+x2[i])/2), int((y1[i]+y2[i])/2)}' |
+      shuf -n 1)
+    if [ -n "$xy" ]; then tap "${xy% *}" "${xy#* }"; else echo "$(date +%T) card picker: no held card found" >&2; fi
+  elif echo "$d" | grep -q 'text="Back"' && echo "$d" | grep -q 'text="Play [^"]*: '; then
+    # A card's player picker ("Play Grand Factor: ... Blue / White / Back"): pick one of the named players. The
+    # general list below leaves player names out because the scores panel shows them too.
+    who=$(echo "$d" | grep -o 'text="\(Red\|Blue\|Orange\|White\)"[^/]*bounds="\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]"' |
+      sed 's/.*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),\([0-9]*\)\]"/\1 \2 \3 \4/' | awk '$1 > 600 {print int(($1+$3)/2), int(($2+$4)/2)}' | shuf -n 1)
+    if [ -n "$who" ]; then echo "$(date +%T) player picker" >&2; tap "${who% *}" "${who#* }"; else tap_text "Back" "$d" || true; fi
   else
     # Any other on-screen choice (pickers, victims, Age of Chivalry buttons), else End turn.
-    opts=$(echo "$d" | grep -o 'text="[^"]\+"' | cut -d'"' -f2 | grep -v -x -E 'Menu|Trade|Hide|Exit|Leave|Settings|End turn|Roll|Counter|Offer|You|Blue|Orange|White|Red|Tester|Duo|\(.*\)|Your turn|[0-9/ ]+|.*turn.*|.*Tap .*|.*built.*|.*rolled.*|.*\+[0-9].*|Raiders|Zoom|Tilt|Players|Maritime|have [0-9]+|.*offers.*|.*chosen.*|Pause|Play|Slow|Normal|Fast|Max|Watch bots|Fit|Dice.*|v[0-9.]+|Sound|Music.*|Sounds.*|Inventory|Look.*|Card guide|Close' | shuf)
+    opts=$(echo "$d" | grep -o 'text="[^"]\+"' | cut -d'"' -f2 | grep -v -x -E 'Menu|Trade|Hide|Exit|Leave|Settings|End turn|Roll|Counter|Offer|You|Blue|Orange|White|Red|Tester|Duo|\(.*\)|Your turn|[0-9/ ]+|.*turn.*|.*Tap .*|.*built.*|.*rolled.*|.*\+[0-9].*|Raiders|Zoom|Tilt|Players|Maritime|Harbour|have [0-9]+|.*offers.*|.*chosen.*|Pause|Play|Slow|Normal|Fast|Max|Watch bots|Fit|Dice.*|v[0-9.]+|Sound|Music.*|Sounds.*|Inventory|Look.*|Card guide|Close' | shuf)
     # After a few taps that changed nothing, a player ends the turn.
     if [ -n "$opts" ] && [ "$tries" -lt 3 ] && [ $((RANDOM % 3)) != 0 ]; then tap_text "$(echo "$opts" | shuf -n 1)" "$d" || true
     else tap_text "End turn" "$d" || { [ -n "$opts" ] && tap_text "$(echo "$opts" | shuf -n 1)" "$d"; } || true; fi

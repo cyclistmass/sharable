@@ -23,7 +23,10 @@ import kotlin.math.sin
  */
 class SeaSprites3d(private val res: Resources) {
     private var step = -1
-    private val cache = HashMap<Int, ImageBitmap>()
+    /** The frames in use, least recently drawn dropped first (the whale's 288 px frames add up fast). */
+    private val cache = object : LinkedHashMap<Int, ImageBitmap>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, ImageBitmap>?) = size > MAX_FRAMES
+    }
 
     /** The frame of [table] for [heading] (0 until [SeaArt.HEADINGS]) at [tiltStep] (0 until [SeaArt.STEPS]). */
     fun frame(table: Array<IntArray>, heading: Int, tiltStep: Int): ImageBitmap {
@@ -33,6 +36,8 @@ class SeaSprites3d(private val res: Resources) {
     }
 
     companion object {
+        /** Frames kept at once: every heading of the sloop, its trim and wake, the Raiders and the gull, plus the whale's. */
+        const val MAX_FRAMES = 160
         /** A sloop frame spans this many hex units (its hull about 0.76, as long as the old side-view boat's). */
         const val SLOOP_FRAME = 1.08f
         /** The Raiders' frame spans this many hex units (the hull about 1.0, like the old ship). */

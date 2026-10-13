@@ -82,4 +82,51 @@ class BoardHudTest {
         assertEquals(5, rep.rollOut[victim].sum())
         assertTrue(rollMinis(rep, victim, me = -1).any { it.n < 0 })
     }
+
+    @Test
+    fun `progress cards you can't play now are named with the reason (#117)`() {
+        val s = wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS), 3)
+        val rnd = kotlin.random.Random(3)
+        while (!(s.phase == wgbg.engine.Phase.PLAY_TURN && !s.hasRolled && s.turn > 0))
+            wgbg.engine.Rules.applyChecked(s, wgbg.engine.Rules.legalActions(s).random(rnd))
+        val me = s.currentPlayer; val other = (me + 1) % s.config.numPlayers
+        val ck = s.ck!!
+        ck.progressHand[me * wgbg.engine.Progress.COUNT + wgbg.engine.Progress.ALCHEMIST] += 1
+        ck.progressHand[me * wgbg.engine.Progress.COUNT + wgbg.engine.Progress.SABOTEUR] += 1
+        val now = playableProgress(s, me)
+        assertTrue(wgbg.engine.Progress.ALCHEMIST in now, "the Alchemist is for before the roll")
+        assertTrue(wgbg.engine.Progress.SABOTEUR !in now, "the Wrecker waits for the roll (Mauro's report)")
+        assertEquals("after you roll", notPlayableWhy(s, me, wgbg.engine.Progress.SABOTEUR))
+        assertTrue(playableProgress(s, other).isEmpty())
+        assertEquals("only on your turn", notPlayableWhy(s, other, wgbg.engine.Progress.SABOTEUR))
+        assertTrue(playableProgress(wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(), 1), 0).isEmpty())   // base game: none
+    }
+
+    @Test
+    fun `a knight's corner glows round its base, an empty corner gets the usual dot (#118)`() {
+        val s = wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS), 2)
+        s.ck!!.knightOwner[7] = 1
+        assertTrue(knightAt(s, 7) && pieceAt(s, 7))
+        assertTrue(!knightAt(s, 8))
+        assertTrue(!knightAt(wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(), 2), 7))   // base game: no knights
+        assertTrue(KNIGHT_GLOW_RX * KNIGHT_SCALE * FLAT_KNIGHT_GLOW_SHARE > BUILD_MARK_R, "the ring is wider than the dot it replaces")
+    }
+
+    @Test
+    fun `the Raiders warning shows on your turn from 3 steps out, with both strengths (#92)`() {
+        val s = wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS), 5)
+        val ck = s.ck!!
+        val me = s.currentPlayer
+        ck.barbarianPos = wgbg.engine.CkPiece.BARBARIAN_TRACK - 4
+        assertEquals(null, raidersWarning(s, me))                                   // 4 out: quiet
+        ck.barbarianPos = wgbg.engine.CkPiece.BARBARIAN_TRACK - 3
+        val w = raidersWarning(s, me)!!
+        assertTrue(w.startsWith("Raiders 3 steps away!"), w)
+        val raiders = wgbg.engine.CitiesAndKnights.barbarianStrength(s)
+        assertTrue("\n$raiders vs " in w, w)   // Raiders first, like the track line
+        assertEquals(null, raidersWarning(s, (me + 1) % s.numPlayers))              // not your turn
+        ck.barbarianPos = wgbg.engine.CkPiece.BARBARIAN_TRACK - 1
+        assertTrue(raidersWarning(s, me)!!.startsWith("Raiders 1 step away!"))
+        assertEquals(null, raidersWarning(wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(), 5), 0))   // base game
+    }
 }

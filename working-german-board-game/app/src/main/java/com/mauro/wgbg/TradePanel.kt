@@ -189,7 +189,7 @@ fun Modifier.chest(): Modifier = this
 // ------------------------------------------------------------------ the panel
 
 /**
- * The trade panel: Players and Maritime tabs; the top row is what you get, the bottom row what
+ * The trade panel: Players and Harbour tabs; the top row is what you get, the bottom row what
  * you give (tap a card to add one, tap its "−" to take one back); Yes / No / Counter on the right.
  * Every button sends a legal move (or a trade the engine validates), so nothing bypasses the rules.
  */
@@ -232,7 +232,7 @@ fun TradePanel(
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Tab("Players", !bankTab) { maritime = false }
-                if (mode == TradeMode.COMPOSE) Tab("Maritime", bankTab) { maritime = true; get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) }
+                if (mode == TradeMode.COMPOSE) Tab("Harbour", bankTab) { maritime = true; get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) }
                 // Everyone's answer to your offer, up here beside the tabs: a row at the bottom ran off the
                 // chest on a landscape phone.
                 if (!bankTab && s.currentPlayer == me) for (p in 0 until s.numPlayers) if (p != me) {
@@ -247,7 +247,8 @@ fun TradePanel(
                 color = INK.copy(alpha = 0.7f), fontSize = 11.sp)
             // One row of cards (Mauro, #49): the top half of a card asks for it, the bottom half offers it.
             AskOfferRow(showGet, showGive, editing,
-                under = { r -> if (bankTab) "${bankRate(s, me, r)}:1" else "have ${holding(s, me, r)}" }) { r, tap ->
+                // #113: the bank tab shows how many you hold as well as the rate.
+                under = { r -> if (bankTab) "have ${holding(s, me, r)}\n${bankRate(s, me, r)}:1" else "have ${holding(s, me, r)}" }) { r, tap ->
                 val (g, v) = askOffer(get, give, r, tap, holding(s, me, r), if (bankTab) bankRate(s, me, r) else 0)
                 get = g; give = v
             }
@@ -386,7 +387,8 @@ private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, under:
                     modifier = Modifier.align(Alignment.BottomCenter).background(Color(0xE0C0392B), CircleShape).padding(horizontal = 6.dp))
             }
             // How many you hold (or the bank rate), big enough to read at a glance (#66).
-            under(r)?.let { Text(it, color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }
+            under(r)?.let { Text(it, color = INK, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 2, softWrap = false, lineHeight = 13.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             // A "−" to take one back, down to none, like the discard sheet (Mauro: "need to be able to get back to
             // zero"; the long press that also does it was never found). The row keeps its height so nothing jumps.
             Box(Modifier.height(18.dp), contentAlignment = Alignment.Center) {

@@ -241,6 +241,10 @@ class Sea(board: Board, seed: Int = 1) {
     var boatWake: ImageBitmap? = null
     /** The 3D sloops and Raiders' ship (#63); null in tests and until loaded, when the painted sprites draw. */
     var sprites3d: SeaSprites3d? = null
+    /** The critters on this game's sea (the whale, when it rolled one): see [SeaCritter.forGame]. */
+    internal var critters: List<SeaCritter> = emptyList()
+    /** The open water in view at fit zoom (lattice, y down), set on the first draw; critters start once it is known. */
+    internal var viewArea: Rect? = null
     /** The tilt step the water was last drawn at (the sky has no squash of its own to go by). */
     private var tiltStep3d = 0
     private var oceanBrushes: List<Pair<BitmapShader, ShaderBrush>>? = null
@@ -297,6 +301,7 @@ class Sea(board: Board, seed: Int = 1) {
         raidersRunIn = (raidersRunIn - pdt).coerceAtLeast(0f)
         val orbitTarget = if (raidersRunIn > 0f) wgbg.engine.CkPiece.BARBARIAN_TRACK.toFloat() else raidersTarget.toFloat()
         raidersTrack += (orbitTarget - raidersTrack) * (1f - exp(-pdt / 3f))
+        viewArea?.let { v -> for (c in critters) c.update(pdt, v) }
         for (p in drops) p.age += dt
         drops.removeAll { it.age > it.life }
         for (r in rings) r.age += dt
@@ -518,6 +523,13 @@ class Sea(board: Board, seed: Int = 1) {
         // Waves slider: how many wavelets and whitecaps show (none at 0; the water's colour and texture stay).
         for (i in 0 until waveCount) { val w = wavelets[i]; if (onScreen(at(w.x, w.y), 0.6f * s)) drawWavelet(this, at, w) }
         for (i in 0 until amount(waves01, breaks.size)) { val k = breaks[i]; if (onScreen(at(k.x, k.y), 0.8f * s)) drawBreak(this, at, s, k) }
+        // The whale (critter engine), under the boats: its frame for the clip it plays, bow along its course.
+        sprites3d?.let { s3d -> for (c in critters) {
+            if (c.spec.id != "whale") continue
+            val fr = whaleFrame(c.pose() ?: continue, c.spec.clips) ?: continue
+            val q = c.at.let { at(it.x, it.y) }
+            if (onScreen(q, WHALE_FRAME * s)) drawWhale(s3d, q, WHALE_FRAME * s, fr, whaleHeadingIndex(c.course, squash), tiltStep3d)
+        } }
         // Tiny sailboats (Boats slider): a wooden hull with a little wake, the sail in a player's colour.
         val sprites = boatSprites
         for (i in 0 until boatCount) {

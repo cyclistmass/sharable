@@ -104,11 +104,13 @@ internal fun liveModelMatrix(p: LivePlacement, lift: Float = 0f, rotation: Float
 
 /**
  * A standing piece under a camera orbited by [rotation]: turned to face the eye (its front, +Z, toward (sin r, cos r),
- * the way the digits cancel the orbit) and then tipped [lift] toward it. Without the turn, a piece leaned toward the
- * eye side-on or back-first after the Turn bar or a twist (Mauro: "buildings should tilt towards viewer after rotate").
+ * the way the digits cancel the orbit) and then laid back [lift] away from it, so its front tips up at the camera and
+ * its roof sits toward the top of the screen, like the flat board's sprites. Tipping toward the eye showed the back
+ * wall upside down (#104). Without the turn, a piece leaned side-on or back-first after the Turn bar or a twist
+ * (Mauro: "buildings should tilt towards viewer after rotate").
  */
 internal fun liveStandingMatrix(p: LivePlacement, lift: Float, rotation: Float, facing: Boolean = true): FloatArray =
-    liveModelMatrix(if (facing) p.copy(heading = p.heading + rotation) else p, lift, rotation)
+    liveModelMatrix(if (facing) p.copy(heading = p.heading + rotation) else p, -lift, rotation)
 
 /** Pieces that stand up (buildings, the Bandit): tipped toward the camera like the flat board's sprites. */
 internal fun liveStanding(model: String): Boolean =
@@ -119,7 +121,7 @@ internal fun liveStanding(model: String): Boolean =
 internal const val LIVE_PIECE_VIEW = 0.17453292f
 
 /**
- * How far standing pieces tip toward the camera at board [tilt] (0 = straight down): enough that they're seen from
+ * How far standing pieces lie back from the camera at board [tilt] (0 = straight down): enough that they're seen from
  * [LIVE_PIECE_VIEW] above the table, until the board itself is tilted past that view; then none, true 3D.
  */
 internal fun liveLift(tilt: Float): Float = (PI.toFloat() / 2f - LIVE_PIECE_VIEW - tilt).coerceAtLeast(0f)
@@ -189,6 +191,17 @@ internal fun livePlacements(s: GameState, pirate: Boolean, lod: Int, hasModel: (
     }
 }
 
+/** The piece set row of [liveInventoryPlacements] at board point [p]: false = default, true = pirate, null = neither. */
+internal fun liveInventoryThemeAt(p: Offset): Boolean? = when {
+    p.x !in -8.2f..8.2f -> null
+    abs(p.y - LIVE_SET_ROW_Y) < 0.95f -> false
+    abs(p.y - (LIVE_SET_ROW_Y + LIVE_SET_ROW_GAP)) < 0.95f -> true
+    else -> null
+}
+
+private const val LIVE_SET_ROW_Y = 1.3f
+private const val LIVE_SET_ROW_GAP = 2f
+
 /** Side-by-side imported models for maintainer review; never mixed into a game state. */
 internal fun liveInventoryPlacements(): List<LivePlacement> = buildList {
     add(LivePlacement("sea", Offset.Zero, -.24f, 2f))
@@ -201,7 +214,7 @@ internal fun liveInventoryPlacements(): List<LivePlacement> = buildList {
     }
     val kinds = listOf("homestead", "town", "ramparts", "capital_guilds", "capital_academy", "capital_crown", "road_v", "road_p30", "road_m30")
     for ((row, theme) in listOf("default", "pirate").withIndex()) for ((i, kind) in kinds.withIndex())
-        add(LivePlacement("${theme}_$kind", Offset(-7.2f + 1.8f * i, 1.3f + 2f * row), scale = 1.8f, owner = i % 4))
+        add(LivePlacement("${theme}_$kind", Offset(-7.2f + 1.8f * i, LIVE_SET_ROW_Y + LIVE_SET_ROW_GAP * row), scale = 1.8f, owner = i % 4))
     add(LivePlacement("bandit", Offset(-4f, 5.4f)))
     add(LivePlacement("number_plate", Offset(0f, 5.4f), .012f))
     add(LivePlacement("digit_6", Offset(0f, 5.4f), .039f))

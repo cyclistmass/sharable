@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
@@ -73,6 +74,9 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                 Text("$raiders vs $knights", fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp).testTag("raiders-vs-knights"),
                     color = if (knights >= raiders) Color(0xFF8BD18B) else Color(0xFFFF6B5E))
             }
+            // On your turn, 3 steps or fewer out: say so, and what's at stake (#92).
+            raidersWarning(s, me)?.let { Text(it, color = Color(0xFFFFB4A8), fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.widthIn(max = 250.dp).padding(top = 1.dp, bottom = 2.dp).testTag("raiders-warning")) }
         }
         for (p in 0 until s.numPlayers) {
             val turn = !s.isOver && p == s.currentPlayer
@@ -221,11 +225,14 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
     androidx.compose.runtime.LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay((5000L * pace).toLong()); hint = null } }
     // A long press on any card shows it big with everything about it (Mauro); a tap anywhere on it closes.
     var detail by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<CardDetail?>(null) }
-    fun Modifier.longPressFor(d: CardDetail) = this.pointerInput(d) { detectTapGestures(onLongPress = { detail = d }) }
+    // It never stays up for good (#116: "staring at a full screen of a card description forever"): any tap on a card
+    // in hand closes it too, and it closes by itself after a while.
+    androidx.compose.runtime.LaunchedEffect(detail) { if (detail != null) { kotlinx.coroutines.delay((12000L * pace).toLong()); detail = null } }
+    fun Modifier.longPressFor(d: CardDetail) = this.pointerInput(d) { detectTapGestures(onTap = { detail = null }, onLongPress = { detail = d }) }
     @Composable
     fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, small: String? = null, art: Int? = null, long: CardDetail? = null, onTap: (() -> Unit)? = null) = Box(contentAlignment = Alignment.TopEnd,
         modifier = Modifier.testTag(tag).then(if (onTap != null || long != null) Modifier.pointerInput(long) {
-            detectTapGestures(onTap = { onTap?.invoke() }, onLongPress = { long?.let { detail = it } })
+            detectTapGestures(onTap = { if (detail != null) detail = null else onTap?.invoke() }, onLongPress = { long?.let { detail = it } })
         } else Modifier)) {
         // Themed by its deck's commodity (Mauro): Guilds on Fabric, Crown on Silver, Academy on Parchment.
         ProgressCardFace(name, edge, art, small, w, h)
@@ -264,16 +271,35 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
                 count(n)
             }
         }
+        // Cards you can't play right now are dimmed and say why (#117: "don't let me play it"); the engine's own list.
+        val playable = androidx.compose.runtime.remember(version, me) { playableProgress(s, me) }
         for (c in 0 until wgbg.engine.Progress.COUNT) {
             val n = ck.progressHand[me * wgbg.engine.Progress.COUNT + c]
-            if (n > 0) namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 50, 70, // as tall as the resource cards; hold one to read it large (Mauro, 2026-10-12)
-                small = null,
-                art = progressArt(c), long = progressDetail(c)) {
-                hint = "${PROGRESS_NAMES.getOrElse(c) { "Progress" }}: ${progressHint(c)}"
+            val now = c in playable
+            if (n > 0) Box(Modifier.alpha(if (now) 1f else 0.45f)) {
+                namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 50, 70, // as tall as the resource cards; hold one to read it large (Mauro, 2026-10-12)
+                    small = null,
+                    art = progressArt(c), long = progressDetail(c)) {
+                    hint = "${PROGRESS_NAMES.getOrElse(c) { "Progress" }}: " + if (now) progressHint(c) else "can't play it now (${notPlayableWhy(s, me, c)})."
+                }
             }
         }
     }
     }
+}
+
+/** Progress cards [me] may play right now: the engine's legal plays (none when it isn't their move). */
+fun playableProgress(s: GameState, me: Int): Set<Int> =
+    if (s.ck == null || s.currentPlayer != me) emptySet()
+    else wgbg.engine.Rules.legalActions(s).filter { it.type == wgbg.engine.CkActionType.PLAY_PROGRESS }.map { it.a }.toSet()
+
+/** Why progress card [c] can't be played by [me] now, in a few words. */
+fun notPlayableWhy(s: GameState, me: Int, c: Int): String = when {
+    s.currentPlayer != me -> "only on your turn"
+    s.phase != wgbg.engine.Phase.PLAY_TURN -> "finish what you're doing first"
+    !s.hasRolled && c != wgbg.engine.Progress.ALCHEMIST -> "after you roll"
+    s.hasRolled && c == wgbg.engine.Progress.ALCHEMIST -> "only before you roll"
+    else -> "nothing it can do right now"
 }
 
 /** A slim prompt across the top saying what to do now. */
@@ -284,6 +310,23 @@ fun TurnPrompt(text: String, modifier: Modifier = Modifier) {
 }
 
 /** Ship steps left before the Raiders land (attack) for track position [pos]. */
+/**
+ * The Raiders warning on your own turn when they are 1-3 steps from landing (#92), or null: how near, both strengths,
+ * and what happens if they land now.
+ */
+fun raidersWarning(s: GameState, me: Int): String? {
+    val ck = s.ck ?: return null
+    val left = raidersStepsLeft(ck.barbarianPos)
+    if (left !in 1..3 || s.currentPlayer != me || s.isOver) return null
+    val raiders = wgbg.engine.CitiesAndKnights.barbarianStrength(s)
+    val knights = (0 until s.numPlayers).sumOf { wgbg.engine.CitiesAndKnights.activeKnightStrength(s, it) }
+    val mine = wgbg.engine.CitiesAndKnights.activeKnightStrength(s, me)
+    val near = if (left == 1) "1 step" else "$left steps"
+    // Raiders first, like the "R vs K" on the track line above it.
+    return "Raiders $near away!\n$raiders vs $knights: " + if (knights >= raiders) "knights hold (you $mine)"
+        else "too weak, weakest lose a town (you $mine)"
+}
+
 fun raidersStepsLeft(pos: Int) = (wgbg.engine.CkPiece.BARBARIAN_TRACK - pos).coerceAtLeast(0)
 
 /** Hand size for the player list: "8", or "8/3" (cards / progress cards) in Age of Chivalry. */

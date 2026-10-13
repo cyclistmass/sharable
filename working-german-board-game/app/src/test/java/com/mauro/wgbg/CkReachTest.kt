@@ -16,7 +16,7 @@ class CkReachTest {
     private val buttons = setOf(ActionType.ROLL, ActionType.END_TURN, ActionType.DISCARD, ActionType.BUY_DEVELOPMENT_CARD,
         ActionType.PLAY_KNIGHT_CARD, ActionType.PLAY_ROAD_BUILDING, ActionType.PLAY_YEAR_OF_PLENTY, ActionType.PLAY_MONOPOLY,
         ActionType.ACCEPT_TRADE, ActionType.REJECT_TRADE, ActionType.CONFIRM_TRADE, ActionType.CANCEL_TRADE,
-        // The trade chest: bank trades on its Maritime tab, offers on its Players tab.
+        // The trade chest: bank trades on its Harbour tab, offers on its Players tab.
         ActionType.MARITIME_TRADE, wgbg.engine.CkActionType.OFFER_TRADE_CK)
 
     @Test

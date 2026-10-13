@@ -1,0 +1,46 @@
+{
+ "schema": "critter-sim-result/1",
+ "critter": "space_whale",
+ "seed": 2,
+ "minutes": 60,
+ "pass": true,
+ "stages": [
+  {
+   "id": "fade-in",
+   "target_share": 10,
+   "measured_share": 10.1417,
+   "visits": 24,
+   "mean_seconds": 15.2125
+  },
+  {
+   "id": "pass",
+   "target_share": 70,
+   "measured_share": 69.4333,
+   "visits": 24,
+   "mean_seconds": 104.15
+  },
+  {
+   "id": "fade-out",
+   "target_share": 10,
+   "measured_share": 10.0833,
+   "visits": 23,
+   "mean_seconds": 15.7826
+  },
+  {
+   "id": "turnaround",
+   "target_share": 10,
+   "measured_share": 10.3417,
+   "visits": 23,
+   "mean_seconds": 16.187
+  }
+ ],
+ "violations": [],
+ "min_coast_distance": 0,
+ "min_body_coast_clearance": -1.2,
+ "max_speed": 0.1071,
+ "max_turn_rate": 13.8462,
+ "limits": {
+  "speed": 0.12,
+  "turn": 20
+ }
+}
