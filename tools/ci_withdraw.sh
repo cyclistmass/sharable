@@ -11,6 +11,7 @@ ADB="${ADB:-adb}"
 PKG=com.mauro.wgbg
 export MSYS_NO_PATHCONV=1
 fail=0
+. "$(dirname "$0")/lib/turnstream.sh" # turn lines as they come + stall watchdog (#139)
 
 dump() { for _ in 1 2 3; do "$ADB" shell rm -f /sdcard/ui.xml; "$ADB" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
   local x; x=$("$ADB" shell cat /sdcard/ui.xml 2>/dev/null); case "$x" in *hierarchy*) echo "$x" | tr '>' '\n'; return;; esac; sleep 1; done; }
@@ -19,7 +20,7 @@ at() { dump | grep "\(text\|content-desc\)=\"$1\"" | centre; }
 tap_text() { local xy; xy=$(at "$1"); [ -n "$xy" ] || return 1; "$ADB" shell input tap $xy; sleep 0.8; }
 crashed() { [ "$("$ADB" logcat -d -b crash | grep -A8 'FATAL EXCEPTION' | grep -c "$PKG")" != 0 ]; }
 turn_line() { "$ADB" logcat -d -s WGBG-TURN:I | tail -1; }
-move() { "$ADB" shell am broadcast -a $PKG.MOVE -p $PKG --es move "$1" >/dev/null; }
+move() { LASTMOVE=$1; "$ADB" shell am broadcast -a $PKG.MOVE -p $PKG --es move "$1" >/dev/null; }
 say() { [ -n "${VERBOSE:-}" ] && echo "  · $*"; return 0; }
 bad() { echo "withdraw $ruleset: FAILED: $*"; fail=1
   "$ADB" exec-out screencap -p > "${OUT:-.}/withdraw-fail-$ruleset.png" 2>/dev/null && echo "  screen: ${OUT:-.}/withdraw-fail-$ruleset.png"; }
@@ -27,7 +28,7 @@ bad() { echo "withdraw $ruleset: FAILED: $*"; fail=1
 for ruleset in $RULESETS; do
   "$ADB" shell am force-stop $PKG
   "$ADB" shell pm clear $PKG >/dev/null
-  "$ADB" logcat -c; "$ADB" logcat -b crash -c 2>/dev/null || true
+  ts_open; "$ADB" logcat -b crash -c 2>/dev/null || true
   timeout 60 "$ADB" shell am start -W --activity-clear-task -n $PKG/.MainActivity --es start "$ruleset" --ei players 3 >/dev/null || { bad "the app didn't start in 60 s (window manager wedged? reboot the emulator)"; continue; }
   sleep 4
   # Bots say no at once; only a counter holds for the AI pace. Slider to 5 s (Menu › Settings, by touch) so
@@ -39,13 +40,14 @@ for ruleset in $RULESETS; do
     say "AI pace now: $(dump | grep -o 'text="[0-9.]* s"' | head -1)"
     tap_text "Hide" || "$ADB" shell input keyevent BACK
   fi
-  done_w=0; prev=""; start=$(date +%s)
+  done_w=0; again=0; start=$(date +%s); ts_alive
   while [ $(( $(date +%s) - start )) -lt "$SECS" ] && [ $done_w = 0 ] && [ $fail = 0 ]; do
     crashed && { bad "crash"; break; }
-    line=$(turn_line)
-    [ -z "$line" ] || [ "$line" = "$prev" ] && { sleep 0.5; continue; }
-    prev="$line"
-    echo "$line" | grep -q 'player=0' || { sleep 0.5; continue; }
+    if [ $again = 1 ]; then again=0; line=$(turn_line)
+    elif ts_wait 6; then line=$TS_LINE
+    else ts_check_stall "withdraw-$ruleset"; [ -n "${LASTMOVE:-}" ] && move "$LASTMOVE"; continue; fi   # quiet 6 s: resend a hook move that may have been dropped (the app drops it if no longer legal)
+    [ $TS_OVER = 1 ] && { TS_OVER=0; say "game over, playing again"; tap_text "Play again" || { bad "no Play again"; break; }; continue; }
+    echo "$line" | grep -q 'player=0' || continue
     phase=$(echo "$line" | sed -n 's/.* phase=\([^ ]*\).*/\1/p')
     legal=$(echo "$line" | sed -n 's/.* legal=\([^ ]*\).*/\1/p' | tr ',' '\n')
     [ -z "$legal" ] && continue
@@ -66,7 +68,7 @@ for ruleset in $RULESETS; do
     lines0=$("$ADB" logcat -d -s WGBG-TURN:I | wc -l)
     "$ADB" shell input tap $off; sleep 1
     if [ "$("$ADB" logcat -d -s WGBG-TURN:I | wc -l)" -gt "$lines0" ]; then
-      say "the bots had all answered already: $(turn_line | cut -c1-140)"; tap_text "Close" || tap_text "Cancel" || true; prev=""; continue
+      say "the bots had all answered already: $(turn_line | cut -c1-140)"; tap_text "Close" || tap_text "Cancel" || true; ts_alive; again=1; continue
     fi
     "$ADB" shell input tap $red; sleep 2
     l=$(turn_line)

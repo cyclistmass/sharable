@@ -11,11 +11,8 @@ move it to **Done** with the commit when it lands.
 - **ci_trade.sh in CI**: trade-chest taps are only checked locally today. In the same draft. (Bosun, 2026-10-13)
 - **A game to the end screen in CI** (`tools/play_to_end.sh chivalry 4`): nothing in CI reached the end of a game
   through the UI. In the same draft. (Bosun, 2026-10-13)
-- **Hook-driven scripts react to log lines instead of polling** (`seek_spot.sh`, `ci_trade.sh` setup turns):
-  polling once a second with 6 s resends made a 76-turn game take 9 min. `play_to_end.sh` shows the pattern
-  (`logcat` stream + `read -t` + stall watchdog). (Bosun, 2026-10-13)
-- **Stall watchdog in every device script**: exit with the reason (device, app alive, last turn line, screenshot)
-  when nothing moves for N s, so a stuck run fails in seconds instead of at its time limit. (Bosun, 2026-10-13)
+- **Stall watchdog in the remaining device scripts** (`ci_touchplay.sh`, `ci_selfplay.sh`, `ci_online.sh`,
+  `ci_monkey.sh`): source `tools/lib/turnstream.sh` like the trade scripts. (Bosun, 2026-10-13)
 - **Card tester** (debug builds): every card in every mode set up on a board for a human to play and pass/fail,
   results sent as a report. Covers card effects the fuzz games rarely reach. (Mauro, 2026-10-13)
 - **A long Chivalry game in the report-size test**: reports are capped at 190 000 characters; check a real
@@ -28,6 +25,9 @@ move it to **Done** with the commit when it lands.
 
 ## Done
 
+- Hook-driven scripts react to log lines instead of polling, with a stall watchdog (#139): `tools/lib/turnstream.sh`
+  used by `seek_spot.sh`, `ci_trade.sh`, `ci_withdraw.sh`. seek_spot: 117 turns in 5 min (was 76 in 9); a killed app
+  is reported in 15-45 s with a screenshot instead of at the time limit.
 - Local `--ez autoplay true` (a bot plays your seat offline too): a full base game in ~2.5 min. 7254728.
 - `tap()` helpers no longer let `adb shell` eat stdin inside `while read` loops (only the first tap happened).
   7254728, found by Crest.

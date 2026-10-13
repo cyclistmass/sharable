@@ -17,6 +17,7 @@ ADB="${ADB:-adb}"
 PKG=com.mauro.wgbg
 export MSYS_NO_PATHCONV=1
 fail=0
+. "$(dirname "$0")/lib/turnstream.sh" # turn lines as they come + stall watchdog (#139)
 
 dump() { for _ in 1 2 3; do "$ADB" shell rm -f /sdcard/ui.xml; "$ADB" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
   local x; x=$("$ADB" shell cat /sdcard/ui.xml 2>/dev/null); case "$x" in *hierarchy*) echo "$x" | tr '>' '\n'; return;; esac; sleep 1; done; }
@@ -24,7 +25,7 @@ centre() { grep -o '\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]' | head -1 | tr -c '0-9\n
 tap_text() { local xy; xy=$(dump | grep "\(text\|content-desc\)=\"$1\"" | centre); [ -n "$xy" ] || return 1; "$ADB" shell input tap $xy; sleep 0.8; }
 crashed() { [ "$("$ADB" logcat -d -b crash | grep -A8 'FATAL EXCEPTION' | grep -c "$PKG")" != 0 ]; }
 turn_line() { "$ADB" logcat -d -s WGBG-TURN:I | tail -1; }
-move() { "$ADB" shell am broadcast -a $PKG.MOVE -p $PKG --es move "$1" >/dev/null; }
+move() { LASTMOVE=$1; "$ADB" shell am broadcast -a $PKG.MOVE -p $PKG --es move "$1" >/dev/null; }
 # The chest's cards, left to right: "x held rate" (rate 0 on the Players tab), from the labels under them.
 cards() { dump | grep 'text="have [0-9]*' | sed 's/.*text="have \([0-9]*\)\(&#10;\([0-9]\):1\)\{0,1\}".*bounds="\[\([0-9]*\),[0-9]*\]\[\([0-9]*\),[0-9]*\]".*/\4 \5 \1 \3/' |
   awk '{print int(($1+$2)/2), $3, ($4 == "" ? 0 : $4)}' | sort -n; }
@@ -44,22 +45,24 @@ bad() { echo "trade $ruleset: FAILED: $*"; echo "  cards x=${CARDX[*]} held=${HE
 for ruleset in $RULESETS; do
   "$ADB" shell am force-stop $PKG
   "$ADB" shell pm clear $PKG >/dev/null
-  "$ADB" logcat -c; "$ADB" logcat -b crash -c 2>/dev/null || true
+  ts_open; "$ADB" logcat -b crash -c 2>/dev/null || true
   timeout 60 "$ADB" shell am start -W --activity-clear-task -n $PKG/.MainActivity --es start "$ruleset" --ei players 3 --ez quickbots true >/dev/null || { bad "the app didn't start in 60 s (window manager wedged? reboot the emulator)"; continue; }
   sleep 4
   # Bots at full speed, quick pace (Menu › Settings, by touch), so a turn with two lots comes up sooner.
   tap_text "Menu" && tap_text "Settings" && tap_text "2×" && tap_text "4×" && tap_text "8×" && tap_text "Quick"; tap_text "Hide" || true
-  done_ab=0; done_c=0; done_d=0; prev=""; games=1; start=$(date +%s)
+  done_ab=0; done_c=0; done_d=0; again=0; games=1; start=$(date +%s); ts_alive
   while [ $(( $(date +%s) - start )) -lt "$SECS" ] && { [ $done_c = 0 ] || [ $done_d = 0 ]; } && [ $fail = 0 ]; do
     crashed && { bad "crash"; break; }
     # The bots won (this seat never builds): play again, by touch.
-    if "$ADB" logcat -d -s WGBG-GAME:I | grep -q over; then
-      say "game over, playing again"; "$ADB" logcat -c; sleep 1; tap_text "Play again" || { bad "no Play again after the game"; break; }
-      games=$((games + 1)); prev=""; sleep 2; continue
+    # Our next moment as it comes (again=1: act on the current one once more, e.g. after closing the chest).
+    if [ $again = 1 ]; then again=0; line=$(turn_line)
+    elif ts_wait 6; then line=$TS_LINE
+    else ts_check_stall "trade-$ruleset"; [ -n "${LASTMOVE:-}" ] && move "$LASTMOVE"; continue; fi   # quiet 6 s: resend a hook move that may have been dropped (the app drops it if no longer legal)
+    if [ $TS_OVER = 1 ]; then
+      TS_OVER=0; say "game over, playing again"; sleep 1; tap_text "Play again" || { bad "no Play again after the game"; break; }
+      games=$((games + 1)); sleep 2; continue
     fi
-    line=$(turn_line)
-    [ -z "$line" ] || [ "$line" = "$prev" ] && { sleep 0.5; continue; }
-    prev="$line"
+    [ -z "$line" ] && continue
     phase=$(echo "$line" | sed -n 's/.* phase=\([^ ]*\).*/\1/p')
     legal=$(echo "$line" | sed -n 's/.* legal=\([^ ]*\).*/\1/p' | tr ',' '\n')
     [ -z "$legal" ] && continue
@@ -164,8 +167,8 @@ for ruleset in $RULESETS; do
     fi
     tap_text "Close" || true
     # End the turn and wait for a newer log line (re-reading this one raced the bots: "no Trade button").
-    l=$(turn_line); prev="$l"
-    if echo "$l" | grep -q 'phase=PLAY_TURN' && echo "$l" | grep -q 'END_TURN:'; then move END_TURN:0; else prev=""; fi
+    l=$(turn_line); ts_alive
+    if echo "$l" | grep -q 'phase=PLAY_TURN' && echo "$l" | grep -q 'END_TURN:'; then move END_TURN:0; else again=1; fi
   done
   crashed && bad "crash"
   [ $fail = 0 ] && [ $done_ab = 0 ] && bad "no bank trade came up in ${SECS}s"
