@@ -18,7 +18,7 @@ val PROGRESS_NAMES = listOf(
     // Academy
     "Transmuter", "Hoist", "Master Mason", "Tinkerer", "Waterworks", "Healer", "Deep Shafts", "Printing Press", "Pathfinders", "Forge",
     // Guilds
-    "Harbor Charter", "Grand Factor", "Peddler", "Swift Hulls", "Corner the Field", "Corner the Wares",
+    "Harbour Charter", "Grand Factor", "Peddler", "Swift Hulls", "Corner the Field", "Corner the Wares",
     // Crown
     "Abbot", "Charter of Rights", "Turncoat", "Envoy", "Plot", "Wrecker", "Informer", "Marshal", "Feast",
 )
@@ -151,7 +151,7 @@ fun ckPrompt(s: GameState, legal: List<Action>, names: List<String> = PLAYER_NAM
         // A card played against you: who played what, and what you have to do (Mauro).
         s.phase == Phase.DESERTER_REMOVE -> "$by played Turncoat against you: tap one of your knights to give up"
         s.phase == Phase.WEDDING -> "$by played Feast against you: give them ${s.ck?.giveOwed?.getOrNull(s.actingPlayer) ?: 2} card(s)"
-        s.phase == Phase.COMMERCIAL_HARBOR_RESPOND -> "$by played Harbor Charter: give back one commodity for the card you got"
+        s.phase == Phase.COMMERCIAL_HARBOR_RESPOND -> "$by played Harbour Charter: give back one commodity for the card you got"
         s.phase == Phase.BARBARIAN_LOSS -> "The Raiders won: tap one of your towns to lose to them"
         CkActionType.CHOOSE_PROGRESS_DECK in kinds -> "Raiders beaten: draw a progress card from a deck"
         CkActionType.DISCARD_PROGRESS in kinds -> "Too many progress cards: discard one"

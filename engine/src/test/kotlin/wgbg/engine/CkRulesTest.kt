@@ -446,7 +446,7 @@ class CkRulesTest {
     }
 
     @Test
-    fun `knights win - the top defender gets a Defender of Catan VP, knights deactivate`() {
+    fun `knights win - the top defender gets a Defender of the Realm VP, knights deactivate`() {
         val s = attackState()
         val ck = s.ck!!
         CK.knight(s, 0, T.corner(s, 0, -1, 1), level = 2, active = true)

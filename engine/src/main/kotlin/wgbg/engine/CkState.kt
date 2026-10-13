@@ -31,7 +31,7 @@ class CkState internal constructor(
     val progressHand: IntArray,
     /** Printer / Constitution cards revealed. */
     val progressVp: IntArray,
-    /** Defender of Catan cards held. */
+    /** Defender of the Realm cards held. */
     val defenderVp: IntArray,
     /** Three circular decks of [Progress.PER_DECK] slots each, top at [deckHead]. */
     val deck: IntArray,

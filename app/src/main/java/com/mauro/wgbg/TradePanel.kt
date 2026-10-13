@@ -433,10 +433,10 @@ private fun AskOfferRow(get: IntArray, give: IntArray, editable: Boolean, cardWi
     }
 }
 
-/** What a "Choose a card" moment is for, in words: the science bonus, Harbor Charter, Grand Factor or Feast. */
+/** What a "Choose a card" moment is for, in words: the science bonus, Harbour Charter, Grand Factor or Feast. */
 internal fun cardChoiceTitle(s: GameState, names: List<String>): String = when (s.phase) {
     Phase.AQUEDUCT -> "Science bonus: nothing came your way, so take any one card free"
-    Phase.COMMERCIAL_HARBOR_RESPOND -> "${names[s.currentPlayer]} played Harbor Charter: give back one commodity"
+    Phase.COMMERCIAL_HARBOR_RESPOND -> "${names[s.currentPlayer]} played Harbour Charter: give back one commodity"
     Phase.MASTER_MERCHANT -> "Grand Factor: take a card from ${names[s.ck?.pendingTarget ?: 0]}"
     Phase.WEDDING -> "${names[s.currentPlayer]} played Feast against you: give them ${s.ck?.giveOwed?.getOrNull(s.actingPlayer) ?: 2} card(s), one at a time"
     else -> "Choose a card"
