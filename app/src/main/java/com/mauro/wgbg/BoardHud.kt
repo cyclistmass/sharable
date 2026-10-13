@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -258,11 +259,13 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
     }
     hint?.let { Text(it, color = Color(0xFFEDE6D8), fontSize = 13.sp,
         modifier = Modifier.padding(bottom = 4.dp).brassEdgedWood(2.dp).padding(horizontal = 10.dp, vertical = 6.dp).testTag("card-hint")) }
-    Row(Modifier.testTag("hand-row").horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+    Row(Modifier.testTag("hand-row").horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy((-5).dp), verticalAlignment = Alignment.Bottom) {   // #127: cards overlap 10% (5 of 50 dp), scroll only past the window
+        // Each card sits over the next, so the count in its top-right corner stays in view (#127).
+        var z = 0
         for (r in 0 until CARD_TYPES) {
             val n = s.hand(me, r)
             if (n == 0) continue
-            Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.longPressFor(cardDetail(r, s.ck != null))) {
+            Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.zIndex(-(z++).toFloat()).longPressFor(cardDetail(r, s.ck != null))) {
                 Image(painterResource(CARD_ART[r]), RESOURCE_NAMES[r], Modifier.size(width = 50.dp, height = 70.dp))
                 count(n)
             }
@@ -271,7 +274,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
         // Commodities: Parchment, Fabric, Silver, with their card art (#62).
         for (c in 0 until wgbg.engine.Commodity.COUNT) {
             val n = s.card(me, CARD_TYPES + c)
-            if (n > 0) Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.testTag("hand-commodity-$c").longPressFor(cardDetail(CARD_TYPES + c, true))) {
+            if (n > 0) Box(contentAlignment = Alignment.TopEnd, modifier = Modifier.zIndex(-(z++).toFloat()).testTag("hand-commodity-$c").longPressFor(cardDetail(CARD_TYPES + c, true))) {
                 Image(painterResource(COMMODITY_ART[c]), ALL_CARD_NAMES[CARD_TYPES + c], Modifier.size(width = 50.dp, height = 70.dp))
                 count(n)
             }
@@ -281,7 +284,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
         for (c in 0 until wgbg.engine.Progress.COUNT) {
             val n = ck.progressHand[me * wgbg.engine.Progress.COUNT + c]
             val now = c in playable
-            if (n > 0) Box(Modifier.alpha(if (now) 1f else 0.45f)) {
+            if (n > 0) Box(Modifier.zIndex(-(z++).toFloat()).alpha(if (now) 1f else 0.45f)) {
                 namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 50, 70, // as tall as the resource cards; hold one to read it large (Mauro, 2026-10-12)
                     small = null,
                     art = progressArt(c), long = progressDetail(c)) {
