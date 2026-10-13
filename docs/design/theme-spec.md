@@ -124,6 +124,20 @@ Triangles are rarely the first thing to run out. Before the triangle count bites
 
 Critters: boats, birds, a whale or other sea life, clouds, each a module with a model and a movement spec (see [critter-spec.md](critter-spec.md)). A music set list and sounds (dice, Raiders), an intro fly-over.
 
+**Idle animations (3D board only).** Any tile or token may carry a small idle animation clip in its GLB. Examples:
+a windmill turns, grain sways, smoke rises from a town, a knight's banner stirs, the Bandit shifts its weight, the
+Merchant's coin glints. Mauro chose the 3D board only (2026-10-13); the flat board stays still.
+
+- **Small.** Movement stays inside the object's own footprint and never crosses a number plate or a neighbour's
+  corner.
+- **Calm.** A loop of 4 s or longer, or a short `once` played every so often, each object at a random phase so the
+  board never moves in step.
+- **Moves existing triangles only.** No extra triangles, no particles in the count. The triangle budget above still
+  holds.
+- **Never changes how state reads.** A raised or lowered banner, a piece's colour and its outline still read in
+  every frame of the clip.
+- **Can be turned off.** A player setting must be able to stop it (the setting comes with the first idle clip).
+
 ## Rules every theme passes
 
 - **The number is always readable.** The plate sits in the **lower third** of its tile, on a plain clearing. At a 45°

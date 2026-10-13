@@ -536,8 +536,9 @@ class Sea(board: Board, seed: Int = 1) {
             val bt = boats[i]
             if (!onScreen(at(bt.x, bt.y), 1.2f * s)) continue
             val s3d = sprites3d
-            if (s3d != null) drawBoat3d(this, at, s, squash, bt, s3d)
-            else if (sprites != null) drawBoatSprite(this, at, s, bt, sprites) else drawBoat(this, at, s, bt)
+            val sb = s * depthScale(at, bt.x, bt.y, s)   // nearer rows a little bigger, as the tiles are
+            if (s3d != null) drawBoat3d(this, at, sb, squash, bt, s3d)
+            else if (sprites != null) drawBoatSprite(this, at, sb, bt, sprites) else drawBoat(this, at, sb, bt)
         }
         for (r in rings) {
             val t = ((r.age - r.delay) / 1.2f).coerceIn(0f, 1f)
@@ -742,26 +743,30 @@ class Sea(board: Board, seed: Int = 1) {
         for (bi in 0 until birdCount) {
             val b = birds[bi]
             if (!onScreen(at(b.x, b.y), 1f * s)) continue // shadow included
-            // A faint shadow on the water below, then the bird.
+            // A faint shadow on the water below, then the bird. Higher up it looks a little bigger, and its shadow
+            // falls further from it (away from the sun, upper left) and fainter.
+            val lift = (0.8f + 0.45f * b.altitude) * depthScale(at, b.x, b.y, s)
+            val drop = 0.45f + 1.1f * b.altitude
+            val shade = 0.72f - 0.32f * b.altitude
             val flap = gullFlap; val glide = gullGlide; val s3d = sprites3d
             if (s3d != null) {
                 // 3D gull (#63): a 16-frame wingbeat (wings level while gliding), turned to its heading, shadow below.
-                val size = SeaSprites3d.GULL_FRAME * s * b.scale
+                val size = SeaSprites3d.GULL_FRAME * s * b.scale * lift
                 val p = at(b.x, b.y)
                 val deg = Math.toDegrees(b.heading.toDouble()).toFloat()
                 gullShadow?.let { sh ->
-                    val q = at(b.x + 0.3f, b.y + 0.45f); val sz = 0.6f * s * b.scale
-                    withTransform({ rotate(deg, q) }) { drawImage(sh, dstOffset = IntOffset((q.x - sz / 2).toInt(), (q.y - sz / 2).toInt()), dstSize = IntSize(sz.toInt(), sz.toInt()), alpha = 0.6f) }
+                    val q = at(b.x + 0.3f * drop, b.y + 0.45f * drop); val sz = 0.6f * s * b.scale
+                    withTransform({ rotate(deg, q) }) { drawImage(sh, dstOffset = IntOffset((q.x - sz / 2).toInt(), (q.y - sz / 2).toInt()), dstSize = IntSize(sz.toInt(), sz.toInt()), alpha = shade) }
                 }
                 withTransform({ rotate(deg, p) }) { drawSeaProp(s3d, p, size, b.flapFrame(SeaArt.HEADINGS).coerceAtLeast(0), tiltStep3d, SeaArt.gull) }
             } else if (flap != null && glide != null) {
                 // Painted gull: about a quarter of a hex wide, turned to its heading, shadow on the water below.
-                val size = 0.6f * s * b.scale   // the bird fills about 45% of its frame: ~1/4 hex wide
+                val size = 0.6f * s * b.scale * lift   // the bird fills about 45% of its frame: ~1/4 hex wide
                 val p = at(b.x, b.y)
                 val deg = Math.toDegrees(b.heading.toDouble()).toFloat()
                 gullShadow?.let { sh ->
-                    val q = at(b.x + 0.3f, b.y + 0.45f)
-                    withTransform({ rotate(deg, q) }) { drawImage(sh, dstOffset = IntOffset((q.x - size / 2).toInt(), (q.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()), alpha = 0.6f) }
+                    val q = at(b.x + 0.3f * drop, b.y + 0.45f * drop)
+                    withTransform({ rotate(deg, q) }) { drawImage(sh, dstOffset = IntOffset((q.x - size / 2).toInt(), (q.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()), alpha = shade) }
                 }
                 val frame = b.flapFrame(flap.width / flap.height)
                 withTransform({ rotate(deg, p) }) {
@@ -770,8 +775,8 @@ class Sea(board: Board, seed: Int = 1) {
                     else drawImage(glide, dstOffset = IntOffset((p.x - size / 2).toInt(), (p.y - size / 2).toInt()), dstSize = IntSize(size.toInt(), size.toInt()), filterQuality = FilterQuality.Medium)
                 }
             } else {
-                drawCircle(Color(0x22001020), 0.12f * s, at(b.x + 0.25f, b.y + 0.35f))
-                b.draw(this, at(b.x, b.y), 0.28f * s, birdPath)
+                drawCircle(Color(0x22001020).copy(alpha = 0.13f * shade / 0.6f), 0.12f * s, at(b.x + 0.25f * drop, b.y + 0.35f * drop))
+                b.draw(this, at(b.x, b.y), 0.28f * s * lift, birdPath)
             }
         }
         for (c in clouds) {
@@ -792,14 +797,22 @@ class Sea(board: Board, seed: Int = 1) {
         drawCritters(this, "sky", at, s)
     }
 
+    /**
+     * How much bigger the board draws things at lattice ([x], [y]) than [s] (its scale at the middle row): the tilted
+     * board's perspective makes nearer rows bigger, and this reads it straight off the projection [at].
+     */
+    private fun depthScale(at: (Float, Float) -> Offset, x: Float, y: Float, s: Float): Float =
+        ((at(x + 0.5f, y).x - at(x - 0.5f, y).x) / s).takeIf { it.isFinite() && it > 0f } ?: 1f
+
     /** The critters in [layer] (critter spec, Layers): each one's frame for the clip it plays, turned to its course. */
     private fun drawCritters(ds: DrawScope, layer: String, at: (Float, Float) -> Offset, s: Float) = with(ds) {
         for (c in critters) {
             val m = c.module
-            if (m.spec.layer != layer) continue
-            val fr = m.frameFor(c.pose() ?: continue) ?: continue
+            val pose = c.pose() ?: continue
+            if (m.spec.layerAt(pose.z) != layer) continue   // its own layer, or (auto) the band its height is in
+            val fr = m.frameFor(pose) ?: continue
             val q = c.at.let { at(it.x, it.y) }
-            val side = m.frames.span * s
+            val side = m.frames.span * s * depthScale(at, c.at.x, c.at.y, s)
             if (onScreen(q, side)) drawCritterFrame(m, q, side, fr, m.headingIndex(c.course, squash3d), m.tiltIndex(tiltStep3d))
         }
     }

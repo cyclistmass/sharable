@@ -26,13 +26,37 @@ internal class CritterStage(
     val next: List<Pair<String, Double>>, val keys: List<CritterKey>?, val opacity: Double?, val guard: String?,
 )
 
+/** Where an anchored critter stays: a point in the board frame (y up) and the way it faces. */
+internal class CritterAnchor(val x: Double, val y: Double, val heading: Double)
+
 /** A compiled critter.json: pattern defaults merged, ready to run. */
 internal class CritterSpec(
     val id: String, val name: String, val length: Double, val layer: String, val altitude: DoubleArray, val zone: String,
     val clearOfCoast: Double, val speed: Double, val turnRate: Double, val clips: Map<String, CritterClip>,
     val stages: List<CritterStage>, val count: IntArray, val chance: Double,
+    /** How it meets the board: `avoid` (default), `pass-through` or `hold`; see "Board contact" in the spec. */
+    val boardContact: String = "avoid",
+    /** Set for a critter that stays in one place and only plays its stages' animations (the `anchored` pattern). */
+    val anchor: CritterAnchor? = null,
 ) {
+    /** The band it draws in at height [z]: its own `layer`, or with `auto` the band that height falls in. */
+    fun layerAt(z: Double): String = if (layer != "auto") layer else when {
+        z < -BOARD_DEPTH -> "under"
+        z < -SURFACE_BAND -> "underwater"
+        z <= SURFACE_BAND -> "surface"
+        z <= SKY_FROM -> "air"
+        else -> "sky"
+    }
+
     companion object {
+        /** The board (sea and land) fills z from -[BOARD_DEPTH] to 0 at sea; land tiles rise to [LAND_TOP]. Hex units. */
+        const val BOARD_DEPTH = 1.0
+        const val LAND_TOP = 0.6
+        /** Within this of sea level a critter is on the surface; above [SKY_FROM] it is in the sky. */
+        const val SURFACE_BAND = 0.05
+        const val SKY_FROM = 2.0
+        val CONTACTS = listOf("avoid", "pass-through", "hold")
+
         /** Parses and compiles a critter.json. */
         fun parse(json: String): CritterSpec = compile(MiniJson.parse(json) as Map<*, *>)
 
@@ -65,11 +89,21 @@ internal class CritterSpec(
             val clips = (c["animations"] as List<*>).map { it as Map<*, *> }
                 .associate { a -> a["name"] as String to CritterClip(a["name"] as String, (a["seconds"] as Number).toDouble(), a["mode"] == "loop") }
             for (s in stages) s.anim?.let { require(it.substringBefore(':') in clips) { "${s.id}.anim: unknown clip '$it'" } }
+            val contact = c["board_contact"] as String? ?: "avoid"
+            require(contact in CONTACTS) { "board_contact '$contact' is not one of $CONTACTS" }
+            // An anchor is "board-centre" or a point [x, y] in the game's lattice (y down), with an optional heading.
+            val anchor = (c["anchor"] as Map<*, *>?)?.let { a ->
+                val at = a["at"]
+                val (ax, ay) = if (at == "board-centre") 0.0 to 0.0 else nums(at).let { it[0] to -it[1] }
+                CritterAnchor(ax, ay, (a["heading"] as Number?)?.toDouble() ?: 0.0)
+            }
+            if (anchor != null) require(stages.all { s -> s.delta.all { it == 0.0 } && s.turn == 0.0 && s.keys == null }) { "an anchored critter's stages don't move it" }
             return CritterSpec(
                 id = c["id"] as String, name = c["name"] as String, length = (c["length"] as Number).toDouble(), layer = c["layer"] as String,
-                altitude = nums(c["altitude"]), zone = c["zone"] as String, clearOfCoast = (c["clear_of_coast"] as Number?)?.toDouble() ?: 0.0,
+                altitude = nums(c["altitude"]), zone = c["zone"] as String? ?: "anywhere", clearOfCoast = (c["clear_of_coast"] as Number?)?.toDouble() ?: 0.0,
                 speed = (movement["speed"] as Number).toDouble(), turnRate = (movement["turn"] as Number).toDouble(), clips = clips, stages = stages,
                 count = nums(c["count"] ?: listOf(1.0, 1.0)).map { it.toInt() }.toIntArray(), chance = (c["chance"] as Number?)?.toDouble() ?: 1.0,
+                boardContact = contact, anchor = anchor,
             )
         }
     }
@@ -93,6 +127,11 @@ internal val CRITTER_PATTERNS: Map<String, List<Map<*, *>>> = mapOf(
       {"id":"fade-out","share":10,"seconds":[12,18],"delta":[0.9,0,0],"anim":"glide","next":{"turnaround":1},
         "keys":[{"t":0,"dx":0,"dy":0,"dz":0,"opacity":1},{"t":1,"dx":0.9,"dy":0,"dz":0,"opacity":0}]},
       {"id":"turnaround","share":10,"seconds":[12,18],"delta":[0,0,0],"turn":180,"anim":"glide","opacity":0,"next":{"fade-in":1}}]""",
+    // Stays where its anchor puts it and only lives: rests, now and then looks about or stirs (the space turtle).
+    "anchored" to """[
+      {"id":"rest","share":65,"seconds":[8,20],"delta":[0,0,0],"anim":"idle","next":{"rest":1,"look":1,"stir":1}},
+      {"id":"look","share":20,"seconds":[4,8],"delta":[0,0,0],"anim":"look","next":{"rest":2,"stir":1}},
+      {"id":"stir","share":15,"seconds":[3,6],"delta":[0,0,0],"anim":"stir","next":{"rest":1}}]""",
 ).mapValues { (_, j) -> (MiniJson.parse(j) as List<*>).map { it as Map<*, *> } }
 
 /** JavaScript's Math.hypot as V8 computes it (scaled, Kahan-summed), so the port rounds exactly like the simulator. */
@@ -272,7 +311,8 @@ internal class CritterRunner(val spec: CritterSpec, seed: Long, val board: Critt
     var maxTurnRate = 0.0; private set
 
     init {
-        val s0 = board.spawn(spec)
+        val a = spec.anchor
+        val s0 = if (a != null) doubleArrayOf(a.x, a.y, a.heading) else board.spawn(spec)
         x = s0[0]; y = s0[1]; heading = s0[2]; z = (spec.altitude[0] + spec.altitude[1]) / 2
         enter(spec.stages.firstOrNull { guard(it) } ?: error("No stage has an eligible entry guard"))
     }
@@ -334,7 +374,9 @@ internal class CritterRunner(val spec: CritterSpec, seed: Long, val board: Critt
         val p = pose(stage, elapsed.toDouble() / ticks)
         val clip = p.anim?.let { spec.clips[it.substringBefore(':')] }
         val t = when { clip == null -> 0.0; clip.loop -> animSeconds % clip.seconds; else -> min(animSeconds, clip.seconds) }
-        return CritterPose(x, y, z, heading, stage.id, p.anim, p.opacity, t)
+        // `pass-through`: where it is inside the board it shows faintly, as if seen through it.
+        val opacity = if (spec.boardContact == "pass-through" && insideBoard(CritterPoint(x, y), z)) p.opacity * PASS_THROUGH_OPACITY else p.opacity
+        return CritterPose(x, y, z, heading, stage.id, p.anim, opacity, t)
     }
 
     /** One 0.1 s tick. [allowNext] false skips the stage change at the very end, as the simulator's last tick does. */
@@ -352,7 +394,11 @@ internal class CritterRunner(val spec: CritterSpec, seed: Long, val board: Critt
         if (elapsed == ticks && allowNext) next()
     }
 
+    /** True when height [z] at [p] would be inside the board: under land, between its underside and the tile tops. */
+    fun insideBoard(p: CritterPoint, z: Double) = z > -CritterSpec.BOARD_DEPTH && z < CritterSpec.LAND_TOP && board.onLand(p)
+
     private fun move(local: DoubleArray, s: CritterStage, duration: Double) {
+        if (spec.anchor != null) return   // anchored: it plays its animations where it is
         var dx = local[0]; var dy = local[1]; var dz = local[2]
         val magnitude = jsHypot(dx, dy, dz); val limit = spec.speed * DT
         if (magnitude > limit) { val f = limit / magnitude; dx *= f; dy *= f; dz *= f }
@@ -393,12 +439,26 @@ internal class CritterRunner(val spec: CritterSpec, seed: Long, val board: Critt
             repeat(24) { val mid = (lo + hi) / 2; if (board.safeSegment(here0, candidate(mid), spec)) lo = mid else hi = mid }
             factor = lo
         }
-        val to = candidate(factor)
+        var to = candidate(factor)
+        // `avoid`: never into the board. Short of the coast it rises over the tiles (or sinks under the board,
+        // whichever is nearer) before it goes on; the step goes on that climb instead.
+        if (spec.boardContact == "avoid" && insideBoard(to, z + dz)) {
+            val clear = if (z >= (CritterSpec.LAND_TOP - CritterSpec.BOARD_DEPTH) / 2) CritterSpec.LAND_TOP else -CritterSpec.BOARD_DEPTH - 1e-6
+            dz = clampD(clear - z, -spec.speed * DT, spec.speed * DT)
+            if (insideBoard(to, z + dz)) to = here0   // still short of clear: hold position while it climbs (or sinks)
+            else {
+                // Clear now: the climb and the step share one step's worth of speed.
+                val h = jsHypot(to.x - here0.x, to.y - here0.y); val room = sqrt(max(0.0, (spec.speed * DT).let { it * it } - dz * dz))
+                if (h > room) to = CritterPoint(here0.x + (to.x - here0.x) * room / h, here0.y + (to.y - here0.y) * room / h)
+            }
+        }
         x = to.x; y = to.y; z += dz; heading = newHeading
     }
 
     companion object {
         const val DT = 0.1
+        /** How visible a `pass-through` critter is while inside the board. */
+        const val PASS_THROUGH_OPACITY = 0.35
         private const val RAD = Math.PI / 180
         fun clampD(v: Double, lo: Double, hi: Double) = max(lo, min(hi, v))
         fun wrap(a: Double) = ((a + 180) % 360 + 360) % 360 - 180

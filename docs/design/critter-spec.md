@@ -37,9 +37,11 @@ all headings × tilts, and every stage's `anim` resolves to frames.
 | `id`, `name` | file id, and the name a player reads (gallery, settings) | `whale`, "Whale" |
 | `model` | the .glb: 1 unit = a hex side; origin at the **contact point** (waterline centre for things on the water, centre of mass for things that fly or swim); facing +X | `whale.glb` |
 | `length` | body length in hex units | `2.4` |
-| `layer` | which band it lives in (see Layers) | `surface` |
+| `layer` | which band it lives in (see Layers), or `auto` to take the band from its height at each moment | `surface` |
 | `altitude` | `[min, max]` height in hex units, relative to sea level (negative = below) | `[-0.6, 0]` |
-| `zone` | where it may go: `open-sea`, `coast`, `over-land`, `anywhere`, or `off-board` (the ring outside the sea), and `clear_of_coast` in hex units | `open-sea`, `1.0` |
+| `zone` | where it may go: `open-sea`, `coast`, `over-land`, `anywhere` (the default), or `off-board` (the ring outside the sea), and `clear_of_coast` in hex units | `open-sea`, `1.0` |
+| `board_contact` | how it meets the board where its path crosses land: `avoid` (the default), `pass-through` or `hold` (see Board contact) | `avoid` |
+| `anchor` | optional: keeps it in one place, `{"at": "board-centre"` or `[x, y]`, `"heading": deg}`, with the `anchored` pattern | the space turtle |
 | `movement` | limits the behaviour must stay inside: top `speed` (hex/s), `turn` (deg/s), `bank` (deg into turns) | `0.15`, `20`, `0` |
 | `animations` | each clip in the .glb: `name`, `seconds`, `loop` or `once` | `swim` 4 s loop, `beat` 2 s, `blow` 1.5 s, `dive` 3 s, `surface` 3 s |
 | `behavior` | the **modelled behaviour algorithm** (next section): stages with time shares, each with its motion as Δx/Δy/Δz and a pointer to its animation | see below |
@@ -82,6 +84,7 @@ overrides only what differs:
 | `sailer` | boats, the Raiders | sail a lane, tack, moor at a harbour |
 | `drifter` | clouds, rocks, flotsam | drift with the wind, slow spin |
 | `lurker` | things in `under` | slow pass under the board, fade in and out |
+| `anchored` | a critter that stays put and only lives: the space turtle holding up the board | rest, look, stir (all with delta 0; clips `idle`, `look`, `stir`) |
 
 **Example (whale, `surface-breather`).** The shares follow Mauro's time budget in sea_props.py: 50% out most of the
 time. Depth is part of the pose (d25/d50/d75 = 25/50/75% of the body above the water).
@@ -138,8 +141,45 @@ On the flat board the sea is opaque, so the bands draw at these points: `under` 
 sea and under the wavelets and glints, `surface` over the waves and under the boats, `air` with the gulls (after the
 board), `sky` last, over the clouds. Depth tint and blur for `underwater` come from the frames themselves for now.
 
-`altitude` places a critter inside its band. A critter can cross bands only through a clip, such as `dive`
-(surface to underwater) or `surface` (underwater to surface).
+`altitude` places a critter inside its band. A critter with a named layer stays in that band whatever its height,
+and crosses bands only through a clip, such as `dive` (surface to underwater) or `surface` (underwater to surface).
+
+**`layer: auto`** takes the band from the height, so one critter can fly, land on the water and dive (a tern, a
+flying fish, a diving cormorant). The board is 1 hex unit deep and its land tiles rise 0.6 above the sea:
+
+| Height z (hex units) | Band |
+|---|---|
+| below −1.0 (under the board) | `under` |
+| −1.0 to −0.05 | `underwater` |
+| −0.05 to +0.05 (sea level is z = 0) | `surface` |
+| +0.05 to +2.0 | `air` |
+| above +2.0 | `sky` |
+
+## Board contact
+
+Where a critter's path crosses the island, `board_contact` says what happens. The board fills z from −1.0 to 0
+under the sea and up to +0.6 where there is land; at sea only the sea floor is in the way, so contact only matters
+over land:
+
+- **`avoid`** (default): never inside the board. Short of the coast it climbs over the tiles or sinks under the
+  board, whichever is nearer, and holds its position until it is clear. Climbing and moving share one speed, so it
+  never goes faster than `movement.speed`. A critter whose `altitude` can never clear the board (top below +0.6 and
+  bottom above −1.0) must keep a sea-only `zone` or use `pass-through`; the module check flags it.
+- **`pass-through`**: goes straight through, drawn faintly (35%) while inside, as if seen through the board. For
+  ghosts, space whales, sonar shapes.
+- **`hold`**: lets the board hold it: the engine doesn't stop it entering, and the critter's own stages decide what
+  it does there.
+
+**Board edges and surfaces are places too, not only obstacles.** A critter may perch on the board's rim, land on a
+tile top, sit on a cliff, crawl up the board's side, or hold the whole board up. The space turtle is the example: it
+is anchored at the centre, under the board (z about −1.6), with the board resting on its shell, and its stages only
+play `idle`, `look` and `stir`. The engine has the anchor and the `anchored` pattern now. Perching and landing come
+next: a stage guard such as `on-rim` or `on-tile`, and a key with a target (`rim`, `tile-top`, `cliff`) in place of
+a delta. They are not built yet. Until then, a stage that ends on a surface does it with `hold` and its own deltas.
+
+**Anchored critters.** `anchor` fixes the position (the game's lattice, y down; `board-centre` is 0, 0) and the
+heading. Its stages must not move it: every `delta` is 0, there is no `turn` and there are no `keys`. Its life is all
+animation, the way a tile or a token can idle on the 3D board (see theme-spec.md).
 
 ## Rules
 
@@ -152,6 +192,13 @@ board), `sky` last, over the clouds. Depth tint and blur for `underwater` come f
 ## Themes
 
 - **Default:** sloop, Raiders' ship, gull, whale.
+  - The gull (in code, `Seabird.kt`, not a module yet) meanders in random half-circles 0.4–1.0 hex across every
+    6–18 s.
+  - It rises while it flaps and sinks while it glides. It is drawn larger and its shadow falls further away the
+    higher it flies.
+  - It crosses the board every 25–75 s.
+  - Everything on the flat board's sea (gulls, boats, critters) scales with the board's perspective at its row, so
+    nearer things are bigger.
 - **Space (#88 and the space opera of #42):** space whales in `under` and `sky`, drifting rocks, small shuttles in
-  place of boats.
+  place of boats, and a space turtle (`anchored`) holding up the board in the 3D board's space theme.
 - **Edo fishing village (#76):** fishing boats, cranes, koi under the shallows.
