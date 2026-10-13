@@ -80,7 +80,7 @@ object Feedback {
         }
     }
 
-    const val UPLOAD_MAX = 19_000
+    const val UPLOAD_MAX = 190_000 // under the rules' 200000: a whole 300-turn game replays (was 19 000, cut at ~250 turns)
 
     fun device(context: Context): Pair<String, String> {
         val dm = context.resources.displayMetrics

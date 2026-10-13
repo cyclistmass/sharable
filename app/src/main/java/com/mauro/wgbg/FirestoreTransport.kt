@@ -81,7 +81,7 @@ class FirestoreTransport(private val auth: FirebaseAuth, private val db: Firebas
      */
     fun sendCrash(report: String, shots: List<String> = emptyList()): CompletableFuture<Int> = signIn().thenCompose { uid ->
         db.collection("crashes").add(mapOf(
-            "uid" to uid, "report" to report.take(19_000), "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+            "uid" to uid, "report" to report.take(Feedback.UPLOAD_MAX), "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
         )).future().thenCompose { ref ->
             val sent = shots.mapIndexed { i, img ->
                 db.collection("shots").add(mapOf("uid" to uid, "crash" to ref.id, "n" to i.toLong(), "image" to img,

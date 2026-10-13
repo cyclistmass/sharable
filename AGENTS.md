@@ -122,6 +122,11 @@ honestly. Never call something done with failing or skipped tests.
   overruns, check whether it's stuck (process alive, log moving, device connected, network up, disk full,
   waiting on a prompt) and fix or report it.
 - **When you find a bug, hunt its siblings** in code, scripts, CI and tests, and fix them in the same change.
+- **After every build and test run, review speed and coverage** (anyone working here, human or agent): what was
+  slow (build, emulator driving, waiting, CI jobs) and what the run didn't test that it should have. Small fixes go
+  straight into `tools/` or the tests in the same change; bigger ones go in `docs/testing/improvements.md` (one
+  line each: the idea, what it saves or catches, who noticed, date), or as a `testing` issue. Anyone may add to
+  that list or pick an item up.
 - Prefer doing work directly over spawning many sub-agents.
 
 Local, private notes for a particular machine or agent go in `.claude/` (git-ignored).

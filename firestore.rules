@@ -33,7 +33,7 @@ service cloud.firestore {
     match /crashes/{id} {
       allow create: if signed() && request.resource.data.keys().hasOnly(['uid','report','createdAt']) &&
         request.resource.data.uid == request.auth.uid && request.resource.data.report is string &&
-        request.resource.data.report.size() <= 20000 && request.resource.data.createdAt == request.time;
+        request.resource.data.report.size() <= 200000 && request.resource.data.createdAt == request.time;
       allow read, update, delete: if false;
     }
     // A report's screenshots (#128): a base64 JPEG each, pointing at its report; write-only, like the reports.

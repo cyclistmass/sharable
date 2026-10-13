@@ -105,7 +105,8 @@ test('crash reports: a signed-in player can add one; nobody can read, edit or de
   await assertSucceeds(add('p1', {uid: 'p1', report: 'WGBG crash report\nerror: boom', createdAt: serverTimestamp()}));
   await assertFails(add(null, {uid: 'p1', report: 'x', createdAt: serverTimestamp()}));
   await assertFails(add('p1', {uid: 'p2', report: 'x', createdAt: serverTimestamp()}));
-  await assertFails(add('p1', {uid: 'p1', report: 'x'.repeat(20001), createdAt: serverTimestamp()}));
+  await assertFails(add('p1', {uid: 'p1', report: 'x'.repeat(200001), createdAt: serverTimestamp()}));
+  await assertSucceeds(add('p1', {uid: 'p1', report: 'x'.repeat(200000), createdAt: serverTimestamp()}));
   await assertFails(add('p1', {uid: 'p1', report: 'x', createdAt: serverTimestamp(), extra: 1}));
   await assertFails(getDocs(collection(db('p1'), 'crashes')));
   await env.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), 'crashes/c1'), {uid: 'p1', report: 'x'}); });
