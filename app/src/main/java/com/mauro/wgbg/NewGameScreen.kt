@@ -85,6 +85,8 @@ fun NewGameScreen(
     onPlayIntro: (() -> Unit)? = null,
     /** Opens the bug report / idea panel (Mauro: "put it on the main landing page menu as well"). */
     onFeedback: (() -> Unit)? = null,
+    /** Debug builds only (#133): the card tester's checklist. */
+    onCardTester: (() -> Unit)? = null,
 ) {
     var setup by remember { mutableStateOf(initial) }
     // The deck size to come back to when switching Random -> Card deck (72 by default, as drawn).
@@ -136,6 +138,9 @@ fun NewGameScreen(
                 if (onPlayIntro != null) WoodButton("Intro", "play-intro", Modifier.height(40.dp)) { onPlayIntro() }
                 if (onPlayIntro != null) Spacer(Modifier.width(8.dp))
                 if (onLookAndArt != null) BrassButton("Look & art", "look-and-art", Modifier.height(40.dp)) { onLookAndArt(setup) }
+            }
+            if (onCardTester != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                WoodButton("Card tester", "card-tester", Modifier.height(40.dp)) { onCardTester() }
             }
         }
         // Scrolls when it can't fit: a saved game's Resume used to push Host and Join off the bottom (2026-10-12).
