@@ -28,7 +28,7 @@ from any artist or AI drop in without rework. Sizes are measured from the shippe
   Mauro, 2026-10-10: "is perfect". Don't "fix" it.
 - Wood: rich grain, hand-rubbed finish, crisp joinery; colour like `wood_grain.png` stained dark (#4A3020).
 - Painted art (tiles, cards) is detailed and warm, like a premium illustrated board game.
-- Light comes from the **upper left** in every picture; shadows fall to the lower right.
+- Light comes from the theme's sun, by default the **upper left** (shadows to the lower right); see **Shadows and perspective**.
 - No text, numbers or borders painted into art: the game draws numbers, labels and frames.
 - Our names only (see `AGENTS.md`); art must be our own or CC0, recorded in `CREDITS.md`.
 
@@ -94,8 +94,11 @@ must read at phone size without colour, so the inactive state is never only a gr
 `_inactive` file names stay as they are.
 
 **Shadows and perspective (Mauro 2026-10-13: the shadow must make sense from where it is viewed):**
-- One sun for everything: upper left, about 50° above the ground, so a shadow falls to the lower right and is about
-  0.85 × the object's height long. The shadow always lies **on the surface the object stands on** and is seen with
+- **The sun can be anywhere and any colour** (a theme may pick a red dwarf low on the horizon or a blue-white star
+  overhead), as long as the board stays readable: numbers, pieces and player colours clear, no shadow hiding a
+  number plate. What is fixed is that there is **one sun per board**, and every tile, piece, token and shadow
+  agrees with it. The default is upper left, about 50° up, so shadows fall to the lower right at about 0.85 × the
+  object's height. The shadow always lies **on the surface the object stands on** and is seen with
   that surface's perspective, never with the figure's.
 - **On the board:** the ground is the board, so a shadow is foreshortened with the board's tilt (its depth shrinks by
   cos tilt, like the tiles). Sprites rendered per tilt step get their shadow from a ground catcher at that same
@@ -104,9 +107,9 @@ must read at phone size without colour, so the inactive state is never only a gr
 - **A turned sprite never turns its shadow.** A piece turned on screen (supply pieces facing their owner, roads
   along a row) needs its shadow drawn separately in board space, or a render made at that heading. Rotating a
   baked-in shadow points it at a second sun.
-- **3D board (GLB):** models carry no baked shadow; the renderer's one directional light uses the same sun.
+- **3D board (GLB):** models carry no baked shadow; the renderer's one directional light is the board's sun.
 - **Build panel tokens:** a token on a build-menu plate is viewed straight on, not on the tilted board. Render it
-  from the fixed preview view (tilt 0.55, the Look & art view) with the same sun, standing on an implied floor at
+  from the fixed preview view (tilt 0.55, the Look & art view) with the theme's sun, standing on an implied floor at
   the plate's lower edge: a short shadow (at most half the token's height) falling lower right, foreshortened as
   a floor seen from that view, baked into the token image and kept inside the plate. Every token in the panel uses
   the same view, sun and floor line, so a row of tokens reads as standing on one shelf.
