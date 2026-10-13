@@ -1075,7 +1075,9 @@ fun WatchGameScreen(
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { at ->
                         val l = Layout.fit(boardNow, size.width.toFloat(), size.height.toFloat(), camera)
-                        val p = if (liveBoardNow) LiveProjection(l.center, l.scale, camera.tilt, boardRotation).unproject(at) else l.unproject(at)
+                        // The 3D collection lays its rows out on its own projection, not the board's.
+                        val p = if (liveBoardNow && inventory) liveProjection(size.width.toFloat(), size.height.toFloat()).unproject(at)
+                            else if (liveBoardNow) LiveProjection(l.center, l.scale, camera.tilt, boardRotation).unproject(at) else l.unproject(at)
                         val picking = cardPickNow.isNotEmpty()
                         val moves = if (inventory) emptyList() else if (picking) movesAt(boardNow, cardPickNow, p, cardSecondNow) else tapMoves(stateNow, boardLegalNow, legalNow, p, me, buildModeNow != null)
                         // The Tinkerer swaps two tiles: the first tap narrows to that tile's swaps, the second picks the other tile.
@@ -1093,6 +1095,8 @@ fun WatchGameScreen(
                             pending.isNotEmpty() -> pending = emptyList() // tapping elsewhere cancels
                             !inventory && boardTapHint(boardNow, legalNow, stateNow.robberHex, p) != null -> tapHint = boardTapHint(boardNow, legalNow, stateNow.robberHex, p)
                             !inventory && seaNow.isWater(p) -> seaNow.splash(p)
+                            // The 3D collection: tap a piece set to play with it (#119: "useless if I can't pick").
+                            inventory && liveBoardNow -> liveInventoryThemeAt(p)?.let { env.pirateTheme = it }
                         }
                     }, onDoubleTap = { at ->
                         val sz = Size(size.width.toFloat(), size.height.toFloat())
@@ -1111,7 +1115,9 @@ fun WatchGameScreen(
                     color = 0xFFF1D58A.toInt(); textSize = 16.dp.toPx(); textAlign = android.graphics.Paint.Align.CENTER
                     typeface = resources.getFont(R.font.alegreya_sans_regular)
                 }
-                for ((text, z) in listOf("Terrain LOD0" to -5.3f, "Terrain LOD1" to -2.6f, "Default pieces" to .45f, "Pirate pieces" to 2.5f, "Bandit and runtime plate" to 6.1f)) {
+                fun set(name: String, pirate: Boolean) = if (env.pirateTheme == pirate) "$name pieces: in use" else "$name pieces: tap to use"
+                for ((text, z) in listOf("Terrain LOD0" to -5.3f, "Terrain LOD1" to -2.6f, set("Default", false) to .45f, set("Pirate", true) to 2.5f,
+                        "Bandit and runtime plate" to 6.1f)) {
                     val at = projection.project(Offset(0f, z))
                     drawContext.canvas.nativeCanvas.drawText(text, at.x, at.y, paint)
                 }

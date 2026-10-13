@@ -191,6 +191,17 @@ internal fun livePlacements(s: GameState, pirate: Boolean, lod: Int, hasModel: (
     }
 }
 
+/** The piece set row of [liveInventoryPlacements] at board point [p]: false = default, true = pirate, null = neither. */
+internal fun liveInventoryThemeAt(p: Offset): Boolean? = when {
+    p.x !in -8.2f..8.2f -> null
+    abs(p.y - LIVE_SET_ROW_Y) < 0.95f -> false
+    abs(p.y - (LIVE_SET_ROW_Y + LIVE_SET_ROW_GAP)) < 0.95f -> true
+    else -> null
+}
+
+private const val LIVE_SET_ROW_Y = 1.3f
+private const val LIVE_SET_ROW_GAP = 2f
+
 /** Side-by-side imported models for maintainer review; never mixed into a game state. */
 internal fun liveInventoryPlacements(): List<LivePlacement> = buildList {
     add(LivePlacement("sea", Offset.Zero, -.24f, 2f))
@@ -203,7 +214,7 @@ internal fun liveInventoryPlacements(): List<LivePlacement> = buildList {
     }
     val kinds = listOf("homestead", "town", "ramparts", "capital_guilds", "capital_academy", "capital_crown", "road_v", "road_p30", "road_m30")
     for ((row, theme) in listOf("default", "pirate").withIndex()) for ((i, kind) in kinds.withIndex())
-        add(LivePlacement("${theme}_$kind", Offset(-7.2f + 1.8f * i, 1.3f + 2f * row), scale = 1.8f, owner = i % 4))
+        add(LivePlacement("${theme}_$kind", Offset(-7.2f + 1.8f * i, LIVE_SET_ROW_Y + LIVE_SET_ROW_GAP * row), scale = 1.8f, owner = i % 4))
     add(LivePlacement("bandit", Offset(-4f, 5.4f)))
     add(LivePlacement("number_plate", Offset(0f, 5.4f), .012f))
     add(LivePlacement("digit_6", Offset(0f, 5.4f), .039f))
