@@ -176,7 +176,8 @@ internal fun Room.wire(): Map<String, Any?> = mapOf(
     "seats" to seats.mapIndexed { i, s -> i.toString() to mapOf("uid" to s.uid, "name" to s.name, "bot" to s.bot, "open" to s.open, "ready" to s.ready) }.toMap(),
     "options" to mapOf("expansion" to config.expansion.name, "numPlayers" to config.numPlayers, "vpToWin" to config.vpToWin,
         "layout" to config.layout.name, "avoidAdjacentRedNumbers" to config.avoidAdjacentRedNumbers, "discardLimit" to config.discardLimit,
-        "maxTurns" to config.maxTurns, "randomDiscard" to config.randomDiscard, "generateTradeOffers" to config.generateTradeOffers),
+        "maxTurns" to config.maxTurns, "randomDiscard" to config.randomDiscard, "generateTradeOffers" to config.generateTradeOffers,
+        "randomFirstPlayer" to config.randomFirstPlayer),
     "version" to 1,
 )
 @Suppress("UNCHECKED_CAST")
@@ -186,7 +187,8 @@ internal fun room(id: String, d: Map<String, Any?>): Room {
     val seats = d["seats"] as Map<String, Map<String, Any?>>
     return Room(id, d["host"] as String,
         GameConfig(Expansion.valueOf(o["expansion"] as String), n("numPlayers"), n("vpToWin"), BoardLayout.valueOf(o["layout"] as String),
-            o["avoidAdjacentRedNumbers"] as Boolean, n("discardLimit"), n("maxTurns"), o["randomDiscard"] as Boolean, o["generateTradeOffers"] as Boolean),
+            o["avoidAdjacentRedNumbers"] as Boolean, n("discardLimit"), n("maxTurns"), o["randomDiscard"] as Boolean, o["generateTradeOffers"] as Boolean,
+            o["randomFirstPlayer"] as Boolean? ?: false),   // rooms made before #126: seat 0 starts
         (d["seed"] as String).toLong(), List(4) { i -> val s = seats[i.toString()]!!
             Seat(s["uid"] as String?, s["name"] as String, s["bot"] as String?, s["open"] as Boolean, s["ready"] as Boolean) },
         Status.valueOf(d["status"] as String), (d["nextSeq"] as Number).toLong(), (d["decks"] as Number).toInt())
