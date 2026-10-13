@@ -39,7 +39,7 @@ class EveryMoveReachableTest {
             val buf = ActionBuffer()
             while (!s.isOver && s.turn < 500) {
                 val legal = Rules.legalActions(s)
-                for (a in legal) {
+                for (a in legal.filter { offered(s, it) }) {   // plays that would do nothing are left out on purpose
                     assertTrue(reachable(s, a, legal), "no way to do $a in ${s.phase} (seed $seed)")
                     kinds += a.type.toString()
                     if (a.type == CkActionType.PLAY_PROGRESS) cards += a.a

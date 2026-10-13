@@ -296,7 +296,7 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
 /** Progress cards [me] may play right now: the engine's legal plays (none when it isn't their move). */
 fun playableProgress(s: GameState, me: Int): Set<Int> =
     if (s.ck == null || s.currentPlayer != me) emptySet()
-    else wgbg.engine.Rules.legalActions(s).filter { it.type == wgbg.engine.CkActionType.PLAY_PROGRESS }.map { it.a }.toSet()
+    else wgbg.engine.Rules.legalActions(s).filter { it.type == wgbg.engine.CkActionType.PLAY_PROGRESS && offered(s, it) }.map { it.a }.toSet()
 
 /** Why progress card [c] can't be played by [me] now, in a few words. */
 fun notPlayableWhy(s: GameState, me: Int, c: Int): String = when {
@@ -304,7 +304,52 @@ fun notPlayableWhy(s: GameState, me: Int, c: Int): String = when {
     s.phase != wgbg.engine.Phase.PLAY_TURN -> "finish what you're doing first"
     !s.hasRolled && c != wgbg.engine.Progress.ALCHEMIST -> "after you roll"
     s.hasRolled && c == wgbg.engine.Progress.ALCHEMIST -> "only before you roll"
-    else -> "nothing it can do right now"
+    else -> progressBlocked(s, me, c)
+}
+
+/**
+ * What card [c] is missing on [me]'s own turn after the roll, by the card's own rule (Mauro, 2026-10-13: "I have a
+ * Grand Factor card and can't use it", with no reason given). Public facts only: points, card counts, the board.
+ */
+internal fun progressBlocked(s: GameState, me: Int, c: Int): String {
+    val ck = s.ck ?: return "nothing it can do right now"
+    val b = s.board
+    val P = wgbg.engine.Progress
+    val others = (0 until s.numPlayers).filter { it != me }
+    val mine = s.victoryPoints(me)
+    val cities = s.piecesOnBoard(me, wgbg.engine.Piece.CITY)
+    fun knights(q: Int) = (0 until b.vertexCount).count { ck.knightOwner[it] == q }
+    return when (c) {
+        P.CRANE -> when {
+            cities == 0 -> "you need a town to improve"
+            (0 until wgbg.engine.Track.COUNT).all { ck.level(me, it) >= wgbg.engine.Track.MAX_LEVEL } -> "every improvement is at the top"
+            else -> "not enough commodities for any improvement, even one less: " + (0 until wgbg.engine.Track.COUNT)
+                .filter { ck.level(me, it) < wgbg.engine.Track.MAX_LEVEL }
+                .joinToString(", ") { t -> "${DECK_NAMES[t]} needs ${ck.level(me, t)} ${ALL_CARD_NAMES[wgbg.engine.Track.commodity(t)]}" }
+        }
+        P.MASTER_MERCHANT -> if (others.none { s.victoryPoints(it) > mine }) "it only takes from a player with more points than you, and nobody has more"
+            else "the players ahead of you have no cards"
+        P.WEDDING -> if (others.none { s.victoryPoints(it) > mine }) "only players with more points than you give, and nobody has more"
+            else "the players ahead of you have no cards"
+        P.SABOTEUR -> if (others.none { s.victoryPoints(it) >= mine }) "it only hits players with at least your points, and nobody has that many"
+            else "the players it would hit hold fewer than 2 cards"
+        P.IRRIGATION, P.MINING -> {
+            val r = if (c == P.IRRIGATION) wgbg.engine.Resource.WHEAT else wgbg.engine.Resource.ORE
+            if (s.bank[r] == 0) "the bank is out of ${RESOURCE_NAMES[r]}" else "none of your buildings touch a ${if (c == P.IRRIGATION) "field" else "mountain"}"
+        }
+        P.WARLORD -> if (knights(me) == 0) "you have no knights" else "your knights are all raised already"
+        P.SMITH -> "no knight of yours can be promoted"
+        P.ENGINEER -> if (ck.wallsLeft[me] == 0) "no Ramparts left" else "every town of yours has Ramparts"
+        P.MEDICINE -> "it needs a homestead, a town piece left, 1 Grain and 2 Stone"
+        P.ROAD_BUILDING -> "no road pieces or spots left"
+        P.COMMERCIAL_HARBOR -> if (s.handSize(me) == 0) "you have no resources to give" else "nobody else has a commodity"
+        P.BISHOP -> if (!ck.robberActive) "the bandit stays put until the Raiders first land" else "nowhere to move the bandit"
+        P.DESERTER -> "nobody else has a knight on the board"
+        P.DIPLOMAT -> "no open road end to remove"
+        P.INTRIGUE -> "no enemy knight on your roads"
+        P.SPY -> "nobody else holds a progress card"
+        else -> "nothing it can do right now"
+    }
 }
 
 /** A slim prompt across the top saying what to do now. */
