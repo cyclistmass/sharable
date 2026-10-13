@@ -446,7 +446,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             Screen.LOOK -> WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), Camera.FIT, setup, onExit = { screen = Screen.START }, lookAndArt = true)
             Screen.GAME -> key(gameNo) {
                 // Back asks "Leave this game?" inside the game screen (same as Exit).
-                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup, startWatching = watch, quickBots = quickBots,
+                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoplay = autoplay, autoSetup = autoSetup, startWatching = watch, quickBots = quickBots,
                     resume = resuming, saveStore = localStore.takeIf { start == null })
             }
         }
@@ -515,7 +515,7 @@ fun WatchGameScreen(
     onDeleteRoom: (() -> Unit)? = null,
     /** Online, a guest: leave for good (the room is forgotten, never rejoined by itself). */
     onQuitRoom: (() -> Unit)? = null,
-    /** Debug: a bot plays your seat in an online game (two-phone simulations). */
+    /** Debug: a bot plays your seat, online (two-phone simulations) and local (straight to the end of a game). */
     autoplay: Boolean = false,
     /** Debug: a bot places your opening homesteads and roads, then you play. */
     autoSetup: Boolean = false,
@@ -711,7 +711,7 @@ fun WatchGameScreen(
             val who = state.actingPlayer
             lastWho = who
             val placing = inSetup(state)
-            var action = if (who == me && !(autoSetup && placing)) {
+            var action = if (who == me && !autoplay && !(autoSetup && placing)) {
                 tick++ // show the human what they can do
                 var a: Action
                 do a = humanMoves.receive() while (!Rules.isLegal(state, a))

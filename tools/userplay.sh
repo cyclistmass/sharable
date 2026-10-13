@@ -43,15 +43,16 @@ find_text() {
   echo "$d" | grep -o "\(text\|content-desc\)=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | head -1 |
     grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | tr '\n' ' ' | awk '{split($1,a,",");split($2,b,",");print int((a[1]+b[1])/2), int((a[2]+b[2])/2)}'
 }
-tap_text() { local xy; xy=$(find_text "$1" "${2:-}"); [ -n "$xy" ] || return 1; "$ADB" shell input tap $xy; sleep 0.7; }
-tap() { "$ADB" shell input tap "$1" "$2"; }
+tap_text() { local xy; xy=$(find_text "$1" "${2:-}"); [ -n "$xy" ] || return 1; "$ADB" shell input tap $xy </dev/null; sleep 0.7; }
+# </dev/null: adb shell reads stdin, so inside a `... | while read` loop it ate the rest of the list (Crest, 2026-10-13).
+tap() { "$ADB" shell input tap "$1" "$2" </dev/null; }
 # Tap an icon by its accessibility label (what a screen reader says), e.g. the Settings gear.
 tap_desc() { local xy; xy=$(dump | grep -o "content-desc=\"$1\"[^/]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]" | head -1 | grep -o '\[[0-9]*,[0-9]*\]' | tr -d '[]' | tr '
 ' ' ' |
-  awk '{split($1,a,",");split($2,b,",");print int((a[1]+b[1])/2), int((a[2]+b[2])/2)}'); [ -n "$xy" ] || return 1; "$ADB" shell input tap $xy; sleep 0.8; }
+  awk '{split($1,a,",");split($2,b,",");print int((a[1]+b[1])/2), int((a[2]+b[2])/2)}'); [ -n "$xy" ] || return 1; "$ADB" shell input tap $xy </dev/null; sleep 0.8; }
 # Tap a button that stays put (Roll, End turn): find it once, then reuse its spot.
 declare -A POS
-tap_at() { [ -n "${POS[$1]:-}" ] || POS[$1]=$(find_text "$1"); [ -n "${POS[$1]}" ] || { unset "POS[$1]"; return 1; }; "$ADB" shell input tap ${POS[$1]}; sleep 0.5; }
+tap_at() { [ -n "${POS[$1]:-}" ] || POS[$1]=$(find_text "$1"); [ -n "${POS[$1]}" ] || { unset "POS[$1]"; return 1; }; "$ADB" shell input tap ${POS[$1]} </dev/null; sleep 0.5; }
 shot() { "$ADB" exec-out screencap -p > "$OUT/$TAG-$1.png"; }
 crashed() { [ "$("$ADB" logcat -d -b crash | grep -A8 'FATAL EXCEPTION' | grep -c "$PKG")" != 0 ]; }
 fail() { echo "USERPLAY $TAG FAILED: $1"; shot fail; "$ADB" logcat -d -b crash | grep -A30 "FATAL EXCEPTION" | head -40; exit 1; }

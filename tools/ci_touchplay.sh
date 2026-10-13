@@ -16,7 +16,7 @@ PKG=com.mauro.wgbg
 export MSYS_NO_PATHCONV=1
 fail=0
 
-tap() { "$ADB" shell input tap "$1" "$2"; }
+tap() { "$ADB" shell input tap "$1" "$2" </dev/null; } # adb shell eats stdin inside a read loop otherwise
 tap_text() { # tap the on-screen element whose text is $1; false if it isn't there
   "$ADB" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
   local B

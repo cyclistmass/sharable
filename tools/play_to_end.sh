@@ -1,21 +1,26 @@
 #!/usr/bin/env bash
-# Drive seat 0 by hooks (build first, then bank trades, then roll / end turn) until the game ends, to reach the
-# end-of-game screen. Automated checks only: never counts as user testing.
-# Usage: tools/play_to_end.sh [base|chivalry] [players] [secs]   (ADB=emulator serial, default emulator-5554)
-export MSYS_NO_PATHCONV=1; A="adb -s ${ADB:-emulator-5554}"; end=$((SECONDS+${3:-900})); prev=""; same=0; trades=0
+# Play one local game to its end screen, a bot in every seat (yours too, `--ez autoplay true`) at test speed, and
+# print the WGBG-GAME line. A base game takes about 2-3 min on a desktop emulator. Automated checks only: never
+# counts as user testing. Watchdog: no new turn line for STALL s (default 30) prints why (device? app alive? last
+# line) with a screenshot and exits 2, so nobody waits on a stuck game.
+# Usage: tools/play_to_end.sh [base|chivalry] [players] [secs]   (ANDROID_SERIAL=device, default emulator-5554; ADB=adb binary)
+export MSYS_NO_PATHCONV=1; A="${ADB:-adb} -s ${ANDROID_SERIAL:-emulator-5554}"; end=$((SECONDS+${3:-600})); stall=${STALL:-30}
 $A logcat -c
-$A shell am start --activity-clear-task -n com.mauro.wgbg/.MainActivity --es start "${1:-base}" --ei players "${2:-3}" --ez autosetup true --ez quickbots true >/dev/null; sleep 5
+$A shell am start --activity-clear-task -n com.mauro.wgbg/.MainActivity --es start "${1:-base}" --ei players "${2:-3}" \
+  --ez autoplay true --ez quickbots true >/dev/null
+exec 3< <(exec $A logcat -v brief -s WGBG-TURN:I WGBG-GAME:I 2>/dev/null); LOGCAT=$!
+trap 'kill $LOGCAT 2>/dev/null' EXIT # never leave the log stream running (it held the caller's pipe open)
+last=""; moved=$SECONDS; start=$SECONDS
 while [ $SECONDS -lt $end ]; do
-  over=$($A logcat -d -s WGBG-GAME | grep -m1 over) && { echo "$over"; exit 0; }
-  line=$($A logcat -d -s WGBG-TURN | grep "player=0" | tail -1)
-  if [ "$line" = "$prev" ]; then same=$((same+1)); [ $same -lt 6 ] && { sleep 1; continue; }; fi
-  same=0
-  legal=$(echo "$line" | sed 's/.*legal=//; s/ spots=.*//' | tr ',' '\n')
-  echo "$line" | grep -q "ROLL:" && trades=0
-  pick=$(echo "$legal" | grep -m1 -E '^(ROLL|BUILD_CITY|BUILD_SETTLEMENT|BUY_DEVELOPMENT_CARD|BUILD_ROAD):')
-  [ -z "$pick" ] && [ $trades -lt 3 ] && pick=$(echo "$legal" | grep '^MARITIME_TRADE:' | shuf -n1) && [ -n "$pick" ] && trades=$((trades+1))
-  [ -z "$pick" ] && pick=$(echo "$legal" | grep -m1 '^END_TURN:')
-  [ -z "$pick" ] && pick=$(echo "$legal" | grep -v '^$' | head -1)
-  [ -z "$pick" ] && { sleep 1; continue; }
-  prev="$line"; $A shell am broadcast -a com.mauro.wgbg.MOVE -p com.mauro.wgbg --es move "$pick" >/dev/null; sleep 0.5
-done; echo TIMEOUT; exit 1
+  if IFS= read -r -t 5 -u 3 line; then
+    case "$line" in *WGBG-GAME*over*) echo "${line#*: } in $((SECONDS-start)) s"; exit 0 ;; esac
+    [[ $line == *WGBG-TURN* && $line != "$last" ]] && { last=$line; moved=$SECONDS; }
+  fi
+  if [ $((SECONDS-moved)) -ge $stall ]; then
+    shot="${TMPDIR:-/tmp}/play_to_end_stuck.png"
+    echo "STUCK: no new turn for ${stall}s. device=$($A get-state 2>&1) app_pid=$($A shell pidof com.mauro.wgbg)"
+    echo "last line: ${last:0:300}"
+    $A shell screencap -p /sdcard/stuck.png && $A pull /sdcard/stuck.png "$shot" >/dev/null && echo "screenshot: $shot"
+    exit 2
+  fi
+done; echo "TIMEOUT after $((SECONDS-start)) s; last line: ${last:0:300}"; exit 1

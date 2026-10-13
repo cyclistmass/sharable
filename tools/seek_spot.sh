@@ -2,8 +2,8 @@
 # Drive seat 0 by hooks (rolls, roads, up to 3 bank trades a turn) until a corner offers both a homestead and a knight;
 # prints the spot. Resends a move that did not take after 6 s (a hook can be dropped mid-animation).
 # Starts a new game when one ends (WGBG-GAME over) and builds towns too, for production.
-# Usage: tools/seek_spot.sh [secs]   (ADB=emulator serial, default emulator-5554)
-export MSYS_NO_PATHCONV=1; A="adb -s ${ADB:-emulator-5554}"; end=$((SECONDS+${1:-480})); prev=""; same=0; trades=0
+# Usage: tools/seek_spot.sh [secs]   (ANDROID_SERIAL=device, default emulator-5554; ADB=adb binary)
+export MSYS_NO_PATHCONV=1; A="${ADB:-adb} -s ${ANDROID_SERIAL:-emulator-5554}"; end=$((SECONDS+${1:-480})); prev=""; same=0; trades=0
 while [ $SECONDS -lt $end ]; do
   if $A logcat -d -s WGBG-GAME | grep -q over; then echo "game over, new game"; $A logcat -c
     $A shell am start --activity-clear-task -n com.mauro.wgbg/.MainActivity --es start chivalry --ei players 3 --ez autosetup true --ez quickbots true >/dev/null; sleep 5; prev=""; continue; fi
