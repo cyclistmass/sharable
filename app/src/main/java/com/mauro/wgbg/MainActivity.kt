@@ -631,11 +631,11 @@ fun WatchGameScreen(
     // The whale (critter engine): rolled once per game from the board, so both phones in an online game see the same one.
     LaunchedEffect(sea) {
         val seed = boardSeed(state); val hexes = state.board.hexCount
-        // Off the main thread: reading the spec and finding the whale's start take a moment.
+        // Off the main thread: reading the spec here, and finding the whale's start once the first frame knows the view.
         sea.critters = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             val specs = runCatching { listOf(CritterSpec.parse(appContext.assets.open("critters/whale.critter.json").bufferedReader().use { it.readText() })) }
                 .getOrDefault(emptyList())
-            SeaCritter.forGame(specs, seed, hexes)
+            SeaCritter.forGame(specs, seed, hexes) { job -> kotlin.concurrent.thread(isDaemon = true, name = "critter-start") { job() } }
         }
         android.util.Log.i("WGBG-CRITTER", "critters=${sea.critters.joinToString(",") { it.spec.id }.ifEmpty { "none" }} seed=${boardSeed(state)}")
     }

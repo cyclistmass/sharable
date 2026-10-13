@@ -17,10 +17,13 @@ import kotlin.math.sin
  * A critter on the game's sea (docs/design/critter-spec.md): the [CritterRunner] ticks every 0.1 s and the board shows
  * it between ticks, smoothly. Positions are in the game's lattice (y down); the runner's board frame has y up.
  */
-internal class SeaCritter(val spec: CritterSpec, private val seed: Long) {
-    /** Starts on the first [update] that knows the open water in view; null until then, or if there is no room. */
+internal class SeaCritter(val spec: CritterSpec, private val seed: Long,
+                          /** Runs the start-up search (a few thousand coast checks): off the UI thread in the app, inline in tests. */
+                          private val launch: (() -> Unit) -> Unit = { it() }) {
+    /** Starts once the open water in view is known and its start is found; null until then, or if there is no room. */
     var runner: CritterRunner? = null; private set
     private var tried = false
+    @Volatile private var found: CritterRunner? = null
     private var lastStage = ""
     private var clock = 0.0
     private var px = 0.0; private var py = 0.0; private var ph = 0.0
@@ -29,12 +32,15 @@ internal class SeaCritter(val spec: CritterSpec, private val seed: Long) {
     fun update(dt: Float, view: Rect) {
         if (!tried) {
             tried = true
-            // A small screen leaves little open water: widen the margin until the critter has room.
-            runner = listOf(CritterBoard.VIEW_MARGIN, 1.5, 2.0).firstNotNullOfOrNull { m -> runCatching { CritterRunner(spec, seed, CritterBoard.forView(view, m)) }.getOrNull() }
-            runner?.let { px = it.x; py = it.y; ph = it.heading }
-            critterLog("${spec.id} " + (runner?.let { "starts at %.1f,%.1f".format(it.x, -it.y) } ?: "has no room") +
-                " in view %.1f..%.1f x %.1f..%.1f".format(view.left, view.right, view.top, view.bottom))
+            launch {
+                // A small screen leaves little open water: widen the margin until the critter has room.
+                val r = listOf(CritterBoard.VIEW_MARGIN, 1.5, 2.0).firstNotNullOfOrNull { m -> runCatching { CritterRunner(spec, seed, CritterBoard.forView(view, m)) }.getOrNull() }
+                critterLog("${spec.id} " + (r?.let { "starts at %.1f,%.1f".format(it.x, -it.y) } ?: "has no room") +
+                    " in view %.1f..%.1f x %.1f..%.1f".format(view.left, view.right, view.top, view.bottom))
+                found = r
+            }
         }
+        if (runner == null) found?.let { runner = it; px = it.x; py = it.y; ph = it.heading }
         val r = runner ?: return
         clock += dt.coerceAtMost(3f)
         while (clock >= CritterRunner.DT) {
@@ -60,10 +66,10 @@ internal class SeaCritter(val spec: CritterSpec, private val seed: Long) {
          * seeded from the board, so every phone in an online game agrees whether there is a whale (where it swims
          * follows each screen's open water). Only the standard island.
          */
-        fun forGame(specs: List<CritterSpec>, boardSeed: Long, landHexes: Int): List<SeaCritter> =
+        fun forGame(specs: List<CritterSpec>, boardSeed: Long, landHexes: Int, launch: (() -> Unit) -> Unit = { it() }): List<SeaCritter> =
             if (landHexes != 19) emptyList() else specs.mapIndexedNotNull { i, s ->
                 val roll = CritterRandom(boardSeed * 31 + i * 7919 + 17)
-                if (s.count[1] < 1 || roll.next() >= s.chance) null else SeaCritter(s, (boardSeed * 131 + i) and 0xffffffffL)
+                if (s.count[1] < 1 || roll.next() >= s.chance) null else SeaCritter(s, (boardSeed * 131 + i) and 0xffffffffL, launch)
             }
     }
 }

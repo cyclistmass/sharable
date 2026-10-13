@@ -156,6 +156,19 @@ class CritterTest {
         assertEquals(null, w.runner); assertEquals(null, w.pose())
     }
 
+    @Test
+    fun `the start search runs where it is launched (off the UI thread in the app), and the next frame picks it up`() {
+        val jobs = ArrayList<() -> Unit>()
+        val w = SeaCritter(CritterSpec.parse(whale), 3) { jobs += it }
+        w.update(0.1f, VIEW)
+        assertEquals(null, w.runner, "the frame doesn't wait for the search")
+        assertEquals(1, jobs.size)
+        jobs.single()()
+        w.update(0.1f, VIEW)
+        assertTrue(w.runner != null && w.pose() != null)
+        w.update(0.1f, VIEW); assertEquals(1, jobs.size, "searched once")
+    }
+
     private companion object {
         /** The sea in view at fit zoom on the Pixel 8 emulator, between the side panel and the zoom bars (as logged). */
         val VIEW = androidx.compose.ui.geometry.Rect(-7.8f, -6.1f, 4.6f, 5.8f)
