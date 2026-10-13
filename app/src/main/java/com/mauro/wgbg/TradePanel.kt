@@ -189,7 +189,7 @@ fun Modifier.chest(): Modifier = this
 // ------------------------------------------------------------------ the panel
 
 /**
- * The trade panel: Players and Maritime tabs; the top row is what you get, the bottom row what
+ * The trade panel: Players and Harbour tabs; the top row is what you get, the bottom row what
  * you give (tap a card to add one, tap its "−" to take one back); Yes / No / Counter on the right.
  * Every button sends a legal move (or a trade the engine validates), so nothing bypasses the rules.
  */
@@ -232,7 +232,7 @@ fun TradePanel(
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Tab("Players", !bankTab) { maritime = false }
-                if (mode == TradeMode.COMPOSE) Tab("Maritime", bankTab) { maritime = true; get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) }
+                if (mode == TradeMode.COMPOSE) Tab("Harbour", bankTab) { maritime = true; get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) }
                 // Everyone's answer to your offer, up here beside the tabs: a row at the bottom ran off the
                 // chest on a landscape phone.
                 if (!bankTab && s.currentPlayer == me) for (p in 0 until s.numPlayers) if (p != me) {
