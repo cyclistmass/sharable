@@ -1621,7 +1621,7 @@ internal fun describe(t: ActionKind) = when (t) {
     wgbg.engine.CkActionType.CHOOSE_VERTEX -> "chose a corner"
     wgbg.engine.CkActionType.CHOOSE_PROGRESS_DECK -> "drew a progress card"
     wgbg.engine.CkActionType.TAKE_PROGRESS -> "took a progress card"
-    wgbg.engine.CkActionType.COMMERCIAL_HARBOR_OFFER -> "offered a Harbor Charter swap"
+    wgbg.engine.CkActionType.COMMERCIAL_HARBOR_OFFER -> "offered a Harbour Charter swap"
     wgbg.engine.CkActionType.CK_DONE -> "finished"
     wgbg.engine.CkActionType.OFFER_TRADE_CK -> "offered a trade"
     else -> t.toString().lowercase().replace('_', ' ')
@@ -2246,7 +2246,7 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
         val buoy = art?.buildings?.ports?.getOrNull(PortArt.index(type))
         if (buoy != null) drawSteppedSprite(buoy, c, BuildingSprites.FRAME_UNITS * scale * 1.4f * PORT_BUOY_SCALE, 0.55f)
         else drawPortToken(type, c, scale * 1.4f, measurer, wood)
-        label(if (type == Port.GENERIC) "3:1 port" else "2:1 port", c + Offset(0f, 0.6f * scale))
+        label(if (type == Port.GENERIC) "3:1 harbour" else "2:1 harbour", c + Offset(0f, 0.6f * scale))
     }
     // Row 3: each player's road, settlement and city, plus the robber.
     for (p in PLAYER_COLORS.indices) {

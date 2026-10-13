@@ -777,7 +777,7 @@ object CitiesAndKnights {
                 }
             }
 
-            else -> error("${a.type} is not a Cities & Knights action")
+            else -> error("${a.type} is not an Age of Chivalry action")
         }
     }
 

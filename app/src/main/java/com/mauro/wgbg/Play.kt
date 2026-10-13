@@ -117,7 +117,7 @@ internal val FORTUNE = listOf("Sentinel", "Windfall", "Corner the Market", "Trai
 
 /** What each Fortune card does (same order as [FORTUNE]). */
 val FORTUNE_HINTS = listOf(
-    "Move the bandit and take a card from a player next to it. Three or more make your Army.",
+    "Move the bandit and take a card from a player next to it. Three or more win the Strongest Watch.",
     "Take any 2 resources from the bank.",
     "Name a resource: everyone gives you all of theirs.",
     "Build 2 roads for free.",

@@ -230,7 +230,7 @@ while true; do
     echo "$d" | grep -q 'text="Play"' && tap_text "Play" "$d"
     tap_text "Hide" "$d" || true
   elif echo ",$legal" | grep -q ',CHOOSE_CARD:' && echo "$d" | grep -q 'text="ha[sv]e [0-9]'; then
-    # A one-card picker (Harbor Charter's give-back, Grand Factor's take): the cards are pictures with "have N"
+    # A one-card picker (Harbour Charter's give-back, Grand Factor's take): the cards are pictures with "have N"
     # (yours) or "has N" (theirs) under them
     # and no text button, so tap one card you hold, as a person would.
     echo "$(date +%T) card picker seen (${phase})" >&2

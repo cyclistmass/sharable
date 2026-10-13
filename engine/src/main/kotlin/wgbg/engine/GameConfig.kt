@@ -38,6 +38,6 @@ data class GameConfig(
 
     init {
         require(numPlayers in 2..4) { "base game supports 2-4 players" }
-        require(!citiesAndKnights || numPlayers in 3..4) { "Cities & Knights supports 3-4 players" }
+        require(!citiesAndKnights || numPlayers in 3..4) { "Age of Chivalry supports 3-4 players" }
     }
 }
