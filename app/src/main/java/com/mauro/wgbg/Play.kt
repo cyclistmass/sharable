@@ -210,6 +210,7 @@ fun HumanControls(
         // On a 7: pick all the cards first, then discard them with one press (playtest: a tap per card,
         // on buttons that moved as card types ran out, lost the wrong card with no undo).
         if (ActionType.DISCARD in types) { Box(Modifier.align(Alignment.BottomCenter)) { DiscardSheet(s, me, legal, onMove, discardCause) }; return@Box }
+        cardPick(s, legal, names)?.let { pick -> CardPickSheet(s, me, pick, names, onMove, Modifier.align(Alignment.BottomCenter)); return@Box }
         if (wgbg.engine.CkActionType.CHOOSE_CARD in types) {
             CardChoiceSheet(s, me, legal.filter { it.type == wgbg.engine.CkActionType.CHOOSE_CARD }, names, onMove, Modifier.align(Alignment.BottomCenter)); return@Box
         }
@@ -363,6 +364,69 @@ internal fun optionCards(a: Action): List<Int>? = when (a.type) {
     }
     else -> null
 }.takeIf { cs -> cs != null && cs.all { it in ALL_CARD_ART.indices } }
+
+/** A pick-a-card moment that isn't a board tap (#123): what it asks, the cards to tap, and the way out, if any. */
+internal data class CardPick(val title: String, val options: List<Action>, val done: Action? = null)
+
+/**
+ * The card pick [legal] asks for, or null. Mauro (#123): "all card pickers should be card pickers": the Spy's
+ * take, a progress card to discard, the deck to draw from after the Raiders, and Harbour Charter's offers were
+ * worded buttons (one per card), easy to miss as a pick at all. Grand Factor, Feast, Harbour Charter's give-back
+ * and the science bonus are CHOOSE_CARD, already drawn by [CardChoiceSheet].
+ */
+internal fun cardPick(s: GameState, legal: List<Action>, names: List<String>): CardPick? {
+    val ck = s.ck ?: return null
+    val kinds = legal.map { it.type }.toSet()
+    fun of(t: wgbg.engine.ActionKind) = legal.filter { it.type == t }
+    return when {
+        wgbg.engine.CkActionType.TAKE_PROGRESS in kinds ->
+            CardPick("Spy: take one of ${names.getOrElse(ck.pendingTarget) { "their" }}'s progress cards", of(wgbg.engine.CkActionType.TAKE_PROGRESS))
+        wgbg.engine.CkActionType.DISCARD_PROGRESS in kinds ->
+            CardPick("Too many progress cards: discard one", of(wgbg.engine.CkActionType.DISCARD_PROGRESS))
+        wgbg.engine.CkActionType.CHOOSE_PROGRESS_DECK in kinds ->
+            CardPick("Raiders beaten: draw a progress card from a deck", of(wgbg.engine.CkActionType.CHOOSE_PROGRESS_DECK))
+        wgbg.engine.CkActionType.COMMERCIAL_HARBOR_OFFER in kinds ->
+            CardPick("Harbour Charter: give a player one of your resources; they give you a commodity back",
+                of(wgbg.engine.CkActionType.COMMERCIAL_HARBOR_OFFER), legal.firstOrNull { it == Action.CK_DONE })
+        else -> null
+    }
+}
+
+/** [pick] as cards to tap, in the chest at the bottom centre like every other card sheet (#123). */
+@Composable
+internal fun CardPickSheet(s: GameState, me: Int, pick: CardPick, names: List<String>, onMove: (Action) -> Unit, modifier: Modifier = Modifier) {
+    val ck = s.ck ?: return
+    Column(modifier.chest().testTag("card-pick-sheet"), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(pick.title, color = CHEST_INK, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        // Harbour Charter: a row of your resources for each player you can still offer one to.
+        val rows = if (pick.options.all { it.type == wgbg.engine.CkActionType.COMMERCIAL_HARBOR_OFFER }) pick.options.groupBy { it.b }
+            else mapOf(-1 to pick.options)
+        for ((who, acts) in rows) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (who >= 0) Text("To ${names.getOrElse(who) { "player ${who + 1}" }}", color = CHEST_INK, fontSize = 12.sp,
+                fontWeight = FontWeight.Bold, modifier = Modifier.width(76.dp))
+            for (a in acts) Column(horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable { onMove(a) }.testTag("pick-card-${a.a}-${a.b}")) {
+                when (a.type) {
+                    wgbg.engine.CkActionType.TAKE_PROGRESS, wgbg.engine.CkActionType.DISCARD_PROGRESS ->
+                        ProgressCardFace(PROGRESS_NAMES.getOrElse(a.a) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(a.a)],
+                            progressArt(a.a), progressHint(a.a), w = 64, h = 90)
+                    wgbg.engine.CkActionType.CHOOSE_PROGRESS_DECK ->
+                        ProgressCardFace(DECK_NAMES[a.a], TRACK_COLORS[a.a], ALL_CARD_ART[wgbg.engine.Track.commodity(a.a)],
+                            "${ck.deckSize[a.a]} left", w = 64, h = 90)
+                    else -> Image(painterResource(ALL_CARD_ART[a.a]), ALL_CARD_NAMES[a.a], Modifier.size(width = 50.dp, height = 70.dp))
+                }
+                val under = when (a.type) {
+                    wgbg.engine.CkActionType.DISCARD_PROGRESS -> "have ${ck.progressHand[me * wgbg.engine.Progress.COUNT + a.a]}"
+                    wgbg.engine.CkActionType.COMMERCIAL_HARBOR_OFFER -> "have ${s.hand(me, a.a)}"
+                    else -> null
+                }
+                under?.let { Text(it, color = CHEST_INK, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }
+            }
+        }
+        pick.done?.let { d -> ChestButton("Done", CHEST_NO, "pick-done") { onMove(d) } }
+    }
+}
 
 // ------------------------------------------------------------------ confirming board taps
 
