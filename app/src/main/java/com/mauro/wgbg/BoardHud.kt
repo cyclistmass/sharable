@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
@@ -221,11 +222,14 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
     androidx.compose.runtime.LaunchedEffect(hint) { if (hint != null) { kotlinx.coroutines.delay((5000L * pace).toLong()); hint = null } }
     // A long press on any card shows it big with everything about it (Mauro); a tap anywhere on it closes.
     var detail by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<CardDetail?>(null) }
-    fun Modifier.longPressFor(d: CardDetail) = this.pointerInput(d) { detectTapGestures(onLongPress = { detail = d }) }
+    // It never stays up for good (#116: "staring at a full screen of a card description forever"): any tap on a card
+    // in hand closes it too, and it closes by itself after a while.
+    androidx.compose.runtime.LaunchedEffect(detail) { if (detail != null) { kotlinx.coroutines.delay((12000L * pace).toLong()); detail = null } }
+    fun Modifier.longPressFor(d: CardDetail) = this.pointerInput(d) { detectTapGestures(onTap = { detail = null }, onLongPress = { detail = d }) }
     @Composable
     fun namedCard(name: String, edge: Color, n: Int, tag: String, w: Int, h: Int, small: String? = null, art: Int? = null, long: CardDetail? = null, onTap: (() -> Unit)? = null) = Box(contentAlignment = Alignment.TopEnd,
         modifier = Modifier.testTag(tag).then(if (onTap != null || long != null) Modifier.pointerInput(long) {
-            detectTapGestures(onTap = { onTap?.invoke() }, onLongPress = { long?.let { detail = it } })
+            detectTapGestures(onTap = { if (detail != null) detail = null else onTap?.invoke() }, onLongPress = { long?.let { detail = it } })
         } else Modifier)) {
         // Themed by its deck's commodity (Mauro): Guilds on Fabric, Crown on Silver, Academy on Parchment.
         ProgressCardFace(name, edge, art, small, w, h)
@@ -264,16 +268,35 @@ fun HandRow(s: GameState, me: Int, version: Int, modifier: Modifier = Modifier, 
                 count(n)
             }
         }
+        // Cards you can't play right now are dimmed and say why (#117: "don't let me play it"); the engine's own list.
+        val playable = androidx.compose.runtime.remember(version, me) { playableProgress(s, me) }
         for (c in 0 until wgbg.engine.Progress.COUNT) {
             val n = ck.progressHand[me * wgbg.engine.Progress.COUNT + c]
-            if (n > 0) namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 50, 70, // as tall as the resource cards; hold one to read it large (Mauro, 2026-10-12)
-                small = null,
-                art = progressArt(c), long = progressDetail(c)) {
-                hint = "${PROGRESS_NAMES.getOrElse(c) { "Progress" }}: ${progressHint(c)}"
+            val now = c in playable
+            if (n > 0) Box(Modifier.alpha(if (now) 1f else 0.45f)) {
+                namedCard(PROGRESS_NAMES.getOrElse(c) { "Progress" }, TRACK_COLORS[wgbg.engine.Progress.track(c)], n, "hand-progress-$c", 50, 70, // as tall as the resource cards; hold one to read it large (Mauro, 2026-10-12)
+                    small = null,
+                    art = progressArt(c), long = progressDetail(c)) {
+                    hint = "${PROGRESS_NAMES.getOrElse(c) { "Progress" }}: " + if (now) progressHint(c) else "can't play it now (${notPlayableWhy(s, me, c)})."
+                }
             }
         }
     }
     }
+}
+
+/** Progress cards [me] may play right now: the engine's legal plays (none when it isn't their move). */
+fun playableProgress(s: GameState, me: Int): Set<Int> =
+    if (s.ck == null || s.currentPlayer != me) emptySet()
+    else wgbg.engine.Rules.legalActions(s).filter { it.type == wgbg.engine.CkActionType.PLAY_PROGRESS }.map { it.a }.toSet()
+
+/** Why progress card [c] can't be played by [me] now, in a few words. */
+fun notPlayableWhy(s: GameState, me: Int, c: Int): String = when {
+    s.currentPlayer != me -> "only on your turn"
+    s.phase != wgbg.engine.Phase.PLAY_TURN -> "finish what you're doing first"
+    !s.hasRolled && c != wgbg.engine.Progress.ALCHEMIST -> "after you roll"
+    s.hasRolled && c == wgbg.engine.Progress.ALCHEMIST -> "only before you roll"
+    else -> "nothing it can do right now"
 }
 
 /** A slim prompt across the top saying what to do now. */

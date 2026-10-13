@@ -30,6 +30,8 @@ internal fun DrawScope.drawLiveOverlay(s: GameState, p: LiveProjection, knights:
         if (image != null) drawImage(image, dstOffset = IntOffset((at.x - size / 2).roundToInt(), (at.y - size * .92f).roundToInt()),
             dstSize = IntSize(size.roundToInt(), size.roundToInt()))
     }
+    if (ck != null && ck.merchantHex >= 0 && ck.merchantOwner >= 0)   // the Merchant (#112), on the tile, lower left
+        drawMerchantToken(p.project(liveHex(s.board, ck.merchantHex) + MERCHANT_SPOT), p.scale, cos(p.tilt), PLAYER_COLORS[ck.merchantOwner])
     // Harbours: the flat board's shallows, piers and buoys, projected (drawLivePorts in MainActivity.kt, #104).
 }
 

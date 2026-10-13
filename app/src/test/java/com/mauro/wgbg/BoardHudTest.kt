@@ -82,4 +82,23 @@ class BoardHudTest {
         assertEquals(5, rep.rollOut[victim].sum())
         assertTrue(rollMinis(rep, victim, me = -1).any { it.n < 0 })
     }
+
+    @Test
+    fun `progress cards you can't play now are named with the reason (#117)`() {
+        val s = wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(expansion = wgbg.engine.Expansion.CITIES_AND_KNIGHTS), 3)
+        val rnd = kotlin.random.Random(3)
+        while (!(s.phase == wgbg.engine.Phase.PLAY_TURN && !s.hasRolled && s.turn > 0))
+            wgbg.engine.Rules.applyChecked(s, wgbg.engine.Rules.legalActions(s).random(rnd))
+        val me = s.currentPlayer; val other = (me + 1) % s.config.numPlayers
+        val ck = s.ck!!
+        ck.progressHand[me * wgbg.engine.Progress.COUNT + wgbg.engine.Progress.ALCHEMIST] += 1
+        ck.progressHand[me * wgbg.engine.Progress.COUNT + wgbg.engine.Progress.SABOTEUR] += 1
+        val now = playableProgress(s, me)
+        assertTrue(wgbg.engine.Progress.ALCHEMIST in now, "the Alchemist is for before the roll")
+        assertTrue(wgbg.engine.Progress.SABOTEUR !in now, "the Wrecker waits for the roll (Mauro's report)")
+        assertEquals("after you roll", notPlayableWhy(s, me, wgbg.engine.Progress.SABOTEUR))
+        assertTrue(playableProgress(s, other).isEmpty())
+        assertEquals("only on your turn", notPlayableWhy(s, other, wgbg.engine.Progress.SABOTEUR))
+        assertTrue(playableProgress(wgbg.engine.Rules.newGame(wgbg.engine.GameConfig(), 1), 0).isEmpty())   // base game: none
+    }
 }

@@ -1158,6 +1158,9 @@ fun WatchGameScreen(
             BrassButton("Tiles: compare", "look-tile-compare", Modifier.height(44.dp)) { compareTiles = true; settingsOpen = false }
             BrassButton("Card guide", "look-guide", Modifier.height(44.dp)) { guideOpen = true; settingsOpen = false }
         }
+        // Opened from the in-game Menu ("3D collection"): Done returns to the game (#115: "no way to leave"; Back already did).
+        if (inventory && !lookAndArt)
+            GoButton("Done", "collection-done", true, Modifier.align(Alignment.TopStart).padding(12.dp).width(120.dp).height(44.dp)) { inventory = false }
         if (inventory) Row(Modifier.align(Alignment.BottomCenter).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((r, art) in CARD_ART.withIndex()) androidx.compose.foundation.Image(
                 androidx.compose.ui.res.painterResource(art), RESOURCE_NAMES[r], Modifier.size(width = 76.dp, height = 110.dp))
@@ -1942,6 +1945,13 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
         } else {
             val rs = scale * l.hexK(s.robberHex) * stand
             drawRobber(l.hexCenter(s.robberHex) + Offset(0.15f * rs, 0.15f * rs * l.squash), rs)
+        }
+    }
+    s.ck?.let { ck ->
+        if (ck.merchantHex >= 0 && ck.merchantOwner >= 0) {
+            val hs = scale * l.hexK(ck.merchantHex)
+            drawMerchantToken(l.hexCenter(ck.merchantHex) + Offset(MERCHANT_SPOT.x * hs, MERCHANT_SPOT.y * hs * l.squash), hs, l.squash,
+                PLAYER_COLORS[ck.merchantOwner])
         }
     }
 
