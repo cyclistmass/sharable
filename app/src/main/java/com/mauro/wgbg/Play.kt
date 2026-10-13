@@ -233,7 +233,7 @@ fun HumanControls(
             if (ActionType.PLAY_MONOPOLY in types) MoveButton("Play Corner the Market…") { sheet = "mono" }
             // Age of Chivalry moves that aren't board taps: one button per kind (or card), a picker if it has choices.
             for ((label, acts) in ckButtonGroups(s, legal, names)) {
-                if (acts.size == 1 && !isBoardCard(acts)) MoveButton(label) { onMove(acts[0]) }
+                if (acts.size == 1 && !isBoardCard(acts) && !asksFirst(acts[0])) MoveButton(label) { onMove(acts[0]) }
                 else if (isBoardCard(acts)) MoveButton("$label…") { onBoardPick(acts) }
                 else MoveButton("$label…") { ckChoices = label to acts; sheet = "ck" }
             }

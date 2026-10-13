@@ -56,8 +56,8 @@ class EveryCardTest {
                 assertEquals(was.hexNumber[a.c], ck.hexNumber[a.b], "$tag: numbers swapped")
                 assertEquals(ck.hexNumber[a.b], s.numberAt(a.b), "$tag: the board shows the new number")
             }
-            Progress.IRRIGATION -> assertTrue(s.card(0, Resource.WHEAT) >= b.card(0, Resource.WHEAT), "$tag: grain gained")
-            Progress.MINING -> assertTrue(s.card(0, Resource.ORE) >= b.card(0, Resource.ORE), "$tag: stone gained")
+            Progress.IRRIGATION -> assertTrue(s.card(0, Resource.WHEAT) > b.card(0, Resource.WHEAT), "$tag: grain gained")
+            Progress.MINING -> assertTrue(s.card(0, Resource.ORE) > b.card(0, Resource.ORE), "$tag: stone gained")
             Progress.MEDICINE -> assertEquals(Piece.CITY, s.vertexBuilding[a.b], "$tag: town built")
             Progress.ROAD_BUILDING -> assertEquals(minOf(2, Rules.piecesLeft(b, 0, Piece.ROAD)), s.freeRoads, "$tag: two free roads")
             Progress.SMITH -> assertEquals(2, ck.freePromotions, "$tag: two free promotions")
@@ -83,6 +83,7 @@ class EveryCardTest {
                 val mine = b.victoryPoints(0)
                 for (q in 1 until s.numPlayers) if (b.victoryPoints(q) >= mine)
                     assertEquals(b.cardCount(q) - b.cardCount(q) / 2, s.cardCount(q), "$tag: player $q lost half")
+                assertTrue((1 until s.numPlayers).any { s.cardCount(it) < b.cardCount(it) }, "$tag: someone lost cards")
             }
             Progress.SPY -> {
                 // You give up the Spy and take one of the target's progress cards (Printer and Constitution are never held).
@@ -90,10 +91,36 @@ class EveryCardTest {
                 assertEquals(was.progressCount(0) - 1 + took, ck.progressCount(0), "$tag: a card taken")
                 assertEquals(was.progressCount(a.b) - took, ck.progressCount(a.b), "$tag: the target lost it")
             }
-            Progress.WARLORD -> for (v in 0 until s.board.vertexCount) if (ck.knightOwner[v] == 0) assertTrue(ck.isActive(v), "$tag: knight $v active")
-            Progress.WEDDING -> assertTrue(s.cardCount(0) >= b.cardCount(0), "$tag: gifts received")
+            Progress.WARLORD -> {
+                for (v in 0 until s.board.vertexCount) if (ck.knightOwner[v] == 0) assertTrue(ck.isActive(v), "$tag: knight $v active")
+                assertTrue((0 until s.board.vertexCount).any { was.knightOwner[it] == 0 && !was.isActive(it) }, "$tag: a knight was raised")
+            }
+            Progress.WEDDING -> assertTrue(s.cardCount(0) > b.cardCount(0), "$tag: gifts received")
             else -> throw AssertionError("$tag: no check for ${Progress.NAMES[card]}")
         }
+    }
+
+    /** Every player's card count and every knight's flags: what the no-target cards can change. */
+    private fun footprint(s: GameState) = (0 until s.numPlayers).map { s.cardCount(it) } + s.ck!!.knightFlags.toList()
+
+    @Test
+    fun `a no-target card is offered exactly when it would do something`() {
+        // Mauro, 2026-10-13: "I shouldn't be able to play it unless I can actually use it."
+        val cards = intArrayOf(Progress.IRRIGATION, Progress.MINING, Progress.SABOTEUR, Progress.WEDDING, Progress.WARLORD)
+        val seen = HashSet<Pair<Int, Boolean>>()
+        for ((i, start) in positions(beforeRoll = false).withIndex()) for (card in cards) for (emptyBank in listOf(false, true)) {
+            val base = start.copy()
+            if (base.ck!!.progressHand[card] > 0 || runCatching { CK.giveProgress(base, 0, card) }.isFailure) continue
+            if (emptyBank) for (r in 0 until Resource.COUNT) base.bank[r] = 0      // nothing left to hand out
+            val playable = CitiesAndKnights.progressHasEffect(base, 0, card)
+            val s = base.copy()
+            Rules.apply(s, Action.playProgress(card))                             // played anyway, to see what it does
+            settle(s, "${Progress.NAMES[card]} position $i")
+            val did = footprint(s) != footprint(base)
+            assertEquals(did, playable, "${Progress.NAMES[card]} position $i (empty bank $emptyBank): playable $playable, does something $did")
+            seen += card to playable
+        }
+        for (card in cards) for (p in listOf(true, false)) assertTrue(card to p in seen, "${Progress.NAMES[card]} never ${if (p) "playable" else "unplayable"}")
     }
 
     @Test
@@ -109,7 +136,7 @@ class EveryCardTest {
                 for (r in 0 until CARD_TYPES) CK.give(base, 0, r, minOf(3, base.bank[r]))
                 if (base.ck!!.deckSize[Progress.track(card)] == 0 || base.ck!!.progressHand[card] > 0) continue
                 if (runCatching { CK.giveProgress(base, 0, card) }.isFailure) continue // every copy is in a hand
-                val plays = Rules.legalActions(base).filter { it.type == CkActionType.PLAY_PROGRESS && it.a == card }
+                val plays = Rules.legalActions(base).filter { it.type == CkActionType.PLAY_PROGRESS && it.a == card && CitiesAndKnights.progressHasEffect(base, 0, card) }
                 for (a in plays.take(6)) {
                     val tag = "${Progress.NAMES[card]} position $i $a"
                     val s = base.copy()

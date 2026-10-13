@@ -33,7 +33,7 @@ class CkReachTest {
                 val legal = buf.toList()
                 if (s.actingPlayer == 0) {
                     val grouped = ckButtonGroups(s, legal, names).flatMap { it.second }.toSet()
-                    for (a in legal) {
+                    for (a in legal.filter { offered(s, it) }) {   // plays that would do nothing are left out on purpose
                         val tap = when {
                             a.type == ActionType.BUILD_SETTLEMENT || a.type == ActionType.BUILD_CITY -> movesAt(s.board, legal, vertexLattice(s.board, a.payload.toInt()))
                             a.type == ActionType.BUILD_ROAD -> movesAt(s.board, legal, edgeLattice(s.board, a.payload.toInt()))

@@ -474,6 +474,29 @@ object CitiesAndKnights {
         return openEnd(b.edgeA[e]) || openEnd(b.edgeB[e])
     }
 
+    /**
+     * Whether a no-target card would change anything for [p] now (all public facts: the board, the bank, points and
+     * card counts), so the app only offers plays that do something (Mauro, 2026-10-13: "I shouldn't be able to play it
+     * unless I can actually use it"; his own Saboteur once hit nobody). Irrigation / Mining need a field / mountain by your buildings and some left in the bank; the
+     * Saboteur someone at your points or more with two cards or more; the Wedding someone ahead of you holding a card;
+     * the Warlord a knight of yours that isn't already raised.
+     */
+    fun progressHasEffect(s: GameState, p: Int, card: Int): Boolean {
+        val ck = s.ck!!
+        val b = s.board
+        val mine = s.victoryPoints(p)
+        return when (card) {
+            Progress.IRRIGATION, Progress.MINING -> {
+                val r = if (card == Progress.IRRIGATION) Resource.WHEAT else Resource.ORE
+                s.bank[r] > 0 && (0 until b.hexCount).any { b.hexResource[it] == r && touchesOwnBuilding(s, p, it) }
+            }
+            Progress.SABOTEUR -> (0 until s.numPlayers).any { it != p && s.victoryPoints(it) >= mine && s.cardCount(it) >= 2 }
+            Progress.WEDDING -> (0 until s.numPlayers).any { it != p && s.victoryPoints(it) > mine && s.cardCount(it) > 0 }
+            Progress.WARLORD -> (0 until b.vertexCount).any { ck.knightOwner[it] == p && !ck.isActive(it) }
+            else -> true
+        }
+    }
+
     private fun progressActions(s: GameState, p: Int, out: ActionBuffer) {
         val ck = s.ck!!
         val b = s.board
@@ -505,6 +528,8 @@ object CitiesAndKnights {
                     }
                 }
 
+                // Legal even when they'd do nothing (saved games and online rooms replay such plays); players are only
+                // offered them when progressHasEffect says they'd do something.
                 Progress.IRRIGATION, Progress.MINING, Progress.SABOTEUR, Progress.WEDDING ->
                     out.add(Action.playProgress(card))
 
