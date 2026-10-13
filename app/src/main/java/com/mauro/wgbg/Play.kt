@@ -527,7 +527,8 @@ internal fun spotChoices(s: GameState, chosen: List<Action>, names: List<String>
 internal fun SpotPicker(choices: List<SpotChoice>, onPick: (Action) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for ((i, c) in choices.withIndex()) Row(
-            Modifier.widthIn(min = 260.dp).brassPlate().clickable { onPick(c.action) }
+            // Capped so the box stays mid-screen, clear of the build buttons and the zoom/tilt bars (seen on device).
+            Modifier.widthIn(min = 260.dp, max = 400.dp).brassPlate().clickable { onPick(c.action) }
                 .testTag("spot-choice-$i").semantics(mergeDescendants = true) { contentDescription = c.name }
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
