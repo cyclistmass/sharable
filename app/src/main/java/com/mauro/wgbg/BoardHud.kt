@@ -74,6 +74,9 @@ fun PlayerStrip(s: GameState, me: Int, names: List<String>, version: Int, modifi
                 Text("$raiders vs $knights", fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp).testTag("raiders-vs-knights"),
                     color = if (knights >= raiders) Color(0xFF8BD18B) else Color(0xFFFF6B5E))
             }
+            // On your turn, 3 steps or fewer out: say so, and what's at stake (#92).
+            raidersWarning(s, me)?.let { Text(it, color = Color(0xFFFFB4A8), fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.widthIn(max = 250.dp).padding(top = 1.dp, bottom = 2.dp).testTag("raiders-warning")) }
         }
         for (p in 0 until s.numPlayers) {
             val turn = !s.isOver && p == s.currentPlayer
@@ -307,6 +310,23 @@ fun TurnPrompt(text: String, modifier: Modifier = Modifier) {
 }
 
 /** Ship steps left before the Raiders land (attack) for track position [pos]. */
+/**
+ * The Raiders warning on your own turn when they are 1-3 steps from landing (#92), or null: how near, both strengths,
+ * and what happens if they land now.
+ */
+fun raidersWarning(s: GameState, me: Int): String? {
+    val ck = s.ck ?: return null
+    val left = raidersStepsLeft(ck.barbarianPos)
+    if (left !in 1..3 || s.currentPlayer != me || s.isOver) return null
+    val raiders = wgbg.engine.CitiesAndKnights.barbarianStrength(s)
+    val knights = (0 until s.numPlayers).sumOf { wgbg.engine.CitiesAndKnights.activeKnightStrength(s, it) }
+    val mine = wgbg.engine.CitiesAndKnights.activeKnightStrength(s, me)
+    val near = if (left == 1) "1 step" else "$left steps"
+    // Raiders first, like the "R vs K" on the track line above it.
+    return "Raiders $near away!\n$raiders vs $knights: " + if (knights >= raiders) "knights hold (you $mine)"
+        else "too weak, weakest lose a town (you $mine)"
+}
+
 fun raidersStepsLeft(pos: Int) = (wgbg.engine.CkPiece.BARBARIAN_TRACK - pos).coerceAtLeast(0)
 
 /** Hand size for the player list: "8", or "8/3" (cards / progress cards) in Age of Chivalry. */
