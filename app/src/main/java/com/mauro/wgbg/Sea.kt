@@ -247,6 +247,8 @@ class Sea(board: Board, seed: Int = 1) {
     internal var viewArea: Rect? = null
     /** The tilt step the water was last drawn at (the sky has no squash of its own to go by). */
     private var tiltStep3d = 0
+    /** The board's squash the water was last drawn at, for critters drawn with the sky. */
+    private var squash3d = 1f
     private var oceanBrushes: List<Pair<BitmapShader, ShaderBrush>>? = null
     private val oceanMatrix = Matrix()
     private val patchMatrix = Matrix()
@@ -491,6 +493,7 @@ class Sea(board: Board, seed: Int = 1) {
      */
     fun drawWater(ds: DrawScope, at: (Float, Float) -> Offset, s: Float, squash: Float, woodBrush: Brush, part: WaterPart = WaterPart.ALL) = with(ds) {
         tiltStep3d = SeaSprites3d.tiltStep(kotlin.math.acos(squash.coerceIn(0f, 1f)))
+        squash3d = squash
         if (part != WaterPart.LIVE) {
             val c = at(0f, 0f)
             // The ocean fills the whole screen (no frame); deeper toward the edges.
@@ -512,6 +515,8 @@ class Sea(board: Board, seed: Int = 1) {
             drawPath(coastPath(at, 1.06f), Color.White.copy(alpha = 0.8f), style = Stroke(0.05f * s))
             if (part == WaterPart.BASE) return@with
         }
+        // Critters below the board and under the water, under the waves and glints.
+        drawCritters(this, "under", at, s); drawCritters(this, "underwater", at, s)
         // Sun glints twinkling.
         // Everything keeps moving off screen (positions stay tracked); only what's on screen is drawn.
         val glintCount = amount(waves01, glints.size)
@@ -523,13 +528,8 @@ class Sea(board: Board, seed: Int = 1) {
         // Waves slider: how many wavelets and whitecaps show (none at 0; the water's colour and texture stay).
         for (i in 0 until waveCount) { val w = wavelets[i]; if (onScreen(at(w.x, w.y), 0.6f * s)) drawWavelet(this, at, w) }
         for (i in 0 until amount(waves01, breaks.size)) { val k = breaks[i]; if (onScreen(at(k.x, k.y), 0.8f * s)) drawBreak(this, at, s, k) }
-        // The whale (critter engine), under the boats: its frame for the clip it plays, bow along its course.
-        sprites3d?.let { s3d -> for (c in critters) {
-            if (c.spec.id != "whale") continue
-            val fr = whaleFrame(c.pose() ?: continue, c.spec.clips) ?: continue
-            val q = c.at.let { at(it.x, it.y) }
-            if (onScreen(q, WHALE_FRAME * s)) drawWhale(s3d, q, WHALE_FRAME * s, fr, whaleHeadingIndex(c.course, squash), tiltStep3d)
-        } }
+        // Critters on the water (the whale), under the boats: each one's frame for the clip it plays, bow along its course.
+        drawCritters(this, "surface", at, s)
         // Tiny sailboats (Boats slider): a wooden hull with a little wake, the sail in a player's colour.
         val sprites = boatSprites
         for (i in 0 until boatCount) {
@@ -738,6 +738,7 @@ class Sea(board: Board, seed: Int = 1) {
             val lift = if (p.dy < 0) -sin(PI.toFloat() * t) * 0.15f else 0f
             drawCircle(Color(0xFFE8F7FF).copy(alpha = 1 - t), p.r * s, at(p.x + p.dx * t, p.y + p.dy * t * 0.4f + lift))
         }
+        drawCritters(this, "air", at, s)
         for (bi in 0 until birdCount) {
             val b = birds[bi]
             if (!onScreen(at(b.x, b.y), 1f * s)) continue // shadow included
@@ -787,6 +788,19 @@ class Sea(board: Board, seed: Int = 1) {
             val (img, box) = cloudSprite(c.shape, u)
             drawImage(img, dstOffset = IntOffset((p.x + box.left * u).toInt(), (p.y + box.top * u).toInt()),
                 dstSize = IntSize((box.width * u).toInt(), (box.height * u).toInt()), alpha = fade, filterQuality = FilterQuality.Medium)
+        }
+        drawCritters(this, "sky", at, s)
+    }
+
+    /** The critters in [layer] (critter spec, Layers): each one's frame for the clip it plays, turned to its course. */
+    private fun drawCritters(ds: DrawScope, layer: String, at: (Float, Float) -> Offset, s: Float) = with(ds) {
+        for (c in critters) {
+            val m = c.module
+            if (m.spec.layer != layer) continue
+            val fr = m.frameFor(c.pose() ?: continue) ?: continue
+            val q = c.at.let { at(it.x, it.y) }
+            val side = m.frames.span * s
+            if (onScreen(q, side)) drawCritterFrame(m, q, side, fr, m.headingIndex(c.course, squash3d), m.tiltIndex(tiltStep3d))
         }
     }
 

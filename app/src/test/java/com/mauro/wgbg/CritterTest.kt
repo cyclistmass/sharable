@@ -11,7 +11,10 @@ import java.io.File
  */
 class CritterTest {
     private fun res(name: String) = File(javaClass.getResource("/critter-sim/$name")!!.toURI()).readText()
-    private val whale = File("src/main/assets/critters/whale.critter.json").readText()
+    private val whale = File("src/main/assets/critters/whale/critter.json").readText()
+    /** Every module the app ships, read from the assets folder the way the app reads it. */
+    private val modules by lazy { CritterModules.load({ File(ASSETS, it).list()?.toList().orEmpty() }, { File(ASSETS, it).inputStream() }, keepBroken = true) }
+    private val whaleModule by lazy { modules.single { it.id == "whale" } }
 
     /** Runs [spec] for [minutes] like `node sim.js --seed`, then checks it against the simulator's result. */
     private fun replay(spec: String, seed: Long, result: String, minutes: Int = 60) {
@@ -89,33 +92,37 @@ class CritterTest {
 
     @Test
     fun `the whale's frames follow its clips, and it hides under water`() {
-        val c = CritterSpec.parse(whale)
-        fun at(anim: String?, t: Double, opacity: Double = 1.0) = whaleFrame(CritterPose(0.0, 0.0, 0.0, 0.0, "x", anim, opacity, t), c.clips)
-        fun name(f: WhaleFrame?) = f?.let { SeaArt.WHALE_POSES[it.pose] }
+        val c = whaleModule.spec
+        fun at(anim: String?, t: Double, opacity: Double = 1.0) = whaleModule.frameFor(CritterPose(0.0, 0.0, 0.0, 0.0, "x", anim, opacity, t))
+        fun name(f: CritterFrame?) = f?.pose
         assertEquals("d50", name(at("swim:d50", 1.0)))
         assertEquals("d25", name(at("swim:d25", 3.9)))
         assertEquals("d50_beat00", name(at("beat:d50", 0.0)))
         assertEquals("d50_beat07", name(at("beat:d50", 2.0)))              // a once clip holds its last frame
-        assertEquals("d50_blow1", name(at("blow:d50", 0.1)))
-        assertEquals("d50_blow3", name(at("blow:d50", 1.4)))
+        assertEquals("d50_blow00", name(at("blow:d50", 0.1)))
+        assertEquals("d50_blow02", name(at("blow:d50", 1.4)))
         assertEquals(null, at(null, 0.0))                                   // hidden
         assertTrue(at("surface", 0.0)!!.alpha < 0.05f && at("surface", 3.0)!!.alpha > 0.99f, "surfacing fades in")
         assertTrue(at("dive", 0.0)!!.alpha > 0.99f && at("dive", 3.0)!!.alpha < 0.05f, "diving fades out")
+        assertEquals("d25", name(at("surface", 0.5))); assertEquals("d50", name(at("surface", 2.5)))   // stand-ins: rises d25 to d50
+        assertEquals(0.5f, at("swim:d50", 1.0, opacity = 0.5)!!.alpha, 1e-6f)
         // Every pose the spec plays has a frame.
         for (st in c.stages) st.anim?.let { assertTrue(at(it, 0.5) != null, "${st.id} $it") }
     }
 
     @Test
     fun `whale headings - east is 0, up the screen is 2, counter-clockwise`() {
-        assertEquals(0, whaleHeadingIndex(0f, 1f))
-        assertEquals(2, whaleHeadingIndex(-(Math.PI / 2).toFloat(), 1f))     // lattice y down: moving up the screen
-        assertEquals(4, whaleHeadingIndex(Math.PI.toFloat(), 1f))
-        assertEquals(6, whaleHeadingIndex((Math.PI / 2).toFloat(), 1f))
+        val w = whaleModule
+        assertEquals(0, w.headingIndex(0f, 1f))
+        assertEquals(2, w.headingIndex(-(Math.PI / 2).toFloat(), 1f))     // lattice y down: moving up the screen
+        assertEquals(4, w.headingIndex(Math.PI.toFloat(), 1f))
+        assertEquals(6, w.headingIndex((Math.PI / 2).toFloat(), 1f))
+        assertEquals((0..7).toList(), (0..7).map { w.tiltIndex(it) }, "8 tilts map one to one")
     }
 
     @Test
     fun `the whale is rolled once per game from the board, the same on every phone`() {
-        val c = CritterSpec.parse(whale)
+        val c = whaleModule
         val seeds = (1L..400L)
         val with = seeds.count { SeaCritter.forGame(listOf(c), it, 19).isNotEmpty() }
         assertEquals(0.6, with / 400.0, 0.08, "about the spec's 60% of games")
@@ -151,7 +158,7 @@ class CritterTest {
 
     @Test
     fun `no open water in view means no whale, not a crash`() {
-        val w = SeaCritter(CritterSpec.parse(whale), 3)
+        val w = SeaCritter(whaleModule, 3)
         w.update(1f, androidx.compose.ui.geometry.Rect(-1f, -1f, 1f, 1f))   // only the middle of the island
         assertEquals(null, w.runner); assertEquals(null, w.pose())
     }
@@ -159,7 +166,7 @@ class CritterTest {
     @Test
     fun `the start search runs where it is launched (off the UI thread in the app), and the next frame picks it up`() {
         val jobs = ArrayList<() -> Unit>()
-        val w = SeaCritter(CritterSpec.parse(whale), 3) { jobs += it }
+        val w = SeaCritter(whaleModule, 3) { jobs += it }
         w.update(0.1f, VIEW)
         assertEquals(null, w.runner, "the frame doesn't wait for the search")
         assertEquals(1, jobs.size)
@@ -169,7 +176,34 @@ class CritterTest {
         w.update(0.1f, VIEW); assertEquals(1, jobs.size, "searched once")
     }
 
+    @Test
+    fun `every shipped critter module loads and is complete`() {
+        assertTrue(modules.isNotEmpty())
+        for (m in modules) assertEquals(emptyList<String>(), m.problems(m.id), "critters/${m.id}")
+        val w = whaleModule
+        assertEquals(22, w.files.size, "the whale's 22 poses"); assertEquals(1408, w.files.values.sumOf { it.size })
+        assertEquals("surface", w.spec.layer); assertEquals(2.16f, w.frames.span, 1e-6f)
+    }
+
+    @Test
+    fun `a broken module is caught, and the app leaves it out`() {
+        val json = whale.replace("\"layer\": \"surface\"", "\"layer\": \"lagoon\"")
+        val names = whaleModule.files.flatMap { (p, hs) -> hs.map { (h, t) -> "${p}_h${h}_t$t.webp" } }
+        val m = CritterModules.module("orca", names.filter { !it.startsWith("d50_blow01_h3") }, json)
+        val bad = m.problems("orca")
+        assertTrue(bad.any { "folder's name" in it }, "$bad"); assertTrue(bad.any { "lagoon" in it }, "$bad")
+        assertTrue(bad.any { it.startsWith("d50_blow01: 8 of 64") }, "$bad")
+        val noBlow = CritterModules.module("whale", names.filter { "blow" !in it }, whale)
+        assertEquals("d50", noBlow.frameFor(CritterPose(0.0, 0.0, 0.0, 0.0, "blow", "blow:d50", 1.0, 0.5))?.pose, "no run of its own: it holds the pose")
+        val noStandIn = CritterModules.module("whale", names, whale.replace(", \"dive\":{\"frames\":[\"d50\",\"d25\"], \"fade\":\"out\"}", ""))
+        assertTrue(noStandIn.problems("whale").any { it.startsWith("dive: 'dive' has no frames") }, "a clip with no frames and no stand-in")
+        // The app's loader skips it (the folder must hold a critter.json to count at all).
+        val files = mapOf("critters" to listOf("whale", "notes.txt"), "critters/whale" to listOf("critter.json"), "critters/whale/frames" to emptyList<String>())
+        assertEquals(0, CritterModules.load({ files[it].orEmpty() }, { json.byteInputStream() }).size)
+    }
+
     private companion object {
+        val ASSETS = File("src/main/assets")
         /** The sea in view at fit zoom on the Pixel 8 emulator, between the side panel and the zoom bars (as logged). */
         val VIEW = androidx.compose.ui.geometry.Rect(-7.8f, -6.1f, 4.6f, 5.8f)
     }

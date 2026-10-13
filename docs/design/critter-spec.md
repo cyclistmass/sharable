@@ -9,11 +9,26 @@ game code. The app runs every critter with the same engine on both boards.
 ## What a critter module contains
 
 ```
-themes/<theme>/critters/<id>/
-  critter.json       the spec below
-  <id>.glb           the model with its animations (3D board)
-  frames/            flat-board frames, rendered from the same .glb by the art pipeline
+app/src/main/assets/critters/<id>/        (themes/<theme>/critters/<id>/ once themes ship, #88)
+  critter.json                   the spec below; its id is the folder's name
+  <id>.glb                       the model with its animations (3D board; optional until the 3D board runs critters)
+  frames/<pose>_h<H>_t<T>.webp   flat-board frames, rendered from the same .glb by the art pipeline
 ```
+
+The app loads every folder under `critters/` that holds a `critter.json` (`CritterModules.load`, #130). A module that
+fails its checks is logged under `WGBG-CRITTER` and left out; the game never crashes on one. `CritterTest` runs the same
+checks on every shipped module, so a broken drop-in fails the build.
+
+**Frames.** `H` is the heading (0 = east on screen, counter-clockwise, `frames.headings` steps) and `T` the tilt step
+(0 = straight down, `frames.tilts` steps over tilt 0 to 0.96, as for the buildings). Square, `frames.size` px, with the
+contact point at the centre. A pose is a frame name:
+
+- `d50` is a held pose (the whale at 50% surfaced);
+- `d50_beat00` … `d50_beat07` animate clip `beat` at pose `d50`, numbered from `00`, spread evenly over the clip.
+
+An `anim` of `clip:pose` plays `<pose>_<clip>NN` if that run exists, else holds `<pose>`; a bare `clip` plays `<clip>NN`
+or holds `<clip>`. A clip with no frames of its own can name a stand-in (`frames.stand_in`). The checks: every pose has
+all headings × tilts, and every stage's `anim` resolves to frames.
 
 ## critter.json
 
@@ -31,7 +46,7 @@ themes/<theme>/critters/<id>/
 | `count` | `[min, max]` on the board at once, and `chance` per game | `[0, 1]`, `0.6` |
 | `shadow` | drop a soft shadow on what's below it | `false` |
 | `sounds` | optional clip names keyed by animation | `blow: "whale_blow.ogg"` |
-| `frames` | flat-board render settings: `headings` (16, or 8 for big slow critters), `tilts` 8, `size` px, `poses` (which clips are sampled, and how many frames each) | `8`, `8`, `288`, d25/d50/d75, beat ×8, blow ×3 |
+| `frames` | flat-board render settings: `headings` (16, or 8 for big slow critters), `tilts` 8, `size` px, `span` (hex units a frame's side covers on the board), `poses` (which clips the renderer samples, and how many frames each), `stand_in` (frames shown for a clip that has no render yet, spread over it, with `fade` `in` or `out` over its first or last 40%) | `8`, `8`, `288`, `2.16`, d25/d50/d75, beat ×8, blow ×3; `surface`: d25 → d50 fading in |
 
 ## Modelled behaviour algorithm
 
@@ -118,6 +133,10 @@ Bottom to top. The board draws each band in this order, so a critter only needs 
 | `surface` | boats, the Raiders, a surfaced whale, ducks | on the water, with a wake |
 | `air` | gulls, flying fish leaps | above the sea and coast, under the pieces' tops |
 | `sky` | clouds, high birds, airships, comets | above everything, casting shadows on the board (#24) |
+
+On the flat board the sea is opaque, so the bands draw at these points: `under` and `underwater` over the painted
+sea and under the wavelets and glints, `surface` over the waves and under the boats, `air` with the gulls (after the
+board), `sky` last, over the clouds. Depth tint and blur for `underwater` come from the frames themselves for now.
 
 `altitude` places a critter inside its band. A critter can cross bands only through a clip, such as `dive`
 (surface to underwater) or `surface` (underwater to surface).
