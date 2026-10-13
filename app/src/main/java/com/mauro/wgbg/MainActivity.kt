@@ -315,7 +315,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     var localSave by remember { mutableStateOf<LocalSave?>(null) }
     LaunchedEffect(screen) { if (screen == Screen.START || screen == Screen.SETUP) localSave = localStore.load() }
     // Settings on the splash: the same saved settings the in-game gear shows.
-    val splashEnv = remember { EnvSettings(PrefsStore(context0), viewBarsDefault = EnvSettings.isEmulator()) }
+    val splashEnv = remember { EnvSettings(PrefsStore(context0)) }
     val splashSound = remember { SoundSettings(PrefsStore(context0)) }
     val context = LocalContext.current.applicationContext
     val scope = androidx.compose.runtime.rememberCoroutineScope()
