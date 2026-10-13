@@ -93,6 +93,24 @@ model with the banner lowered (pole down or banner furled against it). The banne
 must read at phone size without colour, so the inactive state is never only a greyed-out copy. The `_active` and
 `_inactive` file names stay as they are.
 
+**Shadows and perspective (Mauro 2026-10-13: the shadow must make sense from where it is viewed):**
+- One sun for everything: upper left, about 50° above the ground, so a shadow falls to the lower right and is about
+  0.85 × the object's height long. The shadow always lies **on the surface the object stands on** and is seen with
+  that surface's perspective, never with the figure's.
+- **On the board:** the ground is the board, so a shadow is foreshortened with the board's tilt (its depth shrinks by
+  cos tilt, like the tiles). Sprites rendered per tilt step get their shadow from a ground catcher at that same
+  tilt. It starts at the base contact point (no gap, so nothing floats) and is a soft transparent darkening (about
+  30% at the foot, fading with distance), never a grey blob, and it never takes the player colour.
+- **A turned sprite never turns its shadow.** A piece turned on screen (supply pieces facing their owner, roads
+  along a row) needs its shadow drawn separately in board space, or a render made at that heading. Rotating a
+  baked-in shadow points it at a second sun.
+- **3D board (GLB):** models carry no baked shadow; the renderer's one directional light uses the same sun.
+- **Build panel tokens:** a token on a build-menu plate is viewed straight on, not on the tilted board. Render it
+  from the fixed preview view (tilt 0.55, the Look & art view) with the same sun, standing on an implied floor at
+  the plate's lower edge: a short shadow (at most half the token's height) falling lower right, foreshortened as
+  a floor seen from that view, baked into the token image and kept inside the plate. Every token in the panel uses
+  the same view, sun and floor line, so a row of tokens reads as standing on one shelf.
+
 **Draw order (front-most last):** tiles → number plates → roads → Ramparts → homesteads, towns, Capitals, knights
 (back rows first, so nearer pieces overlap farther ones) → the bandit. Corner pieces never reach the number plate
 (its nearest corner is about 0.54 hex units from the plate's centre).
