@@ -1,0 +1,74 @@
+{
+ "schema": "critter-sim-result/1",
+ "critter": "whale",
+ "seed": 1,
+ "minutes": 60,
+ "pass": true,
+ "stages": [
+  {
+   "id": "surface",
+   "target_share": 5,
+   "measured_share": 5.1913,
+   "visits": 29,
+   "mean_seconds": 3.2759
+  },
+  {
+   "id": "cruise",
+   "target_share": 40,
+   "measured_share": 40.4973,
+   "visits": 61,
+   "mean_seconds": 12.1492
+  },
+  {
+   "id": "turn",
+   "target_share": 10,
+   "measured_share": 9.4481,
+   "visits": 28,
+   "mean_seconds": 6.175
+  },
+  {
+   "id": "blow",
+   "target_share": 10,
+   "measured_share": 9.3552,
+   "visits": 43,
+   "mean_seconds": 3.9814
+  },
+  {
+   "id": "beat",
+   "target_share": 10,
+   "measured_share": 10.0984,
+   "visits": 93,
+   "mean_seconds": 1.9871
+  },
+  {
+   "id": "low",
+   "target_share": 20,
+   "measured_share": 20.2131,
+   "visits": 37,
+   "mean_seconds": 9.9973
+  },
+  {
+   "id": "dive",
+   "target_share": 5,
+   "measured_share": 5.1967,
+   "visits": 28,
+   "mean_seconds": 3.3964
+  },
+  {
+   "id": "hidden",
+   "target_share": 0,
+   "measured_share": null,
+   "visits": 28,
+   "mean_seconds": 63.2143
+  }
+ ],
+ "violations": [],
+ "min_coast_distance": 2.2322,
+ "min_body_coast_clearance": 1.0322,
+ "max_speed": 0.15,
+ "max_turn_rate": 20,
+ "limits": {
+  "speed": 0.15,
+  "turn": 20
+ }
+}

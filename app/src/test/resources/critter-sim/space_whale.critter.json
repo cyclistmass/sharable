@@ -1,0 +1,10 @@
+{
+  "id": "space_whale", "name": "Space whale", "model": "space_whale.glb",
+  "length": 2.4, "layer": "under", "altitude": [-2.5,-1.5],
+  "zone": "anywhere", "clear_of_coast": 0,
+  "movement": {"speed":0.12,"turn":20,"bank":0},
+  "animations": [{"name":"glide","seconds":8,"mode":"loop"}],
+  "behavior": {"pattern":"lurker"},
+  "count": [0,1], "chance":1, "shadow":false,
+  "frames": {"headings":16,"tilts":8,"size":288,"poses":{"glide":16}}
+}

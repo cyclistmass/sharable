@@ -628,6 +628,17 @@ fun WatchGameScreen(
     val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile); it.boatColors = PLAYER_COLORS } }
     sea.gullFlap = gullFlap; sea.gullGlide = gullGlide; sea.gullShadow = gullShadow; sea.boatWake = boatWake; sea.boatSprites = boatSprites
     if (sea.sprites3d == null) sea.sprites3d = SeaSprites3d(oceanRes)
+    // The whale (critter engine): rolled once per game from the board, so both phones in an online game see the same one.
+    LaunchedEffect(sea) {
+        val seed = boardSeed(state); val hexes = state.board.hexCount
+        // Off the main thread: reading the spec and finding the whale's start take a moment.
+        sea.critters = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val specs = runCatching { listOf(CritterSpec.parse(appContext.assets.open("critters/whale.critter.json").bufferedReader().use { it.readText() })) }
+                .getOrDefault(emptyList())
+            SeaCritter.forGame(specs, seed, hexes)
+        }
+        android.util.Log.i("WGBG-CRITTER", "critters=${sea.critters.joinToString(",") { it.spec.id }.ifEmpty { "none" }} seed=${boardSeed(state)}")
+    }
     // Gesture handlers live across games (a restart would cancel a tap mid-gesture), so they
     // read the current game's sea and board through these.
     val seaNow by rememberUpdatedState(sea)
@@ -1851,6 +1862,12 @@ private fun DrawScope.drawGame(s: GameState, measurer: TextMeasurer, wood: WoodP
     val lift = 1f + 1.2f * kotlin.math.sin(l.tilt)
     val stand = 1f + 0.15f * kotlin.math.sin(l.tilt)
     val toScreen = { x: Float, y: Float -> l.project(x, y) }
+    // The open water a critter may use: the sea in view at fit zoom, between the side panel and the zoom bars.
+    if (sea != null && sea.viewArea == null && Layout.leftInset > 0f) {
+        val fit = Layout.fit(board, size.width, size.height, Camera.FIT)
+        val a = fit.unproject(Offset(Layout.leftInset + 8.dp.toPx(), 0f)); val b = fit.unproject(Offset(size.width - 100.dp.toPx(), size.height))
+        sea.viewArea = androidx.compose.ui.geometry.Rect(minOf(a.x, b.x), minOf(a.y, b.y), maxOf(a.x, b.x), maxOf(a.y, b.y))
+    }
     when (part) {
         BoardPart.WATER -> { sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX), Sea.WaterPart.BASE); return }
         BoardPart.UNDER -> sea?.drawWater(this, toScreen, scale * l.kAt(0f), l.squash, wood.brush(TOKEN_WOOD_INDEX), Sea.WaterPart.LIVE)
