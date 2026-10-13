@@ -36,6 +36,15 @@ service cloud.firestore {
         request.resource.data.report.size() <= 20000 && request.resource.data.createdAt == request.time;
       allow read, update, delete: if false;
     }
+    // A report's screenshots (#128): a base64 JPEG each, pointing at its report; write-only, like the reports.
+    match /shots/{id} {
+      allow create: if signed() && request.resource.data.keys().hasOnly(['uid','crash','n','image','createdAt']) &&
+        request.resource.data.uid == request.auth.uid && request.resource.data.crash is string &&
+        request.resource.data.n is int && request.resource.data.n >= 0 && request.resource.data.n < 2 &&
+        request.resource.data.image is string && request.resource.data.image.size() <= 450000 &&
+        request.resource.data.createdAt == request.time;
+      allow read, update, delete: if false;
+    }
     match /games/{game} {
       // A missing room is readable (it only says the code is free): creating a room checks that in a transaction.
       allow read: if signed() && (resource == null || resource.data.status == 'lobby' || seated(resource.data));

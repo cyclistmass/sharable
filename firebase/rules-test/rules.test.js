@@ -112,3 +112,19 @@ test('crash reports: a signed-in player can add one; nobody can read, edit or de
   await assertFails(updateDoc(doc(db('p1'), 'crashes/c1'), {report: 'y'}));
   await assertFails(deleteDoc(doc(db('p1'), 'crashes/c1')));
 });
+
+test('report screenshots (#128): anyone signed in may add one under the size cap; nobody reads, changes or deletes them', async () => {
+  const add = (uid, data) => setDoc(doc(db(uid), 'shots/' + Math.random().toString(36).slice(2)), data);
+  const shot = (over) => Object.assign({uid: 'p1', crash: 'c1', n: 0, image: '/9j/4AAQ', createdAt: serverTimestamp()}, over);
+  await assertSucceeds(add('p1', shot({})));
+  await assertSucceeds(add('p1', shot({n: 1, image: 'x'.repeat(450000)})));
+  await assertFails(add(null, shot({})));
+  await assertFails(add('p1', shot({uid: 'p2'})));
+  await assertFails(add('p1', shot({n: 2})));
+  await assertFails(add('p1', shot({image: 'x'.repeat(450001)})));
+  await assertFails(add('p1', shot({extra: 1})));
+  await assertFails(getDocs(collection(db('p1'), 'shots')));
+  await env.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), 'shots/s1'), shot({createdAt: 1})); });
+  await assertFails(getDoc(doc(db('p1'), 'shots/s1')));
+  await assertFails(deleteDoc(doc(db('p1'), 'shots/s1')));
+});

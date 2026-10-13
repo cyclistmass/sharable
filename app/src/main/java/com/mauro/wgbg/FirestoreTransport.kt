@@ -75,10 +75,20 @@ class FirestoreTransport(private val auth: FirebaseAuth, private val db: Firebas
         }.future()
     }
     /** Adds one crash report to `crashes` (write-only for players; see firestore.rules). */
-    fun sendCrash(report: String): CompletableFuture<Unit> = signIn().thenCompose { uid ->
+    /**
+     * A report, then its screenshots (#128) as base64 JPEGs in `shots`, each pointing at the report. The report counts
+     * as sent even if a shot is refused; the result says how many shots made it.
+     */
+    fun sendCrash(report: String, shots: List<String> = emptyList()): CompletableFuture<Int> = signIn().thenCompose { uid ->
         db.collection("crashes").add(mapOf(
             "uid" to uid, "report" to report.take(19_000), "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
-        )).future().thenApply { }
+        )).future().thenCompose { ref ->
+            val sent = shots.mapIndexed { i, img ->
+                db.collection("shots").add(mapOf("uid" to uid, "crash" to ref.id, "n" to i.toLong(), "image" to img,
+                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp())).future().handle { _, e -> if (e == null) 1 else 0 }
+            }
+            CompletableFuture.allOf(*sent.toTypedArray()).thenApply { sent.sumOf { it.join() } }
+        }
     }
 
     override fun listOpen() = games.whereEqualTo("status", "lobby").get().future().thenApply { q -> q.documents.map { room(it.id, it.data!!) } }

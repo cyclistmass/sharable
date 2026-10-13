@@ -81,6 +81,13 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         get() = viewBarsState.floatValue > 0.5f
         set(v) { viewBarsState.floatValue = if (v) 1f else 0f; store.put(VIEW_BARS, viewBarsState.floatValue) }
 
+    private val bugButtonState = mutableFloatStateOf(store.get(BUG_BUTTON, 0f))
+
+    /** A Report button on the game screen, beside Menu, that opens the report with a screenshot (#128, Mauro). Saved. */
+    var bugButton: Boolean
+        get() = bugButtonState.floatValue > 0.5f
+        set(v) { bugButtonState.floatValue = if (v) 1f else 0f; store.put(BUG_BUTTON, bugButtonState.floatValue) }
+
     private val seeThroughState = mutableFloatStateOf(store.get(SEE_THROUGH, 0f))
 
     /** The left side panel (players and turn news): solid wood, or see-through so the board shows behind it (#73). Saved. */
@@ -175,6 +182,7 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         const val ANIMATIONS = "animations"
         const val PACE = "pace"
         const val SEE_THROUGH = "side-panel-see-through"
+        const val BUG_BUTTON = "bug-button"
 
         /** True on an Android emulator (where there's no pinch), from the build's hardware and product names. */
         fun isEmulator(): Boolean {
@@ -276,6 +284,11 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = M
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("Show", selected = env.viewBars, tag = "view-bars-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.viewBars = true }
             Choice("Hide", selected = !env.viewBars, tag = "view-bars-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.viewBars = false }
+        }
+        Text("Report button on the game screen (opens a bug report with a screenshot)", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Show", selected = env.bugButton, tag = "bug-button-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.bugButton = true }
+            Choice("Hide", selected = !env.bugButton, tag = "bug-button-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.bugButton = false }
         }
         Text("Side panel", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

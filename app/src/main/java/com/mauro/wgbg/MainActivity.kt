@@ -850,6 +850,16 @@ fun WatchGameScreen(
     var settingsOpen by remember { mutableStateOf(lookAndArt) }
     var guideOpen by remember { mutableStateOf(false) }
     var feedbackOpen by remember { mutableStateOf(false) }
+    // #128: opening a report first hides the menus, waits a frame, and captures the game as it was.
+    val hostActivity = LocalContext.current as? android.app.Activity
+    var reportShot by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var reportCapture by remember { mutableStateOf(false) }
+    LaunchedEffect(reportCapture) {
+        if (!reportCapture) return@LaunchedEffect
+        delay(250)
+        if (hostActivity == null) { reportShot = null; feedbackOpen = true; reportCapture = false }
+        else Screenshot.capture(hostActivity) { reportShot = it; feedbackOpen = true; reportCapture = false }
+    }
     var histogramOpen by remember { mutableStateOf(false) }
     var hudTopRight by remember { mutableStateOf<Offset?>(null) }
     var diceFlying by remember { mutableStateOf(false) }
@@ -1326,7 +1336,7 @@ fun WatchGameScreen(
                 // Every card and what it does, and what everything costs (Mauro: "make a map in the menu").
                 WoodButton("Card guide", "menu-guide") { guideOpen = true; panelOpen = false; settingsOpen = false }
                 // A bug or an idea, typed or spoken, with this whole game attached (Mauro, 2026-10-12).
-                WoodButton("Report a bug or idea", "menu-feedback") { feedbackOpen = true; panelOpen = false; settingsOpen = false }
+                WoodButton("Report a bug or idea", "menu-feedback") { panelOpen = false; settingsOpen = false; reportCapture = true }
                 if (online != null) Text("Online · room ${online.id}", fontWeight = FontWeight.Bold, modifier = Modifier.testTag("menu-room"))
                 if (!lookAndArt) LiveBoardChoice(env)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1352,6 +1362,9 @@ fun WatchGameScreen(
         BrassButton(if (panelOpen || settingsOpen) "Hide" else "Menu", "menu-toggle", Modifier.align(Alignment.TopEnd).padding(8.dp).height(40.dp)) {
             if (settingsOpen) settingsOpen = false else panelOpen = !panelOpen
         }
+        // The Report button under Menu, switched on in the gear menu (#128): a bug report with a screenshot, in one tap.
+        if (env.bugButton && !feedbackOpen && !reportCapture && !panelOpen && !settingsOpen)
+            BrassButton("Report", "bug-report", Modifier.align(Alignment.TopEnd).padding(top = 56.dp, end = 8.dp).height(36.dp)) { reportCapture = true }
         if (compareTiles) { BackHandler { compareTiles = false }; TileCompare(onBack = { compareTiles = false }) }
         // Settings open from the gear inside the Menu, so the board stays clean.
         if (histogramOpen) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1359,13 +1372,13 @@ fun WatchGameScreen(
             tick.let { DiceHistogram(tracker.rollCounts.copyOf(), tracker.eventCounts.copyOf(), state.ck != null, onClose = { histogramOpen = false }) }
         }
         if (feedbackOpen) {
-            BackHandler { feedbackOpen = false }
+            BackHandler { feedbackOpen = false; reportShot = null }
             val game = remember {
                 if (net != null) "online room ${online?.id} · seed ${net.seed} · ${net.config}\n" + played.joinToString("\n") { wgbg.net.MoveCodec.encode(it) }
                 else LocalSave(setup, seed, played.toList()).encode()
             }
             FeedbackPanel(game, remember { Feedback.historyLines(tracker.history, names) }, remember { Feedback.position(state, names) },
-                onClose = { feedbackOpen = false })
+                shot = reportShot, onClose = { feedbackOpen = false; reportShot = null })
         }
         if (guideOpen) Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
             CardGuide(state.ck != null, env.pirateTheme, onClose = { guideOpen = false })
