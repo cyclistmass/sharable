@@ -727,14 +727,19 @@ fun WatchGameScreen(
                 var a: Action
                 do a = humanMoves.receive() while (!Rules.isLegal(state, a))
                 a
-            } else bots[who].choose(state, buf)
+            } else {
+                // #114: you withdraw your open offer while the others are still answering it.
+                val withdraw = if (me >= 0 && canWithdraw(state, me)) humanMoves.tryReceive().getOrNull()?.takeIf { it == Action.CANCEL_TRADE } else null
+                withdraw ?: bots[who].choose(state, buf)
+            }
             // Real dice: thrown by the OS's secure generator (or dealt from the deck) and recorded in the log.
             if (action.type == ActionType.ROLL) action = dice.next(withEvent = state.ck != null).toAction()
-            noteResponse(who, action)
-            tracker.apply(state, who, action) { Rules.apply(state, action) }
+            val by = Rules.mover(state, action) // #114: a withdraw comes from the offerer, not the player who is up
+            noteResponse(by, action)
+            tracker.apply(state, by, action) { Rules.apply(state, action) }
             played += action
             if (me >= 0) saveStore?.add(action)
-            logMove(who, action)
+            logMove(by, action)
             if (liveFreezeTurn > 0 && state.turn >= liveFreezeTurn) {
                 playing = false
                 liveFreezeTurn = 0
@@ -809,7 +814,7 @@ fun WatchGameScreen(
                 }
                 var rolled = false
                 for (a in v.actions.subList(applied.size, v.actions.size)) {
-                    val who = state.actingPlayer
+                    val who = Rules.mover(state, a) // #114: a withdraw comes from the offerer
                     // Every phone logs the same move list; comparing two phones' logs pins down a desync.
                     runCatching { android.util.Log.i("WGBG-MOVES", "${online.id} #${applied.size} p$who ${names[who]} ${a.type}:${a.payload}${if (applied.size > v.confirmedSeq) " (mine, unconfirmed)" else ""}") }
                     noteResponse(who, a)
@@ -834,6 +839,10 @@ fun WatchGameScreen(
                         views.onReceive { it }
                         humanMoves.onReceive { a -> if (Rules.isLegal(state, a) && send(who, a)) views.receive() else v }
                     }
+                    who != n.me && canWithdraw(state, n.me) && !(n.isHost && (n.bot(who) != null || quitToBot(v.room, n.seatOf(who)))) -> select {
+                        views.onReceive { it }
+                        humanMoves.onReceive { a -> if (a == Action.CANCEL_TRADE && canWithdraw(state, n.me) && send(n.me, a)) views.receive() else v }
+                    }
                     (n.isHost && (n.bot(who) != null || quitToBot(v.room, n.seatOf(who)))) || (autoplay && who == n.me) -> {
                         // The host's phone plays the room's bots, at a watchable pace (dice land first): the AI pace
                         // slider, like a local game; a debug autoplay seat and test runs keep the short wait.
@@ -841,7 +850,9 @@ fun WatchGameScreen(
                         val paced = botPauseAfter(applied.lastOrNull()?.type ?: ActionType.END_TURN, 2, env.aiPace)
                         delay(if (quickBots || who == n.me) short else maxOf(short, paced))
                         val fresh = views.tryReceive().getOrNull()
-                        if (fresh != null) fresh else {
+                        // #114: your Withdraw goes before the next bot answers your offer.
+                        val withdraw = if (fresh == null && canWithdraw(state, n.me)) humanMoves.tryReceive().getOrNull()?.takeIf { it == Action.CANCEL_TRADE } else null
+                        if (fresh != null) fresh else if (withdraw != null) { if (send(n.me, withdraw)) views.receive() else v } else {
                             Rules.legalActions(state, buf)
                             if (send(who, bots[who].choose(state, buf))) views.receive() else v
                         }

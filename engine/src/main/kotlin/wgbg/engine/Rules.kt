@@ -313,7 +313,15 @@ object Rules {
         return gives > 0 || wants > 0
     }
 
+    /**
+     * Who makes [a] now: the acting player, except that the offerer may withdraw an open offer (CANCEL_TRADE)
+     * while the others are still answering it (#114). Transports check a move's seat against this.
+     */
+    fun mover(s: GameState, a: Action): Int =
+        if (s.phase == Phase.DECIDE_TRADE && a.type == ActionType.CANCEL_TRADE) s.currentPlayer else s.actingPlayer
+
     fun isLegal(s: GameState, a: Action): Boolean {
+        if (s.phase == Phase.DECIDE_TRADE && a.type == ActionType.CANCEL_TRADE) return a.payload == 0L // #114, see [mover]
         if (s.ck != null) {
             if (a.type == ActionType.OFFER_TRADE || a.type == ActionType.COUNTER_TRADE) return false
             if (a.type == CkActionType.OFFER_TRADE_CK) return CitiesAndKnights.isValidOffer(s, a)

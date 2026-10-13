@@ -227,4 +227,30 @@ class CounterTradeTest {
         assertEquals(Phase.PLAY_TURN, s.phase)
         assertEquals(0, s.ck!!.offer.sum())
     }
+
+    @Test
+    fun `#114 the offerer may withdraw while others are still answering, in both rulesets`() {
+        val s = offered()
+        Rules.applyChecked(s, Action.counterTrade(cards(WHEAT to 1), cards(BRICK to 1))) // player 1 counters
+        assertEquals(2, s.actingPlayer)
+        assertEquals(0, Rules.mover(s, Action.CANCEL_TRADE), "the offerer withdraws, not the player who is up")
+        assertEquals(2, Rules.mover(s, Action.REJECT_TRADE))
+        assertFalse(Action.CANCEL_TRADE in T.legal(s), "not a move for the responder")
+        assertTrue(Rules.isLegal(s, Action.CANCEL_TRADE))
+        assertFalse(Rules.isLegal(s, Action.of(ActionType.CANCEL_TRADE, 5)), "junk payload")
+        val hand0 = hand(s, 0)
+        Rules.applyChecked(s, Action.CANCEL_TRADE)
+        assertEquals(Phase.PLAY_TURN, s.phase); assertEquals(0, s.actingPlayer)
+        assertEquals(hand0, hand(s, 0)); assertFalse(s.anyCounter); assertEquals(0, s.tradeOffer.sum())
+        assertFalse(Rules.isLegal(s, Action.CANCEL_TRADE), "nothing left to withdraw")
+
+        val ck = CK.playState()
+        CK.roll(ck, 6, 6)
+        CK.give(ck, 0, PAPER, 1)
+        Rules.applyChecked(ck, Action.offerTradeCk(ckCards(PAPER to 1), ckCards()))
+        assertEquals(0, Rules.mover(ck, Action.CANCEL_TRADE))
+        Rules.applyChecked(ck, Action.CANCEL_TRADE)
+        assertEquals(Phase.PLAY_TURN, ck.phase); assertEquals(0, ck.ck!!.offer.sum())
+        CK.checkInvariants(ck)
+    }
 }

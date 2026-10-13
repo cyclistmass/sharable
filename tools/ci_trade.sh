@@ -6,7 +6,8 @@
 #   A. a bank trade: ask a card (top half), pay a lot (bottom half), Trade; counts move by the rate;
 #   B. the cards used in it still answer taps (they went dead after a trade before 0.2.10);
 #   C. several lots in one go: two lots paid for two cards, one Trade (needs a turn holding two lots);
-#   D. a player offer by taps on the Players tab right after, then a partner picked or the offer withdrawn.
+#   D. an open ask by taps on the Players tab (#135: ask a card, offer nothing); the bots counter it; a taker's
+#      button shows their terms and Trade takes them (Cancel withdraws when nobody answered).
 # Fails on a crash, a step that doesn't take, or no turn with two lots within the time.
 # Usage: tools/ci_trade.sh [seconds per ruleset] [rulesets, default "base chivalry"]
 set -uo pipefail
@@ -126,9 +127,9 @@ for ruleset in $RULESETS; do
       read_cards
       o=-1; for ((r = 0; r < n; r++)); do [ "${HELD[$r]}" -gt 0 ] && { o=$r; break; }; done
       if [ $o -ge 0 ]; then
-        ask $(( (o + 1) % n )); pay $o
+        ask $(( (o + 1) % n ))   # #135: ask only ("who has this?"), offering nothing
         lines0=$("$ADB" logcat -d -s WGBG-TURN:I | wc -l)
-        say "D: offer card $o for card $(( (o + 1) % n ))"; tap_text "Offer" || { bad "D: no Offer button"; break; }
+        say "D: ask for card $(( (o + 1) % n )), offering nothing"; tap_text "Offer" || { bad "D: no Offer button"; break; }
         # The bots answer at once: either we pick a partner, or all said no and it's our turn again.
         for _ in $(seq 1 20); do
           sleep 1
@@ -138,8 +139,16 @@ for ruleset in $RULESETS; do
         [ "$("$ADB" logcat -d -s WGBG-TURN:I | wc -l)" -gt "$lines0" ] || { bad "D: the offer never left (Offer did nothing)"; break; }
         l=$(turn_line); say "D: after Offer: ${l:0:160}"
         if echo "$l" | grep -q 'phase=DECIDE_ACCEPTEES'; then
-          partner=$(dump | grep -o 'text="Trade with [A-Za-z]*"' | head -1 | sed 's/text="\(.*\)"/\1/')
-          if [ -n "$partner" ]; then tap_text "$partner" || bad "D: couldn't tap $partner"; else tap_text "Cancel" || bad "D: no way out of the answers"; fi
+          # One button per taker, "Name ⇄" (countered) or "Name ✓": tap one to see its terms, then Trade.
+          partner=$(dump | grep -o 'text="[A-Za-z]* [⇄✓]"' | head -1 | sed 's/text="\(.*\)"/\1/')
+          if [ -n "$partner" ]; then
+            tap_text "$partner" || bad "D: couldn't tap $partner"
+            tap_text "Trade" || bad "D: no Trade button after picking $partner"
+            sleep 1
+            dump | grep -q 'text="Now: ' || bad "D: no new counts after trading with $partner"
+            turn_line | grep -q 'phase=PLAY_TURN' || bad "D: not back to the turn after Trade"
+            echo "trade $ruleset: D took $partner's answer to an open ask"
+          else tap_text "Cancel" || bad "D: no way out of the answers"; fi
           sleep 1
         fi
         echo "trade $ruleset: D player offer by touch ok ($(turn_line | sed -n 's/.* phase=\([^ ]*\).*/\1/p'))"

@@ -91,7 +91,7 @@ class SyncDriver {
         val g = game!!; val a = MoveCodec.decode(m.action)
         val seat = room.seats.getOrNull(m.seat)
         val owner = seat?.uid ?: if (seat?.bot != null) room.host else null
-        if (owner != m.uid || room.players.indexOf(m.seat) != g.state.actingPlayer || a == null || !Rules.isLegal(g.state, a)) rejected.add(m.seq)
+        if (a == null || owner != m.uid || room.players.indexOf(m.seat) != Rules.mover(g.state, a) || !Rules.isLegal(g.state, a)) rejected.add(m.seq)
         else g.apply(a)
         prefix.add(m)
     }

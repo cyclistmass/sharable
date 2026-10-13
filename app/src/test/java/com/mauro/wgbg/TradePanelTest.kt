@@ -216,6 +216,7 @@ class TradePanelTest {
         assertEquals("Offer" to "Close", tradeButtonLabels(TradeMode.COMPOSE, countering = false, bank = false, entered = false))
         assertEquals("Offer" to "Clear", tradeButtonLabels(TradeMode.COMPOSE, countering = false, bank = false, entered = true))
         assertEquals("Trade" to "Clear", tradeButtonLabels(TradeMode.COMPOSE, countering = false, bank = true, entered = true))
+        assertEquals("Trade" to "Withdraw", tradeButtonLabels(TradeMode.WAITING, countering = false, bank = false, entered = false, withdraw = true)) // #114
         assertEquals("Yes" to "No", tradeButtonLabels(TradeMode.RESPOND, countering = false, bank = false, entered = false))
         assertEquals("Send" to "Back", tradeButtonLabels(TradeMode.RESPOND, countering = true, bank = false, entered = true))
         assertEquals("Trade" to "Cancel", tradeButtonLabels(TradeMode.PICK_PARTNER, countering = false, bank = false, entered = false))

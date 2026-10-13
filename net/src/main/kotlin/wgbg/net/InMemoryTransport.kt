@@ -58,8 +58,9 @@ class InMemoryTransport(val uid: String, private val store: MemoryStore = Memory
         val driver = store.drivers.getOrPut(id) { SyncDriver() }
         driver.acceptDelta(s.room, s.moves.drop((driver.confirmedSeq + 1).toInt())); val state = driver.state!!
         val owner = s.room.seats.getOrNull(seat)?.let { it.uid ?: if (it.bot != null) s.room.host else null }
-        require(owner == uid && s.room.players.indexOf(seat) == state.actingPlayer)
-        val a = MoveCodec.decode(action) ?: error("Invalid move"); require(Rules.isLegal(state, a))
+        val a = MoveCodec.decode(action) ?: error("Invalid move")
+        require(owner == uid && s.room.players.indexOf(seat) == Rules.mover(state, a)) // the offerer may withdraw out of turn (#114)
+        require(Rules.isLegal(state, a))
         publish(s.copy(room = s.room.copy(nextSeq = seq + 1), moves = s.moves + Move(seq, seat, uid, action)))
     }
     override fun finish(id: String) = operation {

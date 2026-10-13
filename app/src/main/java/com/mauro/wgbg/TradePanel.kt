@@ -132,6 +132,9 @@ fun counterFor(s: GameState, get: IntArray, give: IntArray): Action? = runCatchi
     if (s.ck != null) Action.counterTradeCk(give = get, want = give) else Action.counterTrade(give = get, want = give)
 }.getOrNull()
 
+/** [me] made the open offer and may withdraw it now, while the others are still answering (#114). */
+fun canWithdraw(s: GameState, me: Int) = s.phase == Phase.DECIDE_TRADE && s.currentPlayer == me && s.actingPlayer != me
+
 /** The open offer only gives or only asks (#135): answer it with a counter, there is nothing to say yes to. */
 fun isOpenAsk(s: GameState) = s.phase == Phase.DECIDE_TRADE && !Rules.isTwoSided(s)
 
@@ -295,12 +298,13 @@ fun TradePanel(
             mode == TradeMode.COMPOSE -> { { if (get.any { it > 0 } || give.any { it > 0 }) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } else onClose() } }
             mode == TradeMode.RESPOND -> { { onMove(Action.REJECT_TRADE) } }
             mode == TradeMode.PICK_PARTNER -> { { onMove(Action.CANCEL_TRADE) } }
+            canWithdraw(s, me) -> { { onMove(Action.CANCEL_TRADE) } }
             else -> null
         }
         val counter: (() -> Unit)? = if (mode == TradeMode.RESPOND && !countering) {
             { get = termGet.copyOf(); give = termGive.copyOf(); countering = true }
         } else null
-        val labels = tradeButtonLabels(mode, countering, bankTab, get.any { it > 0 } || give.any { it > 0 })
+        val labels = tradeButtonLabels(mode, countering, bankTab, get.any { it > 0 } || give.any { it > 0 }, canWithdraw(s, me))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             BigButton(labels.first, YES, "trade-yes", yes?.let { a -> { (bankMoves ?: listOf(a)).forEach(onMove); if (mode == TradeMode.COMPOSE) { get = IntArray(tradeCards(s)); give = IntArray(tradeCards(s)) } } })
             BigButton(if (autoNoSeconds != null && mode == TradeMode.RESPOND) "${labels.second} ($autoNoSeconds)" else labels.second, NO, "trade-no", no)
@@ -314,8 +318,9 @@ fun TradePanel(
  * What the green and red buttons say: Yes/No only when answering someone; your own offer is "Offer"
  * (or "Trade" with the bank) and "Clear"/"Close"; picking a partner is "Trade"/"Cancel"; a counter is "Send"/"Back".
  */
-internal fun tradeButtonLabels(mode: TradeMode, countering: Boolean, bank: Boolean, entered: Boolean): Pair<String, String> = when {
+internal fun tradeButtonLabels(mode: TradeMode, countering: Boolean, bank: Boolean, entered: Boolean, withdraw: Boolean = false): Pair<String, String> = when {
     countering -> "Send" to "Back"
+    withdraw -> "Trade" to "Withdraw"
     mode == TradeMode.COMPOSE -> (if (bank) "Trade" else "Offer") to (if (entered) "Clear" else "Close")
     mode == TradeMode.PICK_PARTNER -> "Trade" to "Cancel"
     else -> "Yes" to "No"
