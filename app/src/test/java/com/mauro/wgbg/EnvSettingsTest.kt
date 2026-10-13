@@ -47,6 +47,13 @@ class EnvSettingsTest {
     }
 
     @Test
+    fun `music plays at half the slider (-6 dB), and full slider is half scale`() {
+        assertEquals(0.5f, musicLevel(1f))
+        assertEquals(SoundSettings.DEFAULT_MUSIC / 2, musicLevel(SoundSettings.DEFAULT_MUSIC))
+        assertEquals(0f, musicLevel(-1f)); assertEquals(0.5f, musicLevel(3f))
+    }
+
+    @Test
     fun `reset puts every setting back to its default`() {
         val store = MapStore()
         val env = EnvSettings(store).apply { this[Item.CLOUDS] = 1f; this[Item.WAVES] = 0f }
