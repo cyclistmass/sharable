@@ -113,11 +113,19 @@ jobs:
       - name: Rules and push-delivery latency tests (demo project)
         run: firebase emulators:exec --only firestore --project demo-wgbg "npm --prefix firebase/rules-test test"
 
-  # Random-input (monkey) test of the real app on an emulator: any crash or ANR fails the build.
-  monkey:
+  # The real app on an emulator, split into shards that run side by side (a single job took 14 of CI's 17 min):
+  # any crash, ANR or failed check fails the build. The emulator is booted once, snapshotted and cached, so later
+  # runs start from the snapshot instead of a cold boot.
+  device:
     needs: build-and-test
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [monkey, play, trade, online]
+    env:
+      SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
 
@@ -127,19 +135,23 @@ jobs:
           path: working-german-board-game/apk
 
       - uses: actions/download-artifact@v4
+        if: matrix.shard == 'online'
         with:
           name: working-german-board-game-test-apk
           path: working-german-board-game/apk
 
       # Firebase emulators on the runner for the online two-client test (#35); the Android emulator reaches them at 10.0.2.2.
       - uses: actions/setup-java@v4
+        if: matrix.shard == 'online'
         with:
           distribution: temurin
           java-version: "21"
       - uses: actions/setup-node@v4
+        if: matrix.shard == 'online'
         with:
           node-version: "24"
       - name: Start Firebase emulators (Firestore + Auth, demo project)
+        if: matrix.shard == 'online'
         run: |
           npm install --global firebase-tools@15.33.0 > /dev/null
           nohup firebase emulators:start --only firestore,auth --project demo-wgbg > fbemu.log 2>&1 &
@@ -152,34 +164,66 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Monkey test on an emulator
+      # A booted emulator snapshot, shared by every shard and run; rebuilt only when the key changes.
+      - name: Emulator snapshot cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-33-aosp_atd-x86_64-v1
+      - name: Boot once and save the snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          # Lean Automated Test Device image (no Google services eating the CPU right after boot).
           api-level: 33
           arch: x86_64
           target: aosp_atd
           cores: 3
           ram-size: 4096M
-          disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
-          working-directory: working-german-board-game
-          # Menus and a base game, then straight into an Age of Chivalry game.
-          script: |
-            bash tools/ci_monkey.sh apk/app-debug.apk 4000
-            SETTLE=1 START=chivalry bash tools/ci_monkey.sh apk/app-debug.apk 3000
-            # The app plays itself (#46): bots-only games at Max speed in both rulesets; every game must finish.
-            bash tools/ci_selfplay.sh 60 3
-            # A human seat played by tapping the screen like a finger: both rulesets with 3 and 4 players; any crash fails.
-            bash tools/ci_touchplay.sh 100 10
-            # Online play end to end (#35): two clients, one room, a whole game on the Firebase emulators.
-            bash tools/ci_online.sh apk/app-debug-androidTest.apk demo-wgbg
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "emulator snapshot saved for the cache"
 
-      - name: Upload monkey log
+      # Lean Automated Test Device image (no Google services eating the CPU right after boot). The runner's script
+      # runs each line on its own, so every line is one whole command that only acts for its shard.
+      - name: Device tests (${{ matrix.shard }})
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          target: aosp_atd
+          cores: 3
+          ram-size: 4096M
+          force-avd-creation: false
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
+          working-directory: working-german-board-game
+          script: |
+            # Menus and a base game, then straight into an Age of Chivalry game.
+            [ "$SHARD" != monkey ] || bash tools/ci_monkey.sh apk/app-debug.apk 4000
+            [ "$SHARD" != monkey ] || SETTLE=1 START=chivalry bash tools/ci_monkey.sh apk/app-debug.apk 3000
+            # The app plays itself (#46): bots-only games at Max speed in both rulesets; every game must finish.
+            [ "$SHARD" != play ] || bash tools/ci_selfplay.sh 60 3
+            # A human seat played by tapping the screen like a finger: both rulesets with 3 and 4 players; any crash fails.
+            [ "$SHARD" != play ] || bash tools/ci_touchplay.sh 100 10
+            # A whole game to the end screen, seat 0 driven by hooks; a stalled game fails within 60 s with the reason.
+            [ "$SHARD" != play ] || [ ! -f tools/play_to_end.sh ] || STALL=60 bash tools/play_to_end.sh chivalry 4 900
+            # Trades by touch (#122, #135, #114): bank trades, several lots, open offers, withdrawing an offer, in both rulesets.
+            [ "$SHARD" != trade ] || [ -f tools/ci_trade.sh ] || echo "::warning::tools/ci_trade.sh is not in this tree yet"
+            [ "$SHARD" != trade ] || [ ! -f tools/ci_trade.sh ] || bash tools/ci_trade.sh
+            [ "$SHARD" != trade ] || [ ! -f tools/ci_withdraw.sh ] || bash tools/ci_withdraw.sh 300 "base chivalry"
+            # Online play end to end (#35): two clients, one room, a whole game on the Firebase emulators.
+            [ "$SHARD" != online ] || bash tools/ci_online.sh apk/app-debug-androidTest.apk demo-wgbg
+
+      - name: Upload device logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: monkey-log
+          name: device-log-${{ matrix.shard }}
+          if-no-files-found: ignore
           path: |
             working-german-board-game/monkey.txt
             working-german-board-game/crash.txt
