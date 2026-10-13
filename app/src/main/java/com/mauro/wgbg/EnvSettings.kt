@@ -58,7 +58,7 @@ class PrefsStore(context: Context) : FloatStore {
  * Scenery amounts, each 0..1 and saved across restarts: how many clouds, birds and harbour
  * boats show, and how busy the waves are. Pure decoration; the game never reads them.
  */
-class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Boolean = false) {
+class EnvSettings(private val store: FloatStore) {
     enum class Item(val label: String, val key: String) {
         CLOUDS("Clouds", "env-clouds"), BIRDS("Birds", "env-birds"), BOATS("Boats", "env-boats"), WAVES("Waves", "env-waves")
     }
@@ -81,9 +81,12 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         get() = densityState.floatValue
         set(v) { densityState.floatValue = v.coerceIn(0f, 1f); store.put(DENSITY, densityState.floatValue) }
 
-    private val viewBarsState = mutableFloatStateOf(store.get(VIEW_BARS, if (viewBarsDefault) 1f else 0f))
+    private val viewBarsState = mutableFloatStateOf(store.get(VIEW_BARS, 0f))
 
-    /** On-screen Zoom/Tilt bars: phones pinch and two-finger tilt instead; on by default on an emulator. Saved. */
+    /**
+     * On-screen Zoom, Tilt and (3D board) Turn bars, off by default on every device: pinch, two-finger drag and twist do
+     * the same (#137, Mauro: gestures by default, the sliders only when switched on under the gear). Saved.
+     */
     var viewBars: Boolean
         get() = viewBarsState.floatValue > 0.5f
         set(v) { viewBarsState.floatValue = if (v) 1f else 0f; store.put(VIEW_BARS, viewBarsState.floatValue) }
@@ -171,7 +174,7 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         set(v) { eventDie.floatValue = v.coerceIn(0, DiceArt.EVENT_STYLES.size - 1).toFloat(); store.put(EVENT_DIE, eventDie.floatValue) }
 
     /** Back to the defaults (saved). */
-    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0; liveBoard = false; liveLod = 0; facePieces = true; aiPace = AI_PACE_DEFAULT }
+    fun reset() { for (i in Item.entries) this[i] = DEFAULT; density = DEFAULT; animations = true; pirateTheme = false; tileEdge = TileEdge.THIN; eventDieStyle = 0; liveBoard = false; liveLod = 0; facePieces = true; aiPace = AI_PACE_DEFAULT; viewBars = false }
 
     val clouds get() = this[Item.CLOUDS]
     val birds get() = this[Item.BIRDS]
@@ -196,12 +199,6 @@ class EnvSettings(private val store: FloatStore, private val viewBarsDefault: Bo
         const val AI_PACE_MAX = 5f
         const val SEE_THROUGH = "side-panel-see-through"
         const val BUG_BUTTON = "bug-button"
-
-        /** True on an Android emulator (where there's no pinch), from the build's hardware and product names. */
-        fun isEmulator(): Boolean {
-            val b = android.os.Build.FINGERPRINT.orEmpty() + " " + android.os.Build.HARDWARE.orEmpty() + " " + android.os.Build.PRODUCT.orEmpty()
-            return listOf("generic", "ranchu", "goldfish", "sdk_gphone", "emulator").any { it in b }
-        }
     }
 }
 
@@ -291,7 +288,7 @@ fun SettingsPanel(env: EnvSettings, sound: SoundSettings, modifier: Modifier = M
             // A preview of the chosen style's ship face.
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(DiceArt.eventFace(true, 0, env.eventDieStyle)), null, Modifier.size(56.dp))
         }
-        Text("Zoom and Tilt bars (for emulators and mice; phones pinch)", fontSize = 13.sp, color = Color(0xFFD9B865))
+        Text("Zoom, Tilt and Turn sliders on the game screen (pinch, drag and twist work without them)", fontSize = 13.sp, color = Color(0xFFD9B865))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("Show", selected = env.viewBars, tag = "view-bars-on", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.viewBars = true }
             Choice("Hide", selected = !env.viewBars, tag = "view-bars-off", modifier = Modifier.height(36.dp).width(110.dp), size = 13.sp) { env.viewBars = false }

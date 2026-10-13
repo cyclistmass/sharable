@@ -64,11 +64,11 @@ object ViewBars {
 /** The Zoom and Tilt bars (and Turn, when [rotation] isn't null) on a small wood plate with a brass edge. */
 @Composable
 fun ViewBarsPanel(camera: Camera, onZoom: (Float) -> Unit, onTilt: (Float) -> Unit, modifier: Modifier = Modifier,
-                  rotation: Float? = null, onTurn: (Float) -> Unit = {}, zoomTilt: Boolean = true) {
+                  rotation: Float? = null, onTurn: (Float) -> Unit = {}) {
     Row(modifier.brassEdgedWood(3.dp).padding(horizontal = 6.dp, vertical = 8.dp).testTag("view-bars"),
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (zoomTilt) BrassBar("Zoom", ViewBars.zoomToBar(camera.zoom), "bar-zoom", height = 110.dp) { onZoom(ViewBars.barToZoom(it)) }
-        if (zoomTilt) BrassBar("Tilt", ViewBars.tiltToBar(camera.tilt), "bar-tilt", height = 110.dp) { onTilt(ViewBars.barToTilt(it)) }
+        BrassBar("Zoom", ViewBars.zoomToBar(camera.zoom), "bar-zoom", height = 110.dp) { onZoom(ViewBars.barToZoom(it)) }
+        BrassBar("Tilt", ViewBars.tiltToBar(camera.tilt), "bar-tilt", height = 110.dp) { onTilt(ViewBars.barToTilt(it)) }
         if (rotation != null) BrassBar("Turn", ViewBars.turnToBar(rotation), "bar-turn", height = 110.dp, fromMiddle = true) {
             onTurn(ViewBars.barToTurn(it))
         }

@@ -586,10 +586,9 @@ fun WatchGameScreen(
     /** Watching bots: stop on the finished board instead of going straight into the next game (#13). */
     var oneGame by remember { mutableStateOf(false) }
     var liveFreezeTurn by remember { mutableIntStateOf(0) } // debug measurement: pause a real bot game
-    var compareTiles by remember { mutableStateOf(false) }
     // Scenery settings (density and motion), kept across restarts; the sea reads them once it supports them.
     val appContext = LocalContext.current.applicationContext
-    val env = remember { EnvSettings(PrefsStore(appContext), viewBarsDefault = EnvSettings.isEmulator()) }
+    val env = remember { EnvSettings(PrefsStore(appContext)) }
     // The 3D models in the app (knights become models once their GLBs are added; until then they stay sprites).
     val liveModels = remember { appContext.assets.list("filament")?.map { it.removeSuffix(".glb") }?.toSet() ?: emptySet() }
     val sound = remember { SoundSettings(PrefsStore(appContext)) }
@@ -1198,11 +1197,10 @@ fun WatchGameScreen(
             }
         }
         // Inventory: the illustrated resource cards along the bottom, then the dice faces.
-        // Look & art page (#71): Done goes back to the start screen; Tiles: compare shows every tile look side by side.
+        // Look & art page (#71): Done goes back to the start screen. The Tiles: compare page is gone (Mauro, #136).
         if (lookAndArt) Row(Modifier.align(Alignment.TopStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically) {
             GoButton("Done", "look-done", true, Modifier.width(120.dp).height(44.dp)) { onExit() }
-            BrassButton("Tiles: compare", "look-tile-compare", Modifier.height(44.dp)) { compareTiles = true; settingsOpen = false }
             BrassButton("Card guide", "look-guide", Modifier.height(44.dp)) { guideOpen = true; settingsOpen = false }
         }
         // Opened from the in-game Menu ("3D collection"): Done returns to the game (#115: "no way to leave"; Back already did).
@@ -1355,7 +1353,7 @@ fun WatchGameScreen(
                 if (online != null) Text("Online · room ${online.id}", fontWeight = FontWeight.Bold, modifier = Modifier.testTag("menu-room"))
                 if (!lookAndArt) LiveBoardChoice(env)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
- // Inventory and Tiles: compare live on the Look & art page before the game now (#71, Mauro: clean up the menu).
+ // Inventory lives on the Look & art page before the game now (#71, Mauro: clean up the menu).
                     WoodButton("Fit", "menu-fit") { camera = Camera.FIT }
                     if (env.liveBoard) WoodButton("3D collection (test)", "menu-live-collection") { inventory = true; panelOpen = false; settingsOpen = false; camera = Camera.FIT; boardRotation = 0f }
                     if (online == null) WoodButton(if (diceSetting == 0) "Dice: random" else "Dice: ${36 * diceSetting} deck · ${(dice as? DiceDeck)?.remaining ?: ""}", "menu-dice") {
@@ -1382,7 +1380,6 @@ fun WatchGameScreen(
         // The Report button under Menu, switched on in the gear menu (#128): a bug report with a screenshot, in one tap.
         if (env.bugButton && !feedbackOpen && !reportCapture && !panelOpen && !settingsOpen)
             BrassButton("Report", "bug-report", Modifier.align(Alignment.TopEnd).padding(top = 56.dp, end = 8.dp).height(36.dp)) { reportCapture = true }
-        if (compareTiles) { BackHandler { compareTiles = false }; TileCompare(onBack = { compareTiles = false }) }
         // Settings open from the gear inside the Menu, so the board stays clean.
         if (histogramOpen) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             // Copies, so each move's new counts reach the screen (the arrays themselves never change identity).
@@ -1443,14 +1440,14 @@ fun WatchGameScreen(
         if (me >= 0 && !inventory && !panelOpen && !settingsOpen && !chestOpen && tick.let {
                 (state.phase == Phase.PLAY_TURN && state.currentPlayer == me || inSetup(state)) && state.actingPlayer == me })
             BuildMenu(state.ck != null, legal, buildMode, { buildMode = it }, { a -> pending = emptyList(); humanMoves.trySend(a) },
-                Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (env.viewBars) 156.dp else if (liveBoard) 64.dp else 8.dp))
-        // Zoom and Tilt bars on the right edge (pinch and two-finger drag do the same). On the 3D board the Turn bar
-        // always shows, even with the bars hidden (phones hide them by default; Mauro: "did we lose the rotate slider?").
-        if ((env.viewBars || liveBoard) && !inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
+                Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = if (env.viewBars) 156.dp else 8.dp))
+        // Zoom, Tilt and Turn bars on the right edge, only when switched on under the gear (#137, Mauro: gestures by
+        // default). Pinch zooms, two-finger drag tilts and a two-finger twist turns the 3D board without them.
+        if (env.viewBars && !inventory && !panelOpen && !settingsOpen && boardSize.minDimension > 0f) ViewBarsPanel(camera,
             onZoom = { z -> camera = camera.transform(Offset(boardSize.width / 2f, boardSize.height / 2f), Offset.Zero, z / camera.zoom, boardSize) },
             onTilt = { t -> camera = camera.copy(tilt = t) },
             // The 3D board also turns (Mauro: "a rotate slider - start it in the middle"); the flat board doesn't.
-            rotation = boardRotation.takeIf { liveBoard }, onTurn = { r -> boardRotation = r }, zoomTilt = env.viewBars,
+            rotation = boardRotation.takeIf { liveBoard }, onTurn = { r -> boardRotation = r },
             // Upper right under Trade, short, clear of the move buttons that stack up from the bottom right.
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 104.dp, end = 8.dp))
     }
@@ -2347,14 +2344,10 @@ private fun DrawScope.drawInventory(measurer: TextMeasurer, wood: WoodPieces, ba
  * placed through the 3D camera and square to their edge. They used to be plain discs off the coast with no piers.
  */
 private fun DrawScope.drawLivePorts(board: Board, p: LiveProjection, measurer: TextMeasurer, wood: WoodPieces, buildings: BuildingSprites?) {
-    val c = kotlin.math.cos(p.rotation); val s = kotlin.math.sin(p.rotation)
     val ports = board.ports.map { port ->
-        val v1 = liveVertex(board, port.v1); val v2 = liveVertex(board, port.v2)
-        val n = coastOutward(board, port.v1, port.v2)
-        val mid = p.project((v1 + v2) / 2f)
-        // Out on screen before the tilt squash, which the water and piers apply themselves.
-        PortGeom(port.type, p.project(v1), p.project(v2), mid, Offset(c * n.x - s * n.y, s * n.x + c * n.y),
-            p.project((v1 + v2) / 2f + n * (if (buildings != null) PORT_BUOY_OUT else 0.58f)), p.scale)
+        // Shallows and buoy on the sea, piers down from the coast corners on the tile tops (#136).
+        val h = liveHarbour(board, port.v1, port.v2, p, if (buildings != null) PORT_BUOY_OUT else 0.58f)
+        PortGeom(port.type, h.a, h.b, h.mid, h.out, h.token, p.scale)
     }
     val squash = kotlin.math.cos(p.tilt)
     for (pg in ports) drawPortWater(pg, pg.scale, squash)
