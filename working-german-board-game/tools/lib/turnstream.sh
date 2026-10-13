@@ -37,7 +37,7 @@ ts_alive() { TS_MOVED=$SECONDS; }
 
 ts_check_stall() {
   [ $((SECONDS - TS_MOVED)) -lt "$TS_STALL" ] && return 0
-  local shot="${OUT:-${TMPDIR:-/tmp}}/stuck-${1:-run}.png"
+  local shot="${OUT:-.}/stuck-${1:-run}.png" # the working dir by default, like the trade scripts (CI uploads *.png)
   echo "STUCK${1:+ ($1)}: nothing new for ${TS_STALL}s. device=$("${ADB:-adb}" get-state 2>&1) app_pid=$("${ADB:-adb}" shell pidof $TS_PKG)"
   echo "last line: ${TS_LINE:0:300}"
   "${ADB:-adb}" exec-out screencap -p > "$shot" 2>/dev/null && echo "screenshot: $shot"
