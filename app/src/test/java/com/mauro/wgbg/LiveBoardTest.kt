@@ -102,6 +102,7 @@ class LiveBoardTest {
             assertEquals(19, list.count { it.model.startsWith("tile_") && it.model.endsWith("lod$lod") })
             assertEquals(18, list.count { it.model == "number_plate" })
             assertEquals(2, list.count { it.model == "${theme}_road_v" && it.owner == 2 })
+            assertTrue(list.filter { it.model.endsWith("_road_v") }.all { it.height == LIVE_ROAD_LIFT }, "roads stand proud of the tile edges")
             assertEquals(1, list.count { it.model == "${theme}_homestead" && it.owner == 0 })
             assertEquals(1, list.count { it.model == "${theme}_ramparts" && it.owner == 1 })
             assertEquals(1, list.count { it.model == "${theme}_capital_guilds" && it.owner == 2 })
