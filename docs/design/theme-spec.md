@@ -12,7 +12,7 @@ it with this page.
    - the 3 progress decks and their cards, and the Fortune cards (base game).
 2. **Board art**: 6 tiles (5 terrains and the desert), coast and cliffs, the sea texture, and ports showing each
    resource.
-3. **Pieces**: road, homestead, town, knight levels 1 to 3 (an active knight flies its flag), Ramparts at 3 heights,
+3. **Pieces**: road, homestead, town, knight levels 1 to 3 (an active knight raises its banner; see **Knight activation** in art-spec.md), Ramparts at 3 heights,
    and the 3 Capitals. Each is split into a body tinted in the player's colour and an untinted trim.
 4. **The Bandit and the Raiders' ship.**
 5. **Cards**: the 5 resources and the 3 commodities (commodities framed differently from resources), a background

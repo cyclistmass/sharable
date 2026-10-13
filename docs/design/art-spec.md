@@ -28,7 +28,7 @@ from any artist or AI drop in without rework. Sizes are measured from the shippe
   Mauro, 2026-10-10: "is perfect". Don't "fix" it.
 - Wood: rich grain, hand-rubbed finish, crisp joinery; colour like `wood_grain.png` stained dark (#4A3020).
 - Painted art (tiles, cards) is detailed and warm, like a premium illustrated board game.
-- Light comes from the **upper left** in every picture; shadows fall to the lower right.
+- Light comes from the theme's sun, by default the **upper left** (shadows to the lower right); see **Shadows and perspective**.
 - No text, numbers or borders painted into art: the game draws numbers, labels and frames.
 - Our names only (see `AGENTS.md`); art must be our own or CC0, recorded in `CREDITS.md`.
 
@@ -84,7 +84,35 @@ two layers per tilt step:
 | Road | an edge | **0.66 × 0.19**, raised 0.045 | low | 3 directions (vertical, +30°, −30°); a unit edge takes **two sprites centred ±0.17** from its middle, overlapping |
 | Ramparts (Age of Chivalry) | under a town | Pirate: square ring **0.55 × 0.55** with a gatehouse, total depth 0.58 | curtain 0.078, gatehouse 0.169 | drawn before (under) the town or Capital |
 | Capital (Age of Chivalry) | replaces a town | town cluster plus a central keep 0.215 × 0.195, dome about 0.24 across | dome top 0.475, finial 0.50 | Guilds gold (trade), Academy green (science), Crown blue (politics); never drawn on top of a town |
-| Knight token | a corner | 1.30 (3× the first 0.62, then 30% smaller) | — | keep `knight_*`; they already follow this frame idea |
+| Knight token | a corner | 1.30 (3× the first 0.62, then 30% smaller) | — | keep `knight_*`; they already follow this frame idea. Every knight carries a banner: see **Knight activation** |
+
+**Knight activation (standard for every theme, Mauro 2026-10-13):** an active knight is shown by its **banner being raised**.
+Every knight model, at every level (L1 included) and in every theme, carries a banner on a pole held by the figure.
+Active: the banner is raised high and flies open, in the owner's colour, above the figure's head. Inactive: the same
+model with the banner lowered (pole down or banner furled against it). The banner's position is the signal; it
+must read at phone size without colour, so the inactive state is never only a greyed-out copy. The `_active` and
+`_inactive` file names stay as they are.
+
+**Shadows and perspective (Mauro 2026-10-13: the shadow must make sense from where it is viewed):**
+- **The sun can be anywhere and any colour** (a theme may pick a red dwarf low on the horizon or a blue-white star
+  overhead), as long as the board stays readable: numbers, pieces and player colours clear, no shadow hiding a
+  number plate. What is fixed is that there is **one sun per board**, and every tile, piece, token and shadow
+  agrees with it. The default is upper left, about 50° up, so shadows fall to the lower right at about 0.85 × the
+  object's height. The shadow always lies **on the surface the object stands on** and is seen with
+  that surface's perspective, never with the figure's.
+- **On the board:** the ground is the board, so a shadow is foreshortened with the board's tilt (its depth shrinks by
+  cos tilt, like the tiles). Sprites rendered per tilt step get their shadow from a ground catcher at that same
+  tilt. It starts at the base contact point (no gap, so nothing floats) and is a soft transparent darkening (about
+  30% at the foot, fading with distance), never a grey blob, and it never takes the player colour.
+- **A turned sprite never turns its shadow.** A piece turned on screen (supply pieces facing their owner, roads
+  along a row) needs its shadow drawn separately in board space, or a render made at that heading. Rotating a
+  baked-in shadow points it at a second sun.
+- **3D board (GLB):** models carry no baked shadow; the renderer's one directional light is the board's sun.
+- **Build panel tokens:** a token on a build-menu plate is viewed straight on, not on the tilted board. Render it
+  from the fixed preview view (tilt 0.55, the Look & art view) with the theme's sun, standing on an implied floor at
+  the plate's lower edge: a short shadow (at most half the token's height) falling lower right, foreshortened as
+  a floor seen from that view, baked into the token image and kept inside the plate. Every token in the panel uses
+  the same view, sun and floor line, so a row of tokens reads as standing on one shelf.
 
 **Draw order (front-most last):** tiles → number plates → roads → Ramparts → homesteads, towns, Capitals, knights
 (back rows first, so nearer pieces overlap farther ones) → the bandit. Corner pieces never reach the number plate
