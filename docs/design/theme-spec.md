@@ -49,6 +49,77 @@ applied); the art spec gives the base frames and file sizes they come from.
 Rules of thumb: a piece's footprint stays inside the corner's share of the tiles around it (no wider than about 0.85),
 nothing on a tile reaches the number plate, and sea life and boats stay smaller than a tile (the whale aside).
 
+## Performance budgets (3D board)
+
+A theme gets **one triangle budget for the whole board**, not a cage per object (Mauro, 2026-10-13: "I am a fan of
+people making magic"). The table gives each object type a default share. A theme may spend more on one type and less
+on another, as long as the **worst-case board** stays under the ceiling. Write the theme's ledger (its own column
+of this table) in the theme's notes.
+
+**Ceiling: 300,000 triangles drawn per frame** at LOD0 on the worst-case board: 4 players, Age of Chivalry, late game,
+everything on the table at once. For 5 to 6 players (30 tiles) the ceiling is 420,000. Also:
+
+- about **150 draw calls** at most, since each GLB group is one draw;
+- **no textures in the GLBs**: colour lives in the vertex colours, as in every shipped GLB. A theme that needs one
+  can ship one shared atlas of at most 2048 × 2048;
+- **no baked shadows**, and transparent surfaces kept small: glass domes, spouts and mist cost more per pixel
+  than any triangle.
+
+| Object | Default LOD0 | LOD1 | Most on the worst board | Worst subtotal |
+|---|---:|---:|---:|---:|
+| Terrain tile (with its props) | 7,500 | 1,900 | 19 | 142,500 |
+| Number plate | 150 | — | 18 | 2,700 |
+| Road | 400 | — | 60 (15 × 4) | 24,000 |
+| Homestead | 500 | — | 20 (5 × 4) | 10,000 |
+| Town | 1,000 | — | 16 (4 × 4) | 16,000 |
+| Ramparts | 800 | — | 12 (3 × 4) | 9,600 |
+| Capital | 1,500 | — | 3 | 4,500 |
+| Knight L1 / L2 / L3 | 2,000 / 2,500 / 3,000 | — | 24 (2 of each level × 4) | 60,000 |
+| Bandit | 4,000 | — | 1 | 4,000 |
+| Raiders' ship | 3,000 | — | 1 | 3,000 |
+| Merchant | 600 | — | 1 | 600 |
+| Port (buoy and dock) | 800 | — | 9 | 7,200 |
+| Boat | 600 | — | 6 | 3,600 |
+| Critter (whale, space whale, …) | 4,000 | 1,000 | 3 | 12,000 |
+| **Board** | | | | **299,700** |
+
+The LOD1 column is the player's low-detail setting (Detail: LOD1): with LOD1 tiles the worst board drops to about
+193,000.
+
+**Where the default board stands today:**
+
+- The shipped tiles peak at 7,253 triangles. The buildings reach 1,422, which is over the homestead and town shares.
+- The measured full board is 121k triangles (default) and 140k (pirate) without knights, in 83 to 85 draws.
+- The space pieces come in well under (knights 2,440 to 2,682).
+- The knight exporter's current ceilings (5,000 / 6,500 / 8,000) are over the table. Knight exports move to
+  2,000 / 2,500 / 3,000 with the v4 knights (Crest), and the default theme's ledger is written then.
+
+**What the totals do on a phone.** These are rough figures for simple vertex-colour shading like ours. They are not
+measured yet on a phone: the only measurements so far are from a desktop browser, which held 60 fps at 140k.
+Profiling the 3D board on a real mid-range phone replaces these guesses.
+
+| Triangles drawn | What to expect |
+|---|---|
+| up to ~300k | Smooth at 60 fps on phones from about 2019 on. The target. |
+| 300k – 600k | Recent phones stay smooth. Older mid-range phones drop frames when the board is tilted with every piece out, and run warm in a long game. |
+| 600k – 1M | Only flagships hold 60 fps; battery drain is noticeable over a game. |
+| over 1M | Stutters on most phones. Don't ship. |
+
+Triangles are rarely the first thing to run out. Before the triangle count bites, these do: too many draw calls
+(many small separate meshes), overdraw from transparent layers, and big textures.
+
+**Where to spend for magic.**
+
+- Spend on **silhouette at phone size**: a piece is about 40 px tall on a phone. Detail that doesn't change its
+  outline at that size is wasted. Check it in the review sheets' black silhouette row.
+- **Few-on-the-board pieces can be lavish.** The Bandit, the Capitals, the Raiders' ship and the Merchant appear once
+  or three times, so a few thousand extra there costs little.
+- **Many-on-the-board pieces must be lean.** Every triangle on a road costs 60, on a knight 24, on a homestead 20.
+- **Free magic:**
+  - vertex-colour gradients and baked ambient occlusion;
+  - emissive glow;
+  - motion: banners, critters, a turning windmill, which move existing triangles and add none.
+
 ## Optional
 
 Critters: boats, birds, a whale or other sea life, clouds, each a module with a model and a movement spec (see [critter-spec.md](critter-spec.md)). A music set list and sounds (dice, Raiders), an intro fly-over.
