@@ -33,6 +33,11 @@ data class GameConfig(
      * still accepted by [Rules.isLegal].
      */
     val generateTradeOffers: Boolean = false,
+    /**
+     * #126: the first player comes from the game seed (same seed, same first seat, so online phones agree and
+     * replays stay exact). Off by default so engine tests and the Catanatron cross-check keep seat 0 starting.
+     */
+    val randomFirstPlayer: Boolean = false,
 ) {
     val citiesAndKnights get() = expansion == Expansion.CITIES_AND_KNIGHTS
 

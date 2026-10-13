@@ -8,10 +8,18 @@ import wgbg.net.*
 class OnlineLobbyTest {
     @Test fun `Firestore wire preserves every config field and long seeds`() {
         for (expansion in Expansion.entries) for (seed in listOf(Long.MIN_VALUE, Long.MAX_VALUE, 0L)) {
-            val config = GameConfig(expansion, 3, 16, BoardLayout.BEGINNER, false, 9, 321, true, true)
+            val config = GameConfig(expansion, 3, 16, BoardLayout.BEGINNER, false, 9, 321, true, true, true)
             val r = Room("ROVER-42", "host", config, seed, listOf(Seat("host", "Host"), Seat("guest", "Guest", ready = true), Seat(bot = "STRONG", open = false), Seat()), Status.playing, 123, 4)
             assertEquals(r, room(r.id, r.wire()))
         }
+    }
+    @Test fun `#126 online games start from the seed's seat, and a room made before #126 reads as seat 0 starting`() {
+        assertTrue(GameSetup().config().randomFirstPlayer)
+        val r = Room("ROVER-42", "host", GameSetup().config(), 9, listOf(Seat("host", "Host"), Seat(), Seat(), Seat()), Status.playing, 0, 0)
+        assertTrue(room(r.id, r.wire()).config.randomFirstPlayer)
+        @Suppress("UNCHECKED_CAST")
+        val old = r.wire().toMutableMap().also { w -> w["options"] = (w["options"] as Map<String, Any?>) - "randomFirstPlayer" }
+        assertFalse(room(r.id, old).config.randomFirstPlayer)
     }
     @Test fun `session maps identity bots settings and readiness through onChange`() {
         val store = MemoryStore(); val host = InMemoryTransport("host", store); val guest = InMemoryTransport("guest", store)

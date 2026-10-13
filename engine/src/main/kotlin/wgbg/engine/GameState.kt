@@ -94,6 +94,8 @@ class GameState internal constructor(
     var turn = 0
     /** Index into the setup snake order (0 until 2 * numPlayers). */
     var setupStep = 0
+    /** Seat that places first in setup and takes the first regular turn (#126). */
+    var firstPlayer = 0
     var lastSettlement = -1
     var robberHex = -1
     var hasRolled = false
@@ -177,6 +179,7 @@ class GameState internal constructor(
         s.actingPlayer = actingPlayer
         s.turn = turn
         s.setupStep = setupStep
+        s.firstPlayer = firstPlayer
         s.lastSettlement = lastSettlement
         s.robberHex = robberHex
         s.hasRolled = hasRolled
@@ -209,6 +212,7 @@ class GameState internal constructor(
         mix(board.hexResource); mix(board.hexNumber)
         for (p in board.ports) mix(p.type)
         mix(phase.ordinal); mix(currentPlayer); mix(actingPlayer); mix(turn); mix(setupStep)
+        if (firstPlayer != 0) mix(firstPlayer)   // only when set, so seat-0 games hash as before
         mix(lastSettlement); mix(robberHex); mix(if (hasRolled) 1 else 0)
         mix(if (devPlayedThisTurn) 1 else 0); mix(freeRoads); mix(lastRoll)
         mix(longestRoadOwner); mix(largestArmyOwner); mix(tradeAccepted); mix(winner)

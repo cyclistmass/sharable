@@ -17,11 +17,29 @@ object Rules {
             BoardLayout.BEGINNER -> BoardGen.beginner()
             BoardLayout.SPIRAL -> BoardGen.spiral(rng)
         }
-        return GameState.initial(config, b, rng)
+        val s = GameState.initial(config, b, rng)
+        if (config.randomFirstPlayer) {
+            s.firstPlayer = firstPlayer(seed, config.numPlayers)
+            s.currentPlayer = s.firstPlayer
+            s.actingPlayer = s.firstPlayer
+        }
+        return s
     }
 
-    /** Seat that places at setup step [step]: 0..n-1 then n-1..0 (snake draft). */
-    fun setupPlayer(step: Int, n: Int) = if (step < n) step else 2 * n - 1 - step
+    /**
+     * #126: the first seat for [seed]. A hash of the seed, not a draw from the game's RNG, so a seed's board, dice
+     * and decks stay the same whoever starts.
+     */
+    fun firstPlayer(seed: Long, n: Int): Int {
+        var z = seed + -0x61c8864680b583ebL
+        z = (z xor (z ushr 30)) * -0x40a7b892e31b1a47L
+        z = (z xor (z ushr 27)) * -0x6b2fb644ecceee15L
+        z = z xor (z ushr 31)
+        return Math.floorMod(z, n.toLong()).toInt()
+    }
+
+    /** Seat that places at setup step [step]: [first] round to the last seat, then back (snake draft). */
+    fun setupPlayer(step: Int, n: Int, first: Int = 0) = ((if (step < n) step else 2 * n - 1 - step) + first) % n
 
     // ---------------------------------------------------------------- queries
 
@@ -517,10 +535,10 @@ object Rules {
             s.setupStep++
             if (s.setupStep == 2 * s.numPlayers) {
                 s.phase = Phase.PLAY_TURN
-                s.currentPlayer = 0
+                s.currentPlayer = s.firstPlayer
             } else {
                 s.phase = Phase.BUILD_INITIAL_SETTLEMENT
-                s.currentPlayer = setupPlayer(s.setupStep, s.numPlayers)
+                s.currentPlayer = setupPlayer(s.setupStep, s.numPlayers, s.firstPlayer)
             }
             s.actingPlayer = s.currentPlayer
         } else if (s.freeRoads > 0 && (piecesLeft(s, p, Piece.ROAD) == 0 || !anyRoadSpot(s, p))) {
