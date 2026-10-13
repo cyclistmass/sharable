@@ -628,14 +628,12 @@ fun WatchGameScreen(
     val sea = remember { Sea(state.board).also { it.oceanBitmap = BitmapFactory.decodeResource(oceanRes, R.drawable.ocean_tile); it.boatColors = PLAYER_COLORS } }
     sea.gullFlap = gullFlap; sea.gullGlide = gullGlide; sea.gullShadow = gullShadow; sea.boatWake = boatWake; sea.boatSprites = boatSprites
     if (sea.sprites3d == null) sea.sprites3d = SeaSprites3d(oceanRes)
-    // The whale (critter engine): rolled once per game from the board, so both phones in an online game see the same one.
+    // The sea's critters (#130 modules, the whale first): rolled once per game from the board, so both phones in an online game agree.
     LaunchedEffect(sea) {
         val seed = boardSeed(state); val hexes = state.board.hexCount
-        // Off the main thread: reading the spec here, and finding the whale's start once the first frame knows the view.
+        // Off the main thread: loading the critter modules (assets/critters/<id>/), and finding a start once the first frame knows the view.
         sea.critters = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-            val specs = runCatching { listOf(CritterSpec.parse(appContext.assets.open("critters/whale.critter.json").bufferedReader().use { it.readText() })) }
-                .getOrDefault(emptyList())
-            SeaCritter.forGame(specs, seed, hexes) { job -> kotlin.concurrent.thread(isDaemon = true, name = "critter-start") { job() } }
+            SeaCritter.forGame(runCatching { CritterModules.load(appContext.assets) }.getOrDefault(emptyList()), seed, hexes) { job -> kotlin.concurrent.thread(isDaemon = true, name = "critter-start") { job() } }
         }
         android.util.Log.i("WGBG-CRITTER", "critters=${sea.critters.joinToString(",") { it.spec.id }.ifEmpty { "none" }} seed=${boardSeed(state)}")
     }

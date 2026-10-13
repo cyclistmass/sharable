@@ -22,6 +22,7 @@
   ]},
   "count": [0,1], "chance": 0.6, "shadow": false,
   "sounds": {"blow": "whale_blow.ogg"},
-  "frames": {"headings":8, "tilts":8, "size":288,
-    "poses":{"swim:d25":1,"swim:d50":1,"swim:d75":1,"beat:d50":8,"blow:d50":3,"dive":8,"surface":8}}
+  "frames": {"headings":8, "tilts":8, "size":288, "span":2.16,
+    "poses":{"swim:d25":1,"swim:d50":1,"swim:d75":1,"beat:d50":8,"blow:d50":3,"dive":8,"surface":8},
+    "stand_in":{"surface":{"frames":["d25","d50"], "fade":"in"}, "dive":{"frames":["d50","d25"], "fade":"out"}}}
 }
