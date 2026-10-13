@@ -85,7 +85,11 @@ internal class CritterModule(
     /** What is wrong with this module; empty when it is good to ship. */
     fun problems(dir: String): List<String> = buildList {
         if (spec.id != dir) add("id '${spec.id}' is not the folder's name '$dir'")
-        if (spec.layer !in CritterModules.LAYERS) add("layer '${spec.layer}' is not one of ${CritterModules.LAYERS}")
+        if (spec.layer != "auto" && spec.layer !in CritterModules.LAYERS) add("layer '${spec.layer}' is not auto or one of ${CritterModules.LAYERS}")
+        // Avoiding the board needs a height clear of it wherever its zone takes it over land.
+        if (spec.boardContact == "avoid" && spec.anchor == null && spec.zone in listOf("over-land", "coast", "anywhere") &&
+            spec.altitude[1] < CritterSpec.LAND_TOP && spec.altitude[0] > -CritterSpec.BOARD_DEPTH)
+            add("zone '${spec.zone}' goes over land, but altitude ${spec.altitude.toList()} never clears the board: widen it or use pass-through")
         if (!(frames.span > 0f)) add("frames.span must be > 0")
         val all = (0 until frames.headings).flatMap { h -> (0 until frames.tilts).map { h to it } }.toSet()
         for ((pose, have) in files) if (have != all) add("$pose: ${all.size - (all intersect have).size} of ${all.size} frames missing")

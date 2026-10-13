@@ -56,9 +56,10 @@ class SeabirdTest {
             repeat(60 * 120) {
                 b.update(1 / 60f)
                 val r = kotlin.math.hypot(b.x, b.y)
-                // Outside a crossing of the island (and a few seconds after one, turning back), it keeps to its ring.
-                if (!b.crossing && settle-- <= 0) assertTrue(r in 2.6f..5.6f, "bird $seed wandered to r=$r")
+                // Outside a crossing of the island or a half-circle (and a few seconds after one, turning back), it keeps to its ring.
+                if (!b.crossing && !b.arcing && settle-- <= 0) assertTrue(r in 2.6f..5.6f, "bird $seed wandered to r=$r")
                 if (b.crossing) settle = 60 * 12
+                if (b.arcing) settle = maxOf(settle, 60 * 15)
             }
         }
     }
@@ -128,5 +129,45 @@ class SeabirdTest {
         repeat(100) { b.update(1 / 60f, boats) }
         for (dt in listOf(-5.7239004E-6f, -1.6353329E-4f, 0f, Float.NaN, -1f)) b.update(dt, boats)
         assertTrue(b.x.isFinite() && b.y.isFinite() && b.heading.isFinite())
+    }
+
+    @Test
+    fun `gulls rise while they flap and sink while they glide, through most of their height range`() {
+        for (seed in 0 until 8) {
+            val b = Seabird(seed, 4f)
+            var lo = 1f; var hi = 0f; var risesWhileFlapping = 0; var flapSteps = 0; var sinksWhileGliding = 0; var glideSteps = 0
+            repeat(60 * 180) {
+                val was = b.altitude
+                b.update(1 / 60f)
+                assertTrue(b.altitude in 0f..1f)
+                if (b.flapping) { flapSteps++; if (b.altitude >= was) risesWhileFlapping++ } else { glideSteps++; if (b.altitude <= was) sinksWhileGliding++ }
+                if (it > 60 * 20) { lo = minOf(lo, b.altitude); hi = maxOf(hi, b.altitude) }
+            }
+            assertTrue(hi - lo > 0.35f, "bird $seed only moved between ${"%.2f".format(lo)} and ${"%.2f".format(hi)}")
+            assertTrue(risesWhileFlapping > flapSteps * 0.95 && sinksWhileGliding > glideSteps * 0.95, "bird $seed: climb follows the wings")
+        }
+    }
+
+    @Test
+    fun `gulls break off into half-circles to both sides, within the turn limit`() {
+        var left = 0; var right = 0
+        for (seed in 0 until 8) {
+            val b = Seabird(seed, 4f)
+            var was = false; var turned = 0f; var h = b.heading
+            repeat(60 * 240) {
+                b.update(1 / 60f)
+                var d = b.heading - h; h = b.heading
+                if (d > Math.PI) d -= (2 * Math.PI).toFloat(); if (d < -Math.PI) d += (2 * Math.PI).toFloat()
+                assertTrue(kotlin.math.abs(d) <= Seabird.MAX_TURN / 60f + 1e-4f)
+                if (b.arcing) turned += d
+                if (was && !b.arcing) {
+                    assertTrue(kotlin.math.abs(kotlin.math.abs(turned) - Math.PI.toFloat()) < 0.1f, "bird $seed: a half-circle turned $turned")
+                    if (turned > 0) left++ else right++
+                    turned = 0f
+                }
+                was = b.arcing
+            }
+        }
+        assertTrue(left >= 8 && right >= 8, "half-circles left $left, right $right")
     }
 }

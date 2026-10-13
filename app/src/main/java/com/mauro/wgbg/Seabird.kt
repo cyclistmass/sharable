@@ -11,7 +11,9 @@ import kotlin.math.sin
 /**
  * A small pale seabird seen from above, with articulated wings: each wing hinges at its shoulder,
  * flapping in short bursts (about a quarter of the time) and otherwise gliding with small flexes.
- * Its path curves gently around the island, now and then looping around a passing boat; flap rate, phase, size and speed differ per bird.
+ * Its path curves gently around the island, now and then looping around a passing boat or breaking off into a
+ * half-circle to either side (Mauro, 2026-10-13: "random semicircles to meander more"). It climbs while it flaps and
+ * sinks slowly while it glides, so it rises and falls ([altitude]). Flap rate, phase, size and speed differ per bird.
  */
 class Seabird(seed: Int, private val ringR: Float) {
     private val rnd = java.util.Random(seed * 7919L + 11)
@@ -33,13 +35,24 @@ class Seabird(seed: Int, private val ringR: Float) {
     /** Index of the boat being circled, or -1 while cruising its home ring. */
     var circling = -1; private set
     /** Seconds until the bird next cuts across the island, and how long the current crossing lasts. */
-    private var nextCross = 20f + rnd.nextFloat() * 60f
+    private var nextCross = 15f + rnd.nextFloat() * 40f
     private var crossLeft = 0f
     /** Where the current crossing heads: the far side of the island, fixed when the crossing starts. */
     private var crossX = 0f
     private var crossY = 0f
     /** True while the bird is cutting across the island (birds fly over land too). */
     val crossing get() = crossLeft > 0f
+    /** Seconds until the next half-circle, how long the current one has left, and its turn rate (rad/s, + = left). */
+    private var nextArc = 4f + rnd.nextFloat() * 8f
+    private var arcLeft = 0f
+    private var arcRate = 0f
+    /** True while the bird is flying a half-circle off its usual line. */
+    val arcing get() = arcLeft > 0f
+    /** Height over the water, 0 (skimming) to 1 (high): it climbs while flapping and sinks while gliding. */
+    var altitude = 0.3f + rnd.nextFloat() * 0.5f; private set
+    /** Rates (1/s) at which it eases up toward the top while flapping and down toward the water while gliding. */
+    private val climb = 0.4f + rnd.nextFloat() * 0.1f
+    private val sink = 0.15f + rnd.nextFloat() * 0.04f
 
     var x = 0f; private set
     var y = 0f; private set
@@ -82,16 +95,32 @@ class Seabird(seed: Int, private val ringR: Float) {
             if (crossLeft > 0f) crossLeft -= dt
             else {
                 nextCross -= dt
-                if (nextCross <= 0f) {
+                if (nextCross <= 0f && arcLeft <= 0f) {
                     // Long enough to reach the far side at this bird's speed (with time to turn), not a fixed span.
-                    crossLeft = 2.4f * ringR / speed; nextCross = 40f + rnd.nextFloat() * 80f
+                    crossLeft = 2.4f * ringR / speed; nextCross = 25f + rnd.nextFloat() * 50f  // over the board often (Mauro: "they look awesome over the board")
                     val far = kotlin.math.atan2(y, x) + PI.toFloat()
                     crossX = cos(far) * ringR; crossY = sin(far) * ringR
                 }
             }
         }
+        // Now and then, while cruising its ring, a half-circle to one side: a steady turn for half a turn, then back.
+        if (circling < 0 && crossLeft <= 0f) {
+            if (arcLeft > 0f) arcLeft -= dt
+            else {
+                nextArc -= dt
+                if (nextArc <= 0f) {
+                    val r = ARC_MIN_R + rnd.nextFloat() * (ARC_MAX_R - ARC_MIN_R)
+                    arcRate = (if (rnd.nextBoolean()) 1f else -1f) * (speed / r).coerceAtMost(MAX_TURN)
+                    arcLeft = PI.toFloat() / kotlin.math.abs(arcRate); nextArc = 6f + rnd.nextFloat() * 12f
+                }
+            }
+        } else arcLeft = 0f
+        // Rises while flapping, sinks while gliding; near the water it starts flapping early (see [flapping]).
+        altitude = (altitude + (if (flapping) (1 - altitude) * climb else -altitude * sink) * dt).coerceIn(0f, 1f)
         val gx: Float; val gy: Float
-        if (crossLeft > 0f && circling < 0) {
+        if (arcLeft > 0f) {
+            gx = x + cos(heading + arcRate); gy = y + sin(heading + arcRate)
+        } else if (crossLeft > 0f && circling < 0) {
             // Head across the middle of the island to the far side of the ring; done on arrival.
             gx = crossX; gy = crossY
             if (kotlin.math.hypot(gx - x, gy - y) < 0.5f) crossLeft = 0f
@@ -107,7 +136,7 @@ class Seabird(seed: Int, private val ringR: Float) {
         var turn = kotlin.math.atan2(gy - y, gx - x) - heading
         while (turn > PI) turn -= 2 * PI.toFloat()
         while (turn < -PI) turn += 2 * PI.toFloat()
-        val step = turn.coerceIn(-MAX_TURN * dt, MAX_TURN * dt)
+        val step = if (arcLeft > 0f) arcRate * dt else turn.coerceIn(-MAX_TURN * dt, MAX_TURN * dt)
         heading += step
         if (heading > PI) heading -= 2 * PI.toFloat() else if (heading < -PI) heading += 2 * PI.toFloat()
         // Bank into the turn, eased so it doesn't snap.
@@ -116,8 +145,14 @@ class Seabird(seed: Int, private val ringR: Float) {
         x += cos(heading) * speed * dt; y += sin(heading) * speed * dt
     }
 
-    /** True while the bird is in a flapping burst (the rest of the time it glides). */
-    val flapping get() = ((t + phase) % burstCycle) / burstCycle < burstLen
+    /** Extra flapping it does when it has sunk low: a burst until it is back up a little. */
+    private var lowFlap = false
+
+    /** True while the bird is in a flapping burst (the rest of the time it glides), or climbing back up from low. */
+    val flapping: Boolean get() {
+        if (altitude < LOW) lowFlap = true else if (altitude > LOW + 0.15f) lowFlap = false
+        return lowFlap || ((t + phase) % burstCycle) / burstCycle < burstLen
+    }
 
     /** Frame of a [frames]-frame flap strip while flapping (one stroke cycle per 0.8 s whatever the count), or -1 while gliding. */
     fun flapFrame(frames: Int = 8): Int = if (flapping) (((t + phase) * frames * 1.25f).toInt() % frames + frames) % frames else -1
@@ -137,6 +172,11 @@ class Seabird(seed: Int, private val ringR: Float) {
         /** Radius of the loop around a boat, and how near a boat must be for a bird to go and circle it. */
         const val CIRCLE_R = 0.55f
         const val CIRCLE_REACH = 2.5f
+        /** Radius range of a half-circle (lattice units); a slow bird's tightest is set by [MAX_TURN]. */
+        const val ARC_MIN_R = 0.4f
+        const val ARC_MAX_R = 1.0f
+        /** Below this altitude a gliding bird starts flapping again. */
+        const val LOW = 0.12f
         private val NO_BOATS = FloatArray(0)
     }
 

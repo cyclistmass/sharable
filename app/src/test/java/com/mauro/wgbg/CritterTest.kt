@@ -202,6 +202,74 @@ class CritterTest {
         assertEquals(0, CritterModules.load({ files[it].orEmpty() }, { json.byteInputStream() }).size)
     }
 
+    /** A small flyer over the whole board that keeps trying to fly low: a test of `board_contact` and `auto` layers. */
+    private fun flyer(contact: String) = CritterSpec.parse("""{"id":"tern","name":"Tern","length":0.3,"layer":"auto","altitude":[0.1,1.2],
+        "zone":"anywhere","board_contact":"$contact","movement":{"speed":0.3,"turn":40},
+        "animations":[{"name":"fly","seconds":1,"mode":"loop"}],
+        "behavior":{"stages":[{"id":"cruise","share":100,"seconds":[5,10],"delta":[2,0,-0.6],"turn":50,"anim":"fly","next":{"cruise":1}}]}}""")
+
+    @Test
+    fun `with layer auto the band follows the height`() {
+        val c = flyer("avoid")
+        assertEquals(listOf("under", "underwater", "surface", "surface", "air", "sky"),
+            listOf(-1.5, -0.3, -0.02, 0.04, 0.8, 2.5).map { c.layerAt(it) })
+        assertEquals("surface", whaleModule.spec.layerAt(-0.5), "a named layer stays put")
+    }
+
+    @Test
+    fun `avoiding the board, a low flyer rises over the tiles and never flies into them`() {
+        val c = flyer("avoid")
+        var crossings = 0   // over all seeds: one wanderer may stay out at sea the whole run
+        for (seed in 1L..4L) {
+            val r = CritterRunner(c, seed)
+            var overLand = 0; var low = 0
+            repeat(20000) {
+                r.step()
+                val p = CritterPoint(r.x, r.y)
+                assertTrue(!r.insideBoard(p, r.z), "seed $seed: inside the board at %.2f,%.2f z %.2f".format(r.x, r.y, r.z))
+                if (r.board.onLand(p)) overLand++ else if (r.z < 0.3) low++
+                assertTrue(r.maxSpeed <= c.speed + 1e-9)
+            }
+            assertTrue(low > 500, "seed $seed: flew low at sea ($low)")
+            crossings += overLand
+        }
+        assertTrue(crossings > 2000, "crossed the island ($crossings steps over land)")
+    }
+
+    @Test
+    fun `passing through, it flies into the board and shows faintly there`() {
+        val r = CritterRunner(flyer("pass-through"), 2)
+        var faint = 0
+        repeat(20000) {
+            r.step()
+            val inside = r.insideBoard(CritterPoint(r.x, r.y), r.z)
+            if (inside) { faint++; assertEquals(CritterRunner.PASS_THROUGH_OPACITY, r.pose().opacity, 1e-9) }
+            else assertEquals(1.0, r.pose().opacity, 1e-9)
+        }
+        assertTrue(faint > 100, "it went through the board ($faint ticks)")
+    }
+
+    @Test
+    fun `an anchored critter stays put, holds the board and keeps its time budget`() {
+        val turtle = CritterSpec.parse("""{"id":"turtle","name":"Space turtle","length":14,"layer":"under","altitude":[-1.6,-1.6],
+            "board_contact":"hold","anchor":{"at":"board-centre","heading":90},"movement":{"speed":0,"turn":0},
+            "animations":[{"name":"idle","seconds":6,"mode":"loop"},{"name":"look","seconds":5,"mode":"once"},{"name":"stir","seconds":4,"mode":"once"}],
+            "behavior":{"pattern":"anchored"}}""")
+        val r = CritterRunner(turtle, 7)
+        repeat(36000) { r.step(); assertEquals(0.0, r.x); assertEquals(0.0, r.y); assertEquals(-1.6, r.z, 1e-12); assertEquals(90.0, r.heading) }
+        for (s in turtle.stages) assertEquals(s.share, 100 * r.time.getValue(s.id) / r.accounted, 3.0, "share of ${s.id}")
+        assertEquals("under", turtle.layerAt(r.z))
+        val moving = runCatching { CritterSpec.parse(whale.replace("\"count\"", "\"anchor\":{\"at\":[1,2]}, \"count\"")) }
+        assertTrue(moving.isFailure, "an anchored critter's stages must not move it")
+    }
+
+    @Test
+    fun `a flyer whose height can't clear the island is flagged`() {
+        val low = whale.replace("\"zone\": \"open-sea\"", "\"zone\": \"anywhere\"")
+        val names = whaleModule.files.flatMap { (p, hs) -> hs.map { (h, t) -> "${p}_h${h}_t$t.webp" } }
+        assertTrue(CritterModules.module("whale", names, low).problems("whale").any { "never clears the board" in it })
+    }
+
     private companion object {
         val ASSETS = File("src/main/assets")
         /** The sea in view at fit zoom on the Pixel 8 emulator, between the side panel and the zoom bars (as logged). */
