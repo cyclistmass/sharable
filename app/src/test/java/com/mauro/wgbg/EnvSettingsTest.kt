@@ -125,4 +125,15 @@ class EnvSettingsTest {
             assertEquals(0L, pauseAfter(wgbg.engine.ActionType.END_TURN, speed, relaxed))
         }
     }
+
+    @Test
+    fun `a bot's move holds 2 to 3 s at the normal speed, shorter when sped up, never under the plain pause`() {
+        val road = wgbg.engine.ActionType.BUILD_ROAD; val roll = wgbg.engine.ActionType.ROLL
+        for (type in listOf(road, roll)) org.junit.jupiter.api.Assertions.assertTrue(botPauseAfter(type, 2) in 2000L..3000L, "$type")
+        org.junit.jupiter.api.Assertions.assertTrue(botPauseAfter(road, 4) < botPauseAfter(road, 2))
+        for (speed in listOf(1, 2, 4, 8)) for (p in Pace.entries) for (type in listOf(road, roll))
+            org.junit.jupiter.api.Assertions.assertTrue(botPauseAfter(type, speed, p.factor) >= pauseAfter(type, speed, p.factor), "$type ${p.label} at $speed")
+        assertEquals(0L, botPauseAfter(wgbg.engine.ActionType.END_TURN, 2))
+        assertEquals(0L, botPauseAfter(wgbg.engine.ActionType.REJECT_TRADE, 2))
+    }
 }

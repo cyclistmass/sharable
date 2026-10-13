@@ -44,7 +44,7 @@ for ruleset in $RULESETS; do
   "$ADB" shell am force-stop $PKG
   "$ADB" shell pm clear $PKG >/dev/null
   "$ADB" logcat -c; "$ADB" logcat -b crash -c 2>/dev/null || true
-  "$ADB" shell am start -W --activity-clear-task -n $PKG/.MainActivity --es start "$ruleset" --ei players 3 >/dev/null
+  "$ADB" shell am start -W --activity-clear-task -n $PKG/.MainActivity --es start "$ruleset" --ei players 3 --ez quickbots true >/dev/null
   sleep 4
   # Bots at full speed, quick pace (Menu › Settings, by touch), so a turn with two lots comes up sooner.
   tap_text "Menu" && tap_text "Settings" && tap_text "2×" && tap_text "4×" && tap_text "8×" && tap_text "Quick"; tap_text "Hide" || true

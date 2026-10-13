@@ -38,7 +38,7 @@ tap_text_opt() { ( tap_text "$1" ) >/dev/null || true; }
 
 start() { # $1 ruleset, then extra am-start arguments
   local rules="$1"; shift
-  "$A" shell am start --activity-clear-task -n $PKG/.MainActivity --es start "$rules" "$@" >/dev/null
+  "$A" shell am start --activity-clear-task -n $PKG/.MainActivity --es start "$rules" --ez quickbots true "$@" >/dev/null
   sleep 4
 }
 shot() { # screen -> docs/screenshots/$1.jpg

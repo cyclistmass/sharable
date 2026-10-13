@@ -6,7 +6,7 @@
 export MSYS_NO_PATHCONV=1; A="adb -s ${ADB:-emulator-5554}"; end=$((SECONDS+${1:-480})); prev=""; same=0; trades=0
 while [ $SECONDS -lt $end ]; do
   if $A logcat -d -s WGBG-GAME | grep -q over; then echo "game over, new game"; $A logcat -c
-    $A shell am start --activity-clear-task -n com.mauro.wgbg/.MainActivity --es start chivalry --ei players 3 --ez autosetup true >/dev/null; sleep 5; prev=""; continue; fi
+    $A shell am start --activity-clear-task -n com.mauro.wgbg/.MainActivity --es start chivalry --ei players 3 --ez autosetup true --ez quickbots true >/dev/null; sleep 5; prev=""; continue; fi
   line=$($A logcat -d -s WGBG-TURN | grep "player=0" | tail -1)
   if [ "$line" = "$prev" ]; then same=$((same+1)); [ $same -lt 6 ] && { sleep 1; continue; }; fi
   same=0

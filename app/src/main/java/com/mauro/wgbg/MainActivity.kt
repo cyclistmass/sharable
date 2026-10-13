@@ -197,11 +197,13 @@ class MainActivity : ComponentActivity() {
                 val watch = debug && intent.getBooleanExtra("watch", false)
                 // Debug builds: `--ez crash true` crashes on purpose to test the crash reporter.
                 val crashTest = debug && intent.getBooleanExtra("crash", false)
+                // Debug builds: `--ez quickbots true` drops the 2–3 s pause after each bot move (scripted UI tests).
+                val quickBots = debug && intent.getBooleanExtra("quickbots", false)
                 // Debug builds: `--ei players 3` starts with that many players (you plus bots), like a 3-player setup.
                 val players = if (debug) intent.getIntExtra("players", 0) else 0
                 // An invite link (wgbg://join/ROOM-42) opens the Join screen with that code filled in.
                 val inviteCode = joinCodeFrom(intent.dataString)
-                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup, watch, crashTest, players, inviteCode)
+                AppRoot(debugCamera(), start, firebaseEmu, autoplay, autoSetup, watch, crashTest, players, inviteCode, quickBots)
             }
         }
     }
@@ -260,6 +262,18 @@ internal fun pauseAfter(type: wgbg.engine.ActionKind, speed: Int, pace: Float = 
     else -> (350L * pace / speed).toLong()
 }
 
+/** A bot's move at the normal speed (2×) and pace: long enough to follow what it did (Mauro: 2–3 s per AI move). */
+internal const val BOT_MOVE_MS = 2500L
+
+/**
+ * The wait after a bot's move while you play: [BOT_MOVE_MS] at the normal speed, halved with each faster step; an end
+ * of turn or a turned-down trade still goes straight on. Never shorter than [pauseAfter].
+ */
+internal fun botPauseAfter(type: wgbg.engine.ActionKind, speed: Int, pace: Float = 1f): Long = when (type) {
+    ActionType.END_TURN, ActionType.REJECT_TRADE -> 0L
+    else -> maxOf(pauseAfter(type, speed, pace), (BOT_MOVE_MS * 2 * pace / speed).toLong())
+}
+
 private fun Color.shade(f: Float) = lerp(this, Color.Black, f)
 private fun Color.tint(f: Float) = lerp(this, Color.White, f)
 
@@ -280,7 +294,7 @@ private enum class Screen { START, LOBBY, GAME, JOIN, ONLINE_LOBBY, ONLINE_GAME,
  */
 @Composable
 fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseEmu: Boolean = false, autoplay: Boolean = false, autoSetup: Boolean = false, watch: Boolean = false,
-            crashTest: Boolean = false, players: Int = 0, inviteCode: String? = null) {
+            crashTest: Boolean = false, players: Int = 0, inviteCode: String? = null, quickBots: Boolean = false) {
     var screen by rememberSaveable { mutableStateOf(if (start != null) Screen.GAME else if (inviteCode != null) Screen.JOIN else Screen.START) }
     val context0 = LocalContext.current.applicationContext
     // Your last game's settings and your name, kept across restarts (#68, #69); debug starts use the defaults.
@@ -426,14 +440,14 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             } ?: RejoiningOr(savedRoom) { screen = Screen.START }
             Screen.ONLINE_GAME -> session?.let { s ->
                 key(gameNo) {
-                    WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { pauseRoom() }, online = s, autoplay = autoplay,
+                    WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { pauseRoom() }, online = s, autoplay = autoplay, quickBots = quickBots,
                         onDeleteRoom = { deleteRoom() }, onQuitRoom = { leaveRoom() })
                 }
             } ?: RejoiningOr(savedRoom) { screen = Screen.START }
             Screen.LOOK -> WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), Camera.FIT, setup, onExit = { screen = Screen.START }, lookAndArt = true)
             Screen.GAME -> key(gameNo) {
                 // Back asks "Leave this game?" inside the game screen (same as Exit).
-                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup, startWatching = watch,
+                WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { screen = Screen.START }, autoSetup = autoSetup, startWatching = watch, quickBots = quickBots,
                     resume = resuming, saveStore = localStore.takeIf { start == null })
             }
         }
@@ -508,6 +522,8 @@ fun WatchGameScreen(
     autoSetup: Boolean = false,
     /** Debug: start in Watch mode at Max speed (bots in every seat, games back to back). */
     startWatching: Boolean = false,
+    /** Debug: bots move without the 2–3 s pause (scripted UI tests). */
+    quickBots: Boolean = false,
     /** A saved local game to pick up where it was (#82). */
     resume: LocalSave? = null,
     /** Where your local game is saved after every move (#82); null keeps nothing (debug starts, Look & art). */
@@ -690,9 +706,11 @@ fun WatchGameScreen(
         if (online != null) return@LaunchedEffect // the room drives an online game (below)
         val buf = ActionBuffer()
         while (humanMoves.tryReceive().isSuccess) { } // drop taps left over from another game
+        var lastWho = -1
         suspend fun step(): ActionKind {
             Rules.legalActions(state, buf)
             val who = state.actingPlayer
+            lastWho = who
             val placing = inSetup(state)
             var action = if (who == me && !(autoSetup && placing)) {
                 tick++ // show the human what they can do
@@ -740,7 +758,9 @@ fun WatchGameScreen(
             while (playing && !state.isOver) {
                 val type = step()
                 tick++
-                if (pauseAfter(type, speed, env.pace.factor) > 0) delay(pauseAfter(type, speed, env.pace.factor))
+                // While you play, a bot's move holds 2–3 s so you can see it; Watch mode and test runs keep the short pause.
+                val wait = if (human && lastWho != me && !quickBots) botPauseAfter(type, speed, env.pace.factor) else pauseAfter(type, speed, env.pace.factor)
+                if (wait > 0) delay(wait)
             }
         }
         if (state.isOver) {
@@ -805,8 +825,10 @@ fun WatchGameScreen(
                         humanMoves.onReceive { a -> if (Rules.isLegal(state, a) && send(who, a)) views.receive() else v }
                     }
                     (n.isHost && (n.bot(who) != null || quitToBot(v.room, n.seatOf(who)))) || (autoplay && who == n.me) -> {
-                        // The host's phone plays the room's bots, at a watchable pace (dice land first).
-                        delay(if (rolled) pauseAfter(ActionType.ROLL, 1, env.pace.factor) else (450L * env.pace.factor).toLong())
+                        // The host's phone plays the room's bots, at a watchable pace (dice land first): 2–3 s a move,
+                        // like a local game; a debug autoplay seat and test runs keep the short wait.
+                        val short = if (rolled) pauseAfter(ActionType.ROLL, 1, env.pace.factor) else (450L * env.pace.factor).toLong()
+                        delay(if (quickBots || who == n.me) short else maxOf(short, (BOT_MOVE_MS * env.pace.factor).toLong()))
                         val fresh = views.tryReceive().getOrNull()
                         if (fresh != null) fresh else {
                             Rules.legalActions(state, buf)
@@ -1282,7 +1304,7 @@ fun WatchGameScreen(
             val confirmLow = chosen.isNotEmpty() && boardSize.minDimension > 0f && confirmBelow((spotOf(state.board, chosen[0]) ?: pendingAt)
                 ?.let { Layout.fit(state.board, boardSize.width, boardSize.height, camera).project(it.x, it.y).y }, boardSize.height)
             if (chosen.isNotEmpty()) Column(
-                (if (confirmLow) Modifier.align(Alignment.BottomCenter).padding(bottom = 130.dp) else Modifier.align(Alignment.TopCenter).padding(top = 8.dp)).chest(),
+                (if (confirmLow) Modifier.align(Alignment.BottomCenter).padding(bottom = 130.dp) else Modifier.align(Alignment.TopCenter).padding(top = 8.dp)).zIndex(2f).chest(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
