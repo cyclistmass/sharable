@@ -967,6 +967,8 @@ fun WatchGameScreen(
             val receiver = object : android.content.BroadcastReceiver() {
                 override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
                     if (intent.hasExtra("live")) env.liveBoard = intent.getBooleanExtra("live", false)
+                    // Test scripts: the AI pace slider without the slider (ci_withdraw.sh needs the bots' slow answers on CI).
+                    if (intent.hasExtra("aiPace")) intent.getFloatExtra("aiPace", EnvSettings.AI_PACE_DEFAULT).takeIf { it.isFinite() }?.let { env.aiPace = it }
                     if (intent.hasExtra("lod")) env.liveLod = intent.getIntExtra("lod", 0)
                     if (intent.hasExtra("pirate")) env.pirateTheme = intent.getBooleanExtra("pirate", false)
                     if (intent.hasExtra("sprites3d")) env.tiles3d = intent.getBooleanExtra("sprites3d", false)

@@ -42,6 +42,9 @@ for ruleset in $RULESETS; do
     say "AI pace now: $(dump | grep -o 'text="[0-9.]* s"' | head -1)"
     tap_text "Hide" || "$ADB" shell input keyevent BACK
   fi
+  # On CI the slider tap didn't stick (every answer came back within a second); set it through the debug receiver too.
+  "$ADB" shell am broadcast -a $PKG.FILAMENT_VIEW -p $PKG --ef aiPace 5 >/dev/null
+  say "AI pace set to 5 s: $("$ADB" logcat -d -s WGBG-3D-VIEW:I | tail -1 | cut -c1-60)"
   done_w=0; again=0; start=$(date +%s); ts_alive
   while [ $(( $(date +%s) - start )) -lt "$SECS" ] && [ $done_w = 0 ] && [ $rfail = 0 ]; do
     crashed && { bad "crash"; break; }
