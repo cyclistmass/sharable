@@ -10,7 +10,7 @@ RULESETS="${2:-base chivalry}"
 ADB="${ADB:-adb}"
 PKG=com.mauro.wgbg
 export MSYS_NO_PATHCONV=1
-fail=0
+fail=0; rfail=0
 . "$(dirname "$0")/lib/turnstream.sh" # turn lines as they come + stall watchdog (#139)
 
 dump() { for _ in 1 2 3; do "$ADB" shell rm -f /sdcard/ui.xml; "$ADB" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
@@ -21,11 +21,13 @@ tap_text() { local xy; xy=$(at "$1"); [ -n "$xy" ] || return 1; "$ADB" shell inp
 crashed() { [ "$("$ADB" logcat -d -b crash | grep -A8 'FATAL EXCEPTION' | grep -c "$PKG")" != 0 ]; }
 turn_line() { "$ADB" logcat -d -s WGBG-TURN:I | tail -1; }
 move() { LASTMOVE=$1; "$ADB" shell am broadcast -a $PKG.MOVE -p $PKG --es move "$1" >/dev/null; }
-say() { [ -n "${VERBOSE:-}" ] && echo "  · $*"; return 0; }
-bad() { echo "withdraw $ruleset: FAILED: $*"; fail=1
+# Steps are kept and printed when a ruleset fails, so a CI log says why without a rerun.
+TRAIL=(); say() { TRAIL+=("$(date +%T) $*"); [ ${#TRAIL[@]} -gt 25 ] && TRAIL=("${TRAIL[@]:1}"); [ -n "${VERBOSE:-}" ] && echo "  · $*"; return 0; }
+bad() { echo "withdraw $ruleset: FAILED: $*"; fail=1; rfail=1; [ -n "${VERBOSE:-}" ] || printf "  · %s\n" "${TRAIL[@]}"; TRAIL=()
   "$ADB" exec-out screencap -p > "${OUT:-.}/withdraw-fail-$ruleset.png" 2>/dev/null && echo "  screen: ${OUT:-.}/withdraw-fail-$ruleset.png"; }
 
 for ruleset in $RULESETS; do
+  rfail=0; TRAIL=()
   "$ADB" shell am force-stop $PKG
   "$ADB" shell pm clear $PKG >/dev/null
   ts_open; "$ADB" logcat -b crash -c 2>/dev/null || true
@@ -41,13 +43,13 @@ for ruleset in $RULESETS; do
     tap_text "Hide" || "$ADB" shell input keyevent BACK
   fi
   done_w=0; again=0; start=$(date +%s); ts_alive
-  while [ $(( $(date +%s) - start )) -lt "$SECS" ] && [ $done_w = 0 ] && [ $fail = 0 ]; do
+  while [ $(( $(date +%s) - start )) -lt "$SECS" ] && [ $done_w = 0 ] && [ $rfail = 0 ]; do
     crashed && { bad "crash"; break; }
     if [ $again = 1 ]; then again=0; line=$(turn_line)
     elif ts_wait 6; then line=$TS_LINE
     else ts_check_stall "withdraw-$ruleset"; [ -n "${LASTMOVE:-}" ] && move "$LASTMOVE"; continue; fi   # quiet 6 s: resend a hook move that may have been dropped (the app drops it if no longer legal)
     [ $TS_OVER = 1 ] && { TS_OVER=0; say "game over, playing again"; tap_text "Play again" || { bad "no Play again"; break; }; continue; }
-    echo "$line" | grep -q 'player=0' || continue
+    echo "$line" | grep -q 'player=0' || { say "not ours: ${line:0:90}"; continue; }
     phase=$(echo "$line" | sed -n 's/.* phase=\([^ ]*\).*/\1/p')
     legal=$(echo "$line" | sed -n 's/.* legal=\([^ ]*\).*/\1/p' | tr ',' '\n')
     [ -z "$legal" ] && continue
@@ -55,6 +57,7 @@ for ruleset in $RULESETS; do
     if [ "$phase" != PLAY_TURN ] || ! echo "$legal" | grep -q '^END_TURN:'; then move "$(echo "$legal" | grep -v -E '^(OFFER_TRADE|OFFER_TRADE_CK|COUNTER_TRADE)' | shuf -n 1)"; continue; fi
     # Our turn with cards: Trade, Players, offer the first card we hold for nothing, Offer, then Withdraw at once.
     tap_text "Trade" || { tap_text "Close"; tap_text "Trade"; } || { say "no Trade button (the moment passed?), end turn"; move END_TURN:0; continue; }
+    say "trade chest open"
     tap_text "Players" || { bad "no Players tab"; break; }
     card=$(dump | grep 'text="have [1-9]' | head -1 | grep -o 'bounds="\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]"' | tr -c '0-9\n' ' ' | awk '{print int(($1+$3)/2), $2}')
     if [ -z "$card" ]; then say "no cards, end turn"; tap_text "Close" || true; move END_TURN:0; continue; fi
@@ -86,6 +89,6 @@ for ruleset in $RULESETS; do
     done_w=1
   done
   crashed && bad "crash"
-  [ $fail = 0 ] && [ $done_w = 0 ] && bad "no withdraw done in ${SECS}s"
+  [ $rfail = 0 ] && [ $done_w = 0 ] && bad "no withdraw done in ${SECS}s"
 done
 exit $fail

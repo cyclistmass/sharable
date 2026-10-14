@@ -27,7 +27,7 @@ data class LocalSave(val setup: GameSetup, val seed: Long, val moves: List<Actio
         { _, _, applyIt -> applyIt() }): GameState? {
         for (a in moves) {
             if (state.isOver || !Rules.isLegal(state, a)) return null
-            apply(state.actingPlayer, a) { Rules.apply(state, a) }
+            apply(Rules.mover(state, a), a) { Rules.apply(state, a) } // #114: a withdraw is the offerer's
         }
         return state
     }
