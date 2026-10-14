@@ -78,12 +78,23 @@ class LiveBoardDeviceTest {
         repeat(4) { attempt ->
             // Right after the previous placement the settled line can still be the old one (no $type yet) on a slow
             // CI emulator: wait for the new moment's spots instead of failing at once.
-            fun read() = Regex("$type:[0-9]+@([0-9]+),([0-9]+)").findAll(settledSpots())
-                .map { it.groupValues[1].toFloat() to it.groupValues[2].toFloat() }.filter { (x, y) -> inView(x, y) }.toList()
+            // Spots off the edge come out negative or past the screen (after the twist and pan, the new homestead's
+            // roads can lie there): drag the board to bring one in, the way a player would.
+            val w = context.resources.displayMetrics.widthPixels.toFloat(); val h = context.resources.displayMetrics.heightPixels.toFloat()
+            var line = ""
+            fun all() = Regex("$type:[0-9]+@(-?[0-9]+),(-?[0-9]+)").findAll(settledSpots().also { line = it })
+                .map { it.groupValues[1].toFloat() to it.groupValues[2].toFloat() }.toList()
+            fun read() = all().filter { (x, y) -> x in w * .05f..w * .95f && y in h * .1f..h * .9f && inView(x, y) }
             var spots = read()
             val wait = SystemClock.uptimeMillis() + 15_000
-            while (spots.isEmpty() && SystemClock.uptimeMillis() < wait) { Thread.sleep(300); spots = read() }
-            assertTrue("no $type spot on screen", spots.isNotEmpty())
+            while (spots.isEmpty() && SystemClock.uptimeMillis() < wait) {
+                all().firstOrNull()?.let { (sx, sy) ->
+                    val dx = (w / 2 - sx).coerceIn(-w / 3, w / 3); val dy = (h / 2 - sy).coerceIn(-h / 3, h / 3)
+                    gesture(false, { w / 2 - dx / 2 to h / 2 - dy / 2 }, { w / 2 + dx / 2 to h / 2 + dy / 2 })
+                }
+                Thread.sleep(300); spots = read()
+            }
+            assertTrue("no $type spot on screen: ${line.take(400)}", spots.isNotEmpty())
             val (x, y) = spots[attempt % spots.size]
             tap(x, y); tap(x, y)
             val deadline = SystemClock.uptimeMillis() + 5_000
@@ -99,7 +110,8 @@ class LiveBoardDeviceTest {
         instrument.uiAutomation.executeShellCommand("logcat -c").use { FileInputStream(it.fileDescriptor).readBytes() }
         val activity = instrument.startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             .putExtra("start", "base").putExtra("tilt", .48f))
-        waitFor("live board frame") { log("WGBG-3D-PERF").contains("rotation=0.0") }
+        // The perf line comes after a 5 s window of frames; a cold start on an emulator can take most of 15 s first.
+        waitFor("live board frame", 30_000) { log("WGBG-3D-PERF").contains("rotation=0.0") }
         val display = context.resources.displayMetrics
         val cx = display.widthPixels * .70f; val cy = display.heightPixels * .48f; val radius = display.heightPixels * .12f
         gesture(true, { i -> (cx + if (i == 0) -radius else radius) to cy },
