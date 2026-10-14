@@ -14,6 +14,12 @@ move it to **Done** with the commit when it lands.
   touch script several times faster. Bosun, 2026-10-13 (#139).
 - emulator-5556 wedges after installs (am start -W never returns, blank screen, no focus); a reboot fixes it for a while.
   Every `am start -W` in tools/ now has a 60 s timeout so a script fails fast instead of hanging. Bosun, 2026-10-13 (#134?).
+- **userplay.sh online on a local build needs `app/google-services.json`**: a worktree without it builds an offline-only
+  APK whose "online" rooms live in one phone's memory, so the joiner gets "No room with that code". Have userplay.sh
+  (host/join) say so up front, or test online on the CI-built APK. Bosun, 2026-10-13.
+- **Stopping userplay.sh**: killing its parent left the driver running (it kept tapping the next test's phone) and its
+  run.pid lock. A `trap` that kills the process group and removes run.pid on exit, plus a `tools/userplay_stop.sh`.
+  Bosun, 2026-10-14.
 
 ## Done
 
