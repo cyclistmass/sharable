@@ -59,7 +59,9 @@ for ruleset in $RULESETS; do
     card=$(dump | grep 'text="have [1-9]' | head -1 | grep -o 'bounds="\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]"' | tr -c '0-9\n' ' ' | awk '{print int(($1+$3)/2), $2}')
     if [ -z "$card" ]; then say "no cards, end turn"; tap_text "Close" || true; move END_TURN:0; continue; fi
     # The label sits under the card; the card's bottom half (just above the label) offers it.
-    read -r cx cy <<<"$card"; "$ADB" shell input tap "$cx" $(( cy - 60 )); sleep 0.6
+    # 23 dp above the label: 60 px was right at 420 dpi but hit the card's top (ask) half at CI's 160 dpi.
+    [ -n "${dpi:-}" ] || dpi=$("$ADB" shell wm density | grep -o "[0-9]*" | tail -1)
+    read -r cx cy <<<"$card"; "$ADB" shell input tap "$cx" $(( cy - 23 * dpi / 160 )); sleep 0.6
     # Screen reads take seconds (the sea never idles), longer than a bot's answer: read both buttons first, then tap
     # Offer and, a beat later, the red button (Clear turns to Withdraw while the bots answer) without reading again.
     d=$(dump); off=$(echo "$d" | grep 'text="Offer"' | centre); red=$(echo "$d" | grep 'text="Clear"' | centre)
@@ -74,7 +76,12 @@ for ruleset in $RULESETS; do
     l=$(turn_line)
     echo "$l" | grep -q 'phase=PLAY_TURN' && echo "$l" | grep -q 'player=0' || { bad "not back on our turn after Withdraw: ${l:0:160}"; break; }
     tap_text "Close" || true   # the game log shows with the chest shut
-    dump | grep -q 'text="You:* withdrew the trade offer"' || { bad "no 'You withdrew the trade offer' in the game log"; break; }
+    # The line is the newest in this turn's group; on a short screen (CI's 320 dp) the log shows three lines and it sits
+    # below them, so scroll the log the way a reader would before giving up.
+    seen=0; for _ in 1 2 3 4; do dump | grep -q 'text="You:* withdrew the trade offer"' && { seen=1; break; }
+      read -r H W < <("$ADB" shell wm size | tail -1 | grep -o '[0-9]*x[0-9]*' | tr x ' ' | awk '{ print ($1 < $2 ? $1 " " $2 : $2 " " $1) }')  # landscape: the longer side across
+      "$ADB" shell input swipe $((W / 5)) $((H * 90 / 100)) $((W / 5)) $((H * 62 / 100)) 300; sleep 0.8; done
+    [ $seen = 1 ] || { bad "no 'You withdrew the trade offer' in the game log"; break; }
     echo "withdraw $ruleset: ok (offer withdrawn by touch while the bots were answering)"
     done_w=1
   done
