@@ -46,6 +46,32 @@ class LocalSaveTest {
     }
 
     @Test
+    fun `a resumed game's tracker shows the same last roll and hits as the live one (cold reopen)`() {
+        for ((setup, seed) in listOf(GameSetup() to 7L, chivalry to 11L, chivalry to 4L)) {
+            val names = List(setup.players.size) { "P$it" }
+            val s = Rules.newGame(setup.config(), seed)
+            val live = TurnTracker(names)
+            val bots = List(setup.players.size) { GreedyBot(seed * 31 + it) }
+            val dice = wgbg.engine.TrueRandomDice()
+            val buf = ActionBuffer(); val made = ArrayList<Action>()
+            while (!s.isOver && made.size < 400) {
+                Rules.legalActions(s, buf)
+                var a = bots[s.actingPlayer].choose(s, buf)
+                if (a.type == ActionType.ROLL) a = dice.next(withEvent = s.ck != null).toAction()
+                val who = Rules.mover(s, a) // as the game loop does
+                live.apply(s, who, a) { Rules.apply(s, a) }; made += a
+            }
+            val back = TurnTracker(names)
+            val state = Rules.newGame(setup.config(), seed)
+            LocalSave.decode(LocalSave(setup, seed, made).encode())!!.replay(state) { who, a, applyIt -> back.apply(state, who, a, applyIt) }
+            assertEquals(s.stateHash(), state.stateHash())
+            assertEquals(live.current?.let { listOf(it.player, it.turn, it.die1, it.die2, it.event) }, back.current?.let { listOf(it.player, it.turn, it.die1, it.die2, it.event) }, "seed $seed")
+            assertEquals(live.last?.let { listOf(it.player, it.turn, it.die1, it.die2, it.event) }, back.last?.let { listOf(it.player, it.turn, it.die1, it.die2, it.event) }, "seed $seed")
+            assertEquals(live.hits, back.hits, "seed $seed")
+        }
+    }
+
+    @Test
     fun `replaying hands each move to the caller, who applies it (the history is rebuilt this way)`() {
         val (_, moves) = play(chivalry, 5L, 120)
         val seen = ArrayList<Action>()

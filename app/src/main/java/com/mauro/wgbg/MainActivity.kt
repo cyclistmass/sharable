@@ -587,8 +587,8 @@ fun WatchGameScreen(
         }
         0
     }
-    /** The last [Hit] notice the player dismissed. */
-    var seenHit by remember(tracker) { mutableIntStateOf(0) }
+    /** The last [Hit] notice the player dismissed. A resumed game's hits were seen before it was closed. */
+    var seenHit by remember(tracker) { mutableIntStateOf(tracker.hits.lastOrNull()?.seq ?: 0) }
     // Moves from the human's taps and buttons; the game loop checks each against the rules.
     val humanMoves = remember { Channel<Action>(Channel.UNLIMITED) }
     var tradeOpen by remember { mutableStateOf(false) }
@@ -823,6 +823,7 @@ fun WatchGameScreen(
                     epoch++; return@LaunchedEffect
                 }
                 var rolled = false
+                val catchingUp = applied.isEmpty() // joining, rejoining or rebuilding: the history's hits are old news
                 for (a in v.actions.subList(applied.size, v.actions.size)) {
                     val who = Rules.mover(state, a) // #114: a withdraw comes from the offerer
                     // Every phone logs the same move list; comparing two phones' logs pins down a desync.
@@ -834,6 +835,7 @@ fun WatchGameScreen(
                     applied += a
                     rolled = a.type == ActionType.ROLL
                 }
+                if (catchingUp) seenHit = tracker.hits.lastOrNull()?.seq ?: 0
                 tick++
                 if (state.isOver) {
                     if (n.isHost && v.room?.status == Status.playing) {
