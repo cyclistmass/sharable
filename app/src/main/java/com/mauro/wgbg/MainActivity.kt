@@ -329,7 +329,10 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     // The room this phone sits in, kept across restarts: Android may kill a backgrounded app, and a player
     // must be able to get back into a live game (playtest: the app came back on the start screen, game lost).
     val savedRoom = remember { context.getSharedPreferences("online", android.content.Context.MODE_PRIVATE) }
+    // The online game in hand has ended: its room is forgotten at once, so reopening the app never tries to rejoin it.
+    var roomOver by remember { mutableStateOf(false) }
     fun enterRoom(s: LobbySession) {
+        roomOver = false
         session = s; savedRoom.edit().putString("room", s.id).putString("name", setup.name).putLong("at", System.currentTimeMillis()).apply()
         screen = Screen.ONLINE_LOBBY
     }
@@ -350,6 +353,8 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
     // Leaving a running online game is "for now" (Mauro: online games resume until the host deletes them): the
     // room is kept and the start screen offers Resume; the app doesn't drop you back in by itself after this.
     fun pauseRoom() {
+        // A finished game isn't paused, it's over: Exit from its end screen forgets the room like the host deleting it.
+        if (roomOver) { session?.close(); session = null; forgetRoom(); screen = Screen.START; return }
         val id = session?.id
         session?.close(); session = null
         if (id != null) { savedRoom.edit().putString("room", id).putBoolean("paused", true).apply(); resumeCode = id }
@@ -458,7 +463,7 @@ fun AppRoot(initialCamera: Camera = Camera.FIT, start: String? = null, firebaseE
             Screen.ONLINE_GAME -> session?.let { s ->
                 key(gameNo) {
                     WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), initialCamera, setup, onExit = { pauseRoom() }, online = s, autoplay = autoplay, quickBots = quickBots,
-                        onDeleteRoom = { deleteRoom() }, onQuitRoom = { leaveRoom() })
+                        onDeleteRoom = { deleteRoom() }, onQuitRoom = { leaveRoom() }, onGameOver = { roomOver = true; forgetRoom() })
                 }
             } ?: RejoiningOr(savedRoom) { screen = Screen.START }
             Screen.LOOK -> WatchGameScreen(Modifier.fillMaxSize().background(Color.Black), Camera.FIT, setup, onExit = { screen = Screen.SETUP }, lookAndArt = true)
@@ -533,6 +538,8 @@ fun WatchGameScreen(
     onDeleteRoom: (() -> Unit)? = null,
     /** Online, a guest: leave for good (the room is forgotten, never rejoined by itself). */
     onQuitRoom: (() -> Unit)? = null,
+    /** Online: the game has ended (the phone forgets the room; nothing to rejoin). */
+    onGameOver: () -> Unit = {},
     /** Debug: a bot plays your seat, online (two-phone simulations) and local (straight to the end of a game). */
     autoplay: Boolean = false,
     /** Debug: a bot places your opening homesteads and roads, then you play. */
@@ -838,6 +845,7 @@ fun WatchGameScreen(
                 if (catchingUp) seenHit = tracker.hits.lastOrNull()?.seq ?: 0
                 tick++
                 if (state.isOver) {
+                    onGameOver()
                     if (n.isHost && v.room?.status == Status.playing) {
                         online.transport.finish(online.id)
                     }
