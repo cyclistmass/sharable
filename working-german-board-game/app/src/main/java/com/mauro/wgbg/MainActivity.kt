@@ -1308,9 +1308,12 @@ fun WatchGameScreen(
             val needsMe = tradeNeedsMe(state, me)
             // The trade chest floats over the board (0.2.6), centred right of the side panel so the turn history stays in view.
             val panelEdge = with(LocalDensity.current) { stripWidth.toDp() } + 16.dp
-            if (chestOpen) androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().padding(start = panelEdge, bottom = 8.dp, end = 8.dp)) {
+            // On a narrow screen (640 dp across, CI's emulator and small phones) the Age of Chivalry chest's 8 cards and its
+            // buttons don't fit right of the panel: Trade ran off the edge. Then it spreads over the full width instead.
+            if (chestOpen) androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().padding(start = 8.dp, bottom = 8.dp, end = 8.dp)) {
+                val start = if (chestFits(maxWidth - panelEdge + 8.dp, tradeCards(state))) panelEdge - 8.dp else 0.dp
                 TradePanel(state, me, legal, names, send, onClose = { tradeOpen = false }, responses = responses, version = tick, autoNoSeconds = autoNo,
-                    room = maxWidth, modifier = Modifier.align(Alignment.BottomCenter))
+                    room = maxWidth - start, modifier = Modifier.align(Alignment.BottomCenter).padding(start = start))
             }
             else if (cardPick.isNotEmpty() && chosen.isEmpty()) Column(
                 // Aiming a board card: say what to tap, with a way out.

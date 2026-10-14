@@ -1,5 +1,6 @@
 package com.mauro.wgbg
 
+import androidx.compose.ui.unit.dp
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -378,5 +379,15 @@ class TradePanelTest {
         assertEquals("Now: 4 Grain (+1) · 0 Stone (−3)", tradeSummary(listOf(2, 1, 0, 3, 3), listOf(2, 1, 0, 4, 0)))
         assertEquals(null, tradeSummary(listOf(1, 1), listOf(1, 1)))
         assertEquals("Now: 1 Silver (+1)", tradeSummary(listOf(0, 0, 0, 0, 0, 0, 0, 0), listOf(0, 0, 0, 0, 0, 0, 0, 1)))
+    }
+
+    // CI 0.3.0: on a 640 dp screen the Age of Chivalry chest (8 cards) ran its Trade button off the edge right of the panel.
+    @Test
+    fun chestNeedsTheFullWidthOnANarrowScreen() {
+        val beside = 640.dp - 16.dp - 250.dp // right of a ~250 dp side panel
+        assertTrue(chestFits(beside, 5), "base: 5 cards fit beside the panel")
+        assertFalse(chestFits(beside, 8), "Chivalry: 8 cards do not fit beside the panel")
+        assertTrue(chestFits(640.dp - 16.dp, 8), "Chivalry: 8 cards fit across the whole screen")
+        assertTrue(chestFits(915.dp - 16.dp - 250.dp, 8), "a usual phone fits 8 beside the panel")
     }
 }

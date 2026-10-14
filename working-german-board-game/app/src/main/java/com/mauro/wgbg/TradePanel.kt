@@ -401,6 +401,9 @@ fun bankTrades(s: GameState, me: Int, get: IntArray, give: IntArray): List<Actio
  * How wide each trade card is drawn: as big as [room] allows once the buttons (78 dp + gap) and the chest's
  * edges are taken out, between the old 42 dp and 58 dp, so 8 Age of Chivalry cards still fit a small phone.
  */
+/** Whether the chest's row of [cards] fits in [room] at the smallest card width (else the chest needs more room). */
+internal fun chestFits(room: Dp, cards: Int): Boolean = room >= 124.dp + (42.dp + 6.dp) * cards
+
 internal fun tradeCardWidth(room: Dp, cards: Int): Dp =
     ((room - 124.dp) / cards.coerceAtLeast(1) - 6.dp).coerceIn(42.dp, 58.dp)
 
