@@ -82,11 +82,14 @@ for ruleset in $RULESETS; do
     l=$(turn_line)
     echo "$l" | grep -q 'phase=PLAY_TURN' && echo "$l" | grep -q 'player=0' || { bad "not back on our turn after Withdraw: ${l:0:160}"; break; }
     tap_text "Close" || true   # the game log shows with the chest shut
-    # The line is the newest in this turn's group; on a short screen (CI's 320 dp) the log shows three lines and it sits
-    # below them, so scroll the log the way a reader would before giving up.
-    seen=0; for _ in 1 2 3 4; do dump | grep -q 'text="You:* withdrew the trade offer"' && { seen=1; break; }
-      read -r H W < <("$ADB" shell wm size | tail -1 | grep -o '[0-9]*x[0-9]*' | tr x ' ' | awk '{ print ($1 < $2 ? $1 " " $2 : $2 " " $1) }')  # landscape: the longer side across
-      "$ADB" shell input swipe $((W / 5)) $((H * 90 / 100)) $((W / 5)) $((H * 62 / 100)) 300; sleep 0.8; done
+    # Read the visible log lines; scroll down through the log, then back up, the way a reader would (CI's 320 dp shows
+    # three lines and the turn's group can be longer in Age of Chivalry, with counters in it).
+    read -r H W < <("$ADB" shell wm size | tail -1 | grep -o '[0-9]*x[0-9]*' | tr x ' ' | awk '{ print ($1 < $2 ? $1 " " $2 : $2 " " $1) }')  # landscape: the longer side across
+    seen=0; for dir in up up up up up up down down down down down down down down down down down down; do
+      d=$(dump); echo "$d" | grep -q 'text="You:* withdrew the trade offer"' && { seen=1; break; }
+      say "log shows: $(echo "$d" | grep -o 'text="[^"]*\(offer\|trade\|counter\|withdrew\)[^"]*"' | head -4 | tr '\n' ' ')"
+      if [ $dir = up ]; then "$ADB" shell input swipe $((W / 5)) $((H * 90 / 100)) $((W / 5)) $((H * 62 / 100)) 300
+      else "$ADB" shell input swipe $((W / 5)) $((H * 62 / 100)) $((W / 5)) $((H * 90 / 100)) 300; fi; sleep 0.8; done
     [ $seen = 1 ] || { bad "no 'You withdrew the trade offer' in the game log"; break; }
     echo "withdraw $ruleset: ok (offer withdrawn by touch while the bots were answering)"
     done_w=1
