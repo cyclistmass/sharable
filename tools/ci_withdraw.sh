@@ -45,7 +45,7 @@ for ruleset in $RULESETS; do
   # On CI the slider tap didn't stick (every answer came back within a second); set it through the debug receiver too.
   "$ADB" shell am broadcast -a $PKG.FILAMENT_VIEW -p $PKG --ef aiPace 5 >/dev/null
   say "AI pace set to 5 s: $("$ADB" logcat -d -s WGBG-3D-VIEW:I | tail -1 | cut -c1-60)"
-  done_w=0; again=0; start=$(date +%s); ts_alive
+  done_w=0; again=0; lost=0; start=$(date +%s); ts_alive
   while [ $(( $(date +%s) - start )) -lt "$SECS" ] && [ $done_w = 0 ] && [ $rfail = 0 ]; do
     crashed && { bad "crash"; break; }
     if [ $again = 1 ]; then again=0; line=$(turn_line)
@@ -90,7 +90,10 @@ for ruleset in $RULESETS; do
       say "log shows: $(echo "$d" | grep -o 'text="[^"]*\(offer\|trade\|counter\|withdrew\)[^"]*"' | head -4 | tr '\n' ' ')"
       if [ $dir = up ]; then "$ADB" shell input swipe $((W / 5)) $((H * 90 / 100)) $((W / 5)) $((H * 62 / 100)) 300
       else "$ADB" shell input swipe $((W / 5)) $((H * 62 / 100)) $((W / 5)) $((H * 90 / 100)) 300; fi; sleep 0.8; done
-    [ $seen = 1 ] || { bad "no 'You withdrew the trade offer' in the game log"; break; }
+    # Every bot saying no adds nothing to the log, so a log with the offer and no withdrew line means they all answered
+    # between the hook check and the tap (CI's adb is slow): the red button had turned back to Clear. Try again.
+    if [ $seen = 0 ]; then lost=$((lost + 1)); [ $lost -ge 3 ] && { bad "no 'You withdrew the trade offer' in the game log ($lost tries)"; break; }
+      say "no withdrew line: the bots answered before the tap (try $lost), offering again"; again=1; continue; fi
     echo "withdraw $ruleset: ok (offer withdrawn by touch while the bots were answering)"
     done_w=1
   done
