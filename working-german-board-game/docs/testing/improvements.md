@@ -23,6 +23,10 @@ move it to **Done** with the commit when it lands.
 
 ## Done
 
+- Two flaky CI checks fixed in the tests (#138): `ci_withdraw.sh` takes a missing "withdrew" line as a lost race
+  (every bot said no before the tap; a refusal adds no log line) and offers again, up to 3 times; LiveBoardDeviceTest
+  reads off-screen spots (negative pixels) and drags one into view, and waits 30 s for the first frame report.
+  54a77a3, and the LiveBoardDeviceTest commit after it. Main went green on all six jobs and 0.3.0 was released from 16505be.
 - Card tester (debug builds, #133): 86 card-by-mode scenarios set up on a board, played by taps, pass/fail with
   expected vs actual, sent as a report. 7977aad.
 - CI device tests split into four shards (monkey, play, trade, online) on a cached emulator snapshot, with
