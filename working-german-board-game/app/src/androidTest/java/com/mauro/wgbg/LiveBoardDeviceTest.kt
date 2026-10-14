@@ -76,8 +76,13 @@ class LiveBoardDeviceTest {
     /** Taps a [type] spot twice (pick, confirm) until [placed]; each try re-reads settled spots and moves to the next one. */
     private fun placeByTaps(type: String, label: String, inView: (Float, Float) -> Boolean = { _, _ -> true }, placed: () -> Boolean) {
         repeat(4) { attempt ->
-            val spots = Regex("$type:[0-9]+@([0-9]+),([0-9]+)").findAll(settledSpots())
+            // Right after the previous placement the settled line can still be the old one (no $type yet) on a slow
+            // CI emulator: wait for the new moment's spots instead of failing at once.
+            fun read() = Regex("$type:[0-9]+@([0-9]+),([0-9]+)").findAll(settledSpots())
                 .map { it.groupValues[1].toFloat() to it.groupValues[2].toFloat() }.filter { (x, y) -> inView(x, y) }.toList()
+            var spots = read()
+            val wait = SystemClock.uptimeMillis() + 15_000
+            while (spots.isEmpty() && SystemClock.uptimeMillis() < wait) { Thread.sleep(300); spots = read() }
             assertTrue("no $type spot on screen", spots.isNotEmpty())
             val (x, y) = spots[attempt % spots.size]
             tap(x, y); tap(x, y)
