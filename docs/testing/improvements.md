@@ -5,16 +5,8 @@ move it to **Done** with the commit when it lands.
 
 ## Open
 
-- **CI device tests in parallel shards + cached emulator snapshot**: one job ran monkey, self-play, touch play
-  and online back to back (14 of CI's ~17 min); four shards on a cached snapshot should take ~6-7 min. Drafted on
-  sharable `wgbg/ci-parallel`. (Bosun, 2026-10-13)
-- **ci_trade.sh in CI**: trade-chest taps are only checked locally today. In the same draft. (Bosun, 2026-10-13)
-- **A game to the end screen in CI** (`tools/play_to_end.sh chivalry 4`): nothing in CI reached the end of a game
-  through the UI. In the same draft. (Bosun, 2026-10-13)
 - **Stall watchdog in the remaining device scripts** (`ci_touchplay.sh`, `ci_selfplay.sh`, `ci_online.sh`,
   `ci_monkey.sh`): source `tools/lib/turnstream.sh` like the trade scripts. (Bosun, 2026-10-13)
-- **Card tester** (debug builds): every card in every mode set up on a board for a human to play and pass/fail,
-  results sent as a report. Covers card effects the fuzz games rarely reach. (Mauro, 2026-10-13)
 - **A long Chivalry game in the report-size test**: reports are capped at 190 000 characters; check a real
   300-turn replay fits whole. (Bosun, 2026-10-13)
 - A uiautomator dump takes ~4.5 s in a game (the animated sea never lets it go idle), so scripts can't read the screen
@@ -25,6 +17,14 @@ move it to **Done** with the commit when it lands.
 
 ## Done
 
+- Card tester (debug builds, #133): 86 card-by-mode scenarios set up on a board, played by taps, pass/fail with
+  expected vs actual, sent as a report. 7977aad.
+- CI device tests split into four shards (monkey, play, trade, online) on a cached emulator snapshot, with
+  `ci_trade.sh`, `ci_withdraw.sh` and a game to the end screen (`play_to_end.sh chivalry 4`) added. sharable
+  `wgbg/ci-parallel`, 0.3.0. On its first run the trade shard caught a real bug: on CI's 640 dp screen the Age of Chivalry
+  trade chest ran its Trade button off the edge (930889b). Run device scripts at `wm size 640x320` + `wm density 160`
+  before pushing; that is what CI sees.
+- `ci_withdraw.sh` prints its last 25 steps when a ruleset fails and still runs the next ruleset, so one CI log says why.
 - Hook-driven scripts react to log lines instead of polling, with a stall watchdog (#139): `tools/lib/turnstream.sh`
   used by `seek_spot.sh`, `ci_trade.sh`, `ci_withdraw.sh`. seek_spot: 117 turns in 5 min (was 76 in 9); a killed app
   is reported in 15-45 s with a screenshot instead of at the time limit.
